@@ -7,9 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-08-08
+
+### Added
+- **Supabase Cloud PostgreSQL Database**:
+  - Connected backend to Supabase project `ladder` (`https://ladder.supabase.co`).
+  - Created database tables (`categories`, `fx_rates`, `holdings`, `transactions`, `liabilities`, `dividends`, `pnl_history`, `audit_logs`).
+  - Configured Row Level Security (RLS) policies for user data isolation.
+- **Automated Cross-Table Updates**:
+  - Implemented PL/pgSQL function `update_holding_on_transaction()` and trigger `trg_update_holding_on_tx` to automatically calculate holdings quantity, average buy price, realized PnL, unrealized PnL, total charges, and scrip status (`ACTIVE` vs `REDEEMED`).
+  - Created audit logging triggers (`trg_audit_holdings`, `trg_audit_liabilities`).
+- **Supabase Vault Secrets Integration**:
+  - Configured `supabase_vault` extension to securely store market data API credentials.
+- **Enhanced Financial Metrics**:
+  - Added `charges` and `net_amount` columns to `transactions` table.
+  - Added `buy_qty`, `sell_qty`, `realized_pnl`, `unrealized_pnl`, `pnl_pct`, `total_charges`, and `status` columns to `holdings` table.
+- **Workspace Agent Rules**:
+  - Created `.agents/AGENTS.md` to enforce pre-execution context reading (`LADDER.MD`), mandatory post-execution change logging, secret auditing, emoji-free documentation, and feature branch git releases.
+
+---
+
 ## [1.0.0] - 2026-08-08
 
-### 🎉 Initial Production Release
+### Initial Production Release
 
 #### Added
 - **Multi-View Navigation Architecture**: Modular sidebar navigation separating Executive Dashboard, Portfolios, Cashflow, and Data management.
@@ -43,4 +63,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Fixed
 - Fixed missing `glass-panel` CSS utility class definition.
 - Fixed non-functional Tailwind v4 animation utility references.
-- Pruned wordy text descriptions across all 12 views for a cleaner, professional presentation.
+- Pruned text descriptions across all views for a cleaner, professional presentation.

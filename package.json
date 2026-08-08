@@ -11,6 +11,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.2",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",

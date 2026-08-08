@@ -6,20 +6,21 @@ export async function fetchFxRate() {
     const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 4000 });
     if (res.data && res.data.rates && res.data.rates.INR) {
       const rate = res.data.rates.INR;
-      const rates = db.select('fx_rates');
+      const rates = await db.select('fx_rates');
       const existing = rates.find(r => r.pair === 'USD_INR');
       if (existing) {
-        db.update('fx_rates', existing.id || 1, { rate, updated_at: new Date().toISOString() });
+        await db.update('fx_rates', existing.id, { rate, updated_at: new Date().toISOString() });
       } else {
-        db.insert('fx_rates', { pair: 'USD_INR', rate, updated_at: new Date().toISOString() });
+        await db.insert('fx_rates', { pair: 'USD_INR', rate, updated_at: new Date().toISOString() });
       }
       return rate;
     }
   } catch (err) {
     console.warn('[PriceEngine] FX Rate API fallback:', err.message);
   }
-  const cached = db.selectWhere('fx_rates', r => r.pair === 'USD_INR')[0];
-  return cached ? cached.rate : 87.25;
+  const cached = await db.select('fx_rates');
+  const usdRate = cached.find(r => r.pair === 'USD_INR');
+  return usdRate ? Number(usdRate.rate) : 87.25;
 }
 
 export async function fetchStockQuote(symbol) {
@@ -39,7 +40,7 @@ export async function fetchStockQuote(symbol) {
       };
     }
   } catch (err) {
-    // console.warn(`[PriceEngine] Yahoo Finance quote failed for ${symbol}:`, err.message);
+    // Yahoo Finance quote fallback
   }
   return null;
 }
@@ -55,23 +56,22 @@ export async function fetchMutualFundNav(schemeCode) {
       };
     }
   } catch (err) {
-    // console.warn(`[PriceEngine] AMFI NAV failed for ${schemeCode}:`, err.message);
+    // AMFI NAV fallback
   }
   return null;
 }
 
-export async function refreshAllHoldingsPrices(userId) {
-  const holdings = db.selectWhere('holdings', h => h.user_id === userId);
+export async function refreshAllHoldingsPrices() {
+  const holdings = await db.select('holdings');
   const fxRate = await fetchFxRate();
   let updatedCount = 0;
 
   for (const h of holdings) {
-    let newPrice = h.current_price;
-    let nseP = h.nse_price || 0;
-    let bseP = h.bse_price || 0;
+    let newPrice = Number(h.current_price) || 0;
+    let nseP = Number(h.nse_price) || 0;
+    let bseP = Number(h.bse_price) || 0;
 
     if (h.category_id === 'in_stocks') {
-      // NSE vs BSE higher price logic!
       const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
       const nseQuote = await fetchStockQuote(`${baseSymbol}.NS`);
       const bseQuote = await fetchStockQuote(`${baseSymbol}.BO`);
@@ -80,10 +80,10 @@ export async function refreshAllHoldingsPrices(userId) {
       if (bseQuote) bseP = bseQuote.price;
 
       if (nseP > 0 || bseP > 0) {
-        newPrice = Math.max(nseP, bseP); // Select HIGHER price between NSE and BSE
+        newPrice = Math.max(nseP, bseP);
       } else {
         const shiftPct = (Math.random() * 0.01) - 0.004;
-        newPrice = Number((h.current_price * (1 + shiftPct)).toFixed(2));
+        newPrice = Number((newPrice * (1 + shiftPct)).toFixed(2));
         nseP = newPrice;
         bseP = Number((newPrice * 0.999).toFixed(2));
       }
@@ -93,7 +93,7 @@ export async function refreshAllHoldingsPrices(userId) {
         newPrice = usQuote.price;
       } else {
         const shiftPct = (Math.random() * 0.012) - 0.005;
-        newPrice = Number((h.current_price * (1 + shiftPct)).toFixed(2));
+        newPrice = Number((newPrice * (1 + shiftPct)).toFixed(2));
       }
     } else if (h.category_id === 'mutual_funds') {
       const mfNav = await fetchMutualFundNav(h.symbol);
@@ -101,16 +101,16 @@ export async function refreshAllHoldingsPrices(userId) {
         newPrice = mfNav.nav;
       } else {
         const shiftPct = (Math.random() * 0.008) - 0.003;
-        newPrice = Number((h.current_price * (1 + shiftPct)).toFixed(2));
+        newPrice = Number((newPrice * (1 + shiftPct)).toFixed(2));
       }
     }
 
-    db.update('holdings', h.id, {
+    await db.update('holdings', h.id, {
       current_price: newPrice,
       nse_price: nseP,
       bse_price: bseP,
-      last_updated: new Date().toISOString(),
-      is_latest_today: 1
+      updated_at: new Date().toISOString(),
+      is_latest_today: true
     });
 
     updatedCount++;
