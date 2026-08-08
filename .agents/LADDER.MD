@@ -131,6 +131,7 @@ ladder/
 | **v1.1.3** | 2026-08-08 | Updated Supabase project endpoint URL to `https://ladder.supabase.co` in `.env` configuration. | Antigravity AI |
 | **v1.1.4** | 2026-08-08 | Updated `.agents/AGENTS.md` with mandatory Git release rules: security audit for secrets, syncing `README.md` and `CHANGELOG.md`, no emojis/emoticons in docs/commits, and branching/merging workflow before pushing to main. | Antigravity AI |
 | **v1.2.0** | 2026-08-08 | Performed security audit, synchronized `README.md` and `CHANGELOG.md` (emoji-free), merged feature branch into `main`, and pushed to remote GitHub repository (`origin main`). | Antigravity AI |
+| **v1.2.1** | 2026-08-08 | Updated `.agents/AGENTS.md` git workflow rules instructing agents to preserve all feature/release branches after merging into `main`. | Antigravity AI |
 
 ---
 

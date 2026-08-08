@@ -32,3 +32,4 @@ When asked to commit, release, or push code to Git:
    - Always create a feature branch (e.g., `feature/supabase-integration` or `release/v1.1.0`).
    - Commit changes to the feature branch.
    - Switch to `main` branch, merge the feature branch into `main`, and then push `main` to remote `origin`.
+   - **Do NOT delete the feature or release branch after merging**. Keep all feature/release branches intact in Git history.
