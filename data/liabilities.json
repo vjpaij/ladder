@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "user_id": 1,
+    "category_id": "loans",
+    "name": "Primary Home Loan",
+    "lender": "HDFC Bank",
+    "total_principal": 5000000,
+    "outstanding_balance": 3420000,
+    "interest_rate": 8.5,
+    "monthly_emi": 43200,
+    "due_day": 10
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "category_id": "credit_cards",
+    "name": "HDFC Infinia Credit Card",
+    "lender": "HDFC Bank",
+    "total_principal": 150000,
+    "outstanding_balance": 42500,
+    "interest_rate": 0,
+    "monthly_emi": 42500,
+    "due_day": 20
+  }
+]

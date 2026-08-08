@@ -1,0 +1,362 @@
+[
+  {
+    "id": 1,
+    "user_id": 1,
+    "log_date": "2026-07-04",
+    "total_assets_inr": 17994732,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14532232,
+    "daily_pnl_inr": 32232,
+    "pnl_percentage": 0.22
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "log_date": "2026-07-05",
+    "total_assets_inr": 18012958,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14550458,
+    "daily_pnl_inr": 18226,
+    "pnl_percentage": 0.13
+  },
+  {
+    "id": 3,
+    "user_id": 1,
+    "log_date": "2026-07-06",
+    "total_assets_inr": 17890431,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14427931,
+    "daily_pnl_inr": -122527,
+    "pnl_percentage": -0.84
+  },
+  {
+    "id": 4,
+    "user_id": 1,
+    "log_date": "2026-07-07",
+    "total_assets_inr": 17853708,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14391208,
+    "daily_pnl_inr": -36723,
+    "pnl_percentage": -0.25
+  },
+  {
+    "id": 5,
+    "user_id": 1,
+    "log_date": "2026-07-08",
+    "total_assets_inr": 18059910,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14597410,
+    "daily_pnl_inr": 206202,
+    "pnl_percentage": 1.43
+  },
+  {
+    "id": 6,
+    "user_id": 1,
+    "log_date": "2026-07-09",
+    "total_assets_inr": 18226975,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14764475,
+    "daily_pnl_inr": 167065,
+    "pnl_percentage": 1.14
+  },
+  {
+    "id": 7,
+    "user_id": 1,
+    "log_date": "2026-07-10",
+    "total_assets_inr": 18056442,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14593942,
+    "daily_pnl_inr": -170533,
+    "pnl_percentage": -1.16
+  },
+  {
+    "id": 8,
+    "user_id": 1,
+    "log_date": "2026-07-11",
+    "total_assets_inr": 17783548,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14321048,
+    "daily_pnl_inr": -272894,
+    "pnl_percentage": -1.87
+  },
+  {
+    "id": 9,
+    "user_id": 1,
+    "log_date": "2026-07-12",
+    "total_assets_inr": 17807503,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14345003,
+    "daily_pnl_inr": 23955,
+    "pnl_percentage": 0.17
+  },
+  {
+    "id": 10,
+    "user_id": 1,
+    "log_date": "2026-07-13",
+    "total_assets_inr": 18047651,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14585151,
+    "daily_pnl_inr": 240148,
+    "pnl_percentage": 1.67
+  },
+  {
+    "id": 11,
+    "user_id": 1,
+    "log_date": "2026-07-14",
+    "total_assets_inr": 18128687,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14666187,
+    "daily_pnl_inr": 81036,
+    "pnl_percentage": 0.56
+  },
+  {
+    "id": 12,
+    "user_id": 1,
+    "log_date": "2026-07-15",
+    "total_assets_inr": 18003908,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14541408,
+    "daily_pnl_inr": -124779,
+    "pnl_percentage": -0.85
+  },
+  {
+    "id": 13,
+    "user_id": 1,
+    "log_date": "2026-07-16",
+    "total_assets_inr": 17951954,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14489454,
+    "daily_pnl_inr": -51954,
+    "pnl_percentage": -0.36
+  },
+  {
+    "id": 14,
+    "user_id": 1,
+    "log_date": "2026-07-17",
+    "total_assets_inr": 18009901,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14547401,
+    "daily_pnl_inr": 57947,
+    "pnl_percentage": 0.4
+  },
+  {
+    "id": 15,
+    "user_id": 1,
+    "log_date": "2026-07-18",
+    "total_assets_inr": 17960816,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14498316,
+    "daily_pnl_inr": -49085,
+    "pnl_percentage": -0.34
+  },
+  {
+    "id": 16,
+    "user_id": 1,
+    "log_date": "2026-07-19",
+    "total_assets_inr": 17836250,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14373750,
+    "daily_pnl_inr": -124566,
+    "pnl_percentage": -0.86
+  },
+  {
+    "id": 17,
+    "user_id": 1,
+    "log_date": "2026-07-20",
+    "total_assets_inr": 17911347,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14448847,
+    "daily_pnl_inr": 75097,
+    "pnl_percentage": 0.52
+  },
+  {
+    "id": 18,
+    "user_id": 1,
+    "log_date": "2026-07-21",
+    "total_assets_inr": 18153496,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14690996,
+    "daily_pnl_inr": 242149,
+    "pnl_percentage": 1.68
+  },
+  {
+    "id": 19,
+    "user_id": 1,
+    "log_date": "2026-07-22",
+    "total_assets_inr": 18184456,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14721956,
+    "daily_pnl_inr": 30960,
+    "pnl_percentage": 0.21
+  },
+  {
+    "id": 20,
+    "user_id": 1,
+    "log_date": "2026-07-23",
+    "total_assets_inr": 17911684,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14449184,
+    "daily_pnl_inr": -272772,
+    "pnl_percentage": -1.85
+  },
+  {
+    "id": 21,
+    "user_id": 1,
+    "log_date": "2026-07-24",
+    "total_assets_inr": 17739398,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14276898,
+    "daily_pnl_inr": -172286,
+    "pnl_percentage": -1.19
+  },
+  {
+    "id": 22,
+    "user_id": 1,
+    "log_date": "2026-07-25",
+    "total_assets_inr": 17898354,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14435854,
+    "daily_pnl_inr": 158956,
+    "pnl_percentage": 1.11
+  },
+  {
+    "id": 23,
+    "user_id": 1,
+    "log_date": "2026-07-26",
+    "total_assets_inr": 18108050,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14645550,
+    "daily_pnl_inr": 209696,
+    "pnl_percentage": 1.45
+  },
+  {
+    "id": 24,
+    "user_id": 1,
+    "log_date": "2026-07-27",
+    "total_assets_inr": 18074936,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14612436,
+    "daily_pnl_inr": -33114,
+    "pnl_percentage": -0.23
+  },
+  {
+    "id": 25,
+    "user_id": 1,
+    "log_date": "2026-07-28",
+    "total_assets_inr": 17950642,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14488142,
+    "daily_pnl_inr": -124294,
+    "pnl_percentage": -0.85
+  },
+  {
+    "id": 26,
+    "user_id": 1,
+    "log_date": "2026-07-29",
+    "total_assets_inr": 17966447,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14503947,
+    "daily_pnl_inr": 15805,
+    "pnl_percentage": 0.11
+  },
+  {
+    "id": 27,
+    "user_id": 1,
+    "log_date": "2026-07-30",
+    "total_assets_inr": 18000624,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14538124,
+    "daily_pnl_inr": 34177,
+    "pnl_percentage": 0.24
+  },
+  {
+    "id": 28,
+    "user_id": 1,
+    "log_date": "2026-07-31",
+    "total_assets_inr": 17890092,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14427592,
+    "daily_pnl_inr": -110532,
+    "pnl_percentage": -0.76
+  },
+  {
+    "id": 29,
+    "user_id": 1,
+    "log_date": "2026-08-01",
+    "total_assets_inr": 17824805,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14362305,
+    "daily_pnl_inr": -65287,
+    "pnl_percentage": -0.45
+  },
+  {
+    "id": 30,
+    "user_id": 1,
+    "log_date": "2026-08-02",
+    "total_assets_inr": 18006155,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14543655,
+    "daily_pnl_inr": 181350,
+    "pnl_percentage": 1.26
+  },
+  {
+    "id": 31,
+    "user_id": 1,
+    "log_date": "2026-08-03",
+    "total_assets_inr": 18202862,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14740362,
+    "daily_pnl_inr": 196707,
+    "pnl_percentage": 1.35
+  },
+  {
+    "id": 32,
+    "user_id": 1,
+    "log_date": "2026-08-04",
+    "total_assets_inr": 18076358,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14613858,
+    "daily_pnl_inr": -126504,
+    "pnl_percentage": -0.86
+  },
+  {
+    "id": 33,
+    "user_id": 1,
+    "log_date": "2026-08-05",
+    "total_assets_inr": 17789191,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14326691,
+    "daily_pnl_inr": -287167,
+    "pnl_percentage": -1.97
+  },
+  {
+    "id": 34,
+    "user_id": 1,
+    "log_date": "2026-08-06",
+    "total_assets_inr": 17765756,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14303256,
+    "daily_pnl_inr": -23435,
+    "pnl_percentage": -0.16
+  },
+  {
+    "id": 35,
+    "user_id": 1,
+    "log_date": "2026-08-07",
+    "total_assets_inr": 17998790,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14536290,
+    "daily_pnl_inr": 233034,
+    "pnl_percentage": 1.63
+  },
+  {
+    "id": 36,
+    "user_id": 1,
+    "log_date": "2026-08-08",
+    "total_assets_inr": 18115080,
+    "total_liabilities_inr": 3462500,
+    "net_worth_inr": 14652580,
+    "daily_pnl_inr": 116290,
+    "pnl_percentage": 0.8
+  }
+]

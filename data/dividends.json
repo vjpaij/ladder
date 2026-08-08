@@ -1,0 +1,46 @@
+[
+  {
+    "id": 1,
+    "user_id": 1,
+    "holding_id": 1,
+    "amount_original": 1500,
+    "currency": "INR",
+    "fx_rate": 1,
+    "amount_inr": 1500,
+    "ex_date": "2024-08-15",
+    "payment_date": "2024-08-20"
+  },
+  {
+    "id": 2,
+    "user_id": 1,
+    "holding_id": 2,
+    "amount_original": 2200,
+    "currency": "INR",
+    "fx_rate": 1,
+    "amount_inr": 2200,
+    "ex_date": "2024-07-10",
+    "payment_date": "2024-07-18"
+  },
+  {
+    "id": 3,
+    "user_id": 1,
+    "holding_id": 5,
+    "amount_original": 11.25,
+    "currency": "USD",
+    "fx_rate": 87.25,
+    "amount_inr": 981.56,
+    "ex_date": "2024-11-05",
+    "payment_date": "2024-11-10"
+  },
+  {
+    "id": 4,
+    "user_id": 1,
+    "holding_id": 6,
+    "amount_original": 18,
+    "currency": "USD",
+    "fx_rate": 87.25,
+    "amount_inr": 1570.5,
+    "ex_date": "2024-12-01",
+    "payment_date": "2024-12-08"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "bank",
+    "name": "Bank Accounts & FDs",
+    "type": "ASSET",
+    "icon": "Landmark",
+    "color": "#3B82F6"
+  },
+  {
+    "id": "in_stocks",
+    "name": "Indian Stocks (NSE/BSE)",
+    "type": "ASSET",
+    "icon": "TrendingUp",
+    "color": "#10B981"
+  },
+  {
+    "id": "us_stocks",
+    "name": "US Equities (NASDAQ/NYSE)",
+    "type": "ASSET",
+    "icon": "Globe",
+    "color": "#8B5CF6"
+  },
+  {
+    "id": "mutual_funds",
+    "name": "Mutual Funds (AMFI)",
+    "type": "ASSET",
+    "icon": "PieChart",
+    "color": "#F59E0B"
+  },
+  {
+    "id": "nps",
+    "name": "National Pension System (NPS)",
+    "type": "ASSET",
+    "icon": "ShieldCheck",
+    "color": "#06B6D4"
+  },
+  {
+    "id": "epf",
+    "name": "Employee Provident Fund (EPF)",
+    "type": "ASSET",
+    "icon": "Building2",
+    "color": "#64748B"
+  },
+  {
+    "id": "loans",
+    "name": "Home & Personal Loans",
+    "type": "LIABILITY",
+    "icon": "CreditCard",
+    "color": "#EF4444"
+  },
+  {
+    "id": "credit_cards",
+    "name": "Credit Card Balances",
+    "type": "LIABILITY",
+    "icon": "Wallet",
+    "color": "#F43F5E"
+  }
+]
