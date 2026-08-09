@@ -5,6 +5,8 @@ import { DollarSign, Globe, IndianRupee, Award } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
+import { formatDateDDMMYYYY } from '../utils/dateFormatter';
+
 
 export default function DividendsView() {
   const { formatMoney, fxRate } = useThemeAuth();
@@ -137,7 +139,7 @@ export default function DividendsView() {
                     <td className="py-3 px-3 text-right font-mono font-black text-emerald-400">
                       ₹{d.amount_inr.toLocaleString('en-IN')}
                     </td>
-                    <td className="py-3 px-3 text-center font-mono text-slate-500">{d.payment_date}</td>
+                    <td className="py-3 px-3 text-center font-mono text-slate-500">{formatDateDDMMYYYY(d.payment_date)}</td>
                   </motion.tr>
                 ))}
               </tbody>

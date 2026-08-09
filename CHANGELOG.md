@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.2] - 2026-08-09
+
+### Changed
+- **Main US Stocks View**: Removed redundant transaction rate column from the main table, as exchange rates apply at individual transaction date levels.
+- **Holding Detail Modal**: Added Live FX Rate (Today) badge (1 USD = INR XX.XX) prominently in the modal header for US Stocks.
+
+---
+
+## [1.7.1] - 2026-08-09
+
+### Added
+- **Interactive Modal Currency Toggle**: Added INR / USD toggle pill directly in HoldingDetailModal header for US Stocks, enabling instant on-the-fly currency switching.
+- **Dual Currency Detail Engine**: Updated GET /api/holding/:holdingId/detail to compute and return complete USD and INR performance metric sets and timeline data series.
+
+---
+
+## [1.7.0] - 2026-08-09
+
+### Added
+- **Full US Stocks Portfolio Ingestion**: Ingested 110 Buy/Sell orders from US_Stocks.xls across 12 tickers and 73 dividend records from Book2.xlsx into Supabase PostgreSQL.
+- **Transaction FX Rate Storage**: Added fx_rate column to Supabase transactions table, storing exact transaction-date dollar rates.
+- **Dual Currency Valuation**:
+  - In USD mode, values and P&L display in USD.
+  - In INR mode, invested capital reflects transaction-date exchange rates, market value reflects live dollar rates, and P&L captures both asset growth and USD/INR dollar appreciation.
+
+---
+
+## [1.6.0] - 2026-08-09
+
+### Added
+- **Full Indian Stocks Ingestion**: Ingested all 331 Indian stock symbols from Book1.xlsx, loading 4,184 transaction records and 404 dividends into Supabase PostgreSQL.
+- **Custom Ingestion Rules Enforced**: Converted Sell All transactions to exact open quantity sales, saved Dividend Reinvestments as BONUS share additions with dynamic cost basis adjustments, and ignored Splits.
+
+---
+
+## [1.5.0] - 2026-08-09
+
+### Added
+- **Universal Holding Detail Modal**: Built Framer Motion slide-up modal with 7 KPI metric cards, Recharts cost basis vs market value timeline chart, and color-coded transaction ledger.
+- **Holding Detail Backend Endpoint**: Added GET /api/holding/:holdingId/detail with FIFO realized P&L, Newton-Raphson XIRR cashflows, and chart timeline points.
+
+---
+
+## [1.4.0] - 2026-08-09
+
+### Added
+- **Portfolio Status Filter Tabs**: Added Active Positions, Fully Redeemed, and All Data filter tabs across Indian Stocks, US Stocks, and Mutual Funds views.
+- **Default Column Sorting**: Enabled default alphabetical scrip name sorting across portfolio tables.
+
+---
+
+## [1.3.0] - 2026-08-09
+
+### Added
+- **Universal Spreadsheet Ingestion**: Built automated batch loaders and populated Supabase PostgreSQL database with holdings, transactions, and dividends.
+
+---
+
+## [1.2.0] - 2026-08-08
+
+### Changed
+- Synchronized documentation, conducted security audit, merged feature branch into main, and pushed production release to remote repository.
+
+---
+
 ## [1.1.0] - 2026-08-08
 
 ### Added

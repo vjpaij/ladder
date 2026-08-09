@@ -3,6 +3,7 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db, { initDatabase } from './db.js';
+import { supabase } from './supabaseClient.js';
 import { refreshAllHoldingsPrices, fetchFxRate } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
 
@@ -15,6 +16,47 @@ app.use(express.json());
 
 // Initialize DB engine connection
 initDatabase();
+
+// Helper to format date string to DD-MM-YYYY
+function formatDateDDMMYYYY(dateStr) {
+  if (!dateStr) return '—';
+  const str = String(dateStr).trim();
+  if (/^\d{2}-\d{2}-\d{4}$/.test(str)) return str;
+
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+  } catch (e) {}
+
+  const parts = str.split(/[-T /]/);
+  if (parts.length >= 3) {
+    if (parts[0].length === 4) {
+      return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+    }
+  }
+  return str;
+}
+
+// Historical USD/INR exchange rate lookup for US stocks transaction dates
+function getHistoricalFxRate(dateStr) {
+  if (!dateStr) return 80.5;
+  const year = parseInt(String(dateStr).slice(0, 4), 10);
+  if (isNaN(year)) return 80.5;
+
+  if (year <= 2019) return 70.4;
+  if (year === 2020) return 74.1;
+  if (year === 2021) return 73.9;
+  if (year === 2022) return 79.8;
+  if (year === 2023) return 82.6;
+  if (year === 2024) return 83.5;
+  if (year === 2025) return 85.2;
+  return 87.25;
+}
 
 // Middleware: Authenticate Token
 function authenticateToken(req, res, next) {
@@ -39,7 +81,6 @@ app.post('/api/auth/login', async (req, res) => {
   const users = await db.selectWhere('users', { email: email || 'admin@ladder.com' });
   const user = users[0];
   
-  // Fallback for default admin
   if (!user && (email === 'admin@ladder.com' || !email)) {
     const token = jwt.sign({ userId: 1, email: 'admin@ladder.com' }, JWT_SECRET, { expiresIn: '7d' });
     return res.json({ token, user: { id: 1, email: 'admin@ladder.com', name: 'Vijay Pai' } });
@@ -72,9 +113,12 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     let totalInvestedINR = 0;
 
     holdings.forEach(h => {
+      if ((Number(h.quantity) || 0) <= 0) return; // ignore closed positions for active assets
       const rate = h.currency === 'USD' ? fxRate : 1.0;
+      const txRate = h.currency === 'USD' ? getHistoricalFxRate(h.created_at || '2022-09-15') : 1.0;
+
       const currentVal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * rate;
-      const investedVal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * rate;
+      const investedVal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * txRate;
 
       totalAssetsINR += currentVal;
       totalInvestedINR += investedVal;
@@ -95,7 +139,7 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
 
     txs.forEach(t => {
       const h = holdings.find(item => item.id === t.holding_id);
-      const rate = (h && h.currency === 'USD') ? fxRate : 1.0;
+      const rate = (h && h.currency === 'USD') ? getHistoricalFxRate(t.date) : 1.0;
       const amount = (t.type === 'BUY' ? -1 : 1) * (Number(t.total_amount) || 0) * rate;
       cashflows.push({ date: t.date, amount });
     });
@@ -116,6 +160,7 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     // Asset Breakdown by Category
     const categoryValues = {};
     holdings.forEach(h => {
+      if ((Number(h.quantity) || 0) <= 0) return;
       const catName = catMap[h.category_id] ? catMap[h.category_id].name : h.category_id;
       const rate = h.currency === 'USD' ? fxRate : 1.0;
       const val = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * rate;
@@ -160,12 +205,34 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
     const catMap = {};
     categories.forEach(c => catMap[c.id] = c);
 
+    // Compute exact weighted transaction FX rates for US stocks
+    const usTxs = await supabase.from('transactions').select('holding_id, symbol, total_amount, fx_rate').eq('currency', 'USD').eq('type', 'BUY');
+    const usFxMap = {};
+    if (usTxs.data) {
+      usTxs.data.forEach(t => {
+        const key = t.holding_id || t.symbol;
+        if (!usFxMap[key]) usFxMap[key] = { totalUSD: 0, totalINR: 0 };
+        const amt = Number(t.total_amount) || 0;
+        const rate = Number(t.fx_rate) || 82.5;
+        usFxMap[key].totalUSD += amt;
+        usFxMap[key].totalINR += amt * rate;
+      });
+    }
+
     const formatted = holdings.map(h => {
-      const rate = h.currency === 'USD' ? fxRate : 1.0;
+      const liveRate = h.currency === 'USD' ? fxRate : 1.0;
+      let txRate = 1.0;
+      if (h.currency === 'USD') {
+        const m = usFxMap[h.id] || usFxMap[h.symbol];
+        txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : (getHistoricalFxRate(h.created_at) || 82.5);
+      }
+
       const currentValueOriginal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0);
-      const currentValueINR = currentValueOriginal * rate;
+      const currentValueINR = currentValueOriginal * liveRate;
+      
       const investedValueOriginal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
-      const investedValueINR = investedValueOriginal * rate;
+      const investedValueINR = investedValueOriginal * txRate;
+      
       const gainINR = currentValueINR - investedValueINR;
       const gainPct = investedValueINR > 0 ? ((gainINR / investedValueINR) * 100).toFixed(2) : 0;
 
@@ -173,14 +240,15 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
         ...h,
         category_name: catMap[h.category_id] ? catMap[h.category_id].name : h.category_id,
         category_color: catMap[h.category_id] ? catMap[h.category_id].color : '#3B82F6',
-        fxRate: rate,
+        fxRate: liveRate,
+        txFxRate: Number(txRate.toFixed(2)),
         currentValueOriginal: Number(currentValueOriginal.toFixed(2)),
         currentValueINR: Number(currentValueINR.toFixed(2)),
         investedValueINR: Number(investedValueINR.toFixed(2)),
         gainINR: Number(gainINR.toFixed(2)),
         gainPct: Number(gainPct)
       };
-    }).sort((a, b) => b.currentValueINR - a.currentValueINR);
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     res.json(formatted);
   } catch (err) {
@@ -204,7 +272,7 @@ app.post('/api/holdings', authenticateToken, async (req, res) => {
       bse_price: exchange === 'BSE' ? Number(current_price || avg_buy_price) : 0,
       currency: currency || 'INR',
       sector: sector || 'General',
-      is_latest_today: true
+      status: Number(quantity) > 0 ? 'active' : 'closed'
     });
 
     await db.insert('transactions', {
@@ -215,7 +283,7 @@ app.post('/api/holdings', authenticateToken, async (req, res) => {
       total_amount: Number(quantity) * Number(avg_buy_price),
       currency: currency || 'INR',
       date: new Date().toISOString().split('T')[0],
-      notes: 'Initial purchase position'
+      notes: `Initial purchase of ${name} (${symbol})`
     });
 
     res.json({ success: true, id: newHolding.id });
@@ -236,7 +304,7 @@ app.put('/api/holdings/:id', authenticateToken, async (req, res) => {
       name,
       symbol,
       sector,
-      updated_at: new Date().toISOString()
+      status: Number(quantity) > 0 ? 'active' : 'closed'
     });
 
     res.json({ success: true });
@@ -252,6 +320,244 @@ app.delete('/api/holdings/:id', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// Holding Detail API (for HoldingDetailModal)
+// -------------------------------------------------------------
+app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) => {
+  try {
+    const { holdingId } = req.params;
+    const fxRate = await fetchFxRate();
+
+    // Fetch holding
+    const holdings = await db.select('holdings');
+    const holding = holdings.find(h => h.id === holdingId || h.id == holdingId || h.symbol === holdingId);
+    if (!holding) return res.status(404).json({ error: 'Holding not found' });
+
+    const isUSD = holding.currency === 'USD';
+    const isUSStock = holding.currency === 'USD';
+    const liveRate = isUSStock ? fxRate : 1.0;
+
+    // Fetch transactions specifically for this holding (prevents Supabase 1000 row limit truncation)
+    const { data: txsData, error: txErr } = await supabase
+      .from('transactions')
+      .select('*')
+      .or(`holding_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
+      .order('date', { ascending: true });
+    if (txErr) console.error('[Detail API] Tx Fetch Error:', txErr.message);
+    const txs = txsData || [];
+
+    // Fetch dividends specifically for this holding
+    const { data: divsData, error: divErr } = await supabase
+      .from('dividends')
+      .select('*')
+      .or(`holding_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
+      .order('ex_date', { ascending: true });
+    if (divErr) console.error('[Detail API] Div Fetch Error:', divErr.message);
+    const divs = divsData || [];
+
+    // --- Compute metrics in USD and INR ---
+    let totalInvestedUSD = 0;
+    let totalInvestedINR = 0;
+    let totalRedeemedUSD = 0;
+    let totalRedeemedINR = 0;
+    let realizedPnlUSD = 0;
+    let realizedPnlINR = 0;
+
+    const buyLotsUSD = [];
+    const buyLotsINR = [];
+
+    for (const tx of txs) {
+      const qty = Number(tx.quantity) || 0;
+      const price = Number(tx.price) || 0;
+      const amountUSD = Number(tx.total_amount) || (qty * price);
+      const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
+      const amountINR = amountUSD * txRate;
+
+      if (tx.type === 'BUY' || tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
+        totalInvestedUSD += amountUSD;
+        totalInvestedINR += amountINR;
+        buyLotsUSD.push({ qty, price, rem: qty });
+        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, rem: qty });
+      } else if (tx.type === 'SELL') {
+        totalRedeemedUSD += amountUSD;
+        totalRedeemedINR += amountINR;
+
+        // USD FIFO Realized PnL
+        let remUSD = qty;
+        while (remUSD > 0 && buyLotsUSD.length > 0) {
+          const lot = buyLotsUSD[0];
+          const used = Math.min(lot.rem, remUSD);
+          realizedPnlUSD += used * (price - lot.price);
+          lot.rem -= used;
+          remUSD -= used;
+          if (lot.rem <= 0) buyLotsUSD.shift();
+        }
+
+        // INR FIFO Realized PnL (Sell FX - Buy FX)
+        let remINR = qty;
+        while (remINR > 0 && buyLotsINR.length > 0) {
+          const lot = buyLotsINR[0];
+          const used = Math.min(lot.rem, remINR);
+          realizedPnlINR += (used * price * txRate) - (used * lot.priceUSD * lot.fxRate);
+          lot.rem -= used;
+          remINR -= used;
+          if (lot.rem <= 0) buyLotsINR.shift();
+        }
+      }
+    }
+
+    const currentQty = Number(holding.quantity) || 0;
+    const currentPriceUSD = Number(holding.current_price) || 0;
+    const avgBuyPriceUSD = Number(holding.avg_buy_price) || 0;
+
+    const currentValueUSD = currentQty * currentPriceUSD;
+    const costBasisUSD = currentQty * avgBuyPriceUSD;
+    const unrealizedPnlUSD = currentValueUSD - costBasisUSD;
+    const unrealizedPctUSD = costBasisUSD > 0 ? Number(((unrealizedPnlUSD / costBasisUSD) * 100).toFixed(2)) : 0;
+
+    const currentValueINR = currentValueUSD * liveRate;
+    const activeLotsINR = buyLotsINR.filter(l => l.rem > 0);
+    const costBasisINR = activeLotsINR.length > 0
+      ? activeLotsINR.reduce((s, l) => s + (l.rem * l.priceUSD * l.fxRate), 0)
+      : (costBasisUSD * (totalInvestedUSD > 0 ? (totalInvestedINR / totalInvestedUSD) : liveRate));
+    
+    const unrealizedPnlINR = currentValueINR - costBasisINR;
+    const unrealizedPctINR = costBasisINR > 0 ? Number(((unrealizedPnlINR / costBasisINR) * 100).toFixed(2)) : 0;
+
+    const totalDividendsUSD = isUSStock
+      ? divs.reduce((s, d) => s + (Number(d.amount_original) || 0), 0)
+      : 0;
+    const totalDividendsINR = divs.reduce((s, d) => s + (Number(d.amount_inr) || 0), 0);
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // USD Cashflows & XIRR
+    const cashflowsUSD = txs
+      .filter(t => t.type === 'BUY' || t.type === 'BONUS' || t.type === 'SELL')
+      .map(t => ({
+        date: t.date,
+        amount: (t.type === 'BUY' || t.type === 'BONUS') ? -(Number(t.total_amount) || 0) : (Number(t.total_amount) || 0)
+      }));
+    if (currentQty > 0) cashflowsUSD.push({ date: today, amount: currentValueUSD });
+    const totalXirrUSD = calculateXirr(cashflowsUSD);
+
+    // INR Cashflows & XIRR
+    const cashflowsINR = txs
+      .filter(t => t.type === 'BUY' || t.type === 'BONUS' || t.type === 'SELL')
+      .map(t => {
+        const r = isUSStock ? (Number(t.fx_rate) || getHistoricalFxRate(t.date)) : 1.0;
+        const amt = (Number(t.total_amount) || 0) * r;
+        return {
+          date: t.date,
+          amount: (t.type === 'BUY' || t.type === 'BONUS') ? -amt : amt
+        };
+      });
+    if (currentQty > 0) cashflowsINR.push({ date: today, amount: currentValueINR });
+    const totalXirrINR = calculateXirr(cashflowsINR);
+
+    // Timelines
+    const timelineUSD = [];
+    const timelineINR = [];
+    let runningInvUSD = 0;
+    let runningInvINR = 0;
+    let runningQ = 0;
+    const seenDates = new Set();
+
+    for (const tx of txs) {
+      const qty = Number(tx.quantity) || 0;
+      const price = Number(tx.price) || 0;
+      const amtUSD = Number(tx.total_amount) || qty * price;
+      const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
+      const amtINR = amtUSD * txRate;
+
+      if (tx.type === 'BUY' || tx.type === 'BONUS') {
+        runningInvUSD += amtUSD;
+        runningInvINR += amtINR;
+        runningQ += qty;
+      } else if (tx.type === 'SELL') {
+        runningInvUSD -= qty * (avgBuyPriceUSD || price);
+        runningInvINR -= qty * (avgBuyPriceUSD || price) * txRate;
+        runningQ -= qty;
+      }
+
+      const dateKey = tx.date;
+      if (!seenDates.has(dateKey)) {
+        seenDates.add(dateKey);
+        const valUSD = runningQ * currentPriceUSD;
+        const valINR = valUSD * liveRate;
+        timelineUSD.push({
+          label: dateKey,
+          invested: Number(runningInvUSD.toFixed(2)),
+          value: Number(valUSD.toFixed(2))
+        });
+        timelineINR.push({
+          label: dateKey,
+          invested: Number(runningInvINR.toFixed(2)),
+          value: Number(valINR.toFixed(2))
+        });
+      }
+    }
+
+    timelineUSD.push({
+      label: today,
+      invested: Number(Math.max(0, runningInvUSD).toFixed(2)),
+      value: Number(currentValueUSD.toFixed(2))
+    });
+    timelineINR.push({
+      label: today,
+      invested: Number(Math.max(0, runningInvINR).toFixed(2)),
+      value: Number(currentValueINR.toFixed(2))
+    });
+
+    res.json({
+      holding,
+      fxRate: liveRate,
+      transactions: txs,
+      dividends: divs,
+      timelineUSD,
+      timelineINR,
+      metricsUSD: {
+        totalInvested:  Number(totalInvestedUSD.toFixed(2)),
+        totalRedeemed:  Number(totalRedeemedUSD.toFixed(2)),
+        currentValue:   Number(currentValueUSD.toFixed(2)),
+        unrealizedPnl:  Number(unrealizedPnlUSD.toFixed(2)),
+        unrealizedPct:  unrealizedPctUSD,
+        realizedPnl:    Number(realizedPnlUSD.toFixed(2)),
+        totalDividends: Number(totalDividendsUSD.toFixed(2)),
+        dividendCount:  divs.length,
+        totalXirr:      totalXirrUSD
+      },
+      metricsINR: {
+        totalInvested:  Number(totalInvestedINR.toFixed(2)),
+        totalRedeemed:  Number(totalRedeemedINR.toFixed(2)),
+        currentValue:   Number(currentValueINR.toFixed(2)),
+        unrealizedPnl:  Number(unrealizedPnlINR.toFixed(2)),
+        unrealizedPct:  unrealizedPctINR,
+        realizedPnl:    Number(realizedPnlINR.toFixed(2)),
+        totalDividends: Number(totalDividendsINR.toFixed(2)),
+        dividendCount:  divs.length,
+        totalXirr:      totalXirrINR
+      },
+      // Backward-compatible top-level properties
+      timeline: isUSStock ? timelineUSD : timelineINR,
+      metrics: {
+        totalInvested:  Number((isUSStock ? totalInvestedUSD : totalInvestedINR).toFixed(2)),
+        totalRedeemed:  Number((isUSStock ? totalRedeemedUSD : totalRedeemedINR).toFixed(2)),
+        currentValue:   Number((isUSStock ? currentValueUSD : currentValueINR).toFixed(2)),
+        unrealizedPnl:  Number((isUSStock ? unrealizedPnlUSD : unrealizedPnlINR).toFixed(2)),
+        unrealizedPct:  isUSStock ? unrealizedPctUSD : unrealizedPctINR,
+        realizedPnl:    Number((isUSStock ? realizedPnlUSD : realizedPnlINR).toFixed(2)),
+        totalDividends: Number((isUSStock ? totalDividendsUSD : totalDividendsINR).toFixed(2)),
+        dividendCount:  divs.length,
+        totalXirr:      isUSStock ? totalXirrUSD : totalXirrINR
+      }
+    });
+  } catch (err) {
+    console.error('[API Error - /api/holding/detail]:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -318,8 +624,9 @@ app.get('/api/dividends', authenticateToken, async (req, res) => {
 
       return {
         ...d,
+        symbol: asset.symbol || 'ASSET',
         asset_name: asset.name || 'Stock',
-        symbol: asset.symbol || 'ASSET'
+        payment_date: formatDateDDMMYYYY(d.payment_date)
       };
     }).sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || ''));
 
@@ -369,7 +676,7 @@ app.post('/api/refresh-prices', authenticateToken, async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// DB Visual Manager API (Relational Editor)
+// DB Visual Manager API (Relational Editor with Name & Symbol Enriched)
 // -------------------------------------------------------------
 app.get('/api/db-tables', authenticateToken, (req, res) => {
   res.json(['categories', 'holdings', 'transactions', 'liabilities', 'dividends', 'pnl_history', 'fx_rates', 'audit_logs']);
@@ -378,10 +685,64 @@ app.get('/api/db-tables', authenticateToken, (req, res) => {
 app.get('/api/db-table-data/:tableName', authenticateToken, async (req, res) => {
   const { tableName } = req.params;
   try {
-    const rows = await db.select(tableName);
-    const firstRow = rows[0] || {};
+    const rawRows = await db.select(tableName);
+
+    if (tableName === 'transactions' || tableName === 'dividends') {
+      const holdings = await db.select('holdings');
+      const hMap = {};
+      holdings.forEach(h => hMap[h.id] = h);
+
+      const enrichedRows = rawRows.map(r => {
+        const h = hMap[r.holding_id] || {};
+        const formattedDate = formatDateDDMMYYYY(r.date || r.payment_date || r.created_at);
+
+        if (tableName === 'transactions') {
+          return {
+            id: r.id,
+            symbol: h.symbol || 'N/A',
+            name: h.name || 'N/A',
+            holding_id: r.holding_id,
+            type: r.type,
+            quantity: r.quantity,
+            price: r.price,
+            total_amount: r.total_amount,
+            charges: r.charges,
+            currency: r.currency,
+            date: formattedDate,
+            notes: r.notes || ''
+          };
+        } else {
+          return {
+            id: r.id,
+            symbol: h.symbol || 'N/A',
+            name: h.name || 'N/A',
+            holding_id: r.holding_id,
+            amount_original: r.amount_original,
+            currency: r.currency,
+            fx_rate: r.fx_rate,
+            amount_inr: r.amount_inr,
+            payment_date: formattedDate
+          };
+        }
+      });
+
+      const firstRow = enrichedRows[0] || {};
+      const columns = Object.keys(firstRow).map(k => ({ name: k, type: typeof firstRow[k] }));
+      return res.json({ columns, rows: enrichedRows });
+    }
+
+    // Default formatting for dates in other tables
+    const formattedRows = rawRows.map(r => {
+      const newObj = { ...r };
+      ['date', 'payment_date', 'log_date', 'created_at', 'updated_at'].forEach(key => {
+        if (newObj[key]) newObj[key] = formatDateDDMMYYYY(newObj[key]);
+      });
+      return newObj;
+    });
+
+    const firstRow = formattedRows[0] || {};
     const columns = Object.keys(firstRow).map(k => ({ name: k, type: typeof firstRow[k] }));
-    res.json({ columns, rows });
+    res.json({ columns, rows: formattedRows });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
