@@ -8,3 +8,10 @@ build/
 .env.local
 .vscode/
 .idea/
+~$*
+*_out.txt
+*_err.txt
+inspect_*.mjs
+test_*.mjs
+check_symbols.mjs
+

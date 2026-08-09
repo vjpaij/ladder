@@ -1,44 +1,119 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Globe, Search, Plus, CheckCircle2, Edit3, Trash2 } from 'lucide-react';
+import { Globe, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
+import HoldingDetailModal from '../components/HoldingDetailModal';
 
 export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
-  const { formatMoney, formatRawUSD, fxRate } = useThemeAuth();
+  const { currency, formatMoney, formatRawUSD, fxRate } = useThemeAuth();
+  const isUSD = currency === 'USD';
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'closed' | 'all'
+  const [sortField, setSortField] = useState('name'); // Default sort by name
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
+  const [selectedHolding, setSelectedHolding] = useState(null);
+  const closeDetail = useCallback(() => setSelectedHolding(null), []);
 
-  const usStocks = holdings.filter(h => h.category_id === 'us_stocks');
-  const filtered = usStocks.filter(h => 
-    h.name.toLowerCase().includes(search.toLowerCase()) ||
-    h.symbol.toLowerCase().includes(search.toLowerCase())
-  );
+  const rawUsStocks = useMemo(() => {
+    return holdings.filter(h => h.category_id === 'us_stocks');
+  }, [holdings]);
 
-  const totalUSD = usStocks.reduce((sum, h) => sum + (h.quantity * h.current_price), 0);
+  // Filter by status tab
+  const statusFiltered = useMemo(() => {
+    return rawUsStocks.filter(h => {
+      const qty = Number(h.quantity) || 0;
+      if (statusFilter === 'active') return qty > 0;
+      if (statusFilter === 'closed') return qty === 0;
+      return true; // 'all'
+    });
+  }, [rawUsStocks, statusFilter]);
+
+  // Filter by search string
+  const searchFiltered = useMemo(() => {
+    return statusFiltered.filter(h =>
+      (h.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (h.symbol || '').toLowerCase().includes(search.toLowerCase()) ||
+      (h.sector || '').toLowerCase().includes(search.toLowerCase())
+    );
+  }, [statusFiltered, search]);
+
+  // Sort rows
+  const sortedHoldings = useMemo(() => {
+    return [...searchFiltered].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = (bVal || '').toLowerCase();
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [searchFiltered, sortField, sortOrder]);
+
+  const totalUSD = useMemo(() => statusFiltered.reduce((sum, h) => sum + ((Number(h.quantity) || 0) * (Number(h.current_price) || 0)), 0), [statusFiltered]);
+  const totalInvestedUSD = useMemo(() => statusFiltered.reduce((sum, h) => sum + ((Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0)), 0), [statusFiltered]);
+  const totalInvestedINR = useMemo(() => statusFiltered.reduce((sum, h) => sum + (Number(h.investedValueINR) || 0), 0), [statusFiltered]);
   const totalConvertedINR = totalUSD * fxRate;
+  const totalGainINR = totalConvertedINR - totalInvestedINR;
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const getSortIcon = (field) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-600 inline ml-1" />;
+    return sortOrder === 'asc' 
+      ? <ArrowUp className="w-3 h-3 text-purple-400 inline ml-1" /> 
+      : <ArrowDown className="w-3 h-3 text-purple-400 inline ml-1" />;
+  };
+
+  const activeCount = rawUsStocks.filter(h => (Number(h.quantity) || 0) > 0).length;
+  const closedCount = rawUsStocks.filter(h => (Number(h.quantity) || 0) === 0).length;
 
   return (
-    <AnimatedPage className="space-y-5">
+    <>
+      <AnimatedPage className="space-y-5">
       
       {/* Banner */}
       <AnimatedItem>
         <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-5">
           <div>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-500/12 text-purple-400 border border-purple-500/25">
-              NASDAQ / NYSE
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-500/12 text-purple-400 border border-purple-500/25">
+                NASDAQ / NYSE
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                Currency: <span className="text-purple-400 font-bold uppercase">{currency}</span>
+              </span>
+            </div>
             <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
               <Globe className="w-5 h-5 text-purple-400" />
               US Equities
             </h2>
-            <p className="text-[11px] text-slate-500 mt-0.5">Live USD→INR conversion at ₹{fxRate}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Live USD/INR conversion rate: ₹{fxRate}</p>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase">US Portfolio</span>
-              <div className="text-xl font-black font-mono text-purple-400">{formatRawUSD(totalUSD)}</div>
-              <div className="text-[10px] font-bold text-slate-400 font-mono">≈ ₹{Math.round(totalConvertedINR).toLocaleString('en-IN')}</div>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase">
+                {statusFilter === 'active' ? 'Active US Value' : statusFilter === 'closed' ? 'Closed US Value' : 'Total US Value'}
+              </span>
+              <div className="text-xl font-black font-mono text-purple-400">
+                {isUSD ? formatRawUSD(totalUSD) : `₹${Math.round(totalConvertedINR).toLocaleString('en-IN')}`}
+              </div>
+              <div className="text-[10px] font-bold text-slate-400 font-mono">
+                {isUSD ? `≈ ₹${Math.round(totalConvertedINR).toLocaleString('en-IN')}` : `≈ ${formatRawUSD(totalUSD)}`}
+              </div>
             </div>
             <motion.button
               onClick={onOpenAddModal}
@@ -53,16 +128,55 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
         </div>
       </AnimatedItem>
 
-      {/* Table */}
+      {/* Table Container */}
       <AnimatedItem>
         <div className="glass-card rounded-3xl p-5 border border-slate-800">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-5">
-            <div className="text-[10px] font-bold text-slate-400 font-mono">{filtered.length} COMPANIES</div>
+          
+          {/* Controls Bar: Status Filter Tabs & Search */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-800/60">
+            
+            {/* Filter Tabs */}
+            <div className="flex items-center bg-slate-900/90 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
+              <button
+                onClick={() => setStatusFilter('active')}
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                  statusFilter === 'active' 
+                    ? 'bg-purple-600 text-white shadow-md font-black' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Active Holdings ({activeCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter('closed')}
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                  statusFilter === 'closed' 
+                    ? 'bg-slate-700 text-white shadow-md font-black' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Fully Redeemed ({closedCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-xl transition-all ${
+                  statusFilter === 'all' 
+                    ? 'bg-slate-700 text-white shadow-md font-black' 
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                All Data ({rawUsStocks.length})
+              </button>
+            </div>
+
+            {/* Search Box */}
             <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search ticker..."
+                placeholder="Search ticker or name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
@@ -70,64 +184,106 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
             </div>
           </div>
 
+          {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-900/40">
-                  <th className="py-3 px-3 rounded-l-xl">Ticker</th>
-                  <th className="py-3 px-3 text-right">Shares</th>
-                  <th className="py-3 px-3 text-right">Avg Buy ($)</th>
-                  <th className="py-3 px-3 text-right">Price ($)</th>
-                  <th className="py-3 px-3 text-right">USD Value</th>
-                  <th className="py-3 px-3 text-right bg-purple-500/5">INR Value</th>
-                  <th className="py-3 px-3 text-right">P&L</th>
+                <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
+                  <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white">
+                    Stock Name {getSortIcon('name')}
+                  </th>
+                  <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Shares {getSortIcon('quantity')}
+                  </th>
+                  <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Avg Buy ($) {getSortIcon('avg_buy_price')}
+                  </th>
+                  <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Price ($) {getSortIcon('current_price')}
+                  </th>
+                  <th onClick={() => handleSort(isUSD ? 'currentValueOriginal' : 'currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    {isUSD ? 'USD Value' : 'INR Value'} {getSortIcon(isUSD ? 'currentValueOriginal' : 'currentValueINR')}
+                  </th>
+                  <th onClick={() => handleSort(isUSD ? 'unrealized_pnl' : 'gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    {isUSD ? 'P&L ($)' : 'P&L (₹)'} {getSortIcon(isUSD ? 'unrealized_pnl' : 'gainINR')}
+                  </th>
                   <th className="py-3 px-3 text-center">Status</th>
                   <th className="py-3 px-3 text-center rounded-r-xl">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40 text-xs">
-                {filtered.map((h, i) => {
-                  const usdVal = h.quantity * h.current_price;
-                  const inrVal = usdVal * fxRate;
-                  const isGainPositive = h.gainINR >= 0;
+                {sortedHoldings.map((h, i) => {
+                  const qty = Number(h.quantity) || 0;
+                  const isClosed = qty === 0;
+                  const currentPrice = Number(h.current_price) || 0;
+                  const avgPrice = Number(h.avg_buy_price) || 0;
+                  const usdVal = qty * currentPrice;
+                  const inrVal = Number(h.currentValueINR) || (usdVal * fxRate);
+                  
+                  // USD P&L
+                  const usdInvested = qty * avgPrice;
+                  const usdGain = usdVal - usdInvested;
+                  const usdGainPct = usdInvested > 0 ? ((usdGain / usdInvested) * 100).toFixed(2) : 0;
+                  
+                  // INR P&L
+                  const inrGain = isClosed ? Number(h.realized_pnl) : (Number(h.gainINR) || 0);
+                  const isGainPos = isUSD ? usdGain >= 0 : inrGain >= 0;
 
                   return (
                     <motion.tr 
                       key={h.id} 
-                      className="hover:bg-slate-800/30"
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
+                      className={`hover:bg-slate-800/30 ${isClosed ? 'opacity-60 bg-slate-900/20' : ''}`}
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: isClosed ? 0.6 : 1, x: 0 }}
+                      transition={{ delay: Math.min(i * 0.03, 0.3) }}
                     >
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/25 flex items-center justify-center font-bold text-[10px] text-purple-400">
+                          <div className={`w-7 h-7 rounded-lg border flex items-center justify-center font-bold text-[10px] ${
+                            isClosed 
+                              ? 'bg-slate-800 border-slate-700 text-slate-500' 
+                              : 'bg-purple-500/10 border-purple-500/25 text-purple-400'
+                          }`}>
                             {h.symbol.slice(0, 2)}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-100 text-[12px]">{h.name}</div>
-                            <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'Tech'}</div>
+                            <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-purple-400 transition-colors text-left cursor-pointer block">{h.name}</button>
+                            <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'US Equities'}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-300">{h.quantity}</td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-400">${h.avg_buy_price}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-purple-400">${h.current_price}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                      <td className="py-3 px-3 text-right font-mono font-black text-emerald-400 bg-purple-500/5">
-                        ₹{Math.round(inrVal).toLocaleString('en-IN')}
+                      <td className="py-3 px-3 text-right font-mono text-slate-300">
+                        {qty > 0 ? qty.toFixed(4) : <span className="text-slate-600">0</span>}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-400">${Number(h.avg_buy_price).toFixed(2)}</td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-purple-400">${Number(h.current_price).toFixed(2)}</td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
+                        {isUSD ? `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `₹${Math.round(inrVal).toLocaleString('en-IN')}`}
                       </td>
                       <td className="py-3 px-3 text-right font-mono">
-                        <div className={isGainPositive ? 'text-emerald-400' : 'text-rose-400'}>
-                          {isGainPositive ? '+' : ''}₹{h.gainINR.toLocaleString('en-IN')}
+                        <div className={isGainPos ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          {isUSD ? (
+                            `${isGainPos ? '+' : ''}$${Math.abs(usdGain).toFixed(2)}`
+                          ) : (
+                            `${isGainPos ? '+' : ''}₹${Math.round(inrGain).toLocaleString('en-IN')}`
+                          )}
                         </div>
-                        <div className="text-[9px] text-emerald-500/70">+{h.gainPct}%</div>
+                        <div className="text-[9px] text-emerald-500/70">
+                          {isGainPos ? '+' : ''}{isUSD ? usdGainPct : (h.gainPct || 0)}%
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-center">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold badge-emerald">
-                          <CheckCircle2 className="w-2.5 h-2.5" />
-                          LIVE
-                        </span>
+                        {isClosed ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            <XCircle className="w-2.5 h-2.5 text-slate-500" />
+                            REDEEMED
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold badge-emerald">
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            ACTIVE
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
@@ -142,6 +298,13 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                     </motion.tr>
                   );
                 })}
+                {sortedHoldings.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="py-10 text-center text-slate-600 text-xs">
+                      No US stocks found matching current status filter ({statusFilter})
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -149,5 +312,11 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
       </AnimatedItem>
 
     </AnimatedPage>
+
+      {selectedHolding && (
+        <HoldingDetailModal holding={selectedHolding} onClose={closeDetail} />
+      )}
+    </>
   );
 }
+

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Database, Table, Edit3, Check, RefreshCw, Layers, ShieldCheck } from 'lucide-react';
+import { Database, Table, Edit3, Check, RefreshCw, Layers, ShieldCheck, Tag } from 'lucide-react';
 
 export default function DatabaseViewer() {
   const [tables, setTables] = useState([]);
@@ -70,7 +70,7 @@ export default function DatabaseViewer() {
                 RELATIONAL CASCADE
               </span>
             </h3>
-            <p className="text-xs text-slate-400">Directly inspect, edit, and audit raw database tables (`holdings`, `transactions`, `liabilities`, `dividends`)</p>
+            <p className="text-xs text-slate-400">Inspect raw database tables (`holdings`, `transactions`, `dividends`, `liabilities`) with Name & Symbol identification</p>
           </div>
         </div>
 
@@ -115,7 +115,7 @@ export default function DatabaseViewer() {
             <thead>
               <tr className="border-b border-slate-800 text-[11px] uppercase text-slate-400 bg-slate-900/60">
                 {tableData.columns.map(col => (
-                  <th key={col.name} className="py-3 px-3">
+                  <th key={col.name} className={`py-3 px-3 ${col.name === 'symbol' || col.name === 'name' ? 'text-emerald-400 font-extrabold' : ''}`}>
                     <div>{col.name}</div>
                     <div className="text-[9px] text-slate-500 lowercase">({col.type})</div>
                   </th>
@@ -128,6 +128,7 @@ export default function DatabaseViewer() {
                 <tr key={`row-${row.id}`} className="hover:bg-slate-800/30 transition-colors">
                   {tableData.columns.map(col => {
                     const isEditing = editingCell && editingCell.id === row.id && editingCell.column === col.name;
+                    const val = row[col.name];
 
                     return (
                       <td key={`cell-${row.id}-${col.name}`} className="py-3 px-3 text-slate-200">
@@ -146,30 +147,38 @@ export default function DatabaseViewer() {
                         ) : (
                           <div 
                             className="group/cell flex items-center justify-between cursor-pointer hover:text-emerald-400 transition-colors"
-                            onClick={() => setEditingCell({ id: row.id, column: col.name, value: row[col.name] })}
+                            onClick={() => setEditingCell({ id: row.id, column: col.name, value: val })}
                           >
-                            <span>{String(row[col.name] !== undefined ? row[col.name] : '')}</span>
-                            <Edit3 className="w-3 h-3 text-slate-600 opacity-0 group-hover/cell:opacity-100 transition-opacity ml-1" />
+                            <span>
+                              {col.name === 'symbol' ? (
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
+                                  {val}
+                                </span>
+                              ) : col.name === 'name' ? (
+                                <span className="font-bold text-slate-100">{val}</span>
+                              ) : (
+                                String(val ?? '')
+                              )}
+                            </span>
+                            <Edit3 className="w-3 h-3 text-slate-600 opacity-0 group-hover/cell:opacity-100 transition-opacity" />
                           </div>
                         )}
                       </td>
                     );
                   })}
-                  <td className="py-3 px-3 text-center text-slate-500">-</td>
-                </tr>
-              ))}
-
-              {tableData.rows.length === 0 && (
-                <tr>
-                  <td colSpan={tableData.columns.length + 1} className="py-8 text-center text-slate-500">
-                    No rows found in table `{selectedTable}`.
+                  <td className="py-3 px-3 text-center">
+                    <button
+                      onClick={() => setEditingCell({ id: row.id, column: tableData.columns[0]?.name, value: row[tableData.columns[0]?.name] })}
+                      className="px-2 py-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md"
+                    >
+                      Edit
+                    </button>
                   </td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
-
       </div>
 
     </div>

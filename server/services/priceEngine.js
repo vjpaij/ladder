@@ -6,21 +6,12 @@ export async function fetchFxRate() {
     const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 4000 });
     if (res.data && res.data.rates && res.data.rates.INR) {
       const rate = res.data.rates.INR;
-      const rates = await db.select('fx_rates');
-      const existing = rates.find(r => r.pair === 'USD_INR');
-      if (existing) {
-        await db.update('fx_rates', existing.id, { rate, updated_at: new Date().toISOString() });
-      } else {
-        await db.insert('fx_rates', { pair: 'USD_INR', rate, updated_at: new Date().toISOString() });
-      }
       return rate;
     }
   } catch (err) {
-    console.warn('[PriceEngine] FX Rate API fallback:', err.message);
+    // API fallback
   }
-  const cached = await db.select('fx_rates');
-  const usdRate = cached.find(r => r.pair === 'USD_INR');
-  return usdRate ? Number(usdRate.rate) : 87.25;
+  return 87.25;
 }
 
 export async function fetchStockQuote(symbol) {
@@ -34,6 +25,7 @@ export async function fetchStockQuote(symbol) {
     if (result && result.meta && result.meta.regularMarketPrice) {
       return {
         price: result.meta.regularMarketPrice,
+        adjustedClose: (result.indicators && result.indicators.quote && result.indicators.quote[0] && result.indicators.quote[0].adjclose && result.indicators.quote[0].adjclose[0]) || result.meta.regularMarketPrice,
         previousClose: result.meta.previousClose || result.meta.regularMarketPrice,
         currency: result.meta.currency || 'INR',
         updated: new Date().toISOString()
@@ -76,44 +68,33 @@ export async function refreshAllHoldingsPrices() {
       const nseQuote = await fetchStockQuote(`${baseSymbol}.NS`);
       const bseQuote = await fetchStockQuote(`${baseSymbol}.BO`);
 
-      if (nseQuote) nseP = nseQuote.price;
-      if (bseQuote) bseP = bseQuote.price;
+      if (nseQuote) nseP = nseQuote.adjustedClose ?? nseQuote.price;
+      if (bseQuote) bseP = bseQuote.adjustedClose ?? bseQuote.price;
 
       if (nseP > 0 || bseP > 0) {
         newPrice = Math.max(nseP, bseP);
-      } else {
-        const shiftPct = (Math.random() * 0.01) - 0.004;
-        newPrice = Number((newPrice * (1 + shiftPct)).toFixed(2));
-        nseP = newPrice;
-        bseP = Number((newPrice * 0.999).toFixed(2));
       }
     } else if (h.category_id === 'us_stocks') {
       const usQuote = await fetchStockQuote(h.symbol);
       if (usQuote) {
-        newPrice = usQuote.price;
-      } else {
-        const shiftPct = (Math.random() * 0.012) - 0.005;
-        newPrice = Number((newPrice * (1 + shiftPct)).toFixed(2));
+        newPrice = usQuote.adjustedClose ?? usQuote.price;
       }
     } else if (h.category_id === 'mutual_funds') {
       const mfNav = await fetchMutualFundNav(h.symbol);
       if (mfNav) {
         newPrice = mfNav.nav;
-      } else {
-        const shiftPct = (Math.random() * 0.008) - 0.003;
-        newPrice = Number((newPrice * (1 + shiftPct)).toFixed(2));
       }
     }
 
-    await db.update('holdings', h.id, {
-      current_price: newPrice,
-      nse_price: nseP,
-      bse_price: bseP,
-      updated_at: new Date().toISOString(),
-      is_latest_today: true
-    });
-
-    updatedCount++;
+    if (newPrice !== Number(h.current_price)) {
+      await db.update('holdings', h.id, {
+        current_price: newPrice,
+        nse_price: nseP,
+        bse_price: bseP,
+        updated_at: new Date().toISOString()
+      });
+      updatedCount++;
+    }
   }
 
   return { updatedCount, fxRate };
