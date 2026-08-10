@@ -10,13 +10,15 @@ import IndianStocksView from './views/IndianStocksView';
 import UsStocksView from './views/UsStocksView';
 import MutualFundsView from './views/MutualFundsView';
 import NpsView from './views/NpsView';
-import FixedIncomeView from './views/FixedIncomeView';
+import BankView from './views/BankView';
+import EpfView from './views/EpfView';
 import LiabilitiesView from './views/LiabilitiesView';
 import DividendsView from './views/DividendsView';
 import ReportsView from './components/ReportsView';
 import DatabaseStudioView from './views/DatabaseStudioView';
 import ExcelToolsView from './views/ExcelToolsView';
 import AddAssetModal from './components/AddAssetModal';
+import HoldingDetailModal from './components/HoldingDetailModal';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('overview');
@@ -25,6 +27,7 @@ export default function App() {
   const [liabilities, setLiabilities] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedHoldingModal, setSelectedHoldingModal] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString());
 
   useEffect(() => {
@@ -98,10 +101,12 @@ export default function App() {
         return <MutualFundsView key="mutual_funds" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
       case 'nps':
         return <NpsView key="nps" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
-      case 'fixed_income':
-        return <FixedIncomeView key="fixed_income" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+      case 'bank':
+        return <BankView key="bank" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+      case 'epf':
+        return <EpfView key="epf" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => setIsAddModalOpen(true)} />;
       case 'liabilities':
-        return <LiabilitiesView key="liabilities" liabilities={liabilities} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <LiabilitiesView key="liabilities" liabilities={liabilities} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => setIsAddModalOpen(true)} />;
       case 'dividends':
         return <DividendsView key="dividends" />;
       case 'reports':
@@ -150,6 +155,14 @@ export default function App() {
           onClose={() => setIsAddModalOpen(false)}
           onRefresh={fetchDashboardData}
         />
+
+        {/* Holding Detail Modal */}
+        {selectedHoldingModal && (
+          <HoldingDetailModal
+            holding={selectedHoldingModal}
+            onClose={() => setSelectedHoldingModal(null)}
+          />
+        )}
 
       </div>
     </ThemeAuthProvider>

@@ -149,6 +149,9 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const accentColor = holding?.category_id === 'us_stocks' ? '#a855f7'
     : holding?.category_id === 'mutual_funds' ? '#f59e0b'
     : holding?.category_id === 'nps' ? '#06b6d4'
+    : holding?.category_id === 'bank' ? '#3b82f6'
+    : holding?.category_id === 'epf' ? '#6366f1'
+    : (holding?.category_id === 'loans' || holding?.category_id === 'credit_cards') ? '#f43f5e'
     : '#10b981';
 
   const isDisplayUSD = isUSStock && displayCurrency === 'USD';
@@ -164,6 +167,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const pricePrefix = isDisplayUSD ? '$' : '₹';
 
   const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
+  const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
 
   return (
     <AnimatePresence>
@@ -226,9 +230,13 @@ export default function HoldingDetailModal({ holding, onClose }) {
                       {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                         : holding.category_id === 'us_stocks' ? 'US Equity'
                         : holding.category_id === 'nps' ? 'NPS Scheme'
+                        : holding.category_id === 'bank' ? 'Bank Account'
+                        : holding.category_id === 'epf' ? 'Employee Provident Fund'
+                        : holding.category_id === 'loans' ? 'Housing Loan'
+                        : holding.category_id === 'credit_cards' ? 'Credit Card Balance'
                         : 'Indian Equity'}
                     </span>
-                    {(Number(holding.quantity) || 0) > 0 && (
+                    {!isEodAsset && (Number(holding.quantity) || 0) > 0 && (
                       <span className="text-[10px] text-slate-500 font-mono">
                         {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })} units @ {
                           isDisplayUSD
@@ -237,6 +245,11 @@ export default function HoldingDetailModal({ holding, onClose }) {
                             ? `₹${Number(holding.current_price).toFixed(4)}`
                             : `₹${Math.round(Number(holding.current_price) * (isUSStock ? fxRate : 1)).toLocaleString('en-IN')}`
                         }
+                      </span>
+                    )}
+                    {isEodAsset && (
+                      <span className="text-[10px] text-slate-400 font-mono font-bold">
+                        Current EOD Balance: {fmt(m.currentValue || holding.current_price)}
                       </span>
                     )}
                   </div>
@@ -306,48 +319,66 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
                       <Activity className="w-3.5 h-3.5" /> Performance Summary ({displayCurrency})
                     </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                      <MetricCard label="Total Invested"  value={fmt(m.totalInvested)}  icon={ArrowDownCircle} color="text-slate-300" />
-                      <MetricCard label="Total Redeemed"  value={fmt(m.totalRedeemed)}  icon={ArrowUpCircle}   color="text-slate-300" />
-                      <MetricCard
-                        label="Current Value"
-                        value={(Number(holding.quantity) || 0) > 0 ? fmt(m.currentValue) : '—'}
-                        sub={isUSStock && (Number(holding.quantity) || 0) > 0
-                          ? (isDisplayUSD ? `≈ ${fmtINR((m.currentValue || 0) * fxRate)}` : `≈ ${fmtUSD(Number(m.currentValue || 0) / fxRate)}`)
-                          : null}
-                        icon={DollarSign}
-                        color="text-white"
-                      />
-                      <MetricCard
-                        label="Unrealized P&L"
-                        value={fmt(m.unrealizedPnl)}
-                        sub={m.unrealizedPct != null ? `${m.unrealizedPct >= 0 ? '+' : ''}${m.unrealizedPct}%` : null}
-                        icon={m.unrealizedPnl >= 0 ? TrendingUp : TrendingDown}
-                        positive={(m.unrealizedPnl || 0) >= 0}
-                      />
-                      <MetricCard
-                        label="Realized P&L"
-                        value={fmt(m.realizedPnl)}
-                        icon={BarChart2}
-                        positive={(m.realizedPnl || 0) >= 0}
-                      />
-                      <MetricCard
-                        label="Dividends"
-                        value={fmt(m.totalDividends)}
-                        sub={m.dividendCount > 0 ? `${m.dividendCount} payments` : null}
-                        icon={Gift}
-                        color="text-amber-400"
-                      />
-                      <MetricCard
-                        label="Total XIRR"
-                        value={`${(m.totalXirr || 0) >= 0 ? '+' : ''}${m.totalXirr || 0}%`}
-                        sub={(m.currentXirr != null && m.currentXirr !== m.totalXirr)
-                          ? `Active: ${(m.currentXirr || 0) >= 0 ? '+' : ''}${m.currentXirr}%`
-                          : 'annualized p.a.'}
-                        icon={Percent}
-                        positive={(m.totalXirr || 0) >= 0}
-                      />
-                    </div>
+
+                    {isEodAsset ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                        <MetricCard label="Current Balance" value={fmt(m.currentValue)} icon={DollarSign} color="text-white" />
+                        <MetricCard label="Peak Historical" value={fmt(m.peakValue || m.currentValue)} icon={ArrowUpCircle} color="text-emerald-400" />
+                        <MetricCard label="Min Historical" value={fmt(m.minValue || m.totalInvested)} icon={ArrowDownCircle} color="text-slate-400" />
+                        <MetricCard 
+                          label="1-Year Change" 
+                          value={fmt(m.oneYearDelta || 0)} 
+                          sub={`${(m.oneYearPct || 0) >= 0 ? '+' : ''}${m.oneYearPct || 0}%`} 
+                          icon={TrendingUp} 
+                          positive={(m.oneYearDelta || 0) >= 0} 
+                        />
+                        <MetricCard label="Inception Date" value={m.startDate || '2007-09-27'} icon={Calendar} color="text-indigo-400" />
+                        <MetricCard label="Tracking Status" value="Daily EOD" icon={Activity} color="text-cyan-400" />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                        <MetricCard label="Total Invested"  value={fmt(m.totalInvested)}  icon={ArrowDownCircle} color="text-slate-300" />
+                        <MetricCard label="Total Redeemed"  value={fmt(m.totalRedeemed)}  icon={ArrowUpCircle}   color="text-slate-300" />
+                        <MetricCard
+                          label="Current Value"
+                          value={(Number(holding.quantity) || 0) > 0 ? fmt(m.currentValue) : '—'}
+                          sub={isUSStock && (Number(holding.quantity) || 0) > 0
+                            ? (isDisplayUSD ? `≈ ${fmtINR((m.currentValue || 0) * fxRate)}` : `≈ ${fmtUSD(Number(m.currentValue || 0) / fxRate)}`)
+                            : null}
+                          icon={DollarSign}
+                          color="text-white"
+                        />
+                        <MetricCard
+                          label="Unrealized P&L"
+                          value={fmt(m.unrealizedPnl)}
+                          sub={m.unrealizedPct != null ? `${m.unrealizedPct >= 0 ? '+' : ''}${m.unrealizedPct}%` : null}
+                          icon={m.unrealizedPnl >= 0 ? TrendingUp : TrendingDown}
+                          positive={(m.unrealizedPnl || 0) >= 0}
+                        />
+                        <MetricCard
+                          label="Realized P&L"
+                          value={fmt(m.realizedPnl)}
+                          icon={BarChart2}
+                          positive={(m.realizedPnl || 0) >= 0}
+                        />
+                        <MetricCard
+                          label="Dividends"
+                          value={fmt(m.totalDividends)}
+                          sub={m.dividendCount > 0 ? `${m.dividendCount} payments` : null}
+                          icon={Gift}
+                          color="text-amber-400"
+                        />
+                        <MetricCard
+                          label="Total XIRR"
+                          value={`${(m.totalXirr || 0) >= 0 ? '+' : ''}${m.totalXirr || 0}%`}
+                          sub={(m.currentXirr != null && m.currentXirr !== m.totalXirr)
+                            ? `Active: ${(m.currentXirr || 0) >= 0 ? '+' : ''}${m.currentXirr}%`
+                            : 'annualized p.a.'}
+                          icon={Percent}
+                          positive={(m.totalXirr || 0) >= 0}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* ---- Chart ---- */}
@@ -418,11 +449,11 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     </div>
                   )}
 
-                  {/* ---- Transaction Ledger ---- */}
+                  {/* ---- Transaction / EOD Ledger ---- */}
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5" />
-                      Transaction Ledger ({sortedTxs.length} records)
+                      {isEodAsset ? `Daily Balance History (${sortedTxs.length} records)` : `Transaction Ledger (${sortedTxs.length} records)`}
                     </p>
                     <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden">
                       <div className="overflow-x-auto">
@@ -433,27 +464,74 @@ export default function HoldingDetailModal({ holding, onClose }) {
                               <th onClick={() => handleTxSort('date')} className="py-3 px-4 cursor-pointer hover:text-white whitespace-nowrap">
                                 Date <SortIcon field="date" />
                               </th>
-                              <th className="py-3 px-4">Type</th>
-                              <th onClick={() => handleTxSort('quantity')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                                Qty <SortIcon field="quantity" />
-                              </th>
-                              <th onClick={() => handleTxSort('price')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                                Price <SortIcon field="price" />
-                              </th>
-                              <th onClick={() => handleTxSort('total_amount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                                {isDisplayUSD ? 'Amount ($)' : 'Amount (₹)'} <SortIcon field="total_amount" />
-                              </th>
-                              <th className="py-3 px-4 text-right whitespace-nowrap">Charges</th>
-                              {isUSStock && (
-                                <th className="py-3 px-4 text-right whitespace-nowrap text-purple-400 font-bold">
-                                  Tx Dollar Rate
-                                </th>
+
+                              {isEodAsset ? (
+                                <>
+                                  <th onClick={() => handleTxSort('price')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                                    EOD Balance (₹) <SortIcon field="price" />
+                                  </th>
+                                  <th onClick={() => handleTxSort('total_amount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                                    Daily Change <SortIcon field="total_amount" />
+                                  </th>
+                                  <th className="py-3 px-4 text-left">Notes</th>
+                                </>
+                              ) : (
+                                <>
+                                  <th className="py-3 px-4">Type</th>
+                                  <th onClick={() => handleTxSort('quantity')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                                    Qty <SortIcon field="quantity" />
+                                  </th>
+                                  <th onClick={() => handleTxSort('price')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                                    Price <SortIcon field="price" />
+                                  </th>
+                                  <th onClick={() => handleTxSort('total_amount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                                    {isDisplayUSD ? 'Amount ($)' : 'Amount (₹)'} <SortIcon field="total_amount" />
+                                  </th>
+                                  <th className="py-3 px-4 text-right whitespace-nowrap">Charges</th>
+                                  {isUSStock && (
+                                    <th className="py-3 px-4 text-right whitespace-nowrap text-purple-400 font-bold">
+                                      Tx Dollar Rate
+                                    </th>
+                                  )}
+                                  <th className="py-3 px-4 text-left">Notes</th>
+                                </>
                               )}
-                              <th className="py-3 px-4 text-left">Notes</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-800/40">
                             {sortedTxs.map((tx, i) => {
+                              if (isEodAsset) {
+                                const eodBalance = Number(tx.price) || 0;
+                                const isPos = tx.type === 'BUY';
+                                const changeVal = Number(tx.total_amount) || 0;
+
+                                return (
+                                  <motion.tr
+                                    key={tx.id || i}
+                                    className="hover:bg-slate-800/30 transition-colors"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: Math.min(i * 0.015, 0.4) }}
+                                  >
+                                    <td className="py-2.5 px-4 text-slate-600 font-mono text-[10px]">{i + 1}</td>
+                                    <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{tx.date}</td>
+                                    <td className="py-2.5 px-4 text-right font-mono font-black text-white">
+                                      ₹{eodBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                    </td>
+                                    <td className={`py-2.5 px-4 text-right font-mono font-bold ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                                        isPos ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'
+                                      }`}>
+                                        {isPos ? '↑ +' : '↓ -'}₹{changeVal.toLocaleString('en-IN')}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-4 text-slate-500 italic text-[10px]">
+                                      {tx.notes || `EOD Balance: ₹${eodBalance.toLocaleString('en-IN')}`}
+                                    </td>
+                                  </motion.tr>
+                                );
+                              }
+
                               const isBuy  = tx.type === 'BUY';
                               const isSell = tx.type === 'SELL';
                               const isDiv  = tx.type === 'DIVIDEND';
@@ -511,8 +589,8 @@ export default function HoldingDetailModal({ holding, onClose }) {
                             })}
                             {sortedTxs.length === 0 && (
                               <tr>
-                                <td colSpan={isUSStock ? 9 : 8} className="py-8 text-center text-slate-600">
-                                  No transactions found
+                                <td colSpan={isEodAsset ? 5 : (isUSStock ? 9 : 8)} className="py-8 text-center text-slate-600">
+                                  No records found
                                 </td>
                               </tr>
                             )}

@@ -35,7 +35,8 @@ export default function Sidebar({ currentView, setCurrentView, summary }) {
         { id: 'us_stocks', label: 'US Equities', icon: Globe, badge: 'FX' },
         { id: 'mutual_funds', label: 'Mutual Funds', icon: LineChart, badge: 'NAV' },
         { id: 'nps', label: 'NPS Portfolio', icon: ShieldCheck, badge: 'PRAN' },
-        { id: 'fixed_income', label: 'Fixed Income', icon: Landmark },
+        { id: 'bank', label: 'Bank Accounts', icon: Landmark, badge: 'SAVINGS' },
+        { id: 'epf', label: 'EPF (Provident Fund)', icon: ShieldCheck, badge: 'RETIREMENT' },
       ]
     },
     {

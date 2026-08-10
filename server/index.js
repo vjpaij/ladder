@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -333,8 +334,186 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
 
     // Fetch holding
     const holdings = await db.select('holdings');
-    const holding = holdings.find(h => h.id === holdingId || h.id == holdingId || h.symbol === holdingId);
+    let holding = holdings.find(h => h.id === holdingId || h.id == holdingId || h.symbol === holdingId);
+    
+    // If not found in holdings, check liabilities
+    if (!holding) {
+      const liabilities = await db.select('liabilities');
+      const liab = liabilities.find(l => l.id === holdingId || l.id == holdingId || l.category_id === holdingId);
+      if (liab) {
+        holding = {
+          id: liab.id,
+          name: liab.name,
+          symbol: liab.category_id === 'loans' ? 'LOAN' : 'CREDITS',
+          category_id: liab.category_id,
+          quantity: 1,
+          avg_buy_price: liab.outstanding_balance,
+          current_price: liab.outstanding_balance,
+          currency: 'INR'
+        };
+      }
+    }
+    
     if (!holding) return res.status(404).json({ error: 'Holding not found' });
+
+    // --- Check if Bank, EPF, or Liability account with EOD daily tracking ---
+    const eodKeyMap = {
+      'HDFC-SAVINGS': 'hdfc',
+      'INDUSIND-SAVINGS': 'indusind',
+      'IDFC-SAVINGS': 'idfc',
+      'RBL-SAVINGS': 'rbl',
+      'SBI-SAVINGS': 'sbi',
+      'FEDERAL-SAVINGS': 'federal',
+      'EPF-RETIREMENT': 'epf',
+      'LOAN': 'loan',
+      'CREDITS': 'credits'
+    };
+    let eodKey = eodKeyMap[holding.symbol];
+    if (!eodKey) {
+      if (holding.category_id === 'bank') {
+        if (holding.name.includes('HDFC')) eodKey = 'hdfc';
+        else if (holding.name.includes('IndusInd')) eodKey = 'indusind';
+        else if (holding.name.includes('IDFC')) eodKey = 'idfc';
+        else if (holding.name.includes('RBL')) eodKey = 'rbl';
+        else if (holding.name.includes('SBI')) eodKey = 'sbi';
+        else if (holding.name.includes('Federal')) eodKey = 'federal';
+        else eodKey = 'savings';
+      } else if (holding.category_id === 'epf') {
+        eodKey = 'epf';
+      } else if (holding.category_id === 'loans') {
+        eodKey = 'loan';
+      } else if (holding.category_id === 'credit_cards') {
+        eodKey = 'credits';
+      }
+    }
+
+    if (eodKey) {
+      const eodLogsPath = './data/portfolio_eod_logs.json';
+      let eodLogs = [];
+      try {
+        if (fs.existsSync(eodLogsPath)) {
+          eodLogs = JSON.parse(fs.readFileSync(eodLogsPath, 'utf-8'));
+        }
+      } catch (err) {
+        console.error('[Detail API] Error reading eodLogs:', err.message);
+      }
+
+      if (eodLogs.length > 0) {
+        const activeLogs = eodLogs.filter(l => l[eodKey] !== undefined && l[eodKey] !== null);
+        const nonZeroLogs = activeLogs.filter(l => l[eodKey] > 0);
+        const validLogs = nonZeroLogs.length > 0 ? nonZeroLogs : activeLogs;
+
+        const currentVal = validLogs[validLogs.length - 1]?.[eodKey] || Number(holding.current_price) || 0;
+        const peakVal = Math.max(...validLogs.map(l => l[eodKey]));
+        const minVal = Math.min(...validLogs.map(l => l[eodKey]));
+        const startVal = validLogs[0]?.[eodKey] || 0;
+        const startDate = validLogs[0]?.date || '—';
+
+        // Calculate 1 Year Delta
+        const oneYearAgoDate = new Date();
+        oneYearAgoDate.setFullYear(oneYearAgoDate.getFullYear() - 1);
+        const oneYearAgoStr = oneYearAgoDate.toISOString().split('T')[0];
+        const yearAgoLog = validLogs.find(l => l.date >= oneYearAgoStr) || validLogs[0];
+        const yearAgoVal = yearAgoLog?.[eodKey] || startVal;
+        const oneYearDelta = currentVal - yearAgoVal;
+        const oneYearPct = yearAgoVal > 0 ? ((oneYearDelta / yearAgoVal) * 100).toFixed(2) : 0;
+
+        // Build Daily Timeline (sampled appropriately for recharts)
+        const step = Math.max(1, Math.floor(validLogs.length / 300));
+        const timelineINR = [];
+        for (let i = 0; i < validLogs.length; i += step) {
+          const item = validLogs[i];
+          const val = Number(item[eodKey].toFixed(2));
+          timelineINR.push({
+            label: item.date,
+            invested: val,
+            value: val,
+            balance: val
+          });
+        }
+        // Ensure last record is included
+        const lastLog = validLogs[validLogs.length - 1];
+        if (timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label !== lastLog.date) {
+          const lastVal = Number(lastLog[eodKey].toFixed(2));
+          timelineINR.push({
+            label: lastLog.date,
+            invested: lastVal,
+            value: lastVal,
+            balance: lastVal
+          });
+        }
+
+        // Generate synthetic transaction history for table rendering
+        const txs = [];
+        let prevVal = 0;
+        const txStep = Math.max(1, Math.floor(validLogs.length / 60)); // ~60 ledger entries
+        for (let i = 0; i < validLogs.length; i += txStep) {
+          const l = validLogs[i];
+          const val = l[eodKey];
+          const diff = val - prevVal;
+          txs.push({
+            id: `eod_${l.date}_${i}`,
+            holding_id: holding.id,
+            symbol: holding.symbol || 'EOD',
+            name: holding.name,
+            type: diff >= 0 ? 'BUY' : 'SELL',
+            quantity: 1,
+            price: val,
+            total_amount: Math.abs(diff),
+            date: l.date,
+            notes: `EOD Balance: ₹${val.toLocaleString('en-IN')}`
+          });
+          prevVal = val;
+        }
+
+        return res.json({
+          holding: {
+            ...holding,
+            current_price: currentVal,
+            avg_buy_price: startVal
+          },
+          fxRate: 1.0,
+          transactions: txs.reverse(),
+          dividends: [],
+          timelineUSD: timelineINR,
+          timelineINR,
+          metricsUSD: {
+            totalInvested: startVal,
+            currentValue: currentVal,
+            unrealizedPnl: currentVal - startVal,
+            unrealizedPct: startVal > 0 ? Number((((currentVal - startVal) / startVal) * 100).toFixed(2)) : 0,
+            peakValue: peakVal,
+            minValue: minVal,
+            oneYearDelta,
+            oneYearPct,
+            startDate
+          },
+          metricsINR: {
+            totalInvested: startVal,
+            currentValue: currentVal,
+            unrealizedPnl: currentVal - startVal,
+            unrealizedPct: startVal > 0 ? Number((((currentVal - startVal) / startVal) * 100).toFixed(2)) : 0,
+            peakValue: peakVal,
+            minValue: minVal,
+            oneYearDelta,
+            oneYearPct,
+            startDate
+          },
+          timeline: timelineINR,
+          metrics: {
+            totalInvested: startVal,
+            currentValue: currentVal,
+            unrealizedPnl: currentVal - startVal,
+            unrealizedPct: startVal > 0 ? Number((((currentVal - startVal) / startVal) * 100).toFixed(2)) : 0,
+            peakValue: peakVal,
+            minValue: minVal,
+            oneYearDelta,
+            oneYearPct,
+            startDate
+          }
+        });
+      }
+    }
 
     const isUSD = holding.currency === 'USD';
     const isUSStock = holding.currency === 'USD';

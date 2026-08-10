@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.1] - 2026-08-10
+
+### Changed
+- **Simplified Asset EOD Ledgers**: Simplified the transaction ledger for Bank, EPF, and Liability components in `HoldingDetailModal.jsx`. Removed `Qty` and `Price` columns and replaced with a clear 'Daily Balance History' showing `#`, `Date`, `EOD Balance (₹)`, `Daily Change` (with `↑ +₹X` green or `↓ -₹X` red arrow badges), and `Notes`.
+- **EPF Naming**: Renamed 'Employee Provident Fund (EPF)' to a more concise 'EPF'.
+- **Loan Details Updated**: Updated the Housing Loan lender to 'State Bank of India (SBI)' / 'Housing Loan (SBI Bank)'.
+
+---
+
+## [1.9.0] - 2026-08-10
+
+### Added
+- **Dedicated Portfolios**: Replaced the previous `FixedIncomeView` with dedicated **Bank Accounts** (`BankView.jsx`) and **EPF** (`EpfView.jsx`) pages.
+- **Enhanced Liabilities Hub**: Upgraded the **Liabilities & Debt** page (`LiabilitiesView.jsx`) under the CASHFLOW section.
+- **Historical EOD Ingestion**: Created an automated `load_eod_balances.mjs` script parsing 6,890 daily EOD historical records (2007-2026) from `portfolio.xlsx` into `data/portfolio_eod_logs.json` and Supabase.
+- **Universal Modal Support**: Upgraded `HoldingDetailModal.jsx` and the `/api/holding/:holdingId/detail` endpoint to render custom 6-KPI metrics cards (Current Balance, Peak Historical, Min Historical, 1-Year Delta, Inception Date, Daily EOD status), a 19-year interactive daily EOD timeline chart, and date-by-date balance ledger logs for all Bank, EPF, and Liability instruments.
+
+---
+
 ## [1.8.2] - 2026-08-10
 
 ### Added
