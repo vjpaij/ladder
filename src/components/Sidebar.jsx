@@ -11,7 +11,8 @@ import {
   CreditCard, 
   DollarSign, 
   Database, 
-  FileSpreadsheet
+  FileSpreadsheet,
+  ShieldCheck
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
@@ -33,6 +34,7 @@ export default function Sidebar({ currentView, setCurrentView, summary }) {
         { id: 'indian_stocks', label: 'Indian Equities', icon: TrendingUp, badge: 'NSE/BSE' },
         { id: 'us_stocks', label: 'US Equities', icon: Globe, badge: 'FX' },
         { id: 'mutual_funds', label: 'Mutual Funds', icon: LineChart, badge: 'NAV' },
+        { id: 'nps', label: 'NPS Portfolio', icon: ShieldCheck, badge: 'PRAN' },
         { id: 'fixed_income', label: 'Fixed Income', icon: Landmark },
       ]
     },

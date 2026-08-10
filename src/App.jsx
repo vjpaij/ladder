@@ -9,6 +9,7 @@ import CalendarView from './views/CalendarView';
 import IndianStocksView from './views/IndianStocksView';
 import UsStocksView from './views/UsStocksView';
 import MutualFundsView from './views/MutualFundsView';
+import NpsView from './views/NpsView';
 import FixedIncomeView from './views/FixedIncomeView';
 import LiabilitiesView from './views/LiabilitiesView';
 import DividendsView from './views/DividendsView';
@@ -95,6 +96,8 @@ export default function App() {
         return <UsStocksView key="us_stocks" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
       case 'mutual_funds':
         return <MutualFundsView key="mutual_funds" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+      case 'nps':
+        return <NpsView key="nps" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
       case 'fixed_income':
         return <FixedIncomeView key="fixed_income" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
       case 'liabilities':

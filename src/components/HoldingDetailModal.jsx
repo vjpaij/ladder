@@ -148,6 +148,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
   const accentColor = holding?.category_id === 'us_stocks' ? '#a855f7'
     : holding?.category_id === 'mutual_funds' ? '#f59e0b'
+    : holding?.category_id === 'nps' ? '#06b6d4'
     : '#10b981';
 
   const isDisplayUSD = isUSStock && displayCurrency === 'USD';
@@ -161,6 +162,8 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const fmt = isDisplayUSD ? fmtUSD : fmtINR;
   const m = activeMetrics;
   const pricePrefix = isDisplayUSD ? '$' : '₹';
+
+  const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
 
   return (
     <AnimatePresence>
@@ -222,11 +225,18 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     <span className="text-[10px] text-slate-500">
                       {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                         : holding.category_id === 'us_stocks' ? 'US Equity'
+                        : holding.category_id === 'nps' ? 'NPS Scheme'
                         : 'Indian Equity'}
                     </span>
                     {(Number(holding.quantity) || 0) > 0 && (
                       <span className="text-[10px] text-slate-500 font-mono">
-                        {Number(holding.quantity).toLocaleString()} units @ {isDisplayUSD ? `$${Number(holding.current_price).toFixed(2)}` : `₹${Math.round(Number(holding.current_price) * (isUSStock ? fxRate : 1)).toLocaleString('en-IN')}`}
+                        {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })} units @ {
+                          isDisplayUSD
+                            ? `$${Number(holding.current_price).toFixed(2)}`
+                            : isFundOrNps
+                            ? `₹${Number(holding.current_price).toFixed(4)}`
+                            : `₹${Math.round(Number(holding.current_price) * (isUSStock ? fxRate : 1)).toLocaleString('en-IN')}`
+                        }
                       </span>
                     )}
                   </div>

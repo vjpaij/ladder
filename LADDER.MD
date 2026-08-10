@@ -35,8 +35,12 @@
   - Dynamic conversion of holdings, dividends, and dollar gains into INR based on live FX rate (`fetchFxRate()`).
 - **Mutual Funds (`MutualFundsView.jsx`)**:
   - Direct growth plan tracking with live Scheme NAVs fetched via AMFI Scheme Codes.
+- **National Pension System (`NpsView.jsx`)**:
+  - Tier I Active Choice NPS portfolio tracking with live NAVs fetched via npsnav.in API.
+  - Multi-scheme ingestion across Equity (E), Corporate Debt (C), Government Securities (G) sub-schemes.
+  - Sortable table with status filter tabs (Active/Exited/All), search, and HoldingDetailModal drill-down.
 - **Fixed Income & Retirement (`FixedIncomeView.jsx`)**:
-  - Consolidated tracking for Bank Accounts, Fixed Deposits, National Pension System (NPS), and Employee Provident Fund (EPF).
+  - Consolidated tracking for Bank Accounts, Fixed Deposits, and Employee Provident Fund (EPF).
 
 ### 3. Liabilities & Debt Hub (`LiabilitiesView.jsx`)
 - Tracks outstanding loan principals (Home Loan, Personal Loan) and Credit Card balances.
@@ -106,6 +110,7 @@ ladder/
 │   │   ├── IndianStocksView.jsx
 │   │   ├── LiabilitiesView.jsx
 │   │   ├── MutualFundsView.jsx
+│   │   ├── NpsView.jsx
 │   │   ├── OverviewView.jsx
 │   │   └── UsStocksView.jsx
 │   ├── App.jsx                # Main router with AnimatePresence view transitions
@@ -144,6 +149,9 @@ ladder/
 | **v1.7.0** | 2026-08-09 | Ingested full US Stocks portfolio from `US_Stocks.xls` (110 Buy/Sell orders across 12 tickers) and `Book2.xlsx` (73 dividend payments & historical FX rates). Added `fx_rate` column to Supabase `transactions` table and stored exact transaction-date dollar rates. Implemented dual currency (USD/INR) P&L logic: in USD mode values show in `$`, in INR mode invested cost reflects transaction-date FX rates and P&L reflects difference between live dollar rate (₹87.25) and transaction dollar rates. Added `USD/INR Rate` column to transaction ledger in `HoldingDetailModal.jsx` for US stocks. Resulted in 11 Active Holdings and 1 Redeemed Holding (`ASML`). | Antigravity AI |
 | **v1.7.1** | 2026-08-09 | Enhanced `HoldingDetailModal.jsx` and `server/index.js` (/api/holding/:id/detail) with complete dual currency (INR/USD) switching. When global toggle is INR, all 7 metric cards, chart timeline, and transaction amounts now display in `₹ INR` using historical purchase-date dollar rates for invested cost and live rates for market value. Added an interactive `[ ₹ INR | $ USD ]` toggle directly in the modal header for US Stocks allowing instant on-the-fly currency switching. | Antigravity AI |
 | **v1.7.2** | 2026-08-09 | Cleaned up `UsStocksView.jsx` by removing redundant `Tx Rate (₹/$)` column from the main table (as rates apply at individual transaction date level). Added prominent **Live FX Rate (Today)** badge (`1 USD = ₹XX.XX`) in `HoldingDetailModal.jsx` header alongside the interactive INR/USD toggle. | Antigravity AI |
+| **v1.8.0** | 2026-08-09 | Integrated National Pension System (NPS) as a first-class portfolio asset. Created `load_nps_data.mjs` ingestion script parsing 7 yearly NPS transaction statement CSVs (2020-2027), extracting 14 unique pension fund schemes across ABSL, SBI, LIC, HDFC, and UTI fund managers. Populated 14 holdings and 330 transactions into Supabase. Added `fetchNpsNav()` to `priceEngine.js` using the community `npsnav.in` API for live NAV updates. Created `NpsView.jsx` with sortable table, status filter tabs, search, and `HoldingDetailModal` integration. Added NPS navigation to `Sidebar.jsx` and `App.jsx` routing. Removed NPS from `FixedIncomeView.jsx` to prevent double counting. Resulted in 3 Active Holdings (HDFC C Direct, LIC G Direct, UTI E Direct) and 11 Exited Holdings. | Antigravity AI |
+| **v1.8.1** | 2026-08-09 | Upgraded NPS NAV price engine. Replaced default API price engine in `priceEngine.js` with an official Protean web scraper using `adm-zip`. The scraper downloads Protean's daily ZIP file, extracts the `.out` CSV file in-memory, and updates active NPS holdings with exact official NAVs. Integrated `npsnav.in` as an automatic error-resilient fallback in case of scraper or layout failures. Tested the `npsnav.in/api/historical/{schemeCode}` endpoint (3,100+ daily NAV data points back to 2013) to prepare for true daily historical charting in the next session. | Antigravity AI |
+| **v1.8.2** | 2026-08-10 | Implemented daily historical NAV charting in `HoldingDetailModal.jsx` and `server/index.js` for NPS schemes. Added `fetchNpsHistoricalNav()` with in-memory TTL caching to `priceEngine.js`. Updated `/api/holding/:holdingId/detail` to compute a full chronological daily valuation timeline by cross-referencing cumulative unit positions against daily historical NAV datasets dating back to 2020. Updated `HoldingDetailModal.jsx` with NPS cyan accent theme (`#06b6d4`), 'NPS Scheme' asset label, and high-precision 4-decimal quantity and NAV pricing format. Verified in browser across active and exited NPS schemes. | Antigravity AI |
 
 ---
 
@@ -152,3 +160,5 @@ ladder/
 1. **Before Editing**: Always read `LADDER.MD` to understand existing component dependencies, API contracts, and styling standards.
 2. **After Editing**: Update the **Change Log & Maintenance History** table above with the new version, date, concise description of changes, and author/agent.
 3. **Git Workflow**: Commit changes locally with standard commit messages (`feat: ...`, `fix: ...`, `refactor: ...`) and push to `origin main`.
+
+

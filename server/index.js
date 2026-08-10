@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db, { initDatabase } from './db.js';
 import { supabase } from './supabaseClient.js';
-import { refreshAllHoldingsPrices, fetchFxRate } from './services/priceEngine.js';
+import { refreshAllHoldingsPrices, fetchFxRate, fetchNpsHistoricalNav } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
 
 const app = express();
@@ -461,56 +461,107 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
     // Timelines
     const timelineUSD = [];
     const timelineINR = [];
-    let runningInvUSD = 0;
-    let runningInvINR = 0;
-    let runningQ = 0;
-    const seenDates = new Set();
 
-    for (const tx of txs) {
-      const qty = Number(tx.quantity) || 0;
-      const price = Number(tx.price) || 0;
-      const amtUSD = Number(tx.total_amount) || qty * price;
-      const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
-      const amtINR = amtUSD * txRate;
+    // High-fidelity historical daily NAV timeline for NPS holdings
+    if (holding.category_id === 'nps' && txs.length > 0) {
+      const npsNavMap = await fetchNpsHistoricalNav(holding.symbol);
+      if (npsNavMap && npsNavMap.size > 0) {
+        const sortedNavDates = Array.from(npsNavMap.keys()).sort();
+        const firstTxDate = txs[0].date;
+        const lastTxDate = txs[txs.length - 1].date;
+        const isExited = (Number(holding.quantity) || 0) === 0;
+        const relevantDates = sortedNavDates.filter(d => d >= firstTxDate && (!isExited || d <= lastTxDate));
 
-      if (tx.type === 'BUY' || tx.type === 'BONUS') {
-        runningInvUSD += amtUSD;
-        runningInvINR += amtINR;
-        runningQ += qty;
-      } else if (tx.type === 'SELL') {
-        runningInvUSD -= qty * (avgBuyPriceUSD || price);
-        runningInvINR -= qty * (avgBuyPriceUSD || price) * txRate;
-        runningQ -= qty;
-      }
+        let runningQ = 0;
+        let runningInv = 0;
+        let txIdx = 0;
 
-      const dateKey = tx.date;
-      if (!seenDates.has(dateKey)) {
-        seenDates.add(dateKey);
-        const valUSD = runningQ * currentPriceUSD;
-        const valINR = valUSD * liveRate;
-        timelineUSD.push({
-          label: dateKey,
-          invested: Number(runningInvUSD.toFixed(2)),
-          value: Number(valUSD.toFixed(2))
-        });
-        timelineINR.push({
-          label: dateKey,
-          invested: Number(runningInvINR.toFixed(2)),
-          value: Number(valINR.toFixed(2))
-        });
+        for (const d of relevantDates) {
+          while (txIdx < txs.length && txs[txIdx].date <= d) {
+            const tx = txs[txIdx];
+            const qty = Number(tx.quantity) || 0;
+            const amt = Number(tx.total_amount) || (qty * (Number(tx.price) || 0));
+            if (tx.type === 'BUY' || tx.type === 'BONUS') {
+              runningQ += qty;
+              runningInv += amt;
+            } else if (tx.type === 'SELL') {
+              runningQ = Math.max(0, runningQ - qty);
+              runningInv = Math.max(0, runningInv - amt);
+            }
+            txIdx++;
+          }
+          const nav = npsNavMap.get(d) || 0;
+          const val = Math.max(0, runningQ * nav);
+          timelineINR.push({
+            label: d,
+            invested: Number(Math.max(0, runningInv).toFixed(2)),
+            value: Number(val.toFixed(2))
+          });
+        }
+
+        if (!isExited && (timelineINR.length === 0 || timelineINR[timelineINR.length - 1].label !== today)) {
+          timelineINR.push({
+            label: today,
+            invested: Number(Math.max(0, costBasisINR).toFixed(2)),
+            value: Number(currentValueINR.toFixed(2))
+          });
+        }
       }
     }
 
-    timelineUSD.push({
-      label: today,
-      invested: Number(Math.max(0, runningInvUSD).toFixed(2)),
-      value: Number(currentValueUSD.toFixed(2))
-    });
-    timelineINR.push({
-      label: today,
-      invested: Number(Math.max(0, runningInvINR).toFixed(2)),
-      value: Number(currentValueINR.toFixed(2))
-    });
+    // Default timeline construction (used for stocks, MFs, and fallback)
+    if (timelineINR.length === 0) {
+      let runningInvUSD = 0;
+      let runningInvINR = 0;
+      let runningQ = 0;
+      const seenDates = new Set();
+
+      for (const tx of txs) {
+        const qty = Number(tx.quantity) || 0;
+        const price = Number(tx.price) || 0;
+        const amtUSD = Number(tx.total_amount) || qty * price;
+        const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
+        const amtINR = amtUSD * txRate;
+
+        if (tx.type === 'BUY' || tx.type === 'BONUS') {
+          runningInvUSD += amtUSD;
+          runningInvINR += amtINR;
+          runningQ += qty;
+        } else if (tx.type === 'SELL') {
+          runningInvUSD -= qty * (avgBuyPriceUSD || price);
+          runningInvINR -= qty * (avgBuyPriceUSD || price) * txRate;
+          runningQ -= qty;
+        }
+
+        const dateKey = tx.date;
+        if (!seenDates.has(dateKey)) {
+          seenDates.add(dateKey);
+          const valUSD = runningQ * currentPriceUSD;
+          const valINR = valUSD * liveRate;
+          timelineUSD.push({
+            label: dateKey,
+            invested: Number(runningInvUSD.toFixed(2)),
+            value: Number(valUSD.toFixed(2))
+          });
+          timelineINR.push({
+            label: dateKey,
+            invested: Number(runningInvINR.toFixed(2)),
+            value: Number(valINR.toFixed(2))
+          });
+        }
+      }
+
+      timelineUSD.push({
+        label: today,
+        invested: Number(Math.max(0, runningInvUSD).toFixed(2)),
+        value: Number(currentValueUSD.toFixed(2))
+      });
+      timelineINR.push({
+        label: today,
+        invested: Number(Math.max(0, runningInvINR).toFixed(2)),
+        value: Number(currentValueINR.toFixed(2))
+      });
+    }
 
     res.json({
       holding,

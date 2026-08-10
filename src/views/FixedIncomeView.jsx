@@ -7,7 +7,7 @@ import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/Animated
 export default function FixedIncomeView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { formatMoney } = useThemeAuth();
 
-  const fixedHoldings = holdings.filter(h => ['bank', 'nps', 'epf'].includes(h.category_id));
+  const fixedHoldings = holdings.filter(h => ['bank', 'epf'].includes(h.category_id));
   const totalValue = fixedHoldings.reduce((sum, h) => sum + h.currentValueINR, 0);
 
   return (

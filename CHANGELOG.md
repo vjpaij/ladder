@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.2] - 2026-08-10
+
+### Added
+- **Daily Historical Charting**: Implemented high-fidelity daily historical NAV charting in `HoldingDetailModal.jsx` and `server/index.js` for NPS schemes, utilizing a new `fetchNpsHistoricalNav()` cache engine in `priceEngine.js` to cross-reference cumulative units against daily NAV datasets since 2020.
+- **NPS UI Styling**: Added cyan accent theme (`#06b6d4`), 'NPS Scheme' labels, and 4-decimal precision formatting for quantities and NAVs.
+
+---
+
+## [1.8.1] - 2026-08-09
+
+### Added
+- **Official Protean NAV Scraper**: Upgraded NPS price engine to dynamically download and extract daily Protean CRA ZIP files (`.out` CSV) in-memory using `adm-zip` for exact official NAVs.
+- **NPS Price Fallback**: Integrated `npsnav.in` as an automatic error-resilient fallback to handle scraper or layout failures.
+
+---
+
+## [1.8.0] - 2026-08-09
+
+### Added
+- **National Pension System (NPS) Integration**: Added NPS as a first-class portfolio asset class.
+- **NPS Data Ingestion**: Created `load_nps_data.mjs` script parsing 7 yearly transaction statements (2020-2027) into Supabase.
+- **NPS Frontend Views**: Built `NpsView.jsx` with sortable tables, status filter tabs, search, and integrated `HoldingDetailModal`.
+
+---
+
 ## [1.7.2] - 2026-08-09
 
 ### Changed
