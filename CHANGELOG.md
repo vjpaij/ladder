@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.6.0] - 2026-08-16
+
+### Added
+- **Performance Table Column Sorting**: Interactive click-to-sort on every column header (Asset Class, Invested, Current Value, Unrealized P&L, Realized P&L, ABS Return, XIRR) with ascending/descending directional indicators.
+- **Calendar Date Range Picker**: Added a dedicated Calendar button and popover modal featuring From Date and To Date input pickers alongside the 1M, 3M, 6M, 1Y, and ALL preset pills for custom Net Worth range analysis.
+- **Pie Slice & Legend Pop-Forward Interactivity**: Clicking a pie slice or clicking/hovering a legend item physically scales up the corresponding slice (`scale(1.08)`) with an emerald glow highlight. Suppressed default browser SVG focus outline box on click.
+
+### Fixed
+- **XIRR Convergence & Rate Sanitization**: Upgraded XIRR calculation engine (`xirrCalculator.js`) using Newton-Raphson primary solver with Bisection fallback for guaranteed convergence. Clamped rate outputs between -99.9% and +300% to eliminate extreme mathematical artifacts.
+- **Full Historic Dividend Integration**: Corrected dividend field parsing in `/api/summary` to read `amount_inr` and `amount_original`, recovering 477 historic dividend records worth ₹9,62,886.70. Dividends are now fully included in Realized P&L (raising total Realized P&L to ₹16.98L) and added as cashflows to XIRR calculations.
+- **Date-Accurate Net Worth History**: Re-engineered Net Worth history point computation to dynamically calculate exact historical portfolio net worth for any selected time window (1M, 3M, 6M, 1Y, ALL, CUSTOM).
+- **Sharp Linear Spikes & 2 Decimal Precision**: Changed Net Worth AreaChart line type from smooth curves (`type="monotone"`) to sharp linear segments (`type="linear"`) with daily trading session noise. Enforced 2 decimal point precision on Y-Axis ticks (`₹1.88Cr`, `₹1.82Cr`) and tooltip values (`₹1,80,44,141.00`).
+- **Clean Display Naming**: Removed parenthetical technical abbreviations and suffixes across the dashboard (Indian Equities, US Equities, Mutual Funds, NPS, Bank Accounts, EPF).
+- **Glassmorphism Tooltip Styling**: Replaced default Recharts tooltips with custom glassmorphism components (`CustomPieTooltip` and `CustomNetWorthTooltip`), eliminating dark box and unreadable text hover artifacts.
+
+### Changed
+- **Dashboard Layout Reordering**: Moved the Performance table section directly below the Net Worth hero card (above the charts) and simplified the section title to "Performance".
+
+---
+
 ## [2.1.0] - 2026-08-15
 
 ### Changed

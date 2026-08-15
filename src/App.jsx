@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ThemeAuthProvider } from './context/ThemeAuthContext';
+import { useThemeAuth } from './context/ThemeAuthContext';
 import Sidebar from './components/Sidebar';
 import TopNavbar from './components/TopNavbar';
 import OverviewView from './views/OverviewView';
@@ -21,6 +22,15 @@ import AddAssetModal from './components/AddAssetModal';
 import HoldingDetailModal from './components/HoldingDetailModal';
 
 export default function App() {
+  return (
+    <ThemeAuthProvider>
+      <AppInner />
+    </ThemeAuthProvider>
+  );
+}
+
+function AppInner() {
+  const { setFxRate } = useThemeAuth();
   const [currentView, setCurrentView] = useState('overview');
   const [summary, setSummary] = useState(null);
   const [holdings, setHoldings] = useState([]);
@@ -55,6 +65,8 @@ export default function App() {
       setHoldings(holdRes.data);
       setLiabilities(liabRes.data);
       setLastUpdated(new Date().toLocaleTimeString());
+      // Sync live FX rate into global context so all currency conversions use today's real rate
+      if (sumRes.data.fxRate) setFxRate(sumRes.data.fxRate);
     } catch (err) {
       console.error('[App] Failed to fetch dashboard data:', err);
       setToast({
@@ -147,77 +159,75 @@ export default function App() {
   };
 
   return (
-    <ThemeAuthProvider>
-      <div className="flex min-h-screen bg-obsidian-950 text-slate-100 antialiased font-sans p-2 sm:p-3 md:p-4 gap-3 md:gap-4 overflow-hidden">
+    <div className="flex min-h-screen bg-obsidian-950 text-slate-100 antialiased font-sans p-2 sm:p-3 md:p-4 gap-3 md:gap-4 overflow-hidden">
+      
+      {/* Left Sidebar */}
+      <Sidebar
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+        summary={summary}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      />
+
+      {/* Right Main Content Column */}
+      <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] gap-3 md:gap-4">
         
-        {/* Left Sidebar */}
-        <Sidebar
-          currentView={currentView}
-          setCurrentView={setCurrentView}
+        <TopNavbar
+          onRefreshPrices={handleRefreshPrices}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          holdings={holdings}
+          liabilities={liabilities}
+          onSelectHolding={(h) => setSelectedHoldingModal(h)}
+          onNavigate={setCurrentView}
           summary={summary}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
-        {/* Right Main Content Column */}
-        <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] gap-3 md:gap-4">
-          
-          <TopNavbar
-            onRefreshPrices={handleRefreshPrices}
-            isRefreshing={isRefreshing}
-            lastUpdated={lastUpdated}
-            holdings={holdings}
-            liabilities={liabilities}
-            onSelectHolding={(h) => setSelectedHoldingModal(h)}
-            onNavigate={setCurrentView}
-            summary={summary}
-          />
-
-          <main className="flex-1 glass-card border border-slate-800 rounded-3xl overflow-y-auto w-full relative">
-            <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-              <AnimatePresence mode="wait">
-                {renderView()}
-              </AnimatePresence>
-            </div>
-          </main>
-
-        </div>
-
-        {/* Toast Notification */}
-        <AnimatePresence>
-          {toast && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-2xl border flex items-center gap-3 ${
-                toast.type === 'error'
-                  ? 'bg-rose-950/90 border-rose-800/80 text-rose-200'
-                  : 'bg-slate-900/95 border-emerald-500/40 text-slate-100'
-              }`}
-            >
-              <div className={`w-2 h-2 rounded-full ${toast.type === 'error' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
-              <span className="text-xs font-bold">{toast.message}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Add Asset Modal */}
-        <AddAssetModal
-          isOpen={isAddModalOpen}
-          onClose={() => setIsAddModalOpen(false)}
-          onRefresh={fetchDashboardData}
-        />
-
-        {/* Holding Detail Modal */}
-        {selectedHoldingModal && (
-          <HoldingDetailModal
-            holding={selectedHoldingModal}
-            onClose={() => setSelectedHoldingModal(null)}
-          />
-        )}
+        <main className="flex-1 glass-card border border-slate-800 rounded-3xl overflow-y-auto w-full relative">
+          <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+            <AnimatePresence mode="wait">
+              {renderView()}
+            </AnimatePresence>
+          </div>
+        </main>
 
       </div>
-    </ThemeAuthProvider>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-2xl border flex items-center gap-3 ${
+              toast.type === 'error'
+                ? 'bg-rose-950/90 border-rose-800/80 text-rose-200'
+                : 'bg-slate-900/95 border-emerald-500/40 text-slate-100'
+            }`}
+          >
+            <div className={`w-2 h-2 rounded-full ${toast.type === 'error' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
+            <span className="text-xs font-bold">{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Asset Modal */}
+      <AddAssetModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onRefresh={fetchDashboardData}
+      />
+
+      {/* Holding Detail Modal */}
+      {selectedHoldingModal && (
+        <HoldingDetailModal
+          holding={selectedHoldingModal}
+          onClose={() => setSelectedHoldingModal(null)}
+        />
+      )}
+
+    </div>
   );
 }

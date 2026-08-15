@@ -110,19 +110,79 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     const catMap = {};
     categories.forEach(c => catMap[c.id] = c);
 
+    // Clean display name mapping
+    const DISPLAY_NAMES = {
+      'in_stocks': 'Indian Equities',
+      'us_stocks': 'US Equities',
+      'mutual_funds': 'Mutual Funds',
+      'nps': 'NPS',
+      'bank': 'Bank Accounts',
+      'epf': 'EPF',
+      'loans': 'Loans',
+      'credit_cards': 'Credit Cards'
+    };
+
     let totalAssetsINR = 0;
     let totalInvestedINR = 0;
+    let totalInvestedUSD = 0;   // raw USD invested (for correct USD display)
+    let totalRealizedPnlINR = 0;
+    let totalRealizedPnlUSD = 0;
+
+    // Compute exact weighted transaction FX rates for US stocks for invested amount
+    const usTxsRes = await supabase.from('transactions').select('holding_id, symbol, total_amount, fx_rate').eq('currency', 'USD').eq('type', 'BUY');
+    const usFxMap = {};
+    if (usTxsRes.data) {
+      usTxsRes.data.forEach(t => {
+        const key = t.holding_id || t.symbol;
+        if (!usFxMap[key]) usFxMap[key] = { totalUSD: 0, totalINR: 0 };
+        const amt = Number(t.total_amount) || 0;
+        const rate = Number(t.fx_rate) || 82.5;
+        usFxMap[key].totalUSD += amt;
+        usFxMap[key].totalINR += amt * rate;
+      });
+    }
+
+    // Fetch dividends — use correct field: amount_inr (not total_amount)
+    const dividends = await db.select('dividends');
+    const divMap = {}; // holding_id -> total dividends INR
+    const divCashflows = [];
+    dividends.forEach(d => {
+      const h = holdings.find(item => item.id === d.holding_id);
+      const amtINR = Number(d.amount_inr) || 0;
+      if (!divMap[d.holding_id]) divMap[d.holding_id] = 0;
+      divMap[d.holding_id] += amtINR;
+      divCashflows.push({ date: d.ex_date || d.payment_date, amount: amtINR, category_id: h ? h.category_id : null });
+    });
 
     holdings.forEach(h => {
-      if ((Number(h.quantity) || 0) <= 0) return; // ignore closed positions for active assets
-      const rate = h.currency === 'USD' ? fxRate : 1.0;
-      const txRate = h.currency === 'USD' ? getHistoricalFxRate(h.created_at || '2022-09-15') : 1.0;
+      // Realized P&L — sum across ALL holdings (including closed) + DIVIDENDS
+      const capitalGain = Number(h.realized_pnl) || 0;
+      const divIncome = divMap[h.id] || 0;
+      if (h.currency === 'USD') {
+        totalRealizedPnlUSD += capitalGain + (divIncome / fxRate);
+        totalRealizedPnlINR += (capitalGain * fxRate) + divIncome;
+      } else {
+        totalRealizedPnlINR += capitalGain + divIncome;
+        totalRealizedPnlUSD += (capitalGain + divIncome) / fxRate;
+      }
 
-      const currentVal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * rate;
-      const investedVal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * txRate;
+      // Active holdings only for assets and invested
+      if ((Number(h.quantity) || 0) <= 0) return;
 
+      const liveRate = h.currency === 'USD' ? fxRate : 1.0;
+      const currentVal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * liveRate;
       totalAssetsINR += currentVal;
-      totalInvestedINR += investedVal;
+
+      if (h.currency === 'USD') {
+        const m = usFxMap[h.id] || usFxMap[h.symbol];
+        const txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : getHistoricalFxRate(h.created_at || '2022-09-15');
+        const investedUSD = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
+        totalInvestedUSD += investedUSD;
+        totalInvestedINR += investedUSD * txRate;
+      } else {
+        const investedVal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
+        totalInvestedINR += investedVal;
+      }
     });
 
     let totalLiabilitiesINR = 0;
@@ -134,22 +194,166 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     const totalGainINR = totalAssetsINR - totalInvestedINR;
     const absoluteReturnPct = calculateAbsoluteReturn(totalInvestedINR, totalAssetsINR);
 
-    // Cashflows for XIRR calculation
+    // -------------------------------------------------------------
+    // Granular Asset Class Metrics & XIRR
+    // -------------------------------------------------------------
     const txs = await db.select('transactions');
-    const cashflows = [];
+    const overallCashflows = [];
+    const validXirrCategories = new Set(['in_stocks', 'us_stocks', 'mutual_funds', 'nps']);
+    let xirrFinalAssetsINR = 0;
 
-    txs.forEach(t => {
-      const h = holdings.find(item => item.id === t.holding_id);
-      const rate = (h && h.currency === 'USD') ? getHistoricalFxRate(t.date) : 1.0;
-      const amount = (t.type === 'BUY' ? -1 : 1) * (Number(t.total_amount) || 0) * rate;
-      cashflows.push({ date: t.date, amount });
+    const categoryMetricsMap = {};
+    categories.forEach(c => {
+      categoryMetricsMap[c.id] = {
+        id: c.id,
+        name: DISPLAY_NAMES[c.id] || c.name,
+        color: c.color,
+        investedINR: 0,
+        currentINR: 0,
+        realizedINR: 0,
+        unrealizedINR: 0,
+        cashflows: [],
+        holdingsCovered: new Set() // track which holdings have transactions
+      };
     });
 
-    if (totalAssetsINR > 0) {
-      cashflows.push({ date: new Date().toISOString().split('T')[0], amount: totalAssetsINR });
-    }
+    // 1. Group Holdings data by category
+    holdings.forEach(h => {
+      const cat = categoryMetricsMap[h.category_id];
+      if (!cat) return;
 
-    const xirrPct = calculateXirr(cashflows);
+      // Realized (capital gain + dividends) for this holding
+      const capitalGain = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? fxRate : 1.0);
+      const divIncome = divMap[h.id] || 0;
+      cat.realizedINR += capitalGain + divIncome;
+
+      // Active holdings
+      if ((Number(h.quantity) || 0) > 0) {
+        const liveRate = h.currency === 'USD' ? fxRate : 1.0;
+        const currentVal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * liveRate;
+        
+        let txRate = 1.0;
+        if (h.currency === 'USD') {
+          const m = usFxMap[h.id] || usFxMap[h.symbol];
+          txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : getHistoricalFxRate(h.created_at || '2022-09-15');
+        }
+        const investedVal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * txRate;
+
+        cat.currentINR += currentVal;
+        cat.investedINR += investedVal;
+        cat.unrealizedINR += (currentVal - investedVal);
+
+        if (validXirrCategories.has(h.category_id)) {
+          xirrFinalAssetsINR += currentVal;
+        }
+      }
+    });
+
+    // 2. Build Category Cashflows from actual transactions
+    txs.forEach(t => {
+      const h = holdings.find(item => item.id === t.holding_id);
+      if (!h) return;
+      const rate = (h.currency === 'USD') ? getHistoricalFxRate(t.date) : 1.0;
+      const amount = (t.type === 'BUY' ? -1 : 1) * (Number(t.total_amount) || 0) * rate;
+      const flow = { date: t.date, amount };
+      
+      if (categoryMetricsMap[h.category_id]) {
+        categoryMetricsMap[h.category_id].cashflows.push(flow);
+        categoryMetricsMap[h.category_id].holdingsCovered.add(h.id);
+      }
+      if (validXirrCategories.has(h.category_id)) {
+        overallCashflows.push(flow);
+      }
+    });
+
+    // 3. Add dividends to cashflows
+    divCashflows.forEach(flow => {
+      if (flow.category_id && categoryMetricsMap[flow.category_id]) {
+        categoryMetricsMap[flow.category_id].cashflows.push(flow);
+      }
+      if (flow.category_id && validXirrCategories.has(flow.category_id)) {
+        overallCashflows.push(flow);
+      }
+    });
+
+    // 4. Synthesize cashflows for holdings that have NO transactions in the ledger
+    //    Use holdings data: buy_qty * avg_buy_price as total cost
+    //    Date: earliest dividend date for that holding, or earliest date in its category
+    const holdingEarliestDivDate = {};
+    dividends.forEach(d => {
+      const date = d.ex_date || d.payment_date;
+      if (date && (!holdingEarliestDivDate[d.holding_id] || date < holdingEarliestDivDate[d.holding_id])) {
+        holdingEarliestDivDate[d.holding_id] = date;
+      }
+    });
+
+    // Find earliest real date per category from existing cashflows
+    const categoryEarliestDate = {};
+    Object.entries(categoryMetricsMap).forEach(([catId, cat]) => {
+      let earliest = null;
+      cat.cashflows.forEach(cf => {
+        if (cf.date && (!earliest || cf.date < earliest)) earliest = cf.date;
+      });
+      categoryEarliestDate[catId] = earliest;
+    });
+
+    holdings.forEach(h => {
+      const cat = categoryMetricsMap[h.category_id];
+      if (!cat || !validXirrCategories.has(h.category_id)) return;
+      if (cat.holdingsCovered.has(h.id)) return; // already has real transactions
+
+      const buyQty = Number(h.buy_qty) || 0;
+      const avgPrice = Number(h.avg_buy_price) || 0;
+      if (buyQty <= 0 || avgPrice <= 0) return;
+
+      const liveRate = h.currency === 'USD' ? fxRate : 1.0;
+      const txRate = h.currency === 'USD' ? getHistoricalFxRate(h.created_at || '2022-09-15') : 1.0;
+      const totalCostINR = buyQty * avgPrice * txRate;
+
+      // Best date: holding's earliest dividend > category earliest > fallback (must be historical < 2024)
+      let holdingDate = holdingEarliestDivDate[h.id] || categoryEarliestDate[h.category_id] || '2022-01-01';
+      if (holdingDate > '2024-01-01') holdingDate = '2022-01-01';
+
+      // Synthetic BUY cashflow
+      const buyFlow = { date: holdingDate, amount: -totalCostINR };
+      cat.cashflows.push(buyFlow);
+      overallCashflows.push(buyFlow);
+
+      // If holding is fully sold (quantity=0), add a SELL cashflow
+      const sellQty = Number(h.sell_qty) || 0;
+      if (sellQty > 0 && (Number(h.quantity) || 0) <= 0) {
+        const sellAmount = totalCostINR + ((Number(h.realized_pnl) || 0) * liveRate);
+        const sellFlow = { date: holdingDate, amount: sellAmount };
+        cat.cashflows.push(sellFlow);
+        overallCashflows.push(sellFlow);
+      }
+    });
+
+    // 5. Finalize XIRR calculations
+    if (xirrFinalAssetsINR > 0) {
+      overallCashflows.push({ date: new Date().toISOString().split('T')[0], amount: xirrFinalAssetsINR });
+    }
+    const xirrPct = calculateXirr(overallCashflows);
+
+    const categoryMetrics = Object.values(categoryMetricsMap)
+      .filter(c => c.investedINR > 0 || c.currentINR > 0 || c.realizedINR > 0)
+      .map(c => {
+        if (c.currentINR > 0) {
+          c.cashflows.push({ date: new Date().toISOString().split('T')[0], amount: c.currentINR });
+        }
+        return {
+          id: c.id,
+          name: c.name,
+          color: c.color,
+          investedINR: Math.round(c.investedINR),
+          currentINR: Math.round(c.currentINR),
+          realizedINR: Math.round(c.realizedINR),
+          unrealizedINR: Math.round(c.unrealizedINR),
+          xirrPct: calculateXirr(c.cashflows),
+          absoluteReturnPct: calculateAbsoluteReturn(c.investedINR, c.currentINR)
+        };
+      })
+      .sort((a, b) => b.currentINR - a.currentINR);
 
     // Latest Daily P&L
     const logs = await db.select('pnl_history');
@@ -158,15 +362,15 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     const dayPnlINR = latestLog ? (Number(latestLog.daily_pnl_inr) || 0) : (totalGainINR * 0.008);
     const dayPnlPct = latestLog ? 0.82 : 0.82;
 
-    // Asset Breakdown by Category
+    // Asset Breakdown by Category (clean names)
     const categoryValues = {};
     holdings.forEach(h => {
       if ((Number(h.quantity) || 0) <= 0) return;
-      const catName = catMap[h.category_id] ? catMap[h.category_id].name : h.category_id;
+      const displayName = DISPLAY_NAMES[h.category_id] || (catMap[h.category_id] ? catMap[h.category_id].name : h.category_id);
       const rate = h.currency === 'USD' ? fxRate : 1.0;
       const val = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * rate;
-      if (!categoryValues[catName]) categoryValues[catName] = 0;
-      categoryValues[catName] += val;
+      if (!categoryValues[displayName]) categoryValues[displayName] = 0;
+      categoryValues[displayName] += val;
     });
 
     const assetAllocation = Object.keys(categoryValues).map(cat => ({
@@ -180,13 +384,17 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
       totalLiabilitiesINR: Math.round(totalLiabilitiesINR),
       netWorthINR: Math.round(netWorthINR),
       totalInvestedINR: Math.round(totalInvestedINR),
+      totalInvestedUSD: Number(totalInvestedUSD.toFixed(2)),
       totalGainINR: Math.round(totalGainINR),
+      totalRealizedPnlINR: Math.round(totalRealizedPnlINR),
+      totalRealizedPnlUSD: Number(totalRealizedPnlUSD.toFixed(2)),
       absoluteReturnPct,
       xirrPct,
       dayPnlINR: Math.round(dayPnlINR),
       dayPnlPct,
       fxRate,
-      assetAllocation
+      assetAllocation,
+      categoryMetrics
     });
   } catch (err) {
     console.error('[API Error - /api/summary]:', err);
