@@ -176,6 +176,6 @@ ladder/
 
 1. **Before Editing**: Always read `LADDER.MD` to understand existing component dependencies, API contracts, and styling standards.
 2. **After Editing**: Update the **Change Log & Maintenance History** table above with the new version, date, concise description of changes, and author/agent.
-3. **Git Workflow**: Commit changes locally with standard commit messages (`feat: ...`, `fix: ...`, `refactor: ...`) and push to `origin main`.
+3. **Git Workflow**: Commit changes locally with **short but precise** commit messages (`feat: ...`, `fix: ...`, `release: ...`) and push to `origin main`.
 
 

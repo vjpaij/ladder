@@ -33,3 +33,6 @@ When asked to commit, release, or push code to Git:
    - Commit changes to the feature branch.
    - Switch to `main` branch, merge the feature branch into `main`, and then push `main` to remote `origin`.
    - **Do NOT delete the feature or release branch after merging**. Keep all feature/release branches intact in Git history.
+
+5. **Short & Precise Commit Messages**:
+   - Keep commit messages **short but precise** (e.g. `feat: dashboard charts precision and interaction upgrade`). Avoid overly long or verbose commit titles.
