@@ -2,6 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const ThemeAuthContext = createContext();
 
+const THEMES = [
+  { id: 'dark', label: 'Obsidian Dark', color: '#060709', accent: '#10B981' },
+  { id: 'midnight', label: 'Midnight Blue', color: '#080E21', accent: '#38BDF8' },
+  { id: 'sunset', label: 'Sunset Rose', color: '#120716', accent: '#F472B6' },
+  { id: 'light', label: 'Clean Light', color: '#F8FAFC', accent: '#2563EB' },
+  { id: 'warm_light', label: 'Warm Sand', color: '#FAF8F5', accent: '#D97706' },
+  { id: 'nordic_light', label: 'Nordic Frost', color: '#F0F4F8', accent: '#0284C7' }
+];
+
 export function ThemeAuthProvider({ children }) {
   const [theme, setTheme] = useState(localStorage.getItem('ladder_theme') || 'dark');
   const [currency, setCurrency] = useState(localStorage.getItem('ladder_currency') || 'INR');
@@ -11,10 +20,11 @@ export function ThemeAuthProvider({ children }) {
 
   useEffect(() => {
     localStorage.setItem('ladder_theme', theme);
-    if (theme === 'light') {
-      document.documentElement.classList.add('light');
-    } else {
-      document.documentElement.classList.remove('light');
+    // Remove all previous theme classes
+    const classes = ['light', 'midnight', 'sunset', 'warm_light', 'nordic_light'];
+    classes.forEach(c => document.documentElement.classList.remove(c));
+    if (theme !== 'dark') {
+      document.documentElement.classList.add(theme);
     }
   }, [theme]);
 
@@ -22,7 +32,12 @@ export function ThemeAuthProvider({ children }) {
     localStorage.setItem('ladder_currency', currency);
   }, [currency]);
 
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const toggleTheme = () => {
+    const currentIndex = THEMES.findIndex(t => t.id === theme);
+    const nextIndex = (currentIndex + 1) % THEMES.length;
+    setTheme(THEMES[nextIndex].id);
+  };
+
   const toggleCurrency = () => setCurrency(prev => prev === 'INR' ? 'USD' : 'INR');
 
   const logout = () => {
@@ -37,6 +52,12 @@ export function ThemeAuthProvider({ children }) {
     localStorage.setItem('ladder_user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
+  };
+
+  const updateUserAvatar = (avatarUrl) => {
+    const updated = { ...(user || {}), avatarUrl };
+    setUser(updated);
+    localStorage.setItem('ladder_user', JSON.stringify(updated));
   };
 
   const formatMoney = (amountInINR, forceINR = false) => {
@@ -56,11 +77,14 @@ export function ThemeAuthProvider({ children }) {
   return (
     <ThemeAuthContext.Provider value={{
       theme,
+      setTheme,
       toggleTheme,
+      availableThemes: THEMES,
       currency,
       toggleCurrency,
       token,
       user,
+      updateUserAvatar,
       login,
       logout,
       fxRate,

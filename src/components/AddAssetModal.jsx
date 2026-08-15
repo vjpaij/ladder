@@ -41,13 +41,13 @@ export default function AddAssetModal({ isOpen, onClose, onRefresh }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
       <motion.div 
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92 }}
         transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="glass-card w-full max-w-lg rounded-3xl p-6 border border-slate-800 relative shadow-2xl"
+        className="modal-surface w-full max-w-lg rounded-3xl p-6 border border-slate-800 relative shadow-2xl"
       >
         <button onClick={onClose} className="absolute right-4 top-4 text-slate-500 hover:text-white p-1 rounded-full hover:bg-slate-800">
           <X className="w-4 h-4" />

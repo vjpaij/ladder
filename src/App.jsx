@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ThemeAuthProvider } from './context/ThemeAuthContext';
 import Sidebar from './components/Sidebar';
 import TopNavbar from './components/TopNavbar';
@@ -29,10 +29,20 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedHoldingModal, setSelectedHoldingModal] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString());
+  const [toast, setToast] = useState(null);
+
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const fetchDashboardData = async () => {
     try {
@@ -46,17 +56,29 @@ export default function App() {
       setLiabilities(liabRes.data);
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
-      console.error('[App] Error fetching dashboard data:', err);
+      console.error('[App] Failed to fetch dashboard data:', err);
+      setToast({
+        type: 'error',
+        message: 'Database connection failed: ' + (err.response?.data?.error || err.message)
+      });
     }
   };
 
   const handleRefreshPrices = async () => {
     setIsRefreshing(true);
     try {
-      await axios.post('/api/refresh-prices');
+      const res = await axios.post('/api/refresh-prices');
       await fetchDashboardData();
+      setToast({
+        type: 'success',
+        message: 'Live prices, mutual fund NAVs & FX rates synced successfully!'
+      });
     } catch (err) {
       console.error('[App] Error refreshing prices:', err);
+      setToast({
+        type: 'error',
+        message: 'Could not refresh prices: ' + (err.response?.data?.error || err.message)
+      });
     } finally {
       setIsRefreshing(false);
     }
@@ -67,6 +89,7 @@ export default function App() {
       try {
         await axios.delete(`/api/holdings/${id}`);
         fetchDashboardData();
+        setToast({ type: 'success', message: 'Position removed from portfolio.' });
       } catch (err) {
         alert('Error deleting holding: ' + err.message);
       }
@@ -82,7 +105,10 @@ export default function App() {
           ...holding,
           quantity: Number(newQty),
           current_price: Number(newPrice)
-        }).then(() => fetchDashboardData());
+        }).then(() => {
+          fetchDashboardData();
+          setToast({ type: 'success', message: `${holding.name} updated.` });
+        });
       }
     }
   };
@@ -122,32 +148,59 @@ export default function App() {
 
   return (
     <ThemeAuthProvider>
-      <div className="flex min-h-screen bg-obsidian-950 text-slate-100 antialiased font-sans">
+      <div className="flex min-h-screen bg-obsidian-950 text-slate-100 antialiased font-sans p-2 sm:p-3 md:p-4 gap-3 md:gap-4 overflow-hidden">
         
         {/* Left Sidebar */}
         <Sidebar
           currentView={currentView}
           setCurrentView={setCurrentView}
           summary={summary}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
-        {/* Right Main Content */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* Right Main Content Column */}
+        <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] gap-3 md:gap-4">
           
           <TopNavbar
             onRefreshPrices={handleRefreshPrices}
             isRefreshing={isRefreshing}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
             lastUpdated={lastUpdated}
+            holdings={holdings}
+            liabilities={liabilities}
+            onSelectHolding={(h) => setSelectedHoldingModal(h)}
+            onNavigate={setCurrentView}
+            summary={summary}
           />
 
-          <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto">
-            <AnimatePresence mode="wait">
-              {renderView()}
-            </AnimatePresence>
+          <main className="flex-1 glass-card border border-slate-800 rounded-3xl overflow-y-auto w-full relative">
+            <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+              <AnimatePresence mode="wait">
+                {renderView()}
+              </AnimatePresence>
+            </div>
           </main>
 
         </div>
+
+        {/* Toast Notification */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-2xl border flex items-center gap-3 ${
+                toast.type === 'error'
+                  ? 'bg-rose-950/90 border-rose-800/80 text-rose-200'
+                  : 'bg-slate-900/95 border-emerald-500/40 text-slate-100'
+              }`}
+            >
+              <div className={`w-2 h-2 rounded-full ${toast.type === 'error' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
+              <span className="text-xs font-bold">{toast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Add Asset Modal */}
         <AddAssetModal

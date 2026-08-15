@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   Building2, ShieldCheck, TrendingUp, Percent, DollarSign, 
-  ChevronRight, Calendar, Award, Lock, Sparkles
+  ChevronRight, Calendar, Award, Lock, Sparkles, Plus
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
@@ -23,41 +23,45 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
   // Find EPF holding
   const epfHolding = holdings.find(h => h.category_id === 'epf' || h.symbol === 'EPF-RETIREMENT') || {
     id: '00000000-0000-0000-0000-000000000007',
-    name: 'EPF',
+    name: 'Employees Provident Fund (EPF)',
     symbol: 'EPF-RETIREMENT',
     category_id: 'epf',
-    current_price: 4606949
+    quantity: 1,
+    current_price: 3824000,
+    avg_buy_price: 1800000,
+    currency: 'INR'
   };
 
-  const currentVal = Number(epfHolding.current_price) || 4606949;
-  const annualInterestRate = 8.25; // EPFO current interest rate
-  const estAnnualInterest = Math.round(currentVal * (annualInterestRate / 100));
+  const currentVal = Number(epfHolding.current_price) || 3824000;
+  const annualInterestRate = 8.25;
+  const estAnnualInterest = (currentVal * annualInterestRate) / 100;
 
   return (
     <AnimatedPage className="space-y-6">
       
       {/* Top Hero Banner */}
       <AnimatedItem>
-        <div className="glass-card p-6 rounded-3xl border border-slate-800 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="relative overflow-hidden rounded-3xl glass-card p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-2xl backdrop-blur-2xl">
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 tracking-wider uppercase">
-                GOVT RETIREMENT FUND
+              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+                Statutory Retirement Fund (EPFO)
               </span>
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                • EEE Tax Exempt
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                FY 2025-26: 8.25% p.a.
               </span>
             </div>
-            <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
-              <ShieldCheck className="w-6 h-6 text-indigo-400" />
-              EPF
+            <h2 className="text-2xl md:text-3xl font-black text-slate-100 flex items-center gap-3">
+              <Building2 className="w-7 h-7 text-indigo-500" />
+              Employee Provident Fund
             </h2>
             <p className="text-xs text-slate-400 mt-1 max-w-xl">
               Government guaranteed statutory retirement accumulation compounding annually at official EPFO interest rates.
             </p>
           </div>
 
-          <div className="flex items-center gap-5 relative z-10 shrink-0">
+          <div className="flex items-center gap-3 relative z-10 shrink-0 flex-wrap md:flex-nowrap">
             <div className="text-right">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
                 Current EPF Accumulation
@@ -70,14 +74,26 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
               </div>
             </div>
 
+            {onOpenAddModal && (
+              <motion.button
+                onClick={onOpenAddModal}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-2xl text-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                Add Entry
+              </motion.button>
+            )}
+
             <motion.button
               onClick={() => onSelectHolding(epfHolding)}
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black rounded-2xl text-xs shadow-lg shadow-indigo-500/25"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-black rounded-2xl text-xs shadow-lg shadow-indigo-500/25 cursor-pointer"
             >
               <Sparkles className="w-4 h-4 fill-white" />
-              Inspect EPF Timeline
+              Inspect Timeline
             </motion.button>
           </div>
 
@@ -92,10 +108,10 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
           <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Accumulation Balance</span>
-              <Building2 className="w-4 h-4 text-indigo-400" />
+              <Building2 className="w-4 h-4 text-indigo-500" />
             </div>
-            <div className="text-xl font-black font-mono text-white mb-1">{formatMoney(currentVal)}</div>
-            <div className="text-[10px] text-indigo-400 font-bold">100% Capital Guaranteed</div>
+            <div className="text-xl font-black font-mono text-slate-100 mb-1">{formatMoney(currentVal)}</div>
+            <div className="text-[10px] text-indigo-500 font-bold">100% Capital Guaranteed</div>
           </div>
         </AnimatedCard>
 
@@ -144,7 +160,7 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
               <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
                 MEMBER EPF ACCOUNT
               </span>
-              <h3 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors mt-2">
+              <h3 className="text-lg font-bold text-slate-100 group-hover:text-indigo-500 transition-colors mt-2">
                 Employee Provident Fund Organisation (EPFO)
               </h3>
               <p className="text-xs text-slate-500">Universal Account Number (UAN) • EOD Snapshot Ingested</p>
@@ -157,21 +173,21 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-800">
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+            <div className="glass-subcard p-4 rounded-2xl">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Employee Share</span>
-              <span className="text-base font-extrabold font-mono text-white">~50% of Corpus</span>
+              <span className="text-base font-extrabold font-mono text-slate-100">~50% of Corpus</span>
               <span className="text-[10px] text-slate-500 block mt-0.5">Monthly salary deduction</span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+            <div className="glass-subcard p-4 rounded-2xl">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Employer Share</span>
-              <span className="text-base font-extrabold font-mono text-white">~50% of Corpus</span>
+              <span className="text-base font-extrabold font-mono text-slate-100">~50% of Corpus</span>
               <span className="text-[10px] text-slate-500 block mt-0.5">Matching employer contribution</span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800/80">
+            <div className="glass-subcard p-4 rounded-2xl">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Compounding Frequency</span>
-              <span className="text-base font-extrabold font-mono text-amber-400">Annual Compounding</span>
+              <span className="text-base font-extrabold font-mono text-amber-500">Annual Compounding</span>
               <span className="text-[10px] text-slate-500 block mt-0.5">Monthly interest calculation</span>
             </div>
           </div>

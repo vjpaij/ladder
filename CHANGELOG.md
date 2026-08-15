@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] - 2026-08-15
+
+### Changed
+- **Modern Floating Layout**: Upgraded application architecture decoupling the sidebar, top navbar, and main content view into distinct glass cards separated by spatial gaps.
+- **Collapsible Sidebar**: Engineered a collapsible sidebar toggle state in `Sidebar.jsx`, converting it from a wide panel into a compact icon-only floating rail.
+- **Light Theme Adaptability**: Fixed hardcoded dark mode `EpfView.jsx` styles to adapt smoothly to both light and dark themes using `glass-card` elements.
+- **VP Avatar Theming**: Profile avatar now strictly matches the Ladder brand blue-indigo gradient palette.
+
+---
+
+## [2.0.0] - 2026-08-15
+
+### Added
+- **Universal Multi-Theme System**: 6 custom high-contrast palettes spanning Dark Themes (Obsidian Dark, Midnight Blue, Sunset Rose) and Light Themes (Clean Light, Warm Sand, Nordic Frost).
+- **Synchronized Popups**: Assigned dedicated theme surface fills for top navigation controls, search inputs, and submetric cards. Removed hardcoded dark inline styles from `HoldingDetailModal.jsx` and `AddAssetModal.jsx` to ensure all popup windows automatically match the active theme.
+
+---
+
+## [1.9.9] - 2026-08-15
+
+### Changed
+- **Navigation Branding**: Harmonized top navbar action buttons and updated `Sidebar.jsx` highlights to dynamically match the active theme palette. Simplified section naming (Dashboard, Calendar, NPS, EPF) and changed the Dividends icon.
+- **User Profile Menu**: Simplified the User Profile menu to exclusively focus on profile photo upload/management, identity, and secure sign-out. Moved Import/Export to a dedicated top navbar button. Custom Profile Photo Upload implemented with Base64 image compression.
+- **Enhanced Search Ticker**: Live autocomplete dropdown prompting all matching user investments/tickers across all instrument types.
+
+---
+
 ## [1.9.1] - 2026-08-10
 
 ### Changed

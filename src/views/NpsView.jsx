@@ -116,10 +116,10 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
               onClick={onOpenAddModal}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-teal-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-cyan-500/20"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-teal-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-cyan-500/20 cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              Add
+              Add NPS Scheme
             </motion.button>
           </div>
         </div>

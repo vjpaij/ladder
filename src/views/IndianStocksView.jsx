@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
@@ -81,9 +81,14 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
         <AnimatedItem>
           <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-5">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/12 text-emerald-400 border border-emerald-500/25">
-                  NSE / BSE DUAL PRICE
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <motion.span 
+                    className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                  NSE / BSE LIVE FEED
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
                   Sorted by <span className="text-emerald-400 font-bold uppercase">{sortField} ({sortOrder})</span>
@@ -110,10 +115,10 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                 onClick={onOpenAddModal}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/20"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/20 cursor-pointer"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
-                Add
+                Add Stock
               </motion.button>
             </div>
           </div>

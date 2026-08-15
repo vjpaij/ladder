@@ -113,10 +113,10 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
               onClick={onOpenAddModal}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20 cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              Add
+              Add Mutual Fund
             </motion.button>
           </div>
         </div>

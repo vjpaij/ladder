@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --bg-main: #06080D;
-  --bg-surface: rgba(11, 15, 23, 0.75);
-  --bg-card: rgba(16, 22, 34, 0.85);
+  --bg-main: #060709;
+  --bg-surface: rgba(13, 17, 23, 0.85);
+  --bg-card: rgba(22, 27, 34, 0.9);
   --border-color: rgba(255, 255, 255, 0.08);
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
@@ -13,17 +13,69 @@
   --accent-indigo: #6366F1;
 }
 
+.midnight {
+  --bg-main: #080E21;
+  --bg-surface: rgba(14, 26, 56, 0.9);
+  --bg-card: rgba(20, 35, 75, 0.95);
+  --border-color: rgba(56, 189, 248, 0.2);
+  --text-primary: #F0F6FF;
+  --text-secondary: #93C5FD;
+  --text-muted: #60A5FA;
+  --accent-emerald: #38BDF8;
+  --accent-crimson: #F43F5E;
+  --accent-indigo: #818CF8;
+}
+
+.sunset {
+  --bg-main: #120716;
+  --bg-surface: rgba(31, 13, 36, 0.9);
+  --bg-card: rgba(45, 20, 53, 0.95);
+  --border-color: rgba(244, 114, 182, 0.2);
+  --text-primary: #FFF1F2;
+  --text-secondary: #FDA4AF;
+  --text-muted: #FB7185;
+  --accent-emerald: #F59E0B;
+  --accent-crimson: #E11D48;
+  --accent-indigo: #EC4899;
+}
+
 .light {
-  --bg-main: #F4F6F9;
-  --bg-surface: rgba(255, 255, 255, 0.9);
+  --bg-main: #F8FAFC;
+  --bg-surface: #FFFFFF;
   --bg-card: #FFFFFF;
-  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color: #CBD5E1;
   --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
   --accent-emerald: #059669;
   --accent-crimson: #DC2626;
-  --accent-indigo: #4F46E5;
+  --accent-indigo: #2563EB;
+}
+
+.warm_light {
+  --bg-main: #FAF8F5;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --border-color: #E7E0D8;
+  --text-primary: #1C1917;
+  --text-secondary: #44403C;
+  --text-muted: #78716C;
+  --accent-emerald: #D97706;
+  --accent-crimson: #DC2626;
+  --accent-indigo: #EA580C;
+}
+
+.nordic_light {
+  --bg-main: #F0F4F8;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --border-color: #CBD5E1;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --accent-emerald: #0284C7;
+  --accent-crimson: #DC2626;
+  --accent-indigo: #0284C7;
 }
 
 body {
@@ -32,6 +84,349 @@ body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
   min-height: 100vh;
+}
+
+/* ─── Active Navigation Highlight (Per-Theme Dynamic) ──── */
+/* Default / Obsidian Dark */
+.nav-item-active {
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: #34D399 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.12) !important;
+}
+.nav-item-active .active-icon {
+  color: #34D399 !important;
+}
+
+/* Midnight Blue Active */
+.midnight .nav-item-active {
+  background: rgba(56, 189, 248, 0.15) !important;
+  color: #38BDF8 !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.15) !important;
+}
+.midnight .nav-item-active .active-icon {
+  color: #38BDF8 !important;
+}
+
+/* Sunset Rose Active */
+.sunset .nav-item-active {
+  background: rgba(244, 114, 182, 0.15) !important;
+  color: #F472B6 !important;
+  border-color: rgba(244, 114, 182, 0.35) !important;
+  box-shadow: 0 0 14px rgba(244, 114, 182, 0.15) !important;
+}
+.sunset .nav-item-active .active-icon {
+  color: #F472B6 !important;
+}
+
+/* Clean Light Active */
+.light .nav-item-active {
+  background: #EFF6FF !important;
+  color: #1D4ED8 !important;
+  border-color: #BFDBFE !important;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08) !important;
+}
+.light .nav-item-active .active-icon {
+  color: #2563EB !important;
+}
+
+/* Warm Sand Active */
+.warm_light .nav-item-active {
+  background: #FEF3C7 !important;
+  color: #B45309 !important;
+  border-color: #FDE68A !important;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.08) !important;
+}
+.warm_light .nav-item-active .active-icon {
+  color: #D97706 !important;
+}
+
+/* Nordic Frost Active */
+.nordic_light .nav-item-active {
+  background: #E0F2FE !important;
+  color: #0369A1 !important;
+  border-color: #BAE6FD !important;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.08) !important;
+}
+.nordic_light .nav-item-active .active-icon {
+  color: #0284C7 !important;
+}
+
+/* ─── Midnight Blue Deep Theme Palette ───────────────────── */
+.midnight, .midnight body {
+  background-color: #080E21 !important;
+  color: #F0F6FF !important;
+}
+.midnight aside,
+.midnight header,
+.midnight .bg-obsidian-950,
+.midnight .bg-obsidian-900 {
+  background-color: rgba(11, 19, 43, 0.96) !important;
+  border-color: rgba(56, 189, 248, 0.2) !important;
+}
+.midnight .glass-card,
+.midnight .glass-panel,
+.midnight .bg-slate-900,
+.midnight .bg-slate-950 {
+  background-color: #0E1A38 !important;
+  border-color: rgba(56, 189, 248, 0.18) !important;
+  box-shadow: 0 12px 35px rgba(3, 7, 18, 0.6) !important;
+}
+.midnight .bg-slate-900\/90, .midnight .bg-slate-900\/80, .midnight .bg-slate-900\/70,
+.midnight .bg-slate-900\/60, .midnight .bg-slate-900\/50, .midnight .bg-slate-900\/40,
+.midnight .bg-slate-900\/30, .midnight .bg-slate-800, .midnight .bg-slate-800\/60,
+.midnight .bg-slate-800\/70, .midnight .bg-slate-800\/80, .midnight .bg-slate-800\/90 {
+  background-color: #14234B !important;
+  border-color: rgba(56, 189, 248, 0.16) !important;
+}
+.midnight .border-slate-800, .midnight .border-slate-700, .midnight .border-slate-700\/60 {
+  border-color: rgba(56, 189, 248, 0.2) !important;
+}
+
+/* ─── Sunset Rose Deep Theme Palette ─────────────────────── */
+.sunset, .sunset body {
+  background-color: #120716 !important;
+  color: #FFF1F2 !important;
+}
+.sunset aside,
+.sunset header,
+.sunset .bg-obsidian-950,
+.sunset .bg-obsidian-900 {
+  background-color: rgba(26, 11, 31, 0.96) !important;
+  border-color: rgba(244, 114, 182, 0.2) !important;
+}
+.sunset .glass-card,
+.sunset .glass-panel,
+.sunset .bg-slate-900,
+.sunset .bg-slate-950 {
+  background-color: #1F0D24 !important;
+  border-color: rgba(244, 114, 182, 0.18) !important;
+  box-shadow: 0 12px 35px rgba(7, 2, 8, 0.6) !important;
+}
+.sunset .bg-slate-900\/90, .sunset .bg-slate-900\/80, .sunset .bg-slate-900\/70,
+.sunset .bg-slate-900\/60, .sunset .bg-slate-900\/50, .sunset .bg-slate-900\/40,
+.sunset .bg-slate-900\/30, .sunset .bg-slate-800, .sunset .bg-slate-800\/60,
+.sunset .bg-slate-800\/70, .sunset .bg-slate-800\/80, .sunset .bg-slate-800\/90 {
+  background-color: #2D1435 !important;
+  border-color: rgba(244, 114, 182, 0.16) !important;
+}
+.sunset .border-slate-800, .sunset .border-slate-700, .sunset .border-slate-700\/60 {
+  border-color: rgba(244, 114, 182, 0.2) !important;
+}
+
+/* ─── Light Themes High-Contrast Overrides ──────────────── */
+.light, .light body { background-color: #F8FAFC !important; color: #0F172A !important; }
+.warm_light, .warm_light body { background-color: #FAF8F5 !important; color: #1C1917 !important; }
+.nordic_light, .nordic_light body { background-color: #F0F4F8 !important; color: #0F172A !important; }
+
+.light .text-white, .light .text-slate-100, .light .text-slate-200,
+.warm_light .text-white, .warm_light .text-slate-100, .warm_light .text-slate-200,
+.nordic_light .text-white, .nordic_light .text-slate-100, .nordic_light .text-slate-200 {
+  color: #0F172A !important;
+}
+
+.light .text-slate-300, .light .text-slate-400,
+.warm_light .text-slate-300, .warm_light .text-slate-400,
+.nordic_light .text-slate-300, .nordic_light .text-slate-400 {
+  color: #334155 !important;
+}
+
+.light .text-slate-500, .light .text-slate-600,
+.warm_light .text-slate-500, .warm_light .text-slate-600,
+.nordic_light .text-slate-500, .nordic_light .text-slate-600 {
+  color: #64748B !important;
+}
+
+.light .text-emerald-400, .warm_light .text-emerald-400, .nordic_light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+.light .text-rose-400, .warm_light .text-rose-400, .nordic_light .text-rose-400 {
+  color: #DC2626 !important;
+}
+
+.light .text-indigo-400, .warm_light .text-indigo-400, .nordic_light .text-indigo-400 {
+  color: #2563EB !important;
+}
+
+.light .text-purple-400, .warm_light .text-purple-400, .nordic_light .text-purple-400 {
+  color: #7C3AED !important;
+}
+
+.light .text-amber-400, .warm_light .text-amber-400, .nordic_light .text-amber-400 {
+  color: #D97706 !important;
+}
+
+.light .text-cyan-400, .warm_light .text-cyan-400, .nordic_light .text-cyan-400 {
+  color: #0891B2 !important;
+}
+
+.light .text-blue-400, .warm_light .text-blue-400, .nordic_light .text-blue-400 {
+  color: #2563EB !important;
+}
+
+.light .bg-blue-600\/10, .warm_light .bg-blue-600\/10, .nordic_light .bg-blue-600\/10 {
+  background-color: #EFF6FF !important;
+  border-color: #BFDBFE !important;
+  color: #1D4ED8 !important;
+}
+
+/* ─── Light Themes Specific Surfaces & Navbar Boxes ────── */
+/* Clean Light */
+.light aside,
+.light header,
+.light .bg-obsidian-950,
+.light .bg-obsidian-900 {
+  background-color: rgba(248, 250, 252, 0.96) !important;
+  border-color: #E2E8F0 !important;
+}
+.light .glass-card,
+.light .glass-panel,
+.light .modal-surface,
+.light .bg-slate-900,
+.light .bg-slate-950 {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+  box-shadow: 0 4px 20px 0 rgba(15, 23, 42, 0.06) !important;
+}
+.light .bg-slate-900\/90, .light .bg-slate-900\/95, .light .bg-slate-900\/80,
+.light .bg-slate-900\/70, .light .bg-slate-900\/60, .light .bg-slate-900\/50,
+.light .bg-slate-900\/40, .light .bg-slate-900\/30, .light .bg-slate-800,
+.light .bg-slate-800\/60, .light .bg-slate-800\/70, .light .bg-slate-800\/80,
+.light .bg-slate-800\/90 {
+  background-color: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+.light .border-slate-800, .light .border-slate-700, .light .border-slate-700\/60 {
+  border-color: #CBD5E1 !important;
+}
+
+/* Warm Sand */
+.warm_light aside,
+.warm_light header,
+.warm_light .bg-obsidian-950,
+.warm_light .bg-obsidian-900 {
+  background-color: rgba(250, 248, 245, 0.96) !important;
+  border-color: #E7E0D8 !important;
+}
+.warm_light .glass-card,
+.warm_light .glass-panel,
+.warm_light .modal-surface,
+.warm_light .bg-slate-900,
+.warm_light .bg-slate-950 {
+  background-color: #FFFFFF !important;
+  border-color: #E0D6CB !important;
+  color: #1C1917 !important;
+  box-shadow: 0 4px 20px 0 rgba(41, 37, 36, 0.05) !important;
+}
+.warm_light .bg-slate-900\/90, .warm_light .bg-slate-900\/95, .warm_light .bg-slate-900\/80,
+.warm_light .bg-slate-900\/70, .warm_light .bg-slate-900\/60, .warm_light .bg-slate-900\/50,
+.warm_light .bg-slate-900\/40, .warm_light .bg-slate-900\/30, .warm_light .bg-slate-800,
+.warm_light .bg-slate-800\/60, .warm_light .bg-slate-800\/70, .warm_light .bg-slate-800\/80,
+.warm_light .bg-slate-800\/90 {
+  background-color: #F4EBE2 !important;
+  border-color: #DFD2C4 !important;
+  color: #1C1917 !important;
+}
+.warm_light .border-slate-800, .warm_light .border-slate-700, .warm_light .border-slate-700\/60 {
+  border-color: #DFD2C4 !important;
+}
+
+/* Nordic Frost */
+.nordic_light aside,
+.nordic_light header,
+.nordic_light .bg-obsidian-950,
+.nordic_light .bg-obsidian-900 {
+  background-color: rgba(240, 244, 248, 0.96) !important;
+  border-color: #CBD5E1 !important;
+}
+.nordic_light .glass-card,
+.nordic_light .glass-panel,
+.nordic_light .modal-surface,
+.nordic_light .bg-slate-900,
+.nordic_light .bg-slate-950 {
+  background-color: #FFFFFF !important;
+  border-color: #BACCDD !important;
+  color: #0F172A !important;
+  box-shadow: 0 4px 20px 0 rgba(15, 23, 42, 0.06) !important;
+}
+.nordic_light .bg-slate-900\/90, .nordic_light .bg-slate-900\/95, .nordic_light .bg-slate-900\/80,
+.nordic_light .bg-slate-900\/70, .nordic_light .bg-slate-900\/60, .nordic_light .bg-slate-900\/50,
+.nordic_light .bg-slate-900\/40, .nordic_light .bg-slate-900\/30, .nordic_light .bg-slate-800,
+.nordic_light .bg-slate-800\/60, .nordic_light .bg-slate-800\/70, .nordic_light .bg-slate-800\/80,
+.nordic_light .bg-slate-800\/90 {
+  background-color: #E2EAF2 !important;
+  border-color: #BACCDD !important;
+  color: #0F172A !important;
+}
+.nordic_light .border-slate-800, .nordic_light .border-slate-700, .nordic_light .border-slate-700\/60 {
+  border-color: #BACCDD !important;
+}
+
+/* ─── Modal Surface Default & Dark Overrides ────────────── */
+.modal-surface {
+  background-color: #0B0E14 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.midnight .modal-surface {
+  background-color: #0A1329 !important;
+  border-color: rgba(56, 189, 248, 0.25) !important;
+}
+.sunset .modal-surface {
+  background-color: #170A1C !important;
+  border-color: rgba(244, 114, 182, 0.25) !important;
+}
+
+/* ─── Light Themes Common Rules ─────────────────────────── */
+.light .hover\:bg-slate-800:hover, .light .hover\:bg-slate-800\/60:hover, .light .hover\:bg-slate-800\/70:hover, .light .hover\:bg-slate-800\/50:hover,
+.warm_light .hover\:bg-slate-800:hover, .warm_light .hover\:bg-slate-800\/60:hover, .warm_light .hover\:bg-slate-800\/70:hover, .warm_light .hover\:bg-slate-800\/50:hover,
+.nordic_light .hover\:bg-slate-800:hover, .nordic_light .hover\:bg-slate-800\/60:hover, .nordic_light .hover\:bg-slate-800\/70:hover, .nordic_light .hover\:bg-slate-800\/50:hover {
+  background-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+.light .divide-slate-800\/40 > :not([hidden]) ~ :not([hidden]), .light .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]), .light .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+.warm_light .divide-slate-800\/40 > :not([hidden]) ~ :not([hidden]), .warm_light .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]), .warm_light .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+.nordic_light .divide-slate-800\/40 > :not([hidden]) ~ :not([hidden]), .nordic_light .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]), .nordic_light .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #E2E8F0 !important;
+}
+
+.light .badge-emerald, .warm_light .badge-emerald, .nordic_light .badge-emerald {
+  background-color: #DCFCE7 !important;
+  color: #15803D !important;
+  border: 1px solid #86EFAC !important;
+}
+
+.light .badge-crimson, .warm_light .badge-crimson, .nordic_light .badge-crimson {
+  background-color: #FEE2E2 !important;
+  color: #B91C1C !important;
+  border: 1px solid #FCA5A5 !important;
+}
+
+.light .badge-indigo, .warm_light .badge-indigo, .nordic_light .badge-indigo {
+  background-color: #EEF2FF !important;
+  color: #4338CA !important;
+  border: 1px solid #C7D2FE !important;
+}
+
+.light .sidebar-brand-title, .warm_light .sidebar-brand-title, .nordic_light .sidebar-brand-title {
+  background: linear-gradient(135deg, #0F172A 0%, #334155 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.light input, .warm_light input, .nordic_light input,
+.light select, .warm_light select, .nordic_light select {
+  color: #0F172A !important;
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+}
+
+.light input::placeholder, .warm_light input::placeholder, .nordic_light input::placeholder {
+  color: #94A3B8 !important;
 }
 
 /* ─── Glassmorphism Cards ───────────────────────────── */
@@ -43,12 +438,6 @@ body {
   border: 1px solid var(--border-color);
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
   transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
-}
-
-.light .glass-card,
-.light .glass-panel {
-  background: #FFFFFF;
-  box-shadow: 0 10px 30px 0 rgba(15, 23, 42, 0.06);
 }
 
 .glass-card:hover,

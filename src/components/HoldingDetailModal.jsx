@@ -184,8 +184,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
           {/* Slide-up panel */}
           <motion.div
-            className="fixed inset-x-0 bottom-0 top-[3%] z-50 flex flex-col border border-slate-800 rounded-t-3xl overflow-hidden shadow-2xl"
-            style={{ background: '#06080D' }}
+            className="modal-surface fixed inset-x-0 bottom-0 top-[3%] z-50 flex flex-col border border-slate-800 rounded-t-3xl overflow-hidden shadow-2xl"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
