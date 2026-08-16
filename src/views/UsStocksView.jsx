@@ -118,10 +118,10 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                 {statusFilter === 'active' ? 'Active US Value' : statusFilter === 'closed' ? 'Closed US Value' : 'Total US Value'}
               </span>
               <div className="text-xl font-black font-mono text-purple-400">
-                {isUSD ? formatRawUSD(totalUSD) : `₹${Math.round(totalConvertedINR).toLocaleString('en-IN')}`}
+                {isUSD ? formatRawUSD(totalUSD) : formatMoney(totalConvertedINR, true)}
               </div>
               <div className="text-[10px] font-bold text-slate-400 font-mono">
-                {isUSD ? `≈ ₹${Math.round(totalConvertedINR).toLocaleString('en-IN')}` : `≈ ${formatRawUSD(totalUSD)}`}
+                {isUSD ? `≈ ${formatMoney(totalConvertedINR, true)}` : `≈ ${formatRawUSD(totalUSD)}`}
               </div>
             </div>
             <motion.button
@@ -267,14 +267,14 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                       <td className="py-3 px-3 text-right font-mono text-slate-400">${Number(h.avg_buy_price).toFixed(2)}</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-purple-400">${Number(h.current_price).toFixed(2)}</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
-                        {isUSD ? `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `₹${Math.round(inrVal).toLocaleString('en-IN')}`}
+                        {isUSD ? `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(inrVal, true)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono">
                         <div className={isGainPos ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
                           {isUSD ? (
                             `${isGainPos ? '+' : ''}$${Math.abs(usdGain).toFixed(2)}`
                           ) : (
-                            `${isGainPos ? '+' : ''}₹${Math.round(inrGain).toLocaleString('en-IN')}`
+                            `${isGainPos ? '+' : ''}${formatMoney(inrGain, true)}`
                           )}
                         </div>
                         <div className="text-[9px] text-emerald-500/70">

@@ -46,7 +46,7 @@ export default function LiabilitiesView({ liabilities, onSelectHolding, onOpenAd
                 {formatMoney(totalDebt)}
               </div>
               <div className="text-[10px] font-bold text-slate-300 font-mono mt-0.5">
-                Monthly EMI: ₹{Math.round(totalEmi).toLocaleString('en-IN')}/mo
+                Monthly EMI: {formatMoney(totalEmi, true)}/mo
               </div>
             </div>
 

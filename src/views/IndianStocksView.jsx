@@ -247,23 +247,23 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                         <td className="py-3 px-3 text-right font-mono text-slate-300">
                           {qty > 0 ? qty.toLocaleString() : <span className="text-slate-600">0</span>}
                         </td>
-                        <td className="py-3 px-3 text-right font-mono text-slate-400">₹{h.avg_buy_price.toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-mono text-slate-400">{formatMoney(h.avg_buy_price, true)}</td>
                         <td className={`py-3 px-3 text-right font-mono ${isNseHigher ? 'text-emerald-400 font-bold' : 'text-slate-500'}`}>
-                          ₹{h.nse_price || h.current_price}
+                          {formatMoney(h.nse_price || h.current_price, true)}
                         </td>
                         <td className={`py-3 px-3 text-right font-mono ${!isNseHigher ? 'text-emerald-400 font-bold' : 'text-slate-500'}`}>
-                          ₹{h.bse_price || h.current_price}
+                          {formatMoney(h.bse_price || h.current_price, true)}
                         </td>
                         <td className="py-3 px-3 text-right font-mono font-black text-emerald-400 bg-emerald-500/5">
                           <div className="flex items-center justify-end gap-1">
                             <span className="text-[8px] px-1 rounded bg-emerald-500/20 text-emerald-300">{isNseHigher ? 'NSE' : 'BSE'}</span>
-                            ₹{h.current_price.toLocaleString('en-IN')}
+                            {formatMoney(h.current_price, true)}
                           </div>
                         </td>
                         <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">{formatMoney(h.currentValueINR, true)}</td>
                         <td className="py-3 px-3 text-right font-mono">
                           <div className={isGainPositive ? 'text-emerald-400' : 'text-rose-400'}>
-                            {isGainPositive ? '+' : ''}₹{(h.gainINR || 0).toLocaleString('en-IN')}
+                            {isGainPositive ? '+' : ''}{formatMoney(h.gainINR || 0, true)}
                           </div>
                           <div className={`text-[9px] ${isGainPositive ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
                             {isGainPositive ? '+' : ''}{h.gainPct || 0}%

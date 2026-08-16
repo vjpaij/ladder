@@ -61,12 +61,12 @@ export function ThemeAuthProvider({ children }) {
   };
 
   const formatMoney = (amountInINR, forceINR = false) => {
-    if (amountInINR === undefined || amountInINR === null) return '₹0';
+    if (amountInINR === undefined || amountInINR === null) return '₹0.00';
     if (currency === 'USD' && !forceINR) {
       const usdVal = amountInINR / (fxRate || 87.25);
       return '$' + usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    return '₹' + Math.round(amountInINR).toLocaleString('en-IN');
+    return '₹' + Number(amountInINR).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const formatRawUSD = (amountUSD) => {

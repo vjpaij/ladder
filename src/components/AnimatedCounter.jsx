@@ -34,7 +34,7 @@ export default function AnimatedCounter({ value, prefix = '', suffix = '', durat
 
   const formatted = formatter
     ? formatter(display)
-    : `${prefix}${Math.round(display).toLocaleString('en-IN')}${suffix}`;
+    : `${prefix}${Number(display).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix}`;
 
   return <span>{formatted}</span>;
 }

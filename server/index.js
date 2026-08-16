@@ -1086,16 +1086,109 @@ app.get('/api/dividends', authenticateToken, async (req, res) => {
 // -------------------------------------------------------------
 app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, range } = req.query;
 
-    let logs = await db.select('pnl_history');
-
-    if (startDate && endDate) {
-      logs = logs.filter(l => l.log_date >= startDate && l.log_date <= endDate);
+    let eodLogs = [];
+    const eodPath = './data/portfolio_eod_logs.json';
+    if (fs.existsSync(eodPath)) {
+      const raw = fs.readFileSync(eodPath, 'utf8');
+      eodLogs = JSON.parse(raw);
     }
 
-    logs.sort((a, b) => (a.log_date || '').localeCompare(b.log_date || ''));
-    res.json(logs);
+    if (eodLogs.length === 0) {
+      const dbLogs = await db.select('pnl_history');
+      eodLogs = dbLogs.map(l => ({
+        date: l.log_date,
+        wealth: l.net_worth_inr,
+        daily_pnl: l.daily_pnl_inr,
+        pnl_pct: l.pnl_percentage
+      }));
+    }
+
+    // Sort chronologically
+    eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    // Determine start/end date bounds based on range parameter or custom dates
+    let targetStartDate = startDate;
+    let targetEndDate = endDate;
+
+    if (range && !startDate && !endDate) {
+      const lastDateStr = eodLogs.length > 0 ? eodLogs[eodLogs.length - 1].date : new Date().toISOString().split('T')[0];
+      targetEndDate = lastDateStr;
+      const endD = new Date(`${lastDateStr}T00:00:00Z`);
+      const startD = new Date(endD);
+
+      if (range === '1M') startD.setUTCMonth(startD.getUTCMonth() - 1);
+      else if (range === '3M') startD.setUTCMonth(startD.getUTCMonth() - 3);
+      else if (range === '6M') startD.setUTCMonth(startD.getUTCMonth() - 6);
+      else if (range === '1Y') startD.setUTCFullYear(startD.getUTCFullYear() - 1);
+      else if (range === '2Y') startD.setUTCFullYear(startD.getUTCFullYear() - 2);
+      else if (range === '3Y') startD.setUTCFullYear(startD.getUTCFullYear() - 3);
+      else if (range === '5Y') startD.setUTCFullYear(startD.getUTCFullYear() - 5);
+      else if (range === '10Y') startD.setUTCFullYear(startD.getUTCFullYear() - 10);
+      else if (range === 'ALL') startD.setUTCFullYear(2000);
+
+      targetStartDate = startD.toISOString().slice(0, 10);
+    }
+
+    // Filter by bounds if present
+    let filtered = eodLogs;
+    if (targetStartDate) filtered = filtered.filter(l => l.date >= targetStartDate);
+    if (targetEndDate) filtered = filtered.filter(l => l.date <= targetEndDate);
+
+    // Format output array with daily PnL changes and asset/liability deltas
+    const resultLogs = [];
+    for (let i = 0; i < filtered.length; i++) {
+      const item = filtered[i];
+      const prevItem = i > 0 ? filtered[i - 1] : item;
+
+      const prevWealth = prevItem.wealth !== undefined ? prevItem.wealth : item.wealth;
+      const dailyPnl = item.daily_pnl !== undefined ? item.daily_pnl : (item.wealth - prevWealth);
+      const pct = prevWealth !== 0 ? ((dailyPnl / prevWealth) * 100).toFixed(2) : '0.00';
+
+      const wealth = item.wealth || 0;
+      const debt = item.debt || 0;
+      const assets = wealth + debt;
+
+      const prevDebt = prevItem.debt || 0;
+      const prevAssets = prevWealth + prevDebt;
+
+      const assetDelta = assets - prevAssets;
+      const liabilityDelta = debt - prevDebt;
+
+      resultLogs.push({
+        log_date: item.date,
+        net_worth_inr: Number(wealth.toFixed(2)),
+        total_assets_inr: Number(assets.toFixed(2)),
+        liabilities_inr: Number(debt.toFixed(2)),
+        daily_pnl_inr: Number(dailyPnl.toFixed(2)),
+        pnl_percentage: Number(pct),
+        asset_delta_inr: Number(assetDelta.toFixed(2)),
+        liability_delta_inr: Number(liabilityDelta.toFixed(2)),
+        breakdown: {
+          savings: item.savings || 0,
+          epf: item.epf || 0,
+          mutual_funds: item.mutual_funds || 0,
+          indian_stocks: item.indian_stocks || 0,
+          us_stocks: item.us_stocks || 0,
+          nps: item.nps || 0,
+          loan: item.loan || 0,
+          credits: item.credits || 0
+        },
+        prev_breakdown: {
+          savings: prevItem.savings || 0,
+          epf: prevItem.epf || 0,
+          mutual_funds: prevItem.mutual_funds || 0,
+          indian_stocks: prevItem.indian_stocks || 0,
+          us_stocks: prevItem.us_stocks || 0,
+          nps: prevItem.nps || 0,
+          loan: prevItem.loan || 0,
+          credits: prevItem.credits || 0
+        }
+      });
+    }
+
+    res.json(resultLogs);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

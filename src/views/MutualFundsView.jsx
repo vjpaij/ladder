@@ -229,13 +229,13 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
                       <td className="py-3 px-3 text-right font-mono text-slate-300">
                         {qty > 0 ? qty.toLocaleString() : <span className="text-slate-600">0</span>}
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-400">₹{h.avg_buy_price}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-amber-400">₹{h.current_price}</td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-400">{formatMoney(h.avg_buy_price, true)}</td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-amber-400">{formatMoney(h.current_price, true)}</td>
                       <td className="py-3 px-3 text-right font-mono text-slate-400">{formatMoney(h.investedValueINR)}</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">{formatMoney(h.currentValueINR)}</td>
                       <td className="py-3 px-3 text-right font-mono">
                         <div className={isGainPositive ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          {isGainPositive ? '+' : ''}₹{(h.gainINR || 0).toLocaleString('en-IN')}
+                          {isGainPositive ? '+' : ''}{formatMoney(h.gainINR || 0, true)}
                         </div>
                         <div className="text-[9px] text-slate-500">
                           {isGainPositive ? '+' : ''}{h.gainPct || 0}%

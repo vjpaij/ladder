@@ -14,7 +14,7 @@ function fmtINR(val) {
   const n = Number(val) || 0;
   if (Math.abs(n) >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
   if (Math.abs(n) >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`;
-  return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {

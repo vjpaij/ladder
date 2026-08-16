@@ -14,7 +14,7 @@ function fmtINR(val) {
   const n = Number(val) || 0;
   if (Math.abs(n) >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
   if (Math.abs(n) >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`;
-  return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtUSD(val) {
@@ -242,7 +242,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                             ? `$${Number(holding.current_price).toFixed(2)}`
                             : isFundOrNps
                             ? `₹${Number(holding.current_price).toFixed(4)}`
-                            : `₹${Math.round(Number(holding.current_price) * (isUSStock ? fxRate : 1)).toLocaleString('en-IN')}`
+                            : `₹${(Number(holding.current_price) * (isUSStock ? fxRate : 1)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         }
                       </span>
                     )}
@@ -546,11 +546,11 @@ export default function HoldingDetailModal({ holding, onClose }) {
                               const txRate = isUSStock ? (Number(tx.fx_rate) || fxRate) : 1.0;
                               const displayAmt = isDisplayUSD
                                 ? `$${(Number(tx.total_amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                : `₹${Math.round((Number(tx.total_amount) || 0) * txRate).toLocaleString('en-IN')}`;
+                                : `₹${((Number(tx.total_amount) || 0) * txRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
                               const displayCharges = isDisplayUSD
                                 ? (Number(tx.charges) > 0 ? `$${Number(tx.charges).toFixed(2)}` : '—')
-                                : (Number(tx.charges) > 0 ? `₹${Math.round(Number(tx.charges) * txRate).toLocaleString('en-IN')}` : '—');
+                                : (Number(tx.charges) > 0 ? `₹${(Number(tx.charges) * txRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
                               return (
                                 <motion.tr
