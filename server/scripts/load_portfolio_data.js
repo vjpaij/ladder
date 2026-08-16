@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient.js';
 // Category Definitions matching Supabase schema
 const CATEGORIES = [
   { id: 'in_stocks', name: 'Indian Stocks (NSE/BSE)', type: 'ASSET', icon: 'TrendingUp', color: '#10B981' },
-  { id: 'us_stocks', name: 'US Equities (NASDAQ/NYSE)', type: 'ASSET', icon: 'Globe', color: '#8B5CF6' },
+  { id: 'us_stocks', name: 'US Equity (NASDAQ/NYSE)', type: 'ASSET', icon: 'Globe', color: '#8B5CF6' },
   { id: 'mutual_funds', name: 'Mutual Funds (AMFI)', type: 'ASSET', icon: 'PieChart', color: '#F59E0B' },
   { id: 'bank', name: 'Bank Accounts & FDs', type: 'ASSET', icon: 'Landmark', color: '#3B82F6' },
   { id: 'loans', name: 'Home & Personal Loans', type: 'LIABILITY', icon: 'CreditCard', color: '#EF4444' },

@@ -27,9 +27,9 @@ function formatPrettyDate(dateStr) {
 // Category display labels & colors for drill-down modal
 const CATEGORY_META = {
   savings: { label: 'Bank Savings', color: '#3b82f6' },
-  indian_stocks: { label: 'Indian Equities', color: '#10b981' },
+  indian_stocks: { label: 'Indian Equity', color: '#10b981' },
   mutual_funds: { label: 'Mutual Funds', color: '#8b5cf6' },
-  us_stocks: { label: 'US Equities', color: '#f59e0b' },
+  us_stocks: { label: 'US Equity', color: '#f59e0b' },
   epf: { label: 'EPF', color: '#06b6d4' },
   nps: { label: 'NPS', color: '#ec4899' },
   loan: { label: 'Housing Loan', color: '#ef4444' },
@@ -386,7 +386,7 @@ export default function CalendarView() {
 
                   {/* Liabilities Delta */}
                   <div className={`p-4 rounded-2xl border border-slate-800/80 glass-subcard border-l-4 ${rangeLiabilityDelta <= 0 ? 'border-l-emerald-500' : 'border-l-rose-500'} flex flex-col justify-center min-w-0`}>
-                    <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest block mb-1">Liabilities Delta</span>
+                    <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-widest block mb-1">Liability Delta</span>
                     <span className={`text-lg sm:text-xl font-black font-mono tracking-tight block truncate ${rangeLiabilityDelta < 0 ? 'text-emerald-400' : rangeLiabilityDelta > 0 ? 'text-rose-400' : 'text-slate-300'}`}>
                       {rangeLiabilityDelta > 0 ? '+' : ''}{formatMoney(rangeLiabilityDelta)}
                     </span>

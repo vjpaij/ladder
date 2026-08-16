@@ -15,7 +15,8 @@ import {
   Check,
   ChevronDown,
   Camera,
-  Trash2
+  Trash2,
+  Clock
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
@@ -43,6 +44,7 @@ export default function TopNavbar({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const searchRef = useRef(null);
   const userMenuRef = useRef(null);
@@ -63,7 +65,14 @@ export default function TopNavbar({
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    
+    // Live clock timer
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      clearInterval(timer);
+    };
   }, []);
 
   const handlePhotoUpload = (e) => {
@@ -200,6 +209,18 @@ export default function TopNavbar({
       {/* ─── Controls & Quick Actions ───────────────────────────── */}
       <div className="flex items-center gap-2">
         
+        {/* Date / Time Stamp */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 border border-slate-700/60 rounded-xl text-xs font-semibold text-slate-300 shadow-sm">
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-mono tracking-tight whitespace-nowrap">
+            {currentTime.toLocaleString('en-IN', {
+              day: '2-digit', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit', second: '2-digit',
+              hour12: true
+            }).toUpperCase()}
+          </span>
+        </div>
+
         {/* Sync Prices Button */}
         <motion.button
           onClick={onRefreshPrices}

@@ -107,7 +107,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
             </div>
             <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
               <Globe className="w-5 h-5 text-purple-400" />
-              US Equities
+              US Equity
             </h2>
             <p className="text-[11px] text-slate-500 mt-0.5">Real-time quotes with automatic USD to INR currency conversions</p>
           </div>
@@ -257,7 +257,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                           </div>
                           <div>
                             <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-purple-400 transition-colors text-left cursor-pointer block">{h.name}</button>
-                            <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'US Equities'}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'US Equity'}</div>
                           </div>
                         </div>
                       </td>

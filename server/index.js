@@ -112,14 +112,14 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
 
     // Clean display name mapping
     const DISPLAY_NAMES = {
-      'in_stocks': 'Indian Equities',
-      'us_stocks': 'US Equities',
+      'in_stocks': 'Indian Equity',
+      'us_stocks': 'US Equity',
       'mutual_funds': 'Mutual Funds',
       'nps': 'NPS',
       'bank': 'Bank Accounts',
       'epf': 'EPF',
-      'loans': 'Loans',
-      'credit_cards': 'Credit Cards'
+      'loans': 'Loan',
+      'credit_cards': 'Credit Card'
     };
 
     let totalAssetsINR = 0;

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.5.1] - 2026-08-16
+
+### Changed
+- **Icon Refinement**: Changed EPF icon from Wallet to Briefcase for better relevance.
+- **Label Refinement**: Changed all instances of "Liabilities" to "Liability" globally across components, page headers, and API display names. Fixed remaining backend API labels for Indian Equity and US Equity in `server/index.js`.
+
+---
+
+## [3.5.0] - 2026-08-16
+
+### Changed
+- **Global Icon and Label Refinement**:
+  - Replaced Indian Equities icon with CandlestickChart.
+  - Renamed all instances of "Equities" to "Equity" across the project.
+  - Differentiated confusing icons: Asset Allocation uses Donut, Reports uses BarChart3, NPS uses Shield, and EPF uses Wallet.
+  - Standardized master context file naming from LADDER.MD to LADDER.md.
+- **Date and Time Integration**: Integrated a live, persistent Date and Time clock stamp into `TopNavbar.jsx` visible across all pages.
+
+---
+
 ## [2.6.0] - 2026-08-16
 
 ### Added
@@ -179,7 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `charges` and `net_amount` columns to `transactions` table.
   - Added `buy_qty`, `sell_qty`, `realized_pnl`, `unrealized_pnl`, `pnl_pct`, `total_charges`, and `status` columns to `holdings` table.
 - **Workspace Agent Rules**:
-  - Created `.agents/AGENTS.md` to enforce pre-execution context reading (`LADDER.MD`), mandatory post-execution change logging, secret auditing, emoji-free documentation, and feature branch git releases.
+  - Created `.agents/AGENTS.md` to enforce pre-execution context reading (`LADDER.md`), mandatory post-execution change logging, secret auditing, emoji-free documentation, and feature branch git releases.
 
 ---
 

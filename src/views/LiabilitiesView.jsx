@@ -30,7 +30,7 @@ export default function LiabilitiesView({ liabilities, onSelectHolding, onOpenAd
             </div>
             <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
               <CreditCard className="w-6 h-6 text-rose-400" />
-              Liabilities & Debt Management
+              Liability & Debt Management
             </h2>
             <p className="text-xs text-slate-400 mt-1 max-w-xl">
               Real-time monitoring of loan principal balances, credit card statements, interest rates, and monthly EMI obligations.

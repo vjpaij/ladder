@@ -10,7 +10,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  CalendarDays
+  CalendarDays,
+  Donut
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -317,7 +318,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                 <p className="text-base font-black font-mono text-slate-100">
                   <AnimatedCounter value={summary.totalAssetsINR} formatter={(v) => formatMoney(v)} />
                 </p>
-                <p className="text-[9px] text-slate-600 mt-0.5">Equities, MFs, Bank, NPS & EPF</p>
+                <p className="text-[9px] text-slate-600 mt-0.5">Equity, MFs, Bank, NPS & EPF</p>
               </motion.div>
 
               {/* Liabilities */}
@@ -327,7 +328,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                 transition={{ delay: 0.23 }}
                 className="p-3.5 bg-slate-900/40 rounded-2xl border border-slate-800/60"
               >
-                <p className="text-[10px] text-slate-500 font-semibold mb-1">Liabilities</p>
+                <p className="text-[10px] text-slate-500 font-semibold mb-1">Liability</p>
                 <p className="text-base font-black font-mono text-rose-400">
                   <AnimatedCounter value={summary.totalLiabilitiesINR} formatter={(v) => formatMoney(v)} />
                 </p>
@@ -450,7 +451,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
         <AnimatedItem className="lg:col-span-5">
           <div className="glass-card p-5 rounded-3xl border border-slate-800">
             <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
-              <PieIcon className="w-4 h-4 text-emerald-400" />
+              <Donut className="w-4 h-4 text-emerald-400" />
               Asset Allocation
             </h3>
             <p className="text-[10px] text-slate-500 mb-4">Distribution across asset classes</p>

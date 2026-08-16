@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { CandlestickChart, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
@@ -95,8 +95,8 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                 </span>
               </div>
               <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
-                <TrendingUp className="w-5 h-5 text-emerald-400" />
-                Indian Equities
+                <CandlestickChart className="w-5 h-5 text-emerald-400" />
+                Indian Equity
               </h2>
               <p className="text-[11px] text-slate-500 mt-0.5">Auto-selects higher quote between NSE &amp; BSE</p>
             </div>
@@ -240,7 +240,7 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                               >
                                 {h.name}
                               </button>
-                              <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'Equities'}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'Equity'}</div>
                             </div>
                           </div>
                         </td>

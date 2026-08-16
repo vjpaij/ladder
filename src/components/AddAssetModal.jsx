@@ -74,7 +74,7 @@ export default function AddAssetModal({ isOpen, onClose, onRefresh }) {
               className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 font-semibold focus:outline-none focus:border-emerald-500"
             >
               <option value="in_stocks">Indian Stocks (NSE/BSE)</option>
-              <option value="us_stocks">US Equities (NASDAQ/NYSE)</option>
+              <option value="us_stocks">US Equity (NASDAQ/NYSE)</option>
               <option value="mutual_funds">Mutual Funds (AMFI)</option>
               <option value="bank">Bank / Fixed Deposit</option>
               <option value="nps">NPS</option>

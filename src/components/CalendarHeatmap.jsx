@@ -160,7 +160,7 @@ export default function CalendarHeatmap() {
                 <span>•</span>
                 <span>Assets: {formatMoney(selectedLog.total_assets_inr)}</span>
                 <span>•</span>
-                <span>Liabilities: {formatMoney(selectedLog.total_liabilities_inr)}</span>
+                <span>Liability: {formatMoney(selectedLog.total_liabilities_inr)}</span>
               </div>
             </div>
 

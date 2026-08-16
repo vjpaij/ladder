@@ -3,14 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, 
   Calendar, 
-  PieChart, 
-  TrendingUp, 
+  BarChart3, 
+  CandlestickChart, 
   Globe, 
   LineChart, 
   Landmark, 
   CreditCard, 
   Coins, 
-  ShieldCheck,
+  Shield,
+  Briefcase,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -25,24 +26,24 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
       items: [
         { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'calendar', label: 'Calendar', icon: Calendar },
-        { id: 'reports', label: 'Reports', icon: PieChart },
+        { id: 'reports', label: 'Reports', icon: BarChart3 },
       ]
     },
     {
       title: 'PORTFOLIOS',
       items: [
-        { id: 'indian_stocks', label: 'Indian Equities', icon: TrendingUp },
-        { id: 'us_stocks', label: 'US Equities', icon: Globe },
+        { id: 'indian_stocks', label: 'Indian Equity', icon: CandlestickChart },
+        { id: 'us_stocks', label: 'US Equity', icon: Globe },
         { id: 'mutual_funds', label: 'Mutual Funds', icon: LineChart },
-        { id: 'nps', label: 'NPS', icon: ShieldCheck },
+        { id: 'nps', label: 'NPS', icon: Shield },
         { id: 'bank', label: 'Bank Accounts', icon: Landmark },
-        { id: 'epf', label: 'EPF', icon: ShieldCheck },
+        { id: 'epf', label: 'EPF', icon: Briefcase },
       ]
     },
     {
       title: 'CASHFLOW',
       items: [
-        { id: 'liabilities', label: 'Liabilities', icon: CreditCard },
+        { id: 'liabilities', label: 'Liability', icon: CreditCard },
         { id: 'dividends', label: 'Dividends', icon: Coins },
       ]
     }

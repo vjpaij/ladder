@@ -1,8 +1,8 @@
-# LADDER.MD - Master Project Context & Architecture Reference
+# LADDER.md - Master Project Context & Architecture Reference
 
 > **MANDATORY DIRECTIVE FOR ALL AGENTS & DEVELOPERS**:
 > **THIS FILE MUST BE READ FIRST BEFORE MAKING ANY CODE OR ARCHITECTURAL CHANGES TO THE LADDER PROJECT.**
-> **ANY NEW FEATURES, MODIFICATIONS, BUG FIXES, OR REFACTORS MUST BE ACCURATELY LOGGED AND UPDATED IN THIS DOCUMENT (`LADDER.MD`) UPON COMPLETION.**
+> **ANY NEW FEATURES, MODIFICATIONS, BUG FIXES, OR REFACTORS MUST BE ACCURATELY LOGGED AND UPDATED IN THIS DOCUMENT (`LADDER.md`) UPON COMPLETION.**
 
 ---
 
@@ -119,7 +119,7 @@ ladder/
 ├── data/                      # JSON Database Tables storage
 ├── README.md                  # Installation & Quickstart guide
 ├── CHANGELOG.md               # Version history (Semantic Versioning)
-└── LADDER.MD                  # Master Context & Change Log (THIS FILE)
+└── LADDER.md                  # Master Context & Change Log (THIS FILE)
 ```
 
 ---
@@ -129,8 +129,8 @@ ladder/
 | Version | Date | Description / Key Changes | Author / Agent |
 |:---:|:---:|:---|:---:|
 | **v1.0.0** | 2026-08-08 | Initial production release. Implemented multi-view architecture, live price engine (NSE/BSE/NASDAQ/AMFI), FX conversion, Framer Motion animations, Database Studio, P&L Calendar, and pushed to GitHub (`vjpaij/ladder`). | Antigravity AI |
-| **v1.0.1** | 2026-08-08 | Created master `LADDER.MD` context reference document and established agent guidelines for future change logging. | Antigravity AI |
-| **v1.0.2** | 2026-08-08 | Configured `.agents/AGENTS.md` workspace rules to ensure AI agents read `LADDER.MD` before making changes and update the change log after every edit. | Antigravity AI |
+| **v1.0.1** | 2026-08-08 | Created master `LADDER.md` context reference document and established agent guidelines for future change logging. | Antigravity AI |
+| **v1.0.2** | 2026-08-08 | Configured `.agents/AGENTS.md` workspace rules to ensure AI agents read `LADDER.md` before making changes and update the change log after every edit. | Antigravity AI |
 | **v1.1.0** | 2026-08-08 | Connected project to Supabase Cloud PostgreSQL DB (`https://nbbdjvmqbdzguhesyydk.supabase.co`). Created DDL tables, RLS isolation policies, PL/pgSQL cross-table auto-update triggers, audit log triggers, Supabase Vault secret storage, and updated server DB SDK. Cleared sample data so user tables are ready for spreadsheet populating. | Antigravity AI |
 | **v1.1.1** | 2026-08-08 | Added concise columns for charges (`brokerage`, `stt`, `stamp_duty`, `exchange_fee`, `sebi_fee`, `gst`, `charges`, `net_amount`) in `transactions` and PnL/redemption tracking (`buy_qty`, `sell_qty`, `realized_pnl`, `unrealized_pnl`, `pnl_pct`, `total_charges`, `status`) in `holdings`. Upgraded PL/pgSQL trigger `update_holding_on_transaction()`. | Antigravity AI |
 | **v1.1.2** | 2026-08-08 | Simplified `transactions` table by removing individual tax breakdown columns and maintaining a single unified `charges` column. | Antigravity AI |
@@ -176,12 +176,14 @@ ladder/
 | **v3.2.0** | 2026-08-16 | Standardized decimal point alignment & Portal modal fixes: (1) Standardized `formatMoney` inside `ThemeAuthContext.jsx` to enforce exactly 2 decimal places for INR currency globally, updating Indian Stocks, Mutual Funds, US Stocks, and Liabilities views. (2) Restructured the popup modal in `CalendarView.jsx` to render via React Portals (`createPortal`) directly into `document.body` with `AnimatePresence` nested internally. This fixes the Framer Motion layout shift and centers the modal relative to the viewport. (3) Customized modal backdrop with a lighter semi-transparent shade (`bg-black/40` with 2px blur) to prevent darkening the layout in light themes. (4) Re-designed summary cards with a sleek left accent bar (`border-l-4`) using the high-contrast `glass-subcard` token. | Antigravity AI |
 | **v3.3.0** | 2026-08-16 | Calendar UX 5-Point Refinements & Instrument Drill-Down Accordion: (1) Renamed `Housing Loan (SBI)` to `Housing Loan` (removed SBI suffix). (2) Formatted loan balance amount in standard white/black text color matching other asset categories instead of Red. (3) Built interactive `>` chevron accordion on category rows, expanding to reveal underlying instruments and their specific valuations/deltas. (4) Eliminated `...` truncation on daily calendar cards by reducing grid columns and tightening character spacing (`tracking-tighter`). (5) Formatted `Win Rate` stats card to enforce 2 decimal places (`37.50%`). | Antigravity AI |
 | **v3.4.0** | 2026-08-16 | Reverted Dropdown Accordion & Polished Summary Section Spacing & Theme Colors: (1) Reverted modal category dropdown accordion per user request, restoring a clean uncluttered list of changed balances. (2) Tightened vertical spacing between daily cards grid divider and Summary header (`mt-3 pt-3 space-y-3`), removing large empty blank gaps. (3) Enlarged Summary date range font (`text-xs sm:text-sm font-extrabold text-slate-400 font-mono`) for better legibility. (4) Updated Summary metric boxes (`NET WORTH CHANGE`, `ASSETS GROWTH`, `LIABILITIES DELTA`) to use `.glass-subcard` styling, ensuring backgrounds adapt to active light/dark themes. | Antigravity AI |
+| **v3.5.0** | 2026-08-16 | Global icon and label refinement: (1) Replaced Indian Equities icon with `CandlestickChart`. (2) Renamed all instances of "Equities" to "Equity" across the project. (3) Differentiated confusing icons: Asset Allocation uses `Donut`, Reports uses `BarChart3`, NPS uses `Shield`, and EPF uses `Wallet`. (4) Standardized master context file naming from `LADDER.MD` to `LADDER.md`. (5) Integrated a live, persistent Date and Time clock stamp into `TopNavbar.jsx` visible across all pages. | Antigravity AI |
+| **v3.5.1** | 2026-08-16 | Follow-up UI corrections: (1) Changed EPF icon from `Wallet` to `Briefcase` for better relevance. (2) Changed all instances of "Liabilities" to "Liability" globally across components, page headers, and API display names. (3) Fixed remaining backend API labels for Indian Equity and US Equity in `server/index.js`. | Antigravity AI |
 
 ---
 
 ## Instructions for Future Changes
 
-1. **Before Editing**: Always read `LADDER.MD` to understand existing component dependencies, API contracts, and styling standards.
+1. **Before Editing**: Always read `LADDER.md` to understand existing component dependencies, API contracts, and styling standards.
 2. **After Editing**: Update the **Change Log & Maintenance History** table above with the new version, date, concise description of changes, and author/agent.
 3. **Git Workflow**: Commit changes locally with **short but precise** commit messages (`feat: ...`, `fix: ...`, `release: ...`) and push to `origin main`.
 

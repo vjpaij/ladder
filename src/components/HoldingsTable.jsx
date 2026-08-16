@@ -27,12 +27,12 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
   const categories = [
     { id: 'ALL', label: 'All Instruments' },
     { id: 'in_stocks', label: 'Indian Stocks' },
-    { id: 'us_stocks', label: 'US Equities' },
+    { id: 'us_stocks', label: 'US Equity' },
     { id: 'mutual_funds', label: 'Mutual Funds' },
     { id: 'bank', label: 'Bank & FDs' },
     { id: 'nps', label: 'NPS' },
     { id: 'epf', label: 'EPF' },
-    { id: 'LIABILITIES', label: 'Liabilities' },
+    { id: 'LIABILITIES', label: 'Liability' },
   ];
 
   const filteredHoldings = holdings.filter(h => {

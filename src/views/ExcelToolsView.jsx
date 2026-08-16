@@ -21,13 +21,13 @@ export default function ExcelToolsView({ onRefresh }) {
 
   const handleDownloadTemplate = () => {
     const csvContent = `Asset Category,Portfolio Name,Identifier Code,ISIN,Asset Name,Currency,Exchange,Transaction Date,Transaction Type,Quantity,Price NAV,Total Amount,Charges
-Indian Equities,Pai,AARTIDRUGS,INE767A01016,Aarti Drugs Limited,INR,NSE,2022-10-24,BUY,16,459.70,7355.20,0.00
-Indian Equities,Pai,AARTIDRUGS,INE767A01016,Aarti Drugs Limited,INR,NSE,2023-08-24,SELL,1,900.00,900.00,0.00
-Indian Equities,Pai,AARTIDRUGS,INE767A01016,Aarti Drugs Limited,INR,NSE,2023-02-08,DIVIDEND,0,0.00,19.00,0.00
+Indian Equity,Pai,AARTIDRUGS,INE767A01016,Aarti Drugs Limited,INR,NSE,2022-10-24,BUY,16,459.70,7355.20,0.00
+Indian Equity,Pai,AARTIDRUGS,INE767A01016,Aarti Drugs Limited,INR,NSE,2023-08-24,SELL,1,900.00,900.00,0.00
+Indian Equity,Pai,AARTIDRUGS,INE767A01016,Aarti Drugs Limited,INR,NSE,2023-02-08,DIVIDEND,0,0.00,19.00,0.00
 Mutual Funds,Pai,120539,INF209K01VF2,Aditya Birla Sun Life Digital India Fund Direct Growth,INR,AMFI,2020-11-24,BUY,238.452,83.87,20000.00,1.00
 Mutual Funds,Pai,120539,INF209K01VF2,Aditya Birla Sun Life Digital India Fund Direct Growth,INR,AMFI,2024-04-08,SELL,1005.87,173.21,174226.00,0.00
-US Equities,Pai,MSFT,,Microsoft Corporation,USD,NASDAQ,2022-09-15,BUY,0.250218,247.784,62.00,0.00
-US Equities,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62.00,0.00
+US Equity,Pai,MSFT,,Microsoft Corporation,USD,NASDAQ,2022-09-15,BUY,0.250218,247.784,62.00,0.00
+US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62.00,0.00
 `;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -50,7 +50,7 @@ US Equities,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,
               Spreadsheet Data Hub & Import Templates
             </h2>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Load and manage Indian Stocks, US Equities, and Mutual Funds datasets into Supabase PostgreSQL database tables.
+              Load and manage Indian Stocks, US Equity, and Mutual Funds datasets into Supabase PostgreSQL database tables.
             </p>
           </div>
           <motion.button
@@ -96,7 +96,7 @@ US Equities,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,
           </motion.div>
           <h3 className="text-base font-bold text-white mb-1">Import Investment Spreadsheet</h3>
           <p className="text-[10px] text-slate-500 max-w-xs mb-5">
-            Upload Indian Equities (CSV), Mutual Funds (CSV), or US Stocks (XLS/CSV) spreadsheet
+            Upload Indian Equity (CSV), Mutual Funds (CSV), or US Stocks (XLS/CSV) spreadsheet
           </p>
 
           <label className="cursor-pointer px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all">

@@ -77,7 +77,7 @@ export default function HeroSummaryCard({ summary }) {
 
             {/* Total Liabilities */}
             <div>
-              <p className="text-xs text-slate-400 font-medium mb-1">Total Liabilities</p>
+              <p className="text-xs text-slate-400 font-medium mb-1">Total Liability</p>
               <p className="text-base font-bold text-rose-400 font-mono">
                 {formatMoney(summary.totalLiabilitiesINR)}
               </p>

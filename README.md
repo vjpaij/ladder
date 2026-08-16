@@ -1,14 +1,14 @@
 # Ladder - Institutional Finance & Investment Dashboard
 
-Ladder is a modern, stylish, high-performance personal finance and investment dashboard designed for tracking multi-asset portfolios including Indian Stocks, US Equities, Mutual Funds, Fixed Income/Retirement (Bank, FDs, NPS, EPF), Liabilities (Loans, Credit Cards), and Dividends.
+Ladder is a modern, stylish, high-performance personal finance and investment dashboard designed for tracking multi-asset portfolios including Indian Equity, US Equity, Mutual Funds, Fixed Income/Retirement (Bank, FDs, NPS, EPF), Liability (Loans, Credit Cards), and Dividends.
 
 ---
 
 ## Features
 
-- **Multi-Asset Portfolio Tracking**: Indian Stocks (NSE/BSE), US Equities (NASDAQ/NYSE), Mutual Funds (AMFI NAVs), Fixed Income (Bank, FD, NPS, EPF).
-- **Liabilities & Debt Hub**: Track outstanding loan principals, credit card balances, interest rates, and monthly EMIs.
-- **Real-Time Price Engine**: Live price auto-sync for Indian equities (comparative max pricing between NSE & BSE), US stocks, and AMFI mutual funds.
+- **Multi-Asset Portfolio Tracking**: Indian Equity (NSE/BSE), US Equity (NASDAQ/NYSE), Mutual Funds (AMFI NAVs), Fixed Income (Bank, FD, NPS, EPF).
+- **Liability & Debt Hub**: Track outstanding loan principals, credit card balances, interest rates, and monthly EMIs.
+- **Real-Time Price Engine**: Live price auto-sync for Indian equity (comparative max pricing between NSE & BSE), US equity, and AMFI mutual funds.
 - **Dual Currency & FX Engine**: Default primary display in INR (₹) with real-time USD/INR live conversion rate ($1 = ₹X) and instant header currency toggle.
 - **Advanced Analytics & Reports**: Asset class allocation donut charts, sector concentration bar charts, and growth trajectory performance vs. Nifty 50 benchmark.
 - **P&L Calendar Heatmap**: Visual trading session green/red day calendar, date range filtering, win rate metrics, and day-by-day P&L inspection.
