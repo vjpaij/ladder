@@ -60,6 +60,12 @@ export function ThemeAuthProvider({ children }) {
     localStorage.setItem('ladder_user', JSON.stringify(updated));
   };
 
+  const updateUserProfile = (name, email) => {
+    const updated = { ...(user || {}), name, email };
+    setUser(updated);
+    localStorage.setItem('ladder_user', JSON.stringify(updated));
+  };
+
   const formatMoney = (amountInINR, forceINR = false) => {
     if (amountInINR === undefined || amountInINR === null) return '₹0.00';
     if (currency === 'USD' && !forceINR) {
@@ -85,6 +91,7 @@ export function ThemeAuthProvider({ children }) {
       token,
       user,
       updateUserAvatar,
+      updateUserProfile,
       login,
       logout,
       fxRate,

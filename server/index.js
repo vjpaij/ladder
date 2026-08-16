@@ -5,8 +5,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db, { initDatabase } from './db.js';
 import { supabase } from './supabaseClient.js';
-import { refreshAllHoldingsPrices, fetchFxRate, fetchNpsHistoricalNav } from './services/priceEngine.js';
+import { refreshAllHoldingsPrices, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
+import axios from 'axios';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1301,6 +1302,514 @@ app.post('/api/db-table-update', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// Search / Autocomplete APIs for Add Investment
+// -------------------------------------------------------------
+
+// Yahoo Finance search proxy - returns matching tickers
+app.get('/api/search/stocks', async (req, res) => {
+  try {
+    const { q, market } = req.query;
+    if (!q || q.length < 1) return res.json([]);
+
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=12&newsCount=0&listsCount=0&enableFuzzyQuery=true`;
+    const response = await axios.get(url, {
+      timeout: 5000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+
+    const quotes = response.data?.quotes || [];
+    let filtered = quotes.filter(q => q.quoteType === 'EQUITY' || q.quoteType === 'MUTUALFUND' || q.quoteType === 'ETF');
+
+    if (market === 'india') {
+      filtered = filtered.filter(q => q.exchange === 'NSI' || q.exchange === 'BSE' || q.exchange === 'NSE' ||
+        (q.symbol && (q.symbol.endsWith('.NS') || q.symbol.endsWith('.BO'))));
+    } else if (market === 'us') {
+      filtered = filtered.filter(q => ['NMS', 'NYQ', 'NGM', 'NCM', 'PCX', 'BTS'].includes(q.exchange) ||
+        q.exchDisp === 'NASDAQ' || q.exchDisp === 'NYSE');
+    }
+
+    const results = filtered.map(q => ({
+      symbol: q.symbol,
+      name: q.longname || q.shortname || q.symbol,
+      exchange: q.exchDisp || q.exchange,
+      type: q.quoteType
+    }));
+
+    res.json(results);
+  } catch (err) {
+    console.error('[Search Stocks Error]:', err.message);
+    res.json([]);
+  }
+});
+
+// AMFI mutual fund search proxy
+let amfiMasterCache = null;
+let amfiCacheTime = 0;
+const AMFI_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function getAmfiMaster() {
+  if (amfiMasterCache && Date.now() - amfiCacheTime < AMFI_CACHE_TTL) return amfiMasterCache;
+  try {
+    const res = await axios.get('https://api.mfapi.in/mf', { timeout: 10000 });
+    if (res.data && Array.isArray(res.data)) {
+      amfiMasterCache = res.data; // array of { schemeCode, schemeName }
+      amfiCacheTime = Date.now();
+      console.log(`[AMFI] Cached ${amfiMasterCache.length} mutual fund schemes`);
+    }
+  } catch (err) {
+    console.error('[AMFI Master Fetch Error]:', err.message);
+  }
+  return amfiMasterCache || [];
+}
+
+app.get('/api/search/mutual-funds', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+
+    const master = await getAmfiMaster();
+    const queryTerms = q.toLowerCase().split(/\s+/);
+    
+    const matches = master
+      .filter(m => {
+        const name = (m.schemeName || '').toLowerCase();
+        return queryTerms.every(term => name.includes(term));
+      })
+      .slice(0, 15)
+      .map(m => ({
+        schemeCode: String(m.schemeCode),
+        schemeName: m.schemeName
+      }));
+
+    res.json(matches);
+  } catch (err) {
+    console.error('[Search MF Error]:', err.message);
+    res.json([]);
+  }
+});
+
+app.get('/api/nav/mutual-funds/:schemeCode', async (req, res) => {
+  try {
+    const { date } = req.query;
+    const mfRes = await axios.get(`https://api.mfapi.in/mf/${req.params.schemeCode}`, { timeout: 8000 });
+    const dataArray = mfRes.data?.data;
+    
+    if (dataArray && dataArray.length > 0) {
+      let match = dataArray[0];
+      if (date) {
+        const targetDateObj = new Date(date);
+        match = dataArray.find(d => {
+          const [dDD, dMM, dYYYY] = d.date.split('-');
+          const dObj = new Date(`${dYYYY}-${dMM}-${dDD}`);
+          return dObj <= targetDateObj;
+        }) || dataArray[0];
+      }
+      res.json({ nav: parseFloat(match.nav), date: match.date });
+    } else {
+      res.status(404).json({ error: 'NAV not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// NPS scheme master list
+let npsSchemeMasterCache = null;
+let npsCacheTime = 0;
+
+app.get('/api/search/nps-schemes', async (req, res) => {
+  try {
+    // Build from existing DB holdings + known master list
+    if (!npsSchemeMasterCache || Date.now() - npsCacheTime > AMFI_CACHE_TTL) {
+      const npsHoldings = await db.selectWhere('holdings', { category_id: 'nps' });
+      const schemeSet = new Map();
+
+      // Add existing DB holdings
+      npsHoldings.forEach(h => {
+        schemeSet.set(h.symbol, { schemeCode: h.symbol, schemeName: h.name });
+      });
+
+      // Hardcoded master list of common NPS Tier-I Active Choice schemes
+      const masterSchemes = [
+        { schemeCode: 'SM008001', schemeName: 'SBI Pension - Scheme E Tier I' },
+        { schemeCode: 'SM008002', schemeName: 'SBI Pension - Scheme C Tier I' },
+        { schemeCode: 'SM008003', schemeName: 'SBI Pension - Scheme G Tier I' },
+        { schemeCode: 'SM001001', schemeName: 'HDFC Pension - Scheme E Tier I' },
+        { schemeCode: 'SM001002', schemeName: 'HDFC Pension - Scheme C Tier I' },
+        { schemeCode: 'SM001003', schemeName: 'HDFC Pension - Scheme G Tier I' },
+        { schemeCode: 'SM002001', schemeName: 'ICICI Pru Pension - Scheme E Tier I' },
+        { schemeCode: 'SM002002', schemeName: 'ICICI Pru Pension - Scheme C Tier I' },
+        { schemeCode: 'SM002003', schemeName: 'ICICI Pru Pension - Scheme G Tier I' },
+        { schemeCode: 'SM003001', schemeName: 'Kotak Pension - Scheme E Tier I' },
+        { schemeCode: 'SM003002', schemeName: 'Kotak Pension - Scheme C Tier I' },
+        { schemeCode: 'SM003003', schemeName: 'Kotak Pension - Scheme G Tier I' },
+        { schemeCode: 'SM004001', schemeName: 'Aditya Birla SL Pension - Scheme E Tier I' },
+        { schemeCode: 'SM004002', schemeName: 'Aditya Birla SL Pension - Scheme C Tier I' },
+        { schemeCode: 'SM004003', schemeName: 'Aditya Birla SL Pension - Scheme G Tier I' },
+        { schemeCode: 'SM005001', schemeName: 'LIC Pension - Scheme E Tier I' },
+        { schemeCode: 'SM005002', schemeName: 'LIC Pension - Scheme C Tier I' },
+        { schemeCode: 'SM005003', schemeName: 'LIC Pension - Scheme G Tier I' },
+        { schemeCode: 'SM006001', schemeName: 'UTI Pension - Scheme E Tier I' },
+        { schemeCode: 'SM006002', schemeName: 'UTI Pension - Scheme C Tier I' },
+        { schemeCode: 'SM006003', schemeName: 'UTI Pension - Scheme G Tier I' },
+        { schemeCode: 'SM007001', schemeName: 'Tata Pension - Scheme E Tier I' },
+        { schemeCode: 'SM007002', schemeName: 'Tata Pension - Scheme C Tier I' },
+        { schemeCode: 'SM007003', schemeName: 'Tata Pension - Scheme G Tier I' },
+        { schemeCode: 'SM010001', schemeName: 'Max Life Pension - Scheme E Tier I' },
+        { schemeCode: 'SM010002', schemeName: 'Max Life Pension - Scheme C Tier I' },
+        { schemeCode: 'SM010003', schemeName: 'Max Life Pension - Scheme G Tier I' },
+        { schemeCode: 'SM001004', schemeName: 'HDFC Pension - Scheme A Tier I' },
+        { schemeCode: 'SM002004', schemeName: 'ICICI Pru Pension - Scheme A Tier I' },
+        { schemeCode: 'SM008004', schemeName: 'SBI Pension - Scheme A Tier I' },
+      ];
+
+      masterSchemes.forEach(s => {
+        if (!schemeSet.has(s.schemeCode)) schemeSet.set(s.schemeCode, s);
+      });
+
+      npsSchemeMasterCache = Array.from(schemeSet.values());
+      npsCacheTime = Date.now();
+    }
+
+    const { q } = req.query;
+    if (q && q.length > 0) {
+      const query = q.toLowerCase();
+      const filtered = npsSchemeMasterCache.filter(s =>
+        s.schemeName.toLowerCase().includes(query) || s.schemeCode.toLowerCase().includes(query)
+      );
+      return res.json(filtered);
+    }
+
+    res.json(npsSchemeMasterCache);
+  } catch (err) {
+    console.error('[NPS Schemes Error]:', err.message);
+    res.json([]);
+  }
+});
+
+// -------------------------------------------------------------
+// Fetch Existing Accounts (for Bank, Loan, EPF, CC dropdowns)
+// -------------------------------------------------------------
+app.get('/api/accounts', authenticateToken, async (req, res) => {
+  try {
+    const banks = await db.selectWhere('holdings', { category_id: 'bank' });
+    const epf = await db.selectWhere('holdings', { category_id: 'epf' });
+    const loans = await db.selectWhere('liabilities', { category_id: 'loans' });
+    const creditCards = await db.selectWhere('liabilities', { category_id: 'credit_cards' });
+
+    res.json({
+      banks: banks.map(b => b.name),
+      epf: epf.map(e => e.name),
+      loans: loans.map(l => l.name),
+      creditCards: creditCards.map(c => c.name)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// Unified Add Investment Endpoint
+// Uses PL/pgSQL trigger for automatic holdings sync
+// -------------------------------------------------------------
+app.post('/api/add-investment', authenticateToken, async (req, res) => {
+  try {
+    const { portfolio, data } = req.body;
+
+    if (!portfolio || !data) {
+      return res.status(400).json({ error: 'Missing portfolio type or data' });
+    }
+
+    const fxRate = await fetchFxRate();
+
+    // Handle market-based portfolios (equities, mutual funds, NPS)
+    if (['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(portfolio)) {
+      const { symbol, name, quantity, price, amount, date, type, charges, fxRateOverride, schemeCode } = data;
+
+      if (!symbol || !name) return res.status(400).json({ error: 'Symbol and Name are required' });
+
+      const txType = (type || 'BUY').toUpperCase();
+      const txDate = date || new Date().toISOString().split('T')[0];
+      
+      // Validation
+      if (['BUY', 'SELL', 'REDEEM'].includes(txType)) {
+        if (Number(quantity) <= 0 && Number(amount) <= 0) return res.status(400).json({ error: 'Quantity or Amount must be greater than zero' });
+        if (Number(price) <= 0) return res.status(400).json({ error: 'Price/NAV must be greater than zero' });
+      }
+
+      let txQty = Math.abs(Number(quantity) || 0);
+      let txPrice = Math.abs(Number(price) || 0);
+      let txCharges = Math.abs(Number(charges) || 0);
+      let txAmount = txQty * txPrice;
+      
+      if (txType === 'BUY') {
+        txAmount += txCharges;
+      } else if (txType === 'SELL') {
+        txAmount -= txCharges;
+      }
+
+      // Handle MF SIP 0.015% automatic charges if amount was provided
+      if (portfolio === 'mutual_funds' && txType === 'BUY' && data.amount) {
+        const inputAmount = Math.abs(Number(data.amount));
+        txCharges = Number((inputAmount * 0.00015).toFixed(4));
+        txAmount = inputAmount - txCharges;
+        txQty = Number((txAmount / txPrice).toFixed(4));
+      }
+
+      if (txType === 'BONUS') {
+        txPrice = 0;
+        txAmount = 0;
+      }
+
+      const isUS = portfolio === 'us_stocks';
+      const currency = isUS ? 'USD' : 'INR';
+      const txFxRate = isUS ? (Number(fxRateOverride) || fxRate) : null;
+
+      const symbolKey = (portfolio === 'mutual_funds' && schemeCode) ? schemeCode : symbol.toUpperCase();
+
+      // Find or create holding
+      let holdingId;
+      const existingHoldings = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
+
+      if (existingHoldings.length > 0) {
+        holdingId = existingHoldings[0].id;
+      } else {
+        // Create new holding shell - trigger will compute qty/avg_price
+        const exchange = portfolio === 'in_stocks' ? 'NSE' :
+                         portfolio === 'us_stocks' ? 'NASDAQ' :
+                         portfolio === 'mutual_funds' ? 'AMFI' : 'NPS';
+
+        const newHolding = await db.insert('holdings', {
+          category_id: portfolio,
+          symbol: symbolKey,
+          name: name,
+          exchange: exchange,
+          quantity: 0,
+          avg_buy_price: 0,
+          current_price: txPrice,
+          currency: currency,
+          status: 'ACTIVE'
+        });
+        holdingId = newHolding.id;
+      }
+
+      // Handle DIVIDEND - insert into dividends table
+      if (txType === 'DIVIDEND') {
+        const divAmount = Number(data.dividendAmount) || txAmount;
+        await db.insert('dividends', {
+          holding_id: holdingId,
+          symbol: symbolKey,
+          name: name,
+          amount_original: isUS ? divAmount : divAmount,
+          currency: currency,
+          fx_rate: txFxRate || 1.0,
+          amount_inr: isUS ? divAmount * (txFxRate || fxRate) : divAmount,
+          payment_date: txDate
+        });
+
+        return res.json({ success: true, holdingId, action: 'dividend_recorded' });
+      }
+
+      // Handle SPLIT - update all open positions quantity
+      if (txType === 'SPLIT') {
+        const oldQty = Number(data.splitOldQty) || 1;
+        const newQtyRatio = Number(data.splitNewQty) || 1;
+        if (oldQty <= 0 || newQtyRatio <= 0) return res.status(400).json({ error: 'Split quantities must be greater than zero' });
+        const splitRatio = newQtyRatio / oldQty;
+
+        // Update the holding directly
+        const holding = existingHoldings[0];
+        if (holding) {
+          const newQty = (Number(holding.quantity) || 0) * splitRatio;
+          const newAvg = (Number(holding.avg_buy_price) || 0) / splitRatio;
+          const newBuyQty = (Number(holding.buy_qty) || 0) * splitRatio;
+
+          await db.update('holdings', holdingId, {
+            quantity: newQty,
+            buy_qty: newBuyQty,
+            avg_buy_price: newAvg,
+            updated_at: new Date().toISOString()
+          });
+
+          // Record the split as a transaction for audit trail
+          await db.insert('transactions', {
+            holding_id: holdingId,
+            type: 'SPLIT',
+            quantity: newQty - (Number(holding.quantity) || 0),
+            price: 0,
+            total_amount: 0,
+            charges: 0,
+            currency: currency,
+            date: txDate,
+            symbol: symbolKey,
+            name: name,
+            notes: `Stock split ${oldQty}:${newQtyRatio} - Qty ${Number(holding.quantity)} -> ${newQty}, Price ${Number(holding.avg_buy_price).toFixed(2)} -> ${newAvg.toFixed(2)}`
+          });
+        }
+
+        return res.json({ success: true, holdingId, action: 'split_applied' });
+      }
+
+      // Insert transaction - PL/pgSQL trigger will auto-update holdings
+      const txRecord = {
+        holding_id: holdingId,
+        type: txType,
+        quantity: txQty,
+        price: txPrice,
+        total_amount: txAmount,
+        charges: txCharges,
+        currency: currency,
+        date: txDate,
+        symbol: symbolKey,
+        name: name,
+        notes: data.notes || `${txType} ${txQty} units of ${name} @ ${currency === 'USD' ? '$' : '₹'}${txPrice}`
+      };
+
+      if (txFxRate) txRecord.fx_rate = txFxRate;
+
+      await db.insert('transactions', txRecord);
+
+      return res.json({ success: true, holdingId, action: 'transaction_recorded' });
+    }
+
+    // Handle Bank / EPF (balance-based)
+    if (portfolio === 'bank' || portfolio === 'epf') {
+      const { name: accName, balance, date: entryDate } = data;
+      if (!accName) return res.status(400).json({ error: 'Account name is required' });
+      if (Number(balance) < 0) return res.status(400).json({ error: 'Balance cannot be negative' });
+
+      const symbolKey = portfolio === 'epf' ? 'EPF-RETIREMENT' :
+                        accName.toUpperCase().replace(/\s+/g, '-') + '-SAVINGS';
+
+      const existing = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
+
+      if (existing.length > 0) {
+        await db.update('holdings', existing[0].id, {
+          current_price: Number(balance) || 0,
+          quantity: 1,
+          updated_at: new Date().toISOString()
+        });
+        return res.json({ success: true, holdingId: existing[0].id, action: 'balance_updated' });
+      } else {
+        const newHolding = await db.insert('holdings', {
+          category_id: portfolio,
+          symbol: symbolKey,
+          name: accName,
+          exchange: portfolio === 'bank' ? 'BANK' : 'EPF',
+          quantity: 1,
+          avg_buy_price: Number(balance) || 0,
+          current_price: Number(balance) || 0,
+          currency: 'INR',
+          status: 'ACTIVE'
+        });
+        return res.json({ success: true, holdingId: newHolding.id, action: 'account_created' });
+      }
+    }
+
+    // Handle Loan
+    if (portfolio === 'loans') {
+      const { name: loanName, balance, date } = data;
+      if (!loanName) return res.status(400).json({ error: 'Loan name is required' });
+      const newBalance = Math.max(0, Number(balance) || 0);
+
+      const existing = await db.selectWhere('liabilities', { category_id: 'loans', name: loanName });
+
+      if (existing.length > 0) {
+        const currentBal = Number(existing[0].outstanding_balance) || 0;
+        
+        let txType, txAmount;
+        if (newBalance > currentBal) {
+          txType = 'TAKE';
+          txAmount = newBalance - currentBal;
+          // Increase total principal for a take
+          await db.update('liabilities', existing[0].id, {
+            total_principal: (Number(existing[0].total_principal) || 0) + txAmount,
+            outstanding_balance: newBalance,
+            updated_at: new Date().toISOString()
+          });
+        } else {
+          txType = 'PAY';
+          txAmount = currentBal - newBalance;
+          await db.update('liabilities', existing[0].id, {
+            outstanding_balance: newBalance,
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        if (txAmount > 0) {
+          await db.insert('transactions', {
+            holding_id: existing[0].id,
+            type: txType,
+            date: date || new Date().toISOString().split('T')[0],
+            quantity: 1,
+            price: txAmount,
+            amount: txAmount,
+            total_amount: txAmount,
+            charges: 0,
+            status: 'COMPLETED'
+          });
+        }
+      } else {
+        const initialPrincipal = newBalance;
+        const inserted = await db.insert('liabilities', {
+          category_id: 'loans',
+          name: loanName,
+          total_principal: initialPrincipal,
+          outstanding_balance: newBalance,
+          updated_at: new Date().toISOString()
+        });
+        
+        if (initialPrincipal > 0) {
+          await db.insert('transactions', {
+            holding_id: inserted[0].id,
+            type: 'TAKE',
+            date: date || new Date().toISOString().split('T')[0],
+            quantity: 1,
+            price: initialPrincipal,
+            amount: initialPrincipal,
+            total_amount: initialPrincipal,
+            charges: 0,
+            status: 'COMPLETED'
+          });
+        }
+      }
+
+      return res.json({ success: true });
+    }
+
+    // Handle Credit Card
+    if (portfolio === 'credit_cards') {
+      const { name: cardName, balance, date: txDate } = data;
+      if (!cardName) return res.status(400).json({ error: 'Card name is required' });
+      if (Number(balance) < 0) return res.status(400).json({ error: 'Balance cannot be negative' });
+
+      const existing = await db.selectWhere('liabilities', { category_id: 'credit_cards', name: cardName });
+
+      if (existing.length > 0) {
+        await db.update('liabilities', existing[0].id, {
+          outstanding_balance: Number(balance) || 0,
+          updated_at: new Date().toISOString()
+        });
+        return res.json({ success: true, id: existing[0].id, action: `credit_card_updated` });
+      } else {
+        const newCard = await db.insert('liabilities', {
+          category_id: 'credit_cards',
+          name: cardName,
+          total_principal: 0,
+          outstanding_balance: Number(balance) || 0
+        });
+        return res.json({ success: true, id: newCard.id, action: 'credit_card_created' });
+      }
+    }
+
+    return res.status(400).json({ error: `Unknown portfolio type: ${portfolio}` });
+  } catch (err) {
+    console.error('[Add Investment Error]:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

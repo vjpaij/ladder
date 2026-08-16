@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, 
@@ -14,12 +14,20 @@ import {
   Briefcase,
   ChevronLeft,
   ChevronRight,
-  PieChart
+  PieChart,
+  PlusCircle,
+  Clock
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
 export default function Sidebar({ currentView, setCurrentView, summary, isCollapsed, onToggleCollapse }) {
   const { formatMoney, fxRate } = useThemeAuth();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const navSections = [
     {
@@ -103,6 +111,31 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
           </AnimatePresence>
         </div>
 
+        {/* Elegant Date/Time Display below Brand */}
+        <div className={`mb-6 flex flex-col items-center justify-center text-center opacity-70 hover:opacity-100 transition-opacity w-full ${isCollapsed ? 'px-0' : 'px-3'}`}>
+          {isCollapsed ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <Clock className="w-3.5 h-3.5 text-emerald-500/70 mb-1" />
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">
+                {currentTime.toLocaleString('en-IN', { day: '2-digit', month: 'short' })}
+              </span>
+              <span className="font-mono font-bold text-slate-300 tracking-tighter text-[10px] leading-tight">
+                {currentTime.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase()}
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-0.5">
+                <Clock className="w-3 h-3 text-emerald-500/70" />
+                <span>{currentTime.toLocaleString('en-IN', { weekday: 'long', day: '2-digit', month: 'short' })}</span>
+              </div>
+              <span className="font-mono font-bold text-slate-300 tracking-tight text-xl">
+                {currentTime.toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+              </span>
+            </>
+          )}
+        </div>
+
         {/* Nav Sections */}
         <div className="space-y-5 w-full">
           {navSections.map((section) => (
@@ -147,42 +180,6 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
           ))}
         </div>
       </div>
-
-      {/* Bottom Net Worth Ticker */}
-      <AnimatePresence>
-        {!isCollapsed && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-6 pt-3 border-t border-slate-800/80 px-1 overflow-hidden"
-          >
-            <motion.div 
-              className="glass-subcard p-3 rounded-2xl relative overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  NET WORTH
-                </span>
-                <span className="text-[9px] font-mono text-indigo-400 whitespace-nowrap ml-2">
-                  $1 = ₹{fxRate}
-                </span>
-              </div>
-
-              <div className="text-sm font-extrabold font-mono text-white truncate">
-                {summary ? formatMoney(summary.netWorthINR) : '₹...'}
-              </div>
-
-              <div className="flex items-center justify-between text-[9px] font-medium text-slate-500 mt-1 pt-1 border-t border-slate-800/50">
-                <span className="whitespace-nowrap">XIRR <strong className="text-emerald-400 font-mono">{summary ? summary.xirrPct : 0}%</strong></span>
-                <span className="whitespace-nowrap ml-2">ROI <strong className="text-indigo-400 font-mono">+{summary ? summary.absoluteReturnPct : 0}%</strong></span>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
     </aside>
   );
 }

@@ -16,7 +16,9 @@ import {
   ChevronDown,
   Camera,
   Trash2,
-  Clock
+  Clock,
+  PlusCircle,
+  Edit3
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
@@ -27,6 +29,7 @@ export default function TopNavbar({
   liabilities = [],
   onSelectHolding,
   onNavigate,
+  onOpenProfile,
   summary
 }) {
   const { 
@@ -37,6 +40,7 @@ export default function TopNavbar({
     toggleCurrency, 
     user, 
     updateUserAvatar,
+    updateUserAuth,
     logout 
   } = useThemeAuth();
 
@@ -59,9 +63,7 @@ export default function TopNavbar({
       }
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setIsUserMenuOpen(false);
-      }
-      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target)) {
-        setIsThemeMenuOpen(false);
+        setIsThemeMenuOpen(false); // Close nested theme menu
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -207,19 +209,7 @@ export default function TopNavbar({
       </div>
 
       {/* ─── Controls & Quick Actions ───────────────────────────── */}
-      <div className="flex items-center gap-2">
-        
-        {/* Date / Time Stamp */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 border border-slate-700/60 rounded-xl text-xs font-semibold text-slate-300 shadow-sm">
-          <Clock className="w-3.5 h-3.5 text-slate-400" />
-          <span className="font-mono tracking-tight whitespace-nowrap">
-            {currentTime.toLocaleString('en-IN', {
-              day: '2-digit', month: 'short', year: 'numeric',
-              hour: '2-digit', minute: '2-digit', second: '2-digit',
-              hour12: true
-            }).toUpperCase()}
-          </span>
-        </div>
+      <div className="flex items-center gap-3">
 
         {/* Sync Prices Button */}
         <motion.button
@@ -233,122 +223,17 @@ export default function TopNavbar({
           <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync'}</span>
         </motion.button>
 
-        {/* Import / Export Data Button */}
+        {/* Primary Add Investment Button */}
         {onNavigate && (
           <motion.button
-            onClick={() => onNavigate('excel_tools')}
+            onClick={() => onNavigate('add_investment')}
             whileTap={{ scale: 0.95 }}
-            title="Import or Export portfolio data (Excel, CSV, JSON)"
             className="group flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/60 rounded-xl text-xs font-semibold text-slate-200 shadow-sm transition-all cursor-pointer"
           >
-            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-colors" />
-            <span className="hidden sm:inline">Import/Export</span>
+            <PlusCircle className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-colors" />
+            <span className="hidden sm:inline">Add Investment</span>
           </motion.button>
         )}
-
-        {/* Currency Toggle (Uniform styling with other controls) */}
-        <motion.button
-          onClick={toggleCurrency}
-          whileTap={{ scale: 0.95 }}
-          title={`Switch to ${currency === 'INR' ? 'USD ($)' : 'INR (₹)'}`}
-          className="group flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/60 rounded-xl text-xs font-semibold text-slate-200 shadow-sm transition-all cursor-pointer"
-        >
-          {currency === 'INR' ? (
-            <span className="flex items-center gap-1">
-              <IndianRupee className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-colors" />
-              <span className="font-mono">INR</span>
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <DollarSign className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-colors" />
-              <span className="font-mono">USD</span>
-            </span>
-          )}
-        </motion.button>
-
-        {/* Theme Selector Dropdown */}
-        <div ref={themeMenuRef} className="relative">
-          <motion.button
-            onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-            whileTap={{ scale: 0.95 }}
-            title="Choose dashboard theme"
-            className="group p-2 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/60 rounded-xl text-slate-200 transition-all cursor-pointer flex items-center gap-1"
-          >
-            <Palette className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
-            <ChevronDown className="w-3 h-3 text-slate-500" />
-          </motion.button>
-
-          <AnimatePresence>
-            {isThemeMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                className="absolute right-0 mt-2 w-52 bg-slate-900/95 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 backdrop-blur-2xl"
-              >
-                {/* Dark Themes */}
-                <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider px-2.5 py-1 mb-0.5">
-                  Dark Themes
-                </div>
-                <div className="space-y-0.5 mb-2">
-                  {(availableThemes || []).filter(t => ['dark', 'midnight', 'sunset'].includes(t.id)).map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setTheme(t.id);
-                        setIsThemeMenuOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                        theme === t.id 
-                          ? 'bg-slate-800 text-white shadow-sm' 
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span 
-                          className="w-3 h-3 rounded-full border border-white/20" 
-                          style={{ backgroundColor: t.accent || t.color }}
-                        />
-                        <span>{t.label}</span>
-                      </div>
-                      {theme === t.id && <Check className="w-3.5 h-3.5 text-blue-400" />}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Light Themes */}
-                <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider px-2.5 py-1 mb-0.5 border-t border-slate-800/80 pt-1.5">
-                  Light Themes
-                </div>
-                <div className="space-y-0.5">
-                  {(availableThemes || []).filter(t => ['light', 'warm_light', 'nordic_light'].includes(t.id)).map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setTheme(t.id);
-                        setIsThemeMenuOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                        theme === t.id 
-                          ? 'bg-slate-800 text-white shadow-sm' 
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span 
-                          className="w-3 h-3 rounded-full border border-slate-700/60" 
-                          style={{ backgroundColor: t.accent || t.color }}
-                        />
-                        <span>{t.label}</span>
-                      </div>
-                      {theme === t.id && <Check className="w-3.5 h-3.5 text-blue-400" />}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
 
         {/* ─── User Avatar & Profile Dropdown ──────────────────────── */}
         <div ref={userMenuRef} className="relative pl-1">
@@ -408,13 +293,6 @@ export default function TopNavbar({
                       <span className="text-[11px] text-slate-400 font-mono block truncate">
                         {user?.email || 'admin@ladder.com'}
                       </span>
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold mt-1 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Camera className="w-3 h-3" />
-                        <span>{user?.avatarUrl ? 'Change Photo' : 'Upload Photo'}</span>
-                      </button>
                     </div>
                   </div>
 
@@ -431,8 +309,100 @@ export default function TopNavbar({
                   )}
                 </div>
 
+                {/* Settings & Preferences Section */}
+                <div className="py-2.5 px-1 space-y-1">
+
+                  {/* Edit Profile Entry */}
+                  <button
+                    onClick={() => {
+                      if (onOpenProfile) onOpenProfile();
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                  >
+                    <User className="w-4 h-4 text-slate-400" />
+                    <span>Edit Profile</span>
+                  </button>
+
+                  {/* Currency Toggle */}
+                  <button
+                    onClick={toggleCurrency}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      {currency === 'INR' ? <IndianRupee className="w-4 h-4 text-slate-400" /> : <DollarSign className="w-4 h-4 text-slate-400" />}
+                      <span>Display Currency</span>
+                    </div>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400">{currency}</span>
+                  </button>
+
+                  {/* Theme Selector (Nested Menu) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsThemeMenuOpen(!isThemeMenuOpen);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer relative"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Palette className="w-4 h-4 text-slate-400" />
+                      <span>Theme Settings</span>
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isThemeMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Theme Submenu */}
+                  <AnimatePresence>
+                    {isThemeMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mx-2 mt-1 mb-2 p-2 rounded-xl bg-slate-900/50 border border-slate-800/50 space-y-1">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {(availableThemes || []).slice(0, 6).map((t) => (
+                              <button
+                                key={t.id}
+                                onClick={() => {
+                                  setTheme(t.id);
+                                  setIsThemeMenuOpen(false);
+                                }}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                                  theme === t.id 
+                                    ? 'bg-slate-800 text-white shadow-sm ring-1 ring-slate-700' 
+                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                                }`}
+                              >
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.accent || t.color }} />
+                                <span className="truncate">{t.label}</span>
+                                {theme === t.id && <Check className="w-2.5 h-2.5 text-blue-400 ml-auto" />}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Import / Export */}
+                  {onNavigate && (
+                    <button
+                      onClick={() => {
+                        onNavigate('excel_tools');
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                    >
+                      <ArrowUpDown className="w-4 h-4 text-slate-400" />
+                      <span>Data Import / Export</span>
+                    </button>
+                  )}
+                </div>
+
                 {/* Logout / Session Control */}
-                <div className="pt-3">
+                <div className="pt-3 px-1">
                   <button
                     onClick={() => {
                       if (window.confirm('Sign out of your Ladder session?')) {
@@ -456,5 +426,3 @@ export default function TopNavbar({
     </header>
   );
 }
-
-

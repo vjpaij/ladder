@@ -18,8 +18,9 @@ import DividendsView from './views/DividendsView';
 import ReportsView from './components/ReportsView';
 import DatabaseStudioView from './views/DatabaseStudioView';
 import ExcelToolsView from './views/ExcelToolsView';
-import AddAssetModal from './components/AddAssetModal';
 import HoldingDetailModal from './components/HoldingDetailModal';
+import EditProfileModal from './components/EditProfileModal';
+import AddInvestmentView from './views/AddInvestmentView';
 
 export default function App() {
   return (
@@ -36,7 +37,8 @@ function AppInner() {
   const [holdings, setHoldings] = useState([]);
   const [liabilities, setLiabilities] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [targetPortfolio, setTargetPortfolio] = useState(null);
   const [selectedHoldingModal, setSelectedHoldingModal] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString());
   const [toast, setToast] = useState(null);
@@ -132,19 +134,19 @@ function AppInner() {
       case 'calendar':
         return <CalendarView key="calendar" />;
       case 'indian_stocks':
-        return <IndianStocksView key="indian_stocks" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <IndianStocksView key="indian_stocks" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('in_stocks'); setCurrentView('add_investment'); }} />;
       case 'us_stocks':
-        return <UsStocksView key="us_stocks" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <UsStocksView key="us_stocks" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('us_stocks'); setCurrentView('add_investment'); }} />;
       case 'mutual_funds':
-        return <MutualFundsView key="mutual_funds" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <MutualFundsView key="mutual_funds" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('mutual_funds'); setCurrentView('add_investment'); }} />;
       case 'nps':
-        return <NpsView key="nps" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <NpsView key="nps" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('nps'); setCurrentView('add_investment'); }} />;
       case 'bank':
-        return <BankView key="bank" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <BankView key="bank" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('bank'); setCurrentView('add_investment'); }} />;
       case 'epf':
-        return <EpfView key="epf" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <EpfView key="epf" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('epf'); setCurrentView('add_investment'); }} />;
       case 'liabilities':
-        return <LiabilitiesView key="liabilities" liabilities={liabilities} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => setIsAddModalOpen(true)} />;
+        return <LiabilitiesView key="liabilities" liabilities={liabilities} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('loans'); setCurrentView('add_investment'); }} />;
       case 'dividends':
         return <DividendsView key="dividends" />;
       case 'reports':
@@ -153,6 +155,8 @@ function AppInner() {
         return <DatabaseStudioView key="database" />;
       case 'excel_tools':
         return <ExcelToolsView key="excel_tools" onRefresh={fetchDashboardData} />;
+      case 'add_investment':
+        return <AddInvestmentView key="add_investment" initialPortfolio={targetPortfolio} onRefresh={fetchDashboardData} />;
       default:
         return <OverviewView key="overview" summary={summary} holdings={holdings} liabilities={liabilities} onNavigate={setCurrentView} />;
     }
@@ -180,7 +184,8 @@ function AppInner() {
           holdings={holdings}
           liabilities={liabilities}
           onSelectHolding={(h) => setSelectedHoldingModal(h)}
-          onNavigate={setCurrentView}
+          onNavigate={(view) => { setTargetPortfolio(null); setCurrentView(view); }}
+          onOpenProfile={() => setIsEditProfileOpen(true)}
           summary={summary}
         />
 
@@ -213,13 +218,6 @@ function AppInner() {
         )}
       </AnimatePresence>
 
-      {/* Add Asset Modal */}
-      <AddAssetModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onRefresh={fetchDashboardData}
-      />
-
       {/* Holding Detail Modal */}
       {selectedHoldingModal && (
         <HoldingDetailModal
@@ -227,6 +225,12 @@ function AppInner() {
           onClose={() => setSelectedHoldingModal(null)}
         />
       )}
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
+      />
 
     </div>
   );

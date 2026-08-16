@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.8.0] - 2026-08-16
+
+### Changed
+- **UI Layout Polish**: Reorganized the TopNavbar, removing the Date/Time display and aligning the 'Add Investment' button to match the global Theme style. 
+- **Sidebar Reorganization**: Eliminated redundant Net Worth ticker and elegantly placed a responsive Date/Time widget below the brand logo that automatically stacks compactly when the sidebar is collapsed.
+- **Edit Profile Modal**: Refined styling to perfectly fit content with a blurred glassmorphism backdrop instead of a heavy dimming overlay.
+
+---
+
 ## [3.7.0] - 2026-08-16
 
 ### Changed
@@ -257,3 +266,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed missing `glass-panel` CSS utility class definition.
 - Fixed non-functional Tailwind v4 animation utility references.
 - Pruned text descriptions across all views for a cleaner, professional presentation.
+
