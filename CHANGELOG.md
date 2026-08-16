@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.7.0] - 2026-08-16
+
+### Changed
+- **Database Architecture**: Created `asset_metadata_seed.sql` to instantiate the `asset_metadata` table in Supabase, strictly isolating Sector and Capitalisation mappings (Mega, Large, Mid, Small, Micro) from holdings.
+- **Tabbed UI Segregation**: Rebuilt `ReportsView.jsx` with strict tabbed architecture separating Equity charts (Market Cap, Sectors) from Fixed Income/NPS.
+- **Expanded Benchmarks**: Integrated comprehensive tracking suite to the Portfolio Growth chart including Nifty 50, Nifty Midcap 150, Nifty 250, S&P 500, and NASDAQ.
+
+---
+
+## [3.6.0] - 2026-08-16
+
+### Added
+- **Dynamic Asset Filtering**: Upgraded `ReportsView.jsx` to support dynamic asset filtering (Combined Portfolio, Consolidated Equity, Fixed Income). Added a new Market Cap chart and dynamic Sector filtering.
+- **Metadata Support**: Updated backend `/api/holdings` routes in `server/index.js` to accept and persist `market_cap` metadata natively.
+
+---
+
 ## [3.5.1] - 2026-08-16
 
 ### Changed

@@ -428,6 +428,15 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
       });
     }
 
+    // Fetch Asset Metadata to map sector and capitalisation
+    const { data: metaData } = await supabase.from('asset_metadata').select('*');
+    const metadataMap = {};
+    if (metaData) {
+      metaData.forEach(m => {
+        metadataMap[m.symbol] = m;
+      });
+    }
+
     const formatted = holdings.map(h => {
       const liveRate = h.currency === 'USD' ? fxRate : 1.0;
       let txRate = 1.0;
@@ -445,8 +454,12 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
       const gainINR = currentValueINR - investedValueINR;
       const gainPct = investedValueINR > 0 ? ((gainINR / investedValueINR) * 100).toFixed(2) : 0;
 
+      const meta = metadataMap[h.symbol] || {};
+      
       return {
         ...h,
+        sector: meta.sector || h.sector || 'Unknown',
+        market_cap: meta.capitalisation || h.market_cap || 'Unknown',
         category_name: catMap[h.category_id] ? catMap[h.category_id].name : h.category_id,
         category_color: catMap[h.category_id] ? catMap[h.category_id].color : '#3B82F6',
         fxRate: liveRate,
@@ -467,8 +480,7 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
 
 app.post('/api/holdings', authenticateToken, async (req, res) => {
   try {
-    const { category_id, symbol, name, exchange, quantity, avg_buy_price, current_price, currency, sector } = req.body;
-
+    const { category_id, symbol, name, exchange, quantity, avg_buy_price, current_price, currency, sector, market_cap } = req.body;
     const newHolding = await db.insert('holdings', {
       category_id,
       symbol,
@@ -481,6 +493,7 @@ app.post('/api/holdings', authenticateToken, async (req, res) => {
       bse_price: exchange === 'BSE' ? Number(current_price || avg_buy_price) : 0,
       currency: currency || 'INR',
       sector: sector || 'General',
+      market_cap: market_cap || 'Unknown',
       status: Number(quantity) > 0 ? 'active' : 'closed'
     });
 
@@ -504,8 +517,7 @@ app.post('/api/holdings', authenticateToken, async (req, res) => {
 app.put('/api/holdings/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { quantity, avg_buy_price, current_price, name, symbol, sector } = req.body;
-
+    const { quantity, avg_buy_price, current_price, name, symbol, sector, market_cap } = req.body;
     await db.update('holdings', id, {
       quantity: Number(quantity),
       avg_buy_price: Number(avg_buy_price),
@@ -513,6 +525,7 @@ app.put('/api/holdings/:id', authenticateToken, async (req, res) => {
       name,
       symbol,
       sector,
+      market_cap,
       status: Number(quantity) > 0 ? 'active' : 'closed'
     });
 

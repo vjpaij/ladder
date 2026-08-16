@@ -13,7 +13,8 @@ import {
   Shield,
   Briefcase,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  PieChart
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
@@ -26,7 +27,7 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
       items: [
         { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'calendar', label: 'Calendar', icon: Calendar },
-        { id: 'reports', label: 'Reports', icon: BarChart3 },
+        { id: 'reports', label: 'Reports', icon: PieChart },
       ]
     },
     {

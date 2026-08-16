@@ -10,7 +10,7 @@ Ladder is a modern, stylish, high-performance personal finance and investment da
 - **Liability & Debt Hub**: Track outstanding loan principals, credit card balances, interest rates, and monthly EMIs.
 - **Real-Time Price Engine**: Live price auto-sync for Indian equity (comparative max pricing between NSE & BSE), US equity, and AMFI mutual funds.
 - **Dual Currency & FX Engine**: Default primary display in INR (₹) with real-time USD/INR live conversion rate ($1 = ₹X) and instant header currency toggle.
-- **Advanced Analytics & Reports**: Asset class allocation donut charts, sector concentration bar charts, and growth trajectory performance vs. Nifty 50 benchmark.
+- **Advanced Analytics & Reports**: Strict tabbed UI architecture isolating Consolidated Portfolio, Equity Hub, Fixed Income, and NPS. Includes Market Cap tracking (Mega to Micro), sector concentration bar charts, and growth trajectory performance against Nifty 50, Nifty Midcap 150, Nifty 250, S&P 500, and NASDAQ.
 - **P&L Calendar Heatmap**: Visual trading session green/red day calendar, date range filtering, win rate metrics, and day-by-day P&L inspection.
 - **Dividends Ledger**: India & US dividend cashflow tracker with automatic currency conversion and annualized yield calculation.
 - **Supabase Cloud Database & Automated Triggers**: Powered by Supabase PostgreSQL with automated PL/pgSQL triggers for position calculation, realized/unrealized PnL, charges, and Row Level Security (RLS) policies.

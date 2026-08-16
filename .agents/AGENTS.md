@@ -1,5 +1,11 @@
 # Workspace Rules for Ladder Project
 
+## Agent Delegation & Model Rules
+
+1. **FORCE OPENROUTER (TIER 2) DELEGATION**:
+   - For all future tasks in this project, you **MUST** use the OpenRouter free models (via the `openrouter-delegation` skill) by default, regardless of task complexity.
+   - Do NOT use Antigravity models (TIER 1) directly unless the user explicitly specifies "use Antigravity", "use premium", or "do this yourself" in the prompt.
+
 ## Mandatory Pre-Execution & Post-Execution Rules
 
 1. **FIRST STEP - READ MASTER CONTEXT (`LADDER.md`)**:

@@ -114,8 +114,16 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
       start.setMonth(start.getMonth() - 6);
     } else if (netWorthRange === '1Y') {
       start.setFullYear(start.getFullYear() - 1);
+    } else if (netWorthRange === '2Y') {
+      start.setFullYear(start.getFullYear() - 2);
+    } else if (netWorthRange === '3Y') {
+      start.setFullYear(start.getFullYear() - 3);
+    } else if (netWorthRange === '5Y') {
+      start.setFullYear(start.getFullYear() - 5);
+    } else if (netWorthRange === '10Y') {
+      start.setFullYear(start.getFullYear() - 10);
     } else if (netWorthRange === 'ALL') {
-      start.setFullYear(start.getFullYear() - 4);
+      start.setFullYear(start.getFullYear() - 20);
     } else if (netWorthRange === 'CUSTOM') {
       if (customStartDate) start = new Date(customStartDate);
       if (customEndDate) end = new Date(customEndDate);
@@ -579,7 +587,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
               {/* Date Range Filter Pills & Calendar Toggle */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <div className="flex items-center gap-1 p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
-                  {['1M', '3M', '6M', '1Y', 'ALL'].map(range => (
+                  {['1M', '3M', '6M', '1Y', '2Y', '3Y', '5Y', '10Y', 'ALL'].map(range => (
                     <button
                       key={range}
                       onClick={() => {
