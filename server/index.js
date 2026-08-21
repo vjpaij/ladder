@@ -897,6 +897,15 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
     const timelineUSD = [];
     const timelineINR = [];
 
+    // Group dividends by date
+    const divsByDate = {};
+    for (const d of divs) {
+      const dDate = d.ex_date || d.payment_date || d.created_at || today;
+      const dStr = dDate.split('T')[0];
+      if (!divsByDate[dStr]) divsByDate[dStr] = [];
+      divsByDate[dStr].push(d);
+    }
+
     // High-fidelity historical daily NAV timeline for NPS holdings
     if (holding.category_id === 'nps' && txs.length > 0) {
       const npsNavMap = await fetchNpsHistoricalNav(holding.symbol);
@@ -912,10 +921,25 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         let txIdx = 0;
 
         for (const d of relevantDates) {
+          let dayEvents = [];
+
           while (txIdx < txs.length && txs[txIdx].date <= d) {
             const tx = txs[txIdx];
             const qty = Number(tx.quantity) || 0;
             const amt = Number(tx.total_amount) || (qty * (Number(tx.price) || 0));
+            
+            if (tx.date === d && tx.type !== 'DIVIDEND') {
+              dayEvents.push({
+                type: tx.type,
+                qty: qty,
+                priceUSD: Number(tx.price) || 0,
+                priceINR: Number(tx.price) || 0,
+                amountUSD: amt,
+                amountINR: amt,
+                notes: tx.notes
+              });
+            }
+
             if (tx.type === 'BUY' || tx.type === 'BONUS') {
               runningQ += qty;
               runningInv += amt;
@@ -925,20 +949,40 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             }
             txIdx++;
           }
+          
+          if (divsByDate[d]) {
+            for (const div of divsByDate[d]) {
+              dayEvents.push({
+                type: 'DIVIDEND',
+                qty: 0,
+                priceUSD: Number(div.amount_original) || 0,
+                priceINR: Number(div.amount_inr) || 0,
+                amountUSD: Number(div.amount_original) || 0,
+                amountINR: Number(div.amount_inr) || 0,
+                notes: 'Dividend payout'
+              });
+            }
+          }
+
           const nav = npsNavMap.get(d) || 0;
           const val = Math.max(0, runningQ * nav);
           timelineINR.push({
             label: d,
             invested: Number(Math.max(0, runningInv).toFixed(2)),
-            value: Number(val.toFixed(2))
+            value: Number(val.toFixed(2)),
+            price: Number(nav.toFixed(4)),
+            events: dayEvents.length > 0 ? dayEvents : null
           });
         }
 
         if (!isExited && (timelineINR.length === 0 || timelineINR[timelineINR.length - 1].label !== today)) {
+          const navToday = (Number(holding.current_price) || 0);
           timelineINR.push({
             label: today,
             invested: Number(Math.max(0, costBasisINR).toFixed(2)),
-            value: Number(currentValueINR.toFixed(2))
+            value: Number(currentValueINR.toFixed(2)),
+            price: Number(navToday.toFixed(4)),
+            events: null
           });
         }
       }
@@ -967,6 +1011,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
 
       while (currentDate <= endDate) {
         const dStr = currentDate.toISOString().split('T')[0];
+        let dayEvents = [];
 
         // Process any transactions on this day
         while (txIdx < txs.length && txs[txIdx].date <= dStr) {
@@ -976,6 +1021,18 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
           const amtUSD = Number(tx.total_amount) || qty * price;
           const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
           const amtINR = amtUSD * txRate;
+
+          if (tx.date === dStr && tx.type !== 'DIVIDEND') {
+            dayEvents.push({
+              type: tx.type,
+              qty: qty,
+              priceUSD: price,
+              priceINR: price * txRate,
+              amountUSD: amtUSD,
+              amountINR: amtINR,
+              notes: tx.notes
+            });
+          }
 
           if (tx.type === 'BUY' || tx.type === 'BONUS') {
             runningQ += qty;
@@ -993,6 +1050,20 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
           txIdx++;
         }
 
+        if (divsByDate[dStr]) {
+          for (const d of divsByDate[dStr]) {
+            dayEvents.push({
+              type: 'DIVIDEND',
+              qty: 0,
+              priceUSD: Number(d.amount_original) || 0,
+              priceINR: Number(d.amount_inr) || 0,
+              amountUSD: Number(d.amount_original) || 0,
+              amountINR: Number(d.amount_inr) || 0,
+              notes: 'Dividend payout'
+            });
+          }
+        }
+
         // Determine price for this day
         if (histPrices[dStr] !== undefined) {
           lastKnownPriceUSD = isUSStock ? histPrices[dStr] : histPrices[dStr] / getHistoricalFxRate(dStr);
@@ -1005,12 +1076,16 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         timelineUSD.push({
           label: dStr,
           invested: Number(Math.max(0, runningInvUSD).toFixed(2)),
-          value: Number(valUSD.toFixed(2))
+          value: Number(valUSD.toFixed(2)),
+          price: Number(lastKnownPriceUSD.toFixed(4)),
+          events: dayEvents.length > 0 ? dayEvents : null
         });
         timelineINR.push({
           label: dStr,
           invested: Number(Math.max(0, runningInvINR).toFixed(2)),
-          value: Number(valINR.toFixed(2))
+          value: Number(valINR.toFixed(2)),
+          price: Number(lastKnownPriceINR.toFixed(4)),
+          events: dayEvents.length > 0 ? dayEvents : null
         });
 
         currentDate.setDate(currentDate.getDate() + 1);

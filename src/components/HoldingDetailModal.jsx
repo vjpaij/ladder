@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend
+  ResponsiveContainer, Legend, ComposedChart, Line, Scatter
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
+import { CalendarDays } from 'lucide-react';
+import formatDateDDMMYYYY from '../utils/dateFormatter';
 
 function fmtINR(val) {
   const n = Number(val) || 0;
@@ -68,7 +70,7 @@ function ChartTooltip({ active, payload, label, isUSD }) {
   const fmt = isUSD ? fmtUSD : fmtINR;
   return (
     <div className="bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-2xl">
-      <div className="text-slate-400 mb-1.5 font-mono">{label}</div>
+      <div className="text-slate-400 mb-1.5 font-mono">{formatDateDDMMYYYY(label)}</div>
       {payload.map(p => (
         <div key={p.dataKey} className="flex items-center gap-2 py-0.5">
           <span className="w-2 h-2 rounded-full inline-block" style={{ background: p.color }} />
@@ -80,12 +82,104 @@ function ChartTooltip({ active, payload, label, isUSD }) {
   );
 }
 
+function ActualChartTooltip({ active, payload, label, isUSD, timelineData }) {
+  if (!active || !payload?.length) return null;
+  const fmt = isUSD ? fmtUSD : fmtINR;
+  const p = payload[0].payload;
+  
+  let displayEvents = p.events;
+  let eventDate = label;
+  
+  // Magnetic Event Tooltip: if no event exactly on hovered day, check +/- 4 days
+  if (!displayEvents && timelineData) {
+    const currentIndex = timelineData.findIndex(d => d.label === label);
+    if (currentIndex !== -1) {
+      let minDistance = 5;
+      for (let i = Math.max(0, currentIndex - 4); i <= Math.min(timelineData.length - 1, currentIndex + 4); i++) {
+        if (timelineData[i].events) {
+          const dist = Math.abs(i - currentIndex);
+          if (dist < minDistance) {
+            minDistance = dist;
+            displayEvents = timelineData[i].events;
+            eventDate = timelineData[i].label;
+          }
+        }
+      }
+    }
+  }
+  
+  return (
+    <div className="bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-2xl z-50">
+      <div className="text-slate-400 mb-1.5 font-mono">{formatDateDDMMYYYY(label)}</div>
+      <div className="flex items-center gap-2 py-0.5 mb-1.5 border-b border-slate-800 pb-1.5">
+        <span className="w-2 h-2 rounded-full inline-block bg-emerald-400" />
+        <span className="text-slate-300">Price:</span>
+        <span className="font-black text-white">{fmt(p.price)}</span>
+      </div>
+      {displayEvents && displayEvents.length > 0 && (
+        <div className="mt-1.5 pt-1.5 border-t border-slate-800/80">
+          {eventDate !== label && (
+             <div className="text-[9px] font-bold text-slate-500 mb-1 tracking-wider">EVENT ON {formatDateDDMMYYYY(eventDate)}</div>
+          )}
+          {displayEvents.map((ev, i) => (
+            <div key={i} className="flex flex-col gap-0.5 py-1 text-[10px]">
+              <div className="flex items-center gap-2 font-bold">
+                <span className={`px-1.5 py-0.5 rounded text-[9px] border ${
+                  ev.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                  ev.type === 'SELL' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                  ev.type === 'DIVIDEND' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                  'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                }`}>
+                  {ev.type}
+                </span>
+                {ev.qty > 0 && <span className="text-slate-300">{ev.qty} units</span>}
+              </div>
+              {ev.amountINR > 0 && (
+                <div className="text-slate-400 pl-1 font-mono mt-0.5">
+                  Amount: <span className="text-white">{isUSD ? fmtUSD(ev.amountUSD) : fmtINR(ev.amountINR)}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CustomizedEventDot = (props) => {
+  const { cx, cy, payload } = props;
+  if (!payload.events || payload.events.length === 0) return null;
+  const ev = payload.events[0];
+  const color = ev.type === 'BUY' ? '#10b981' :
+                ev.type === 'SELL' ? '#f43f5e' :
+                ev.type === 'DIVIDEND' ? '#f59e0b' : '#06b6d4';
+                
+  let titleText = `${formatDateDDMMYYYY(payload.label)}\n`;
+  payload.events.forEach(e => {
+    titleText += `${e.type}: ${e.qty > 0 ? e.qty + ' units' : ''} ${e.amountINR > 0 ? '₹' + e.amountINR : ''}\n`;
+  });
+                
+  return (
+    <g style={{ cursor: 'pointer' }}>
+      <circle cx={cx} cy={cy} r={10} fill="transparent" title={titleText.trim()} />
+      <circle cx={cx} cy={cy} r={5} stroke="#1e293b" strokeWidth={1.5} fill={color} style={{ filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.5))' }} />
+    </g>
+  );
+};
+
 export default function HoldingDetailModal({ holding, onClose }) {
   const { currency, fxRate } = useThemeAuth();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [txSort, setTxSort] = useState({ field: 'date', dir: 'asc' });
+
+  const [activeTab, setActiveTab] = useState('tracker'); // 'tracker' | 'actual'
+  const [chartRange, setChartRange] = useState('ALL');
+  const [customStartDate, setCustomStartDate] = useState('2023-01-01');
+  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
 
   const isUSStock = holding?.category_id === 'us_stocks' || holding?.currency === 'USD';
   const [displayCurrency, setDisplayCurrency] = useState(isUSStock ? currency : 'INR');
@@ -176,6 +270,42 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const fmt = isDisplayUSD ? fmtUSD : fmtINR;
   const m = activeMetrics;
   const pricePrefix = isDisplayUSD ? '$' : '₹';
+
+  const filteredTimeline = React.useMemo(() => {
+    if (!activeTimeline || activeTimeline.length === 0) return [];
+    let start = new Date();
+    let end = new Date();
+    if (chartRange === '1M') start.setMonth(start.getMonth() - 1);
+    else if (chartRange === '3M') start.setMonth(start.getMonth() - 3);
+    else if (chartRange === '6M') start.setMonth(start.getMonth() - 6);
+    else if (chartRange === '1Y') start.setFullYear(start.getFullYear() - 1);
+    else if (chartRange === 'ALL') start = new Date(activeTimeline[0].label);
+    else if (chartRange === 'CUSTOM') {
+      if (customStartDate) start = new Date(customStartDate);
+      if (customEndDate) end = new Date(customEndDate);
+    }
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    return activeTimeline.filter(t => t.label >= startStr && t.label <= endStr);
+  }, [activeTimeline, chartRange, customStartDate, customEndDate]);
+
+  const chartMinMax = React.useMemo(() => {
+    if (!filteredTimeline || filteredTimeline.length === 0) return [0, 'auto'];
+    if (activeTab === 'tracker') {
+      const vals = filteredTimeline.flatMap(d => [d.invested, d.value]);
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const pad = (max - min) * 0.05;
+      return [Math.max(0, min - pad), max + pad];
+    } else {
+      const vals = filteredTimeline.map(d => d.price).filter(v => v !== undefined);
+      if (vals.length === 0) return [0, 'auto'];
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const pad = (max - min) * 0.05;
+      return [Math.max(0, min - pad), max + pad];
+    }
+  }, [filteredTimeline, activeTab]);
 
   const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
@@ -388,67 +518,114 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
                   {/* ---- Chart ---- */}
                   {activeTimeline.length > 1 && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                        <BarChart2 className="w-3.5 h-3.5" /> Invested vs Value Timeline ({displayCurrency})
-                      </p>
+                    <div className="flex flex-col gap-3">
+                      {/* Chart Header Controls */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-1 p-1 bg-slate-900/60 border border-slate-800 rounded-xl">
+                          <button
+                            onClick={() => setActiveTab('tracker')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                              activeTab === 'tracker' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                            }`}
+                          >
+                            Tracker Chart
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('actual')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                              activeTab === 'actual' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                            }`}
+                          >
+                            Actual Chart
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 relative">
+                          <div className="flex items-center gap-1 p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
+                            {['1M', '3M', '6M', '1Y', 'ALL'].map(r => (
+                              <button
+                                key={r}
+                                onClick={() => { setChartRange(r); setShowCalendarPicker(false); }}
+                                className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                                  chartRange === r ? `bg-emerald-500/20 text-emerald-400 border border-emerald-500/40` : 'text-slate-500 hover:text-slate-300 border border-transparent'
+                                }`}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setShowCalendarPicker(!showCalendarPicker)}
+                            className={`p-1.5 rounded-full border transition-all duration-200 flex items-center gap-1 text-[10px] font-bold ${
+                              chartRange === 'CUSTOM' || showCalendarPicker
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
+                            }`}
+                          >
+                            <CalendarDays className="w-3.5 h-3.5" />
+                          </button>
+
+                          <AnimatePresence>
+                            {showCalendarPicker && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                className="absolute right-0 top-10 z-30 p-3 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 text-xs text-slate-300 w-64"
+                              >
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                  <CalendarDays className="w-3 h-3 text-emerald-400" /> Select Custom Date Range
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex flex-col gap-1 w-1/2">
+                                    <span className="text-[9px] text-slate-500">From</span>
+                                    <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[10px] text-slate-200 w-full" />
+                                  </div>
+                                  <div className="flex flex-col gap-1 w-1/2">
+                                    <span className="text-[9px] text-slate-500">To</span>
+                                    <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[10px] text-slate-200 w-full" />
+                                  </div>
+                                </div>
+                                <button onClick={() => { setChartRange('CUSTOM'); setShowCalendarPicker(false); }} className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs mt-1">
+                                  Apply
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
                       <div className="glass-card rounded-2xl border border-slate-800 p-4">
-                        <ResponsiveContainer width="100%" height={250}>
-                          <AreaChart data={activeTimeline} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
-                            <defs>
-                              <linearGradient id="hdmGradInv" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
-                              </linearGradient>
-                              <linearGradient id="hdmGradVal" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={accentColor} stopOpacity={0.35} />
-                                <stop offset="95%" stopColor={accentColor} stopOpacity={0.02} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                            <XAxis
-                              dataKey="label"
-                              tick={{ fill: '#64748b', fontSize: 10 }}
-                              tickLine={false}
-                              axisLine={false}
-                              interval="preserveStartEnd"
-                            />
-                            <YAxis
-                              tick={{ fill: '#64748b', fontSize: 10 }}
-                              tickLine={false}
-                              axisLine={false}
-                              tickFormatter={v => isDisplayUSD
-                                ? `$${(v / 1000).toFixed(0)}K`
-                                : Math.abs(v) >= 1e5 ? `₹${(v / 1e5).toFixed(1)}L` : `₹${(v / 1000).toFixed(0)}K`
-                              }
-                              width={72}
-                            />
-                            <Tooltip content={<ChartTooltip isUSD={isDisplayUSD} />} />
-                            <Legend
-                              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                              formatter={val => <span style={{ color: '#94a3b8' }}>{val}</span>}
-                            />
-                            <Area
-                              type="linear"
-                              dataKey="invested"
-                              name="Cost Basis"
-                              stroke="#6366f1"
-                              strokeWidth={2}
-                              fill="url(#hdmGradInv)"
-                              dot={false}
-                              activeDot={{ r: 4, fill: '#6366f1', stroke: '#1e293b' }}
-                            />
-                            <Area
-                              type="linear"
-                              dataKey="value"
-                              name="Market Value"
-                              stroke={accentColor}
-                              strokeWidth={2.5}
-                              fill="url(#hdmGradVal)"
-                              dot={false}
-                              activeDot={{ r: 4, fill: accentColor, stroke: '#1e293b' }}
-                            />
-                          </AreaChart>
+                        <ResponsiveContainer width="100%" height={280}>
+                          {activeTab === 'tracker' ? (
+                            <AreaChart data={filteredTimeline} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>
+                              <defs>
+                                <linearGradient id="hdmGradInv" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
+                                </linearGradient>
+                                <linearGradient id="hdmGradVal" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor={accentColor} stopOpacity={0.35} />
+                                  <stop offset="95%" stopColor={accentColor} stopOpacity={0.02} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                              <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
+                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${(v / 1000).toFixed(0)}K` : Math.abs(v) >= 1e5 ? `₹${(v / 1e5).toFixed(1)}L` : `₹${(v / 1000).toFixed(0)}K`} width={55} domain={chartMinMax} />
+                              <Tooltip content={<ChartTooltip isUSD={isDisplayUSD} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={val => <span style={{ color: '#94a3b8' }}>{val}</span>} />
+                              <Area type="linear" dataKey="invested" name="Cost Basis" stroke="#6366f1" strokeWidth={2} fill="url(#hdmGradInv)" dot={false} activeDot={{ r: 4, fill: '#6366f1', stroke: '#1e293b' }} />
+                              <Area type="linear" dataKey="value" name="Market Value" stroke={accentColor} strokeWidth={2.5} fill="url(#hdmGradVal)" dot={false} activeDot={{ r: 4, fill: accentColor, stroke: '#1e293b' }} />
+                            </AreaChart>
+                          ) : (
+                            <ComposedChart data={filteredTimeline} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                              <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
+                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${v.toFixed(2)}` : `₹${v.toFixed(2)}`} width={55} domain={chartMinMax} />
+                              <Tooltip content={<ActualChartTooltip isUSD={isDisplayUSD} timelineData={filteredTimeline} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                              <Line type="linear" dataKey="price" name="Asset Price" stroke={accentColor} strokeWidth={2} dot={<CustomizedEventDot />} activeDot={{ r: 5, fill: '#ffffff', stroke: '#64748b', strokeWidth: 2 }} />
+                            </ComposedChart>
+                          )}
                         </ResponsiveContainer>
                       </div>
                     </div>
@@ -567,7 +744,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                   transition={{ delay: Math.min(i * 0.015, 0.4) }}
                                 >
                                   <td className="py-2.5 px-4 text-slate-600 font-mono text-[10px]">{i + 1}</td>
-                                  <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{formatTxDate(tx.date)}</td>
+                                  <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap" title={formatDateDDMMYYYY(tx.date)}>{formatDateDDMMYYYY(tx.date)}</td>
                                   <td className="py-2.5 px-4"><TxBadge type={tx.type} /></td>
                                   <td className="py-2.5 px-4 text-right font-mono text-slate-200">
                                     {Number(tx.quantity) > 0 ? Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '—'}

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.1] - 2026-08-21
+
+### Fixed
+- **Tooltip Event Sensitivity**: Implemented a magnetic tooltip engine in `HoldingDetailModal.jsx` that automatically snaps to the nearest event within a 9-day window, resolving X-axis hover sensitivity issues on dense timelines.
+- **Double Dividend Display**: Fixed an issue in the `/api/holding/:holdingId/detail` route where dividends appeared twice in the events list due to redundant data ingestion from both `transactions` and `dividends` tables.
+
+### Changed
+- **Global Date Formatting**: Standardized all dates in tooltips, X-axis labels, and transaction ledgers across the dashboard to `DD-MM-YYYY` using a unified formatter utility.
+- **Active Tracker Styling**: Distinctly styled the active line dot as a white circle with a grey border to prevent visual confusion with green BUY event markers.
+
+---
+
+## [4.0.0] - 2026-08-21
+
+### Added
+- **Actual Chart Toggle**: Integrated a pure asset price charting view (`Actual Chart`) alongside the standard `Tracker Chart` in the Holding Detail modal, utilizing a dual-chart toggle system.
+- **Transaction Overlays**: Overlaid interactive scatter-plot event markers (Buy, Sell, Dividend, Bonus) directly onto the Actual Chart price curve.
+- **Dynamic Chart Filtering**: Added unified date range filter pills (1M, 3M, 6M, 1Y, ALL) and custom calendar pickers that sync data bounds and responsive Y-axis scaling across both charts simultaneously.
+
+### Changed
+- **Dense Timeline API Upgrade**: Enhanced the backend Dense Timeline engine to calculate and expose pure historical asset `price` values and daily transaction `events` arrays in the JSON response for all asset classes including NPS.
+
+---
+
 ## [3.9.0] - 2026-08-21
 
 ### Changed
