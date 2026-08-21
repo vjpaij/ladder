@@ -19,6 +19,32 @@ app.use(express.json());
 // Initialize DB engine connection
 initDatabase();
 
+let historicalPricesCache = {};
+let historicalFxRatesCache = {};
+
+function loadHistoricalPrices() {
+  const p = './data/historical_prices.json';
+  if (fs.existsSync(p)) {
+    try {
+      historicalPricesCache = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log(`[Historical Pricing] Loaded cache for ${Object.keys(historicalPricesCache).length} assets.`);
+    } catch (e) {
+      console.error('[Historical Pricing] Failed to parse cache:', e.message);
+    }
+  }
+
+  const fxP = './data/historical_fx_rates.json';
+  if (fs.existsSync(fxP)) {
+    try {
+      historicalFxRatesCache = JSON.parse(fs.readFileSync(fxP, 'utf-8'));
+      console.log(`[Historical Pricing] Loaded FX rates cache with ${Object.keys(historicalFxRatesCache).length} daily records.`);
+    } catch (e) {
+      console.error('[Historical Pricing] Failed to parse FX cache:', e.message);
+    }
+  }
+}
+loadHistoricalPrices();
+
 // Helper to format date string to DD-MM-YYYY
 function formatDateDDMMYYYY(dateStr) {
   if (!dateStr) return '—';
@@ -47,6 +73,14 @@ function formatDateDDMMYYYY(dateStr) {
 // Historical USD/INR exchange rate lookup for US stocks transaction dates
 function getHistoricalFxRate(dateStr) {
   if (!dateStr) return 80.5;
+  if (historicalFxRatesCache[dateStr]) return historicalFxRatesCache[dateStr];
+  
+  // If exact date not found, attempt to find nearest previous date
+  const prevDates = Object.keys(historicalFxRatesCache).filter(d => d < dateStr).sort().reverse();
+  if (prevDates.length > 0) {
+    return historicalFxRatesCache[prevDates[0]];
+  }
+
   const year = parseInt(String(dateStr).slice(0, 4), 10);
   if (isNaN(year)) return 80.5;
 
@@ -640,8 +674,8 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         const oneYearDelta = currentVal - yearAgoVal;
         const oneYearPct = yearAgoVal > 0 ? ((oneYearDelta / yearAgoVal) * 100).toFixed(2) : 0;
 
-        // Build Daily Timeline (sampled appropriately for recharts)
-        const step = Math.max(1, Math.floor(validLogs.length / 300));
+        // Build Daily Timeline without sampling
+        const step = 1;
         const timelineINR = [];
         for (let i = 0; i < validLogs.length; i += step) {
           const item = validLogs[i];
@@ -910,58 +944,83 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       }
     }
 
-    // Default timeline construction (used for stocks, MFs, and fallback)
-    if (timelineINR.length === 0) {
+    // Dense Timeline Construction (for stocks, MFs, and fallback)
+    if (timelineINR.length === 0 && txs.length > 0) {
+      const histPrices = historicalPricesCache[holding.symbol] || {};
+      const firstTxDate = txs[0].date;
+      const lastTxDate = txs[txs.length - 1].date;
+      const isExited = (Number(holding.quantity) || 0) <= 0;
+      const endLimitStr = isExited ? lastTxDate : today;
+      
+      let runningQ = 0;
       let runningInvUSD = 0;
       let runningInvINR = 0;
-      let runningQ = 0;
-      const seenDates = new Set();
+      let txIdx = 0;
+      let lastKnownPriceUSD = avgBuyPriceUSD || (Number(holding.current_price) || 0);
+      let lastKnownPriceINR = lastKnownPriceUSD * liveRate;
 
-      for (const tx of txs) {
-        const qty = Number(tx.quantity) || 0;
-        const price = Number(tx.price) || 0;
-        const amtUSD = Number(tx.total_amount) || qty * price;
-        const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
-        const amtINR = amtUSD * txRate;
+      const startDate = new Date(firstTxDate);
+      const endDate = new Date(endLimitStr);
+      if (endDate > new Date(today)) endDate.setTime(new Date(today).getTime());
+      
+      let currentDate = new Date(startDate);
 
-        if (tx.type === 'BUY' || tx.type === 'BONUS') {
-          runningInvUSD += amtUSD;
-          runningInvINR += amtINR;
-          runningQ += qty;
-        } else if (tx.type === 'SELL') {
-          runningInvUSD -= qty * (avgBuyPriceUSD || price);
-          runningInvINR -= qty * (avgBuyPriceUSD || price) * txRate;
-          runningQ -= qty;
+      while (currentDate <= endDate) {
+        const dStr = currentDate.toISOString().split('T')[0];
+
+        // Process any transactions on this day
+        while (txIdx < txs.length && txs[txIdx].date <= dStr) {
+          const tx = txs[txIdx];
+          const qty = Number(tx.quantity) || 0;
+          const price = Number(tx.price) || 0;
+          const amtUSD = Number(tx.total_amount) || qty * price;
+          const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
+          const amtINR = amtUSD * txRate;
+
+          if (tx.type === 'BUY' || tx.type === 'BONUS') {
+            runningQ += qty;
+            runningInvUSD += amtUSD;
+            runningInvINR += amtINR;
+            if (tx.type === 'BUY' && qty > 0) {
+                lastKnownPriceUSD = price;
+                lastKnownPriceINR = price * txRate;
+            }
+          } else if (tx.type === 'SELL') {
+            runningQ = Math.max(0, runningQ - qty);
+            runningInvUSD = Math.max(0, runningInvUSD - qty * (avgBuyPriceUSD || price));
+            runningInvINR = Math.max(0, runningInvINR - qty * (avgBuyPriceUSD || price) * txRate);
+          }
+          txIdx++;
         }
 
-        const dateKey = tx.date;
-        if (!seenDates.has(dateKey)) {
-          seenDates.add(dateKey);
-          const valUSD = runningQ * currentPriceUSD;
-          const valINR = valUSD * liveRate;
-          timelineUSD.push({
-            label: dateKey,
-            invested: Number(runningInvUSD.toFixed(2)),
-            value: Number(valUSD.toFixed(2))
-          });
-          timelineINR.push({
-            label: dateKey,
-            invested: Number(runningInvINR.toFixed(2)),
-            value: Number(valINR.toFixed(2))
-          });
+        // Determine price for this day
+        if (histPrices[dStr] !== undefined) {
+          lastKnownPriceUSD = isUSStock ? histPrices[dStr] : histPrices[dStr] / getHistoricalFxRate(dStr);
+          lastKnownPriceINR = isUSStock ? histPrices[dStr] * getHistoricalFxRate(dStr) : histPrices[dStr];
         }
+
+        const valUSD = Math.max(0, runningQ * lastKnownPriceUSD);
+        const valINR = Math.max(0, runningQ * lastKnownPriceINR);
+
+        timelineUSD.push({
+          label: dStr,
+          invested: Number(Math.max(0, runningInvUSD).toFixed(2)),
+          value: Number(valUSD.toFixed(2))
+        });
+        timelineINR.push({
+          label: dStr,
+          invested: Number(Math.max(0, runningInvINR).toFixed(2)),
+          value: Number(valINR.toFixed(2))
+        });
+
+        currentDate.setDate(currentDate.getDate() + 1);
       }
-
-      timelineUSD.push({
-        label: today,
-        invested: Number(Math.max(0, runningInvUSD).toFixed(2)),
-        value: Number(currentValueUSD.toFixed(2))
-      });
-      timelineINR.push({
-        label: today,
-        invested: Number(Math.max(0, runningInvINR).toFixed(2)),
-        value: Number(currentValueINR.toFixed(2))
-      });
+      
+      // Ensure the very last point matches exactly the current value calculated above
+      if (!isExited && timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label === today) {
+        timelineUSD[timelineUSD.length - 1].value = Number(currentValueUSD.toFixed(2));
+        timelineINR[timelineINR.length - 1].value = Number(currentValueINR.toFixed(2));
+      }
     }
 
     res.json({
@@ -1156,11 +1215,14 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       const item = filtered[i];
       const prevItem = i > 0 ? filtered[i - 1] : item;
 
-      const prevWealth = prevItem.wealth !== undefined ? prevItem.wealth : item.wealth;
-      const dailyPnl = item.daily_pnl !== undefined ? item.daily_pnl : (item.wealth - prevWealth);
+      const wCurr = item.total_wealth !== undefined ? item.total_wealth : item.wealth;
+      const wPrev = prevItem.total_wealth !== undefined ? prevItem.total_wealth : prevItem.wealth;
+
+      const prevWealth = wPrev !== undefined ? wPrev : wCurr;
+      const dailyPnl = item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth);
       const pct = prevWealth !== 0 ? ((dailyPnl / prevWealth) * 100).toFixed(2) : '0.00';
 
-      const wealth = item.wealth || 0;
+      const wealth = wCurr || 0;
       const debt = item.debt || 0;
       const assets = wealth + debt;
 
@@ -1213,6 +1275,12 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
 // -------------------------------------------------------------
 app.post('/api/refresh-prices', authenticateToken, async (req, res) => {
   try {
+    // Reload historical prices cache dynamically
+    if (fs.existsSync('./data/historical_prices.json')) {
+      historicalPricesCache = JSON.parse(fs.readFileSync('./data/historical_prices.json', 'utf-8'));
+      console.log(`[API Refresh] Reloaded cache for ${Object.keys(historicalPricesCache).length} assets.`);
+    }
+
     const result = await refreshAllHoldingsPrices();
     res.json({ success: true, ...result });
   } catch (err) {

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.9.0] - 2026-08-21
 
+### Changed
+- **Dense Timeline Engine**: Replaced sparse chart timeline rendering with a new 'Dense Timeline Engine' in `server/index.js`. The previous charting logic throttled datapoints to a maximum of 300, and fell back to sparse transaction-dates-only when historical prices were unavailable. The new engine programmatically iterates through every single calendar date from the first transaction to the present day, calculating and carrying forward the last known valuation to create a mathematically flawless, high-fidelity daily charting dataset. This resolves the issue of Recharts skipping weekends and drawing rigid, non-interactive straight lines across transaction gaps.
+
 ### Added
 - **Dynamic Company Logos**: Integrated a multi-pipeline logo resolution engine utilizing `logos.hunter.io`, GitHub's Indian Listed Companies SVG CDN, Parqet, IEX, and CompaniesMarketCap APIs to automatically map and pull real company logos and AMC icons across all Mutual Funds, US Stocks, Indian Equities, and Bank Account cards. Removed reliance on alphabet initial fallbacks where possible.
 

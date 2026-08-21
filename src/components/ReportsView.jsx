@@ -344,8 +344,8 @@ export default function ReportsView({ summary, holdings }) {
                     <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
                     <Tooltip formatter={(val) => formatMoney(val)} contentStyle={{ background: '#0F172A', border: '1px solid #334155', borderRadius: '12px', color: '#FFF', fontSize: '11px' }} />
                     <Legend wrapperStyle={{ fontSize: '11px' }} />
-                    <Area type="monotone" name="Portfolio Value" dataKey="Portfolio" stroke="#10B981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPortfolio)" />
-                    <Area type="monotone" name={`${benchmark.replace(/_/g, ' ')} Benchmark`} dataKey="Benchmark" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="5 5" fill="none" />
+                    <Area type="linear" name="Portfolio Value" dataKey="Portfolio" stroke="#10B981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPortfolio)" />
+                    <Area type="linear" name={`${benchmark.replace(/_/g, ' ')} Benchmark`} dataKey="Benchmark" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="5 5" fill="none" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

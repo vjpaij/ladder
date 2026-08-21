@@ -147,7 +147,7 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
                 onClick={() => setStatusFilter('closed')}
                 className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   statusFilter === 'closed' 
-                    ? 'bg-slate-700 text-white shadow-md font-black' 
+                    ? 'bg-amber-500 text-obsidian-950 shadow-md font-black' 
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -158,7 +158,7 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
                 onClick={() => setStatusFilter('all')}
                 className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   statusFilter === 'all' 
-                    ? 'bg-indigo-600 text-white shadow-md font-black' 
+                    ? 'bg-amber-500 text-obsidian-950 shadow-md font-black' 
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -205,7 +205,6 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
                   <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                     P&L {getSortIcon('gainINR')}
                   </th>
-                  <th className="py-3 px-3 text-center">Status</th>
                   <th className="py-3 px-3 text-center rounded-r-xl">Actions</th>
                 </tr>
               </thead>
@@ -254,19 +253,6 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
                         </div>
                       </td>
                       <td className="py-3 px-3 text-center">
-                        {isClosed ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                            <XCircle className="w-2.5 h-2.5 text-slate-500" />
-                            REDEEMED
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold badge-emerald">
-                            <CheckCircle2 className="w-2.5 h-2.5" />
-                            ACTIVE
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={(e) => { e.stopPropagation(); onEditHolding(h); }} className="p-1 hover:bg-slate-700/60 text-slate-500 hover:text-slate-200 rounded-lg">
                             <Edit3 className="w-3 h-3" />
@@ -281,7 +267,7 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
                 })}
                 {sortedHoldings.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-10 text-center text-slate-600 text-xs">
+                    <td colSpan={8} className="py-10 text-center text-slate-600 text-xs">
                       No mutual funds found matching current status filter ({statusFilter})
                     </td>
                   </tr>

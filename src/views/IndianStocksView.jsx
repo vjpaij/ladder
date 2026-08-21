@@ -149,7 +149,7 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                   onClick={() => setStatusFilter('closed')}
                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                     statusFilter === 'closed'
-                      ? 'bg-slate-700 text-white shadow-md font-black'
+                      ? 'bg-emerald-500 text-obsidian-950 shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -160,7 +160,7 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                   onClick={() => setStatusFilter('all')}
                   className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                     statusFilter === 'all'
-                      ? 'bg-indigo-600 text-white shadow-md font-black'
+                      ? 'bg-emerald-500 text-obsidian-950 shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
@@ -195,10 +195,11 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                     <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                       Avg Buy {getSortIcon('avg_buy_price')}
                     </th>
-                    <th className="py-3 px-3 text-right">NSE</th>
-                    <th className="py-3 px-3 text-right">BSE</th>
-                    <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right bg-emerald-500/5 cursor-pointer hover:text-white">
-                      Locked Price {getSortIcon('current_price')}
+                    <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                      Price {getSortIcon('current_price')}
+                    </th>
+                    <th onClick={() => handleSort('investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                      Invested Value {getSortIcon('investedValueINR')}
                     </th>
                     <th onClick={() => handleSort('currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                       Value {getSortIcon('currentValueINR')}
@@ -206,7 +207,6 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                     <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                       P&amp;L {getSortIcon('gainINR')}
                     </th>
-                    <th className="py-3 px-3 text-center">Status</th>
                     <th className="py-3 px-3 text-center rounded-r-xl">Actions</th>
                   </tr>
                 </thead>
@@ -249,18 +249,10 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                           {qty > 0 ? qty.toLocaleString() : <span className="text-slate-600">0</span>}
                         </td>
                         <td className="py-3 px-3 text-right font-mono text-slate-400">{formatMoney(h.avg_buy_price, true)}</td>
-                        <td className={`py-3 px-3 text-right font-mono ${isNseHigher ? 'text-emerald-400 font-bold' : 'text-slate-500'}`}>
-                          {formatMoney(h.nse_price || h.current_price, true)}
+                        <td className="py-3 px-3 text-right font-mono font-black text-emerald-400">
+                          {formatMoney(h.current_price, true)}
                         </td>
-                        <td className={`py-3 px-3 text-right font-mono ${!isNseHigher ? 'text-emerald-400 font-bold' : 'text-slate-500'}`}>
-                          {formatMoney(h.bse_price || h.current_price, true)}
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono font-black text-emerald-400 bg-emerald-500/5">
-                          <div className="flex items-center justify-end gap-1">
-                            <span className="text-[8px] px-1 rounded bg-emerald-500/20 text-emerald-300">{isNseHigher ? 'NSE' : 'BSE'}</span>
-                            {formatMoney(h.current_price, true)}
-                          </div>
-                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">{formatMoney(h.investedValueINR, true)}</td>
                         <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">{formatMoney(h.currentValueINR, true)}</td>
                         <td className="py-3 px-3 text-right font-mono">
                           <div className={isGainPositive ? 'text-emerald-400' : 'text-rose-400'}>
@@ -269,19 +261,6 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                           <div className={`text-[9px] ${isGainPositive ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
                             {isGainPositive ? '+' : ''}{h.gainPct || 0}%
                           </div>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          {isClosed ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                              <XCircle className="w-2.5 h-2.5 text-slate-500" />
-                              REDEEMED
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold badge-emerald">
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                              ACTIVE
-                            </span>
-                          )}
                         </td>
                         <td className="py-3 px-3 text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -298,7 +277,7 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                   })}
                   {sortedHoldings.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="py-10 text-center text-slate-600 text-xs">
+                      <td colSpan={8} className="py-10 text-center text-slate-600 text-xs">
                         No stocks found matching current status filter ({statusFilter})
                       </td>
                     </tr>

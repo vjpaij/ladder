@@ -24,6 +24,15 @@ function fmtUSD(val) {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatTxDate(dateStr) {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+}
+
 function MetricCard({ label, value, sub, color = 'text-white', icon: Icon, positive }) {
   const posClass = positive === true ? 'text-emerald-400' : positive === false ? 'text-rose-400' : color;
   return (
@@ -420,7 +429,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                               formatter={val => <span style={{ color: '#94a3b8' }}>{val}</span>}
                             />
                             <Area
-                              type="stepAfter"
+                              type="linear"
                               dataKey="invested"
                               name="Cost Basis"
                               stroke="#6366f1"
@@ -430,7 +439,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                               activeDot={{ r: 4, fill: '#6366f1', stroke: '#1e293b' }}
                             />
                             <Area
-                              type="monotone"
+                              type="linear"
                               dataKey="value"
                               name="Market Value"
                               stroke={accentColor}
@@ -510,7 +519,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                     transition={{ delay: Math.min(i * 0.015, 0.4) }}
                                   >
                                     <td className="py-2.5 px-4 text-slate-600 font-mono text-[10px]">{i + 1}</td>
-                                    <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{tx.date}</td>
+                                    <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{formatTxDate(tx.date)}</td>
                                     <td className="py-2.5 px-4 text-right font-mono font-black text-white">
                                       ₹{eodBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                     </td>
@@ -558,7 +567,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                   transition={{ delay: Math.min(i * 0.015, 0.4) }}
                                 >
                                   <td className="py-2.5 px-4 text-slate-600 font-mono text-[10px]">{i + 1}</td>
-                                  <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{tx.date}</td>
+                                  <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{formatTxDate(tx.date)}</td>
                                   <td className="py-2.5 px-4"><TxBadge type={tx.type} /></td>
                                   <td className="py-2.5 px-4 text-right font-mono text-slate-200">
                                     {Number(tx.quantity) > 0 ? Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '—'}

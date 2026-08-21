@@ -162,7 +162,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                 onClick={() => setStatusFilter('closed')}
                 className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   statusFilter === 'closed' 
-                    ? 'bg-slate-700 text-white shadow-md font-black' 
+                    ? 'bg-purple-600 text-white shadow-md font-black' 
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -173,7 +173,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                 onClick={() => setStatusFilter('all')}
                 className={`px-3 py-1.5 rounded-xl transition-all ${
                   statusFilter === 'all' 
-                    ? 'bg-slate-700 text-white shadow-md font-black' 
+                    ? 'bg-purple-600 text-white shadow-md font-black' 
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -211,13 +211,15 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                   <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                     Price ($) {getSortIcon('current_price')}
                   </th>
+                  <th onClick={() => handleSort(isUSD ? 'investedValueOriginal' : 'investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    {isUSD ? 'USD Invested' : 'INR Invested'} {getSortIcon(isUSD ? 'investedValueOriginal' : 'investedValueINR')}
+                  </th>
                   <th onClick={() => handleSort(isUSD ? 'currentValueOriginal' : 'currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                     {isUSD ? 'USD Value' : 'INR Value'} {getSortIcon(isUSD ? 'currentValueOriginal' : 'currentValueINR')}
                   </th>
                   <th onClick={() => handleSort(isUSD ? 'unrealized_pnl' : 'gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                     {isUSD ? 'P&L ($)' : 'P&L (₹)'} {getSortIcon(isUSD ? 'unrealized_pnl' : 'gainINR')}
                   </th>
-                  <th className="py-3 px-3 text-center">Status</th>
                   <th className="py-3 px-3 text-center rounded-r-xl">Actions</th>
                 </tr>
               </thead>
@@ -268,6 +270,9 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                       <td className="py-3 px-3 text-right font-mono text-slate-400">${Number(h.avg_buy_price).toFixed(2)}</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-purple-400">${Number(h.current_price).toFixed(2)}</td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
+                        {isUSD ? `$${usdInvested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(h.investedValueINR, true)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
                         {isUSD ? `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(inrVal, true)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono">
@@ -281,19 +286,6 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                         <div className="text-[9px] text-emerald-500/70">
                           {isGainPos ? '+' : ''}{isUSD ? usdGainPct : (h.gainPct || 0)}%
                         </div>
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        {isClosed ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                            <XCircle className="w-2.5 h-2.5 text-slate-500" />
-                            REDEEMED
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold badge-emerald">
-                            <CheckCircle2 className="w-2.5 h-2.5" />
-                            ACTIVE
-                          </span>
-                        )}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
@@ -310,7 +302,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                 })}
                 {sortedHoldings.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-10 text-center text-slate-600 text-xs">
+                    <td colSpan={8} className="py-10 text-center text-slate-600 text-xs">
                       No US stocks found matching current status filter ({statusFilter})
                     </td>
                   </tr>
