@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, TrendingUp, TrendingDown, DollarSign, BarChart2, ArrowDownCircle,
@@ -170,7 +171,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {holding && (
         <>
@@ -602,4 +603,9 @@ export default function HoldingDetailModal({ holding, onClose }) {
       )}
     </AnimatePresence>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }

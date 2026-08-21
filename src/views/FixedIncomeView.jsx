@@ -68,10 +68,10 @@ export default function FixedIncomeView({ holdings, onDeleteHolding, onEditHoldi
                 <span className="text-lg font-black font-mono text-slate-100">{formatMoney(h.currentValueINR)}</span>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => onEditHolding(h)} className="p-1.5 hover:bg-slate-800 text-slate-500 hover:text-white rounded-xl">
+                <button onClick={(e) => { e.stopPropagation(); onEditHolding(h); }} className="p-1.5 hover:bg-slate-800 text-slate-500 hover:text-white rounded-xl">
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => onDeleteHolding(h.id)} className="p-1.5 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-xl">
+                <button onClick={(e) => { e.stopPropagation(); onDeleteHolding(h.id); }} className="p-1.5 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-xl">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>

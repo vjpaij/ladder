@@ -220,7 +220,8 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                     return (
                       <motion.tr
                         key={h.id}
-                        className={`hover:bg-slate-800/30 ${isClosed ? 'opacity-60 bg-slate-900/20' : ''}`}
+                        onClick={() => setSelectedHolding(h)}
+                        className={`cursor-pointer hover:bg-slate-800/30 ${isClosed ? 'opacity-60 bg-slate-900/20' : ''}`}
                         initial={{ opacity: 0, x: -5 }}
                         animate={{ opacity: isClosed ? 0.6 : 1, x: 0 }}
                         transition={{ delay: Math.min(i * 0.02, 0.3) }}
@@ -284,10 +285,10 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                         </td>
                         <td className="py-3 px-3 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => onEditHolding(h)} className="p-1 hover:bg-slate-700/60 text-slate-500 hover:text-slate-200 rounded-lg" title="Edit Position">
+                            <button onClick={(e) => { e.stopPropagation(); onEditHolding(h); }} className="p-1 hover:bg-slate-700/60 text-slate-500 hover:text-slate-200 rounded-lg" title="Edit Position">
                               <Edit3 className="w-3 h-3" />
                             </button>
-                            <button onClick={() => onDeleteHolding(h.id)} className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg" title="Delete Position">
+                            <button onClick={(e) => { e.stopPropagation(); onDeleteHolding(h.id); }} className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg" title="Delete Position">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>

@@ -143,17 +143,17 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal }) 
 
       {/* Bank Account Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {bankHoldings.map((h) => {
+        {bankHoldings.map((h, i) => {
           const val = Number(h.current_price) || 0;
           const sharePct = totalSavings > 0 ? (val / totalSavings) * 100 : 0;
           const key = Object.keys(BANK_LOGOS).find(k => h.name.toUpperCase().includes(k)) || 'HDFC';
           const style = BANK_LOGOS[key] || BANK_LOGOS['HDFC'];
 
           return (
-            <AnimatedCard key={h.id}>
+            <AnimatedCard key={h.id} delay={i * 0.05} className="group h-full">
               <div 
                 onClick={() => onSelectHolding(h)}
-                className="glass-card p-5 rounded-3xl border border-slate-800/80 hover:border-emerald-500/40 transition-all duration-300 group cursor-pointer flex flex-col justify-between h-full space-y-4"
+                className="cursor-pointer glass-card h-full p-5 rounded-3xl border border-slate-800 hover:border-emerald-500/40 transition-all duration-300 flex flex-col justify-between gap-4"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">

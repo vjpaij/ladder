@@ -18,11 +18,13 @@ import {
   Trash2,
   Clock,
   PlusCircle,
-  Edit3
+  Edit3,
+  ArrowLeft
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
 export default function TopNavbar({ 
+  currentView,
   onRefreshPrices, 
   isRefreshing, 
   holdings = [],
@@ -135,11 +137,13 @@ export default function TopNavbar({
         className="hidden"
       />
 
-      {/* ─── Search Bar ─────────────────────────────────────────── */}
-      <div ref={searchRef} className="relative w-64 md:w-80">
-        <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
+      <div className="flex items-center gap-3">
+
+        {/* ─── Search Bar ─────────────────────────────────────────── */}
+        <div ref={searchRef} className="relative w-48 md:w-64">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -206,6 +210,7 @@ export default function TopNavbar({
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
       </div>
 
       {/* ─── Controls & Quick Actions ───────────────────────────── */}

@@ -323,7 +323,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                 className="p-3.5 bg-slate-900/40 rounded-2xl border border-slate-800/60"
               >
                 <p className="text-[10px] text-slate-500 font-semibold mb-1">Assets</p>
-                <p className="text-base font-black font-mono text-slate-100">
+                <p className="text-base font-black font-mono text-emerald-400">
                   <AnimatedCounter value={summary.totalAssetsINR} formatter={(v) => formatMoney(v)} />
                 </p>
                 <p className="text-[9px] text-slate-600 mt-0.5">Equity, MFs, Bank, NPS & EPF</p>
@@ -423,8 +423,26 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                   const catUnrealized = formatMoney(isUSD ? cat.unrealizedINR / summary.fxRate : cat.unrealizedINR);
                   const catRealized = formatMoney(isUSD ? cat.realizedINR / summary.fxRate : cat.realizedINR);
 
+                  const getRouteForCategory = (catId) => {
+                    const map = {
+                      'in_stocks': 'indian_stocks',
+                      'us_stocks': 'us_stocks',
+                      'mutual_funds': 'mutual_funds',
+                      'nps': 'nps',
+                      'bank': 'bank',
+                      'epf': 'epf',
+                      'loans': 'liabilities',
+                      'credit_cards': 'liabilities'
+                    };
+                    return map[catId] || 'overview';
+                  };
+
                   return (
-                    <tr key={cat.id} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
+                    <tr 
+                      key={cat.id} 
+                      className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors cursor-pointer"
+                      onClick={() => onNavigate(getRouteForCategory(cat.id))}
+                    >
                       <td className="py-4 px-4 flex items-center gap-2.5">
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }}></div>
                         <span className="text-xs font-semibold text-slate-200">{cat.name}</span>

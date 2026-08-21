@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowLeft } from 'lucide-react';
 import { ThemeAuthProvider } from './context/ThemeAuthContext';
 import { useThemeAuth } from './context/ThemeAuthContext';
 import Sidebar from './components/Sidebar';
@@ -178,6 +179,7 @@ function AppInner() {
       <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] gap-3 md:gap-4">
         
         <TopNavbar
+          currentView={currentView}
           onRefreshPrices={handleRefreshPrices}
           isRefreshing={isRefreshing}
           lastUpdated={lastUpdated}
@@ -231,6 +233,17 @@ function AppInner() {
         isOpen={isEditProfileOpen}
         onClose={() => setIsEditProfileOpen(false)}
       />
+
+      {/* Floating Back Button */}
+      {currentView !== 'overview' && (
+        <button
+          onClick={() => { setTargetPortfolio(null); setCurrentView('overview'); }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-[calc(50%+64px)] md:-translate-x-1/2 z-40 flex items-center gap-2 px-5 py-3 bg-slate-900/90 border border-slate-700/60 rounded-full shadow-2xl hover:bg-slate-800 text-slate-300 hover:text-white transition-all backdrop-blur-md hover:scale-105 active:scale-95 cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="font-bold text-sm">Back to Dashboard</span>
+        </button>
+      )}
 
     </div>
   );

@@ -42,3 +42,6 @@ When asked to commit, release, or push code to Git:
 
 5. **Short & Precise Commit Messages**:
    - Keep commit messages **short but precise** (e.g. `feat: dashboard charts precision and interaction upgrade`). Avoid overly long or verbose commit titles.
+
+6. **Build & Verify Before Finalizing Changes**:
+   - Before completing any task or pushing code, you **MUST** ensure the current code doesn't break by verifying it. Run `npm run build` or the corresponding test/build commands to catch syntax errors or unresolved variables (e.g. `ReferenceError` during mapping). Never leave a file with untested breaking changes.
