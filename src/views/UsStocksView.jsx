@@ -4,6 +4,7 @@ import { Globe, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp,
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
+import HoldingLogo from '../components/HoldingLogo';
 
 export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { currency, formatMoney, formatRawUSD, fxRate } = useThemeAuth();
@@ -248,13 +249,12 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                     >
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2.5">
-                          <div className={`w-7 h-7 rounded-lg border flex items-center justify-center font-bold text-[10px] ${
-                            isClosed 
-                              ? 'bg-slate-800 border-slate-700 text-slate-500' 
-                              : 'bg-purple-500/10 border-purple-500/25 text-purple-400'
-                          }`}>
-                            {h.symbol.slice(0, 2)}
-                          </div>
+                          <HoldingLogo 
+                            holding={h} 
+                            className="w-7 h-7 rounded-lg" 
+                            fallbackClass="text-[10px]"
+                            accentColor={isClosed ? '#64748b' : '#a855f7'}
+                          />
                           <div>
                             <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-purple-400 transition-colors text-left cursor-pointer block">{h.name}</button>
                             <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'US Equity'}</div>

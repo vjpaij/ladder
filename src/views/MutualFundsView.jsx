@@ -4,6 +4,7 @@ import { LineChart, Plus, Search, Edit3, Trash2, CheckCircle2, ArrowUpDown, Arro
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
+import HoldingLogo from '../components/HoldingLogo';
 
 export default function MutualFundsView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { formatMoney } = useThemeAuth();
@@ -223,8 +224,18 @@ export default function MutualFundsView({ holdings, onDeleteHolding, onEditHoldi
                       transition={{ delay: Math.min(i * 0.03, 0.3) }}
                     >
                       <td className="py-3 px-3">
-                        <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-amber-400 transition-colors text-left cursor-pointer block">{h.name}</button>
-                        <div className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol} • {h.sector || 'Mutual Funds'}</div>
+                        <div className="flex items-center gap-2.5">
+                          <HoldingLogo 
+                            holding={h} 
+                            className="w-7 h-7 rounded-lg" 
+                            fallbackClass="text-[10px]"
+                            accentColor={isClosed ? '#64748b' : '#f59e0b'}
+                          />
+                          <div>
+                            <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-amber-400 transition-colors text-left cursor-pointer block">{h.name}</button>
+                            <div className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol} • {h.sector || 'Mutual Funds'}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-slate-300">
                         {qty > 0 ? qty.toLocaleString() : <span className="text-slate-600">0</span>}

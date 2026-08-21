@@ -16,8 +16,13 @@ import {
   ShieldCheck, 
   ArrowUpRight, 
   ArrowDownRight,
-  Sparkles
+  Sparkles,
+  ArrowUpDown, 
+  ArrowUp, 
+  ArrowDown
 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import HoldingLogo from './HoldingLogo';
 
 export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, onEditHolding }) {
   const { formatMoney, currency, fxRate } = useThemeAuth();
@@ -115,12 +120,12 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                   {/* Name & Symbol */}
                   <td className="py-4 px-4 font-medium">
                     <div className="flex items-center gap-3">
-                      <div 
-                        className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shadow-sm"
-                        style={{ backgroundColor: `${h.category_color}15`, color: h.category_color, border: `1px solid ${h.category_color}40` }}
-                      >
-                        {h.symbol.slice(0, 2).toUpperCase()}
-                      </div>
+                      <HoldingLogo 
+                        holding={h} 
+                        className="w-8 h-8 rounded-xl shadow-sm"
+                        fallbackClass="text-xs"
+                        accentColor={h.category_color}
+                      />
                       <div>
                         <div className="font-bold text-slate-100 flex items-center gap-1.5">
                           {h.name}

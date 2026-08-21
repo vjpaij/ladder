@@ -4,6 +4,7 @@ import { ShieldCheck, Plus, Search, Edit3, Trash2, CheckCircle2, ArrowUpDown, Ar
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
+import HoldingLogo from '../components/HoldingLogo';
 
 export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { formatMoney } = useThemeAuth();
@@ -226,8 +227,18 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
                       transition={{ delay: Math.min(i * 0.03, 0.3) }}
                     >
                       <td className="py-3 px-3">
-                        <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-cyan-400 transition-colors text-left cursor-pointer block">{h.name}</button>
-                        <div className="text-[10px] text-slate-500 font-mono">NPS #{h.symbol} &bull; {h.sector || 'NPS'}</div>
+                        <div className="flex items-center gap-2.5">
+                          <HoldingLogo 
+                            holding={h} 
+                            className="w-7 h-7 rounded-lg" 
+                            fallbackClass="text-[10px]"
+                            accentColor={isClosed ? '#64748b' : '#06b6d4'}
+                          />
+                          <div>
+                            <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-cyan-400 transition-colors text-left cursor-pointer block">{h.name}</button>
+                            <div className="text-[10px] text-slate-500 font-mono">NPS #{h.symbol} &bull; {h.sector || 'NPS'}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-slate-300">
                         {qty > 0 ? qty.toLocaleString('en-IN', { maximumFractionDigits: 4 }) : <span className="text-slate-600">0</span>}

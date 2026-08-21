@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.9.0] - 2026-08-21
+
+### Added
+- **Dynamic Company Logos**: Integrated a multi-pipeline logo resolution engine utilizing `logos.hunter.io`, GitHub's Indian Listed Companies SVG CDN, Parqet, IEX, and CompaniesMarketCap APIs to automatically map and pull real company logos and AMC icons across all Mutual Funds, US Stocks, Indian Equities, and Bank Account cards. Removed reliance on alphabet initial fallbacks where possible.
+
+---
+
 ## [3.8.0] - 2026-08-16
 
 ### Changed

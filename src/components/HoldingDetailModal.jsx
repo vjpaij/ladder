@@ -9,6 +9,7 @@ import {
   ResponsiveContainer, Legend
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import HoldingLogo from './HoldingLogo';
 
 function fmtINR(val) {
   const n = Number(val) || 0;
@@ -196,12 +197,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
               style={{ background: `linear-gradient(135deg, ${accentColor}10 0%, transparent 60%)` }}
             >
               <div className="flex items-center gap-3">
-                <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-sm border"
-                  style={{ background: `${accentColor}20`, borderColor: `${accentColor}40`, color: accentColor }}
-                >
-                  {(holding.symbol || '').slice(0, 2).toUpperCase()}
-                </div>
+                <HoldingLogo holding={holding} accentColor={accentColor} />
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-white font-black text-[15px] leading-tight">{holding.name}</h2>

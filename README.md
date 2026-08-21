@@ -17,6 +17,7 @@ Ladder is a modern, stylish, high-performance personal finance and investment da
 - **Relational Database Studio**: Embedded visual database viewer and CRUD editor for direct inline table record management and auto-cascade updates.
 - **Data Import & Export**: Excel/CSV portfolio parser and full database backup snapshot exporter.
 - **Modern Fintech Aesthetics**: Modern floating glass-card layout, dynamic collapsible sidebar rail, Framer Motion staggered animations, odometer-style counting numbers, and micro-interactions.
+- **Dynamic Logo Pipeline**: Real-time asset logo resolution engine automatically mapping and pulling official company, AMC, and Bank icons from multiple CDN sources.
 - **Universal Multi-Theme System**: 6 custom high-contrast palettes spanning Dark Themes (Obsidian Dark, Midnight Blue, Sunset Rose) and Light Themes (Clean Light, Warm Sand, Nordic Frost), ensuring deep oceanic/plum gradients and crisp light layouts with theme-aware navigation highlights and popups.
 
 ---

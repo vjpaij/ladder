@@ -182,6 +182,7 @@ ladder/
 | **v3.5.3** | 2026-08-16 | Standardized Reports icon to use `PieChart` in `Sidebar.jsx` and cleaned up `ReportsView.jsx` header text to just "Report" without sub-taglines. | OpenRouter (Delegated) |
 | **v3.6.0** | 2026-08-16 | Upgraded `ReportsView.jsx` to support dynamic asset filtering (Combined Portfolio, Consolidated Equity, Fixed Income). Added a new Market Cap chart and dynamic Sector filtering. Implemented benchmark selector (Nifty 50, S&P 500, Custom) for the Portfolio Growth trajectory chart. Updated backend `/api/holdings` routes in `server/index.js` to accept and persist `market_cap` metadata natively. | Antigravity AI |
 | **v3.7.0** | 2026-08-16 | Major architecture refactor for Reports and Database. Created `asset_metadata_seed.sql` to instantiate the `asset_metadata` table in Supabase, separating Sector and Capitalisation mappings (Mega, Large, Mid, Small, Micro) from holdings. Updated `ReportsView.jsx` with strict tabbed architecture separating Equity charts (Market Cap, Sectors) from Fixed Income/NPS. Expanded benchmarks to Nifty 50, Nifty Midcap 150, Nifty 250, S&P 500, NASDAQ. | Antigravity AI |
+| **v3.8.0** | 2026-08-21 | Replaced alphabet initial avatars with real company logos in `HoldingDetailModal.jsx` using the Clearbit Logo API. Added a dynamic domain mapping function for Indian Mutual Funds, US Stocks, and banking institutions with automatic fallback to initials if the logo is unavailable. | Antigravity AI |
 
 ---
 

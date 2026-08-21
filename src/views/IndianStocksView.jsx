@@ -4,6 +4,7 @@ import { CandlestickChart, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDow
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
+import HoldingLogo from '../components/HoldingLogo';
 
 export default function IndianStocksView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { formatMoney } = useThemeAuth();
@@ -226,13 +227,12 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                       >
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2.5">
-                            <div className={`w-7 h-7 rounded-lg border flex items-center justify-center font-bold text-[10px] ${
-                              isClosed
-                                ? 'bg-slate-800 border-slate-700 text-slate-500'
-                                : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
-                            }`}>
-                              {h.symbol.slice(0, 2)}
-                            </div>
+                            <HoldingLogo 
+                              holding={h} 
+                              className="w-7 h-7 rounded-lg" 
+                              fallbackClass="text-[10px]"
+                              accentColor={isClosed ? '#64748b' : '#10b981'}
+                            />
                             <div>
                               <button
                                 onClick={() => setSelectedHolding(h)}

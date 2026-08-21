@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
+import HoldingLogo from '../components/HoldingLogo';
 
 const BANK_LOGOS = {
   'HDFC': { label: 'HDFC', color: 'from-blue-600 to-indigo-700', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
@@ -165,9 +166,15 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal }) 
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
-                    {h.name}
-                  </h3>
+                  <div className="flex items-center gap-3 mt-1">
+                    <HoldingLogo 
+                      holding={h} 
+                      className="w-8 h-8 rounded-lg shadow-sm"
+                    />
+                    <h3 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
+                      {h.name}
+                    </h3>
+                  </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">Primary Savings Account</p>
                 </div>
 
