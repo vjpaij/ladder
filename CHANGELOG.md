@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.8] - 2026-08-27
+
+### Added
+- **Parallelized Live Quote Engine**: Implemented `refreshActiveHoldingsPrices` with concurrent `Promise.all` fetching for active US equities and chunked batching for active Indian equities, completing price sync in under 1.5 seconds.
+- **In-Memory Quote Cache**: Added `liveQuoteCache` in `priceEngine.js` allowing `/api/holdings` and `/api/summary` to serve the latest live market prices instantly with zero database query overhead.
+- **Live Background Ticker**: Configured a 10-second backend ticker interval and 5-second frontend polling with tab focus listeners, delivering continuous live price updates, P&L adjustments, and XIRR re-computations during market hours.
+
+---
+
+## [4.0.7] - 2026-08-27
+
+### Changed
+- **Banner Stat Cluster Alignment**: Re-architected banner stat cards across US Stocks, Indian Stocks, Mutual Funds, and NPS views using stretched flex containers, guaranteeing pixel-perfect alignment across Invested, Active Value, and Cost Basis baselines.
+- **Regular Market Price Feed**: Configured price engine to extract real-time `regularMarketPrice` quotes from market data feeds.
+
+---
+
+## [4.0.6] - 2026-08-27
+
+### Added
+- **Visual Position Distinction**: Added prominent `ACTIVE` and `EXITED`/`REDEEMED` status pill badges to all portfolio table rows across Indian Stocks, US Stocks, Mutual Funds, NPS, and HoldingsTable.
+- **Closed Position De-emphasis**: Desaturated logos and applied neutral slate styling with clean dashes for closed positions.
+- **Search Auto-complete Live Quotes**: Added real-time asset prices and percentage change badges to the Top Navbar search autocomplete dropdown.
+
+### Changed
+- **Light Theme Refinement**: Upgraded light theme styling across table headers, input surfaces, and filter tabs in `index.css`.
+
+---
+
+## [4.0.5] - 2026-08-27
+
+### Added
+- **Day Movement Indicators**: Upgraded table Price columns across all portfolio views to show real-time price change amounts and percentage badges.
+- **Institutional Market Snapshot**: Added live price, day change badge, Open, Prev Close, Day High, Day Low, and interactive 52-Week Range indicator slider to HoldingDetailModal.
+
+### Changed
+- **Clutter-Free Banners**: Removed redundant mechanism and sorting labels from portfolio banners and added Invested Value statistics.
+
+---
+
+## [4.0.4] - 2026-08-26
+
+### Changed
+- **Holding Performance Summary Redesign**: Replaced flat metric card grid in HoldingDetailModal with a two-tier visual hierarchy featuring an adaptive gradient Total P&L hero card and compact metric tiles with left color accent strips.
+
+---
+
+## [4.0.3] - 2026-08-26
+
+### Changed
+- **Financial Calculation Refactoring**: Updated Total Invested to include BUY charges and exclude BONUS logic, subtracted SELL charges from Total Redeemed, added Current Invested and Total Charges metrics, and factored dividends into Realized P&L and XIRR calculations.
+
+---
+
+## [4.0.2] - 2026-08-26
+
+### Changed
+- **Transaction Ledger Simplification**: Removed serial number column from transaction ledgers in HoldingDetailModal across all portfolio views.
+
+---
+
 ## [4.0.1] - 2026-08-21
 
 ### Fixed

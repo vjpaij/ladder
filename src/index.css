@@ -602,3 +602,58 @@ button, a, input, select {
 tr {
   transition: background 0.15s ease;
 }
+
+/* ─── Premium Light Theme Enhancements ─────────────────── */
+.light thead tr,
+.warm_light thead tr,
+.nordic_light thead tr {
+  background-color: #F8FAFC !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.light thead th,
+.warm_light thead th,
+.nordic_light thead th {
+  color: #475569 !important;
+  font-weight: 800 !important;
+}
+
+.light tbody tr:hover,
+.warm_light tbody tr:hover,
+.nordic_light tbody tr:hover {
+  background-color: rgba(241, 245, 249, 0.7) !important;
+}
+
+.light input,
+.warm_light input,
+.nordic_light input {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+.light input::placeholder,
+.warm_light input::placeholder,
+.nordic_light input::placeholder {
+  color: #94A3B8 !important;
+}
+
+.light button.bg-emerald-500,
+.light .bg-emerald-500 {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  color: #FFFFFF !important;
+}
+.light button.bg-purple-500,
+.light .bg-purple-500 {
+  background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%) !important;
+  color: #FFFFFF !important;
+}
+.light button.bg-amber-500,
+.light .bg-amber-500 {
+  background: linear-gradient(135deg, #D97706 0%, #B45309 100%) !important;
+  color: #FFFFFF !important;
+}
+.light button.bg-cyan-500,
+.light .bg-cyan-500 {
+  background: linear-gradient(135deg, #0891B2 0%, #0E7490 100%) !important;
+  color: #FFFFFF !important;
+}

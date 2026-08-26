@@ -48,6 +48,26 @@ function AppInner() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Real-time automatic background polling every 5 seconds
+    const pollInterval = setInterval(() => {
+      fetchDashboardData(true);
+    }, 5000);
+
+    // Instant refresh when user switches back to this tab
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboardData(true);
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
   }, []);
 
   useEffect(() => {
@@ -57,7 +77,7 @@ function AppInner() {
     }
   }, [toast]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isSilent = false) => {
     try {
       const [sumRes, holdRes, liabRes] = await Promise.all([
         axios.get('/api/summary'),
@@ -71,11 +91,13 @@ function AppInner() {
       // Sync live FX rate into global context so all currency conversions use today's real rate
       if (sumRes.data.fxRate) setFxRate(sumRes.data.fxRate);
     } catch (err) {
-      console.error('[App] Failed to fetch dashboard data:', err);
-      setToast({
-        type: 'error',
-        message: 'Database connection failed: ' + (err.response?.data?.error || err.message)
-      });
+      if (!isSilent) {
+        console.error('[App] Failed to fetch dashboard data:', err);
+        setToast({
+          type: 'error',
+          message: 'Database connection failed: ' + (err.response?.data?.error || err.message)
+        });
+      }
     }
   };
 

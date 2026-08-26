@@ -87,7 +87,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
       
       {/* Banner */}
       <AnimatedItem>
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-5">
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
@@ -98,38 +98,45 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                 />
                 NASDAQ / NYSE LIVE FEED
               </span>
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-900/80 text-emerald-400 border border-slate-800">
-                <Globe className="w-3 h-3 text-emerald-400" />
-                <span>USD/INR: ₹{fxRate}</span>
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                Display: <span className="text-purple-400 font-bold uppercase">{currency}</span>
-              </span>
             </div>
             <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
               <Globe className="w-5 h-5 text-purple-400" />
               US Equity
             </h2>
-            <p className="text-[11px] text-slate-500 mt-0.5">Real-time quotes with automatic USD to INR currency conversions</p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase">
-                {statusFilter === 'active' ? 'Active US Value' : statusFilter === 'closed' ? 'Closed US Value' : 'Total US Value'}
-              </span>
-              <div className="text-xl font-black font-mono text-purple-400">
-                {isUSD ? formatRawUSD(totalUSD) : formatMoney(totalConvertedINR, true)}
+          <div className="flex items-center gap-5 flex-wrap sm:flex-nowrap">
+            <div className="flex items-stretch gap-4 bg-slate-900/60 px-4 py-2.5 rounded-2xl border border-slate-800/80">
+              <div className="text-right border-r border-slate-800 pr-4 flex flex-col justify-between">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Invested
+                </span>
+                <div className="text-base font-black font-mono text-slate-200">
+                  {isUSD ? `$${totalInvestedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalInvestedINR, true)}
+                </div>
+                <div className="text-[10px] font-bold font-mono text-slate-500">
+                  Cost Basis
+                </div>
               </div>
-              <div className="text-[10px] font-bold text-slate-400 font-mono">
-                {isUSD ? `≈ ${formatMoney(totalConvertedINR, true)}` : `≈ ${formatRawUSD(totalUSD)}`}
+
+              <div className="text-right flex flex-col justify-between">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  {statusFilter === 'active' ? 'Active Value' : statusFilter === 'closed' ? 'Realized' : 'Total Value'}
+                </span>
+                <div className="text-base font-black font-mono text-purple-400">
+                  {isUSD ? `$${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalConvertedINR, true)}
+                </div>
+                <div className={`text-[10px] font-bold font-mono ${totalGainINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {totalGainINR >= 0 ? '+' : ''}{totalInvestedINR > 0 ? ((totalGainINR / totalInvestedINR) * 100).toFixed(2) : 0}% ({isUSD ? `${totalGainINR >= 0 ? '+' : '-'}$${Math.abs(totalUSD - totalInvestedUSD).toFixed(2)}` : formatMoney(totalGainINR, true)})
+                </div>
               </div>
             </div>
+
             <motion.button
               onClick={onOpenAddModal}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black rounded-xl text-xs shadow-lg shadow-purple-500/20 cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black rounded-xl text-xs shadow-lg shadow-purple-500/20 cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               Add US Stock
@@ -156,7 +163,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                 }`}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Active Holdings ({activeCount})
+                Active Positions ({activeCount})
               </button>
               <button
                 onClick={() => setStatusFilter('closed')}
@@ -171,7 +178,7 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
               </button>
               <button
                 onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1.5 rounded-xl transition-all ${
+                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   statusFilter === 'all' 
                     ? 'bg-purple-600 text-white shadow-md font-black' 
                     : 'text-slate-400 hover:text-white'
@@ -183,10 +190,10 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
 
             {/* Search Box */}
             <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search ticker or name..."
+                placeholder="Search US stocks..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
@@ -206,19 +213,19 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                     Shares {getSortIcon('quantity')}
                   </th>
                   <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    Avg Buy ($) {getSortIcon('avg_buy_price')}
+                    Avg Buy {getSortIcon('avg_buy_price')}
                   </th>
                   <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    Price ($) {getSortIcon('current_price')}
+                    Price {getSortIcon('current_price')}
                   </th>
-                  <th onClick={() => handleSort(isUSD ? 'investedValueOriginal' : 'investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    {isUSD ? 'USD Invested' : 'INR Invested'} {getSortIcon(isUSD ? 'investedValueOriginal' : 'investedValueINR')}
+                  <th onClick={() => handleSort('investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Invested Value {getSortIcon('investedValueINR')}
                   </th>
-                  <th onClick={() => handleSort(isUSD ? 'currentValueOriginal' : 'currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    {isUSD ? 'USD Value' : 'INR Value'} {getSortIcon(isUSD ? 'currentValueOriginal' : 'currentValueINR')}
+                  <th onClick={() => handleSort('currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Value {getSortIcon('currentValueINR')}
                   </th>
-                  <th onClick={() => handleSort(isUSD ? 'unrealized_pnl' : 'gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    {isUSD ? 'P&L ($)' : 'P&L (₹)'} {getSortIcon(isUSD ? 'unrealized_pnl' : 'gainINR')}
+                  <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    P&L {getSortIcon('gainINR')}
                   </th>
                   <th className="py-3 px-3 text-center rounded-r-xl">Actions</th>
                 </tr>
@@ -227,65 +234,117 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                 {sortedHoldings.map((h, i) => {
                   const qty = Number(h.quantity) || 0;
                   const isClosed = qty === 0;
-                  const currentPrice = Number(h.current_price) || 0;
-                  const avgPrice = Number(h.avg_buy_price) || 0;
-                  const usdVal = qty * currentPrice;
-                  const inrVal = Number(h.currentValueINR) || (usdVal * fxRate);
-                  
-                  // USD P&L
-                  const usdInvested = qty * avgPrice;
+                  const usdVal = qty * (Number(h.current_price) || 0);
+                  const inrVal = usdVal * fxRate;
+                  const usdInvested = qty * (Number(h.avg_buy_price) || 0);
+                  const inrInvested = Number(h.investedValueINR) || 0;
                   const usdGain = usdVal - usdInvested;
+                  const inrGain = inrVal - inrInvested;
+                  const isGainPos = usdGain >= 0;
                   const usdGainPct = usdInvested > 0 ? ((usdGain / usdInvested) * 100).toFixed(2) : 0;
-                  
-                  // INR P&L
-                  const inrGain = isClosed ? Number(h.realized_pnl) : (Number(h.gainINR) || 0);
-                  const isGainPos = isUSD ? usdGain >= 0 : inrGain >= 0;
 
                   return (
-                    <motion.tr 
-                      key={h.id} 
-                      onClick={() => (typeof setSelectedHolding === "function" ? setSelectedHolding(h) : (typeof setTargetPortfolio === "function" ? setTargetPortfolio(null) : null))}
-                        className={`cursor-pointer hover:bg-slate-800/30 ${isClosed ? 'opacity-60 bg-slate-900/20' : ''}`}
+                    <motion.tr
+                      key={h.id}
+                      onClick={() => setSelectedHolding(h)}
+                      className={`cursor-pointer transition-all ${
+                        isClosed
+                          ? 'bg-slate-950/40 hover:bg-slate-900/50 opacity-60 hover:opacity-90 border-l-2 border-l-slate-700/40'
+                          : 'hover:bg-slate-800/40 border-l-2 border-l-transparent hover:border-l-purple-500'
+                      }`}
                       initial={{ opacity: 0, x: -5 }}
-                      animate={{ opacity: isClosed ? 0.6 : 1, x: 0 }}
-                      transition={{ delay: Math.min(i * 0.03, 0.3) }}
+                      animate={{ opacity: isClosed ? 0.65 : 1, x: 0 }}
+                      transition={{ delay: Math.min(i * 0.02, 0.3) }}
                     >
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2.5">
                           <HoldingLogo 
                             holding={h} 
-                            className="w-7 h-7 rounded-lg" 
+                            className={`w-7 h-7 rounded-lg ${isClosed ? 'grayscale opacity-50' : ''}`} 
                             fallbackClass="text-[10px]"
                             accentColor={isClosed ? '#64748b' : '#a855f7'}
                           />
                           <div>
-                            <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-purple-400 transition-colors text-left cursor-pointer block">{h.name}</button>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`font-bold text-[12px] transition-colors block ${
+                                  isClosed ? 'text-slate-400 font-medium' : 'text-slate-100 hover:text-purple-400'
+                                }`}
+                              >
+                                {h.name}
+                              </span>
+                              {isClosed ? (
+                                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold uppercase tracking-wider bg-slate-800/90 text-slate-400 border border-slate-700/60">
+                                  EXITED
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/25">
+                                  ACTIVE
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'US Equity'}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-300">
-                        {qty > 0 ? qty.toFixed(4) : <span className="text-slate-600">0</span>}
+                      <td className="py-3 px-3 text-right font-mono">
+                        {qty > 0 ? (
+                          <span className="text-slate-200 font-bold">{qty.toFixed(4)}</span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">0</span>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-slate-400">${Number(h.avg_buy_price).toFixed(2)}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-purple-400">${Number(h.current_price).toFixed(2)}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
-                        {isUSD ? `$${usdInvested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(h.investedValueINR, true)}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
-                        {isUSD ? `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(inrVal, true)}
+                      <td className="py-3 px-3 text-right font-mono">
+                        <div className={`text-[12px] font-bold ${isClosed ? 'text-slate-400 font-medium' : 'text-purple-400 font-black'}`}>
+                          ${Number(h.current_price).toFixed(2)}
+                        </div>
+                        {h.day_change !== undefined && (
+                          <div className={`text-[9.5px] font-bold flex items-center justify-end gap-0.5 ${
+                            isClosed 
+                              ? 'text-slate-500' 
+                              : (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}>
+                            <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}${Math.abs(h.day_change).toFixed(2)}</span>
+                            <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-right font-mono">
-                        <div className={isGainPos ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          {isUSD ? (
-                            `${isGainPos ? '+' : ''}$${Math.abs(usdGain).toFixed(2)}`
-                          ) : (
-                            `${isGainPos ? '+' : ''}${formatMoney(inrGain, true)}`
-                          )}
-                        </div>
-                        <div className="text-[9px] text-emerald-500/70">
-                          {isGainPos ? '+' : ''}{isUSD ? usdGainPct : (h.gainPct || 0)}%
-                        </div>
+                        {isClosed ? (
+                          <span className="text-slate-600">—</span>
+                        ) : (
+                          <span className="font-bold text-slate-100">
+                            {isUSD ? `$${usdInvested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(h.investedValueINR, true)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        {isClosed ? (
+                          <span className="text-slate-600">—</span>
+                        ) : (
+                          <span className="font-black text-slate-100">
+                            {isUSD ? `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(inrVal, true)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        {isClosed ? (
+                          <span className="text-slate-600 text-[11px]">—</span>
+                        ) : (
+                          <>
+                            <div className={isGainPos ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                              {isUSD ? (
+                                `${isGainPos ? '+' : ''}$${Math.abs(usdGain).toFixed(2)}`
+                              ) : (
+                                `${isGainPos ? '+' : ''}${formatMoney(inrGain, true)}`
+                              )}
+                            </div>
+                            <div className={`text-[9px] ${isGainPos ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
+                              {isGainPos ? '+' : ''}{isUSD ? usdGainPct : (h.gainPct || 0)}%
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">

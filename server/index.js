@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db, { initDatabase } from './db.js';
 import { supabase } from './supabaseClient.js';
-import { refreshAllHoldingsPrices, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav } from './services/priceEngine.js';
+import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
 import axios from 'axios';
 
@@ -265,7 +265,9 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
       // Active holdings
       if ((Number(h.quantity) || 0) > 0) {
         const liveRate = h.currency === 'USD' ? fxRate : 1.0;
-        const currentVal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * liveRate;
+        const liveQuote = liveQuoteCache.get(h.symbol);
+        const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+        const currentVal = (Number(h.quantity) || 0) * currentPriceNum * liveRate;
         
         let txRate = 1.0;
         if (h.currency === 'USD') {
@@ -480,7 +482,9 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
         txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : (getHistoricalFxRate(h.created_at) || 82.5);
       }
 
-      const currentValueOriginal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0);
+      const liveQuote = liveQuoteCache.get(h.symbol);
+      const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+      const currentValueOriginal = (Number(h.quantity) || 0) * currentPriceNum;
       const currentValueINR = currentValueOriginal * liveRate;
       
       const investedValueOriginal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
@@ -488,6 +492,26 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
       
       const gainINR = currentValueINR - investedValueINR;
       const gainPct = investedValueINR > 0 ? ((gainINR / investedValueINR) * 100).toFixed(2) : 0;
+
+      // Calculate Day Change & Day Change %
+      let prevPrice = currentPriceNum;
+      let dayChange = (liveQuote && liveQuote.dayChange !== undefined) ? liveQuote.dayChange : h.day_change;
+      let dayChangePct = (liveQuote && liveQuote.dayChangePct !== undefined) ? liveQuote.dayChangePct : h.day_change_pct;
+
+      if (dayChange === undefined || dayChangePct === undefined) {
+        const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
+        const hist = historicalPricesCache[h.symbol] || historicalPricesCache[cleanSym] || historicalPricesCache[`${cleanSym}.NS`] || {};
+        const dates = Object.keys(hist).sort();
+        if (dates.length >= 2) {
+          prevPrice = Number(hist[dates[dates.length - 2]]) || currentPriceNum;
+        } else if (dates.length === 1) {
+          prevPrice = Number(hist[dates[0]]) || currentPriceNum;
+        }
+        dayChange = currentPriceNum - prevPrice;
+        dayChangePct = prevPrice > 0 ? Number(((dayChange / prevPrice) * 100).toFixed(2)) : 0;
+      } else {
+        prevPrice = currentPriceNum - Number(dayChange);
+      }
 
       const meta = metadataMap[h.symbol] || {};
       
@@ -499,6 +523,9 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
         category_color: catMap[h.category_id] ? catMap[h.category_id].color : '#3B82F6',
         fxRate: liveRate,
         txFxRate: Number(txRate.toFixed(2)),
+        day_change: Number(Number(dayChange || 0).toFixed(2)),
+        day_change_pct: Number(Number(dayChangePct || 0).toFixed(2)),
+        prev_price: Number(prevPrice.toFixed(2)),
         currentValueOriginal: Number(currentValueOriginal.toFixed(2)),
         currentValueINR: Number(currentValueINR.toFixed(2)),
         investedValueINR: Number(investedValueINR.toFixed(2)),
@@ -800,6 +827,10 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
     let totalRedeemedINR = 0;
     let realizedPnlUSD = 0;
     let realizedPnlINR = 0;
+    let totalBuyChargesUSD = 0;
+    let totalBuyChargesINR = 0;
+    let totalSellChargesUSD = 0;
+    let totalSellChargesINR = 0;
 
     const buyLotsUSD = [];
     const buyLotsINR = [];
@@ -810,15 +841,24 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       const amountUSD = Number(tx.total_amount) || (qty * price);
       const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
       const amountINR = amountUSD * txRate;
+      const chargesUSD = Number(tx.charges) || 0;
+      const chargesINR = chargesUSD * txRate;
 
-      if (tx.type === 'BUY' || tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
-        totalInvestedUSD += amountUSD;
-        totalInvestedINR += amountINR;
+      if (tx.type === 'BUY') {
+        totalBuyChargesUSD += chargesUSD;
+        totalBuyChargesINR += chargesINR;
+        totalInvestedUSD += amountUSD + chargesUSD;
+        totalInvestedINR += amountINR + chargesINR;
+        buyLotsUSD.push({ qty, price, rem: qty });
+        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, rem: qty });
+      } else if (tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
         buyLotsUSD.push({ qty, price, rem: qty });
         buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, rem: qty });
       } else if (tx.type === 'SELL') {
-        totalRedeemedUSD += amountUSD;
-        totalRedeemedINR += amountINR;
+        totalSellChargesUSD += chargesUSD;
+        totalSellChargesINR += chargesINR;
+        totalRedeemedUSD += amountUSD - chargesUSD;
+        totalRedeemedINR += amountINR - chargesINR;
 
         // USD FIFO Realized PnL
         let remUSD = qty;
@@ -867,29 +907,49 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       : 0;
     const totalDividendsINR = divs.reduce((s, d) => s + (Number(d.amount_inr) || 0), 0);
 
+    realizedPnlUSD += totalDividendsUSD;
+    realizedPnlINR += totalDividendsINR;
+
     const today = new Date().toISOString().split('T')[0];
 
     // USD Cashflows & XIRR
     const cashflowsUSD = txs
-      .filter(t => t.type === 'BUY' || t.type === 'BONUS' || t.type === 'SELL')
-      .map(t => ({
-        date: t.date,
-        amount: (t.type === 'BUY' || t.type === 'BONUS') ? -(Number(t.total_amount) || 0) : (Number(t.total_amount) || 0)
-      }));
+      .filter(t => t.type === 'BUY' || t.type === 'SELL')
+      .map(t => {
+        const amt = Number(t.total_amount) || 0;
+        const charges = Number(t.charges) || 0;
+        return {
+          date: t.date,
+          amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
+        };
+      });
+    
+    if (isUSStock) {
+      for (const d of divs) {
+        cashflowsUSD.push({ date: d.ex_date || d.payment_date, amount: (Number(d.amount_original) || 0) });
+      }
+    }
+
     if (currentQty > 0) cashflowsUSD.push({ date: today, amount: currentValueUSD });
     const totalXirrUSD = calculateXirr(cashflowsUSD);
 
     // INR Cashflows & XIRR
     const cashflowsINR = txs
-      .filter(t => t.type === 'BUY' || t.type === 'BONUS' || t.type === 'SELL')
+      .filter(t => t.type === 'BUY' || t.type === 'SELL')
       .map(t => {
         const r = isUSStock ? (Number(t.fx_rate) || getHistoricalFxRate(t.date)) : 1.0;
         const amt = (Number(t.total_amount) || 0) * r;
+        const charges = (Number(t.charges) || 0) * r;
         return {
           date: t.date,
-          amount: (t.type === 'BUY' || t.type === 'BONUS') ? -amt : amt
+          amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
         };
       });
+      
+    for (const d of divs) {
+      cashflowsINR.push({ date: d.ex_date || d.payment_date, amount: (Number(d.amount_inr) || 0) });
+    }
+
     if (currentQty > 0) cashflowsINR.push({ date: today, amount: currentValueINR });
     const totalXirrINR = calculateXirr(cashflowsINR);
 
@@ -1036,8 +1096,12 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
 
           if (tx.type === 'BUY' || tx.type === 'BONUS') {
             runningQ += qty;
-            runningInvUSD += amtUSD;
-            runningInvINR += amtINR;
+            const txChargesUSD = Number(tx.charges) || 0;
+            const txChargesINR = txChargesUSD * txRate;
+            if (tx.type === 'BUY') {
+                runningInvUSD += amtUSD + txChargesUSD;
+                runningInvINR += amtINR + txChargesINR;
+            }
             if (tx.type === 'BUY' && qty > 0) {
                 lastKnownPriceUSD = price;
                 lastKnownPriceINR = price * txRate;
@@ -1046,6 +1110,11 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             runningQ = Math.max(0, runningQ - qty);
             runningInvUSD = Math.max(0, runningInvUSD - qty * (avgBuyPriceUSD || price));
             runningInvINR = Math.max(0, runningInvINR - qty * (avgBuyPriceUSD || price) * txRate);
+          }
+          if (runningQ <= 1e-6) {
+            runningQ = 0;
+            runningInvUSD = 0;
+            runningInvINR = 0;
           }
           txIdx++;
         }
@@ -1090,16 +1159,84 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
 
         currentDate.setDate(currentDate.getDate() + 1);
       }
+    }
       
-      // Ensure the very last point matches exactly the current value calculated above
-      if (!isExited && timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label === today) {
-        timelineUSD[timelineUSD.length - 1].value = Number(currentValueUSD.toFixed(2));
-        timelineINR[timelineINR.length - 1].value = Number(currentValueINR.toFixed(2));
+    // Extract market quote data for stocks, MFs, NPS
+    const activeTimelineData = isUSStock ? timelineUSD : timelineINR;
+    let quotePrice = Number(holding.current_price) || 0;
+    let prevClose = quotePrice;
+    let dayHigh = quotePrice;
+    let dayLow = quotePrice;
+    let openPrice = quotePrice;
+    let fiftyTwoWeekHigh = Number(holding.fifty_two_week_high) || quotePrice * 1.2;
+    let fiftyTwoWeekLow = Number(holding.fifty_two_week_low) || quotePrice * 0.8;
+
+    const cleanSym = (holding.symbol || '').replace(/\.(NS|BO)$/i, '');
+    const hist = historicalPricesCache[holding.symbol] || historicalPricesCache[cleanSym] || historicalPricesCache[`${cleanSym}.NS`] || {};
+    const histDates = Object.keys(hist).sort();
+    if (histDates.length >= 2) {
+      prevClose = Number(hist[histDates[histDates.length - 2]]) || quotePrice;
+    } else if (histDates.length === 1) {
+      prevClose = Number(hist[histDates[0]]) || quotePrice;
+    }
+
+    if (activeTimelineData && activeTimelineData.length > 0) {
+      const last365 = activeTimelineData.slice(-252);
+      const yearPrices = last365.map(p => Number(p.price) || 0).filter(p => p > 0);
+      if (yearPrices.length > 0) {
+        fiftyTwoWeekHigh = Math.max(...yearPrices, fiftyTwoWeekHigh);
+        fiftyTwoWeekLow = Math.min(...yearPrices, fiftyTwoWeekLow);
       }
     }
 
+    // Try fetching live quote for stock/MF for exact Day Open, High, Low
+    if (holding.category_id === 'in_stocks' || holding.category_id === 'us_stocks') {
+      const sym = holding.category_id === 'in_stocks' ? `${cleanSym}.NS` : holding.symbol;
+      try {
+        const liveQ = await fetchStockQuote(sym);
+        if (liveQ) {
+          if (liveQ.price) quotePrice = Number(liveQ.price);
+          if (liveQ.previousClose) prevClose = Number(liveQ.previousClose);
+          if (liveQ.open) openPrice = Number(liveQ.open);
+          dayHigh = Number(liveQ.high) || Math.max(quotePrice, prevClose);
+          dayLow = Number(liveQ.low) || Math.min(quotePrice, prevClose);
+          if (liveQ.fiftyTwoWeekHigh) fiftyTwoWeekHigh = Number(liveQ.fiftyTwoWeekHigh);
+          if (liveQ.fiftyTwoWeekLow) fiftyTwoWeekLow = Number(liveQ.fiftyTwoWeekLow);
+        }
+      } catch (e) { /* ignore */ }
+    } else if (holding.category_id === 'mutual_funds') {
+      try {
+        const mfQ = await fetchMutualFundNav(holding.symbol);
+        if (mfQ) {
+          if (mfQ.nav) quotePrice = Number(mfQ.nav);
+          if (mfQ.previousNav) prevClose = Number(mfQ.previousNav);
+          openPrice = Number(mfQ.open) || prevClose;
+          dayHigh = Number(mfQ.high) || quotePrice;
+          dayLow = Number(mfQ.low) || quotePrice;
+          if (mfQ.fiftyTwoWeekHigh) fiftyTwoWeekHigh = Number(mfQ.fiftyTwoWeekHigh);
+          if (mfQ.fiftyTwoWeekLow) fiftyTwoWeekLow = Number(mfQ.fiftyTwoWeekLow);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    const dayChange = quotePrice - prevClose;
+    const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
+
     res.json({
       holding,
+      quote: {
+        price: Number(quotePrice.toFixed(2)),
+        previousClose: Number(prevClose.toFixed(2)),
+        open: Number(openPrice.toFixed(2)),
+        high: Number(dayHigh.toFixed(2)),
+        low: Number(dayLow.toFixed(2)),
+        close: Number(quotePrice.toFixed(2)),
+        fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(2)),
+        fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(2)),
+        dayChange: Number(dayChange.toFixed(2)),
+        dayChangePct,
+        currency: isUSStock ? 'USD' : 'INR'
+      },
       fxRate: liveRate,
       transactions: txs,
       dividends: divs,
@@ -1108,6 +1245,10 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       metricsUSD: {
         totalInvested:  Number(totalInvestedUSD.toFixed(2)),
         totalRedeemed:  Number(totalRedeemedUSD.toFixed(2)),
+        currentInvested: Number(costBasisUSD.toFixed(2)),
+        totalCharges:   Number((totalBuyChargesUSD + totalSellChargesUSD).toFixed(2)),
+        buyCharges:     Number(totalBuyChargesUSD.toFixed(2)),
+        sellCharges:    Number(totalSellChargesUSD.toFixed(2)),
         currentValue:   Number(currentValueUSD.toFixed(2)),
         unrealizedPnl:  Number(unrealizedPnlUSD.toFixed(2)),
         unrealizedPct:  unrealizedPctUSD,
@@ -1119,6 +1260,10 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       metricsINR: {
         totalInvested:  Number(totalInvestedINR.toFixed(2)),
         totalRedeemed:  Number(totalRedeemedINR.toFixed(2)),
+        currentInvested: Number(costBasisINR.toFixed(2)),
+        totalCharges:   Number((totalBuyChargesINR + totalSellChargesINR).toFixed(2)),
+        buyCharges:     Number(totalBuyChargesINR.toFixed(2)),
+        sellCharges:    Number(totalSellChargesINR.toFixed(2)),
         currentValue:   Number(currentValueINR.toFixed(2)),
         unrealizedPnl:  Number(unrealizedPnlINR.toFixed(2)),
         unrealizedPct:  unrealizedPctINR,
@@ -1132,6 +1277,10 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       metrics: {
         totalInvested:  Number((isUSStock ? totalInvestedUSD : totalInvestedINR).toFixed(2)),
         totalRedeemed:  Number((isUSStock ? totalRedeemedUSD : totalRedeemedINR).toFixed(2)),
+        currentInvested: Number((isUSStock ? costBasisUSD : costBasisINR).toFixed(2)),
+        totalCharges:   Number(((isUSStock ? totalBuyChargesUSD : totalBuyChargesINR) + (isUSStock ? totalSellChargesUSD : totalSellChargesINR)).toFixed(2)),
+        buyCharges:     Number((isUSStock ? totalBuyChargesUSD : totalBuyChargesINR).toFixed(2)),
+        sellCharges:    Number((isUSStock ? totalSellChargesUSD : totalSellChargesINR).toFixed(2)),
         currentValue:   Number((isUSStock ? currentValueUSD : currentValueINR).toFixed(2)),
         unrealizedPnl:  Number((isUSStock ? unrealizedPnlUSD : unrealizedPnlINR).toFixed(2)),
         unrealizedPct:  isUSStock ? unrealizedPctUSD : unrealizedPctINR,
@@ -1958,4 +2107,30 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[Ladder Server] Running on http://localhost:${PORT}`);
+
+  // Initial fast active price sync on startup
+  setTimeout(async () => {
+    try {
+      const res = await refreshActiveHoldingsPrices();
+      console.log(`[Live Price Engine] Initial live price sync completed (${res.updatedCount} updated, ${res.activeCount} active).`);
+    } catch (err) {
+      console.warn('[Live Price Engine] Initial sync warning:', err.message);
+    }
+  }, 1000);
+
+  // Real-time active price sync loop (every 10 seconds)
+  setInterval(async () => {
+    try {
+      await refreshActiveHoldingsPrices();
+    } catch (err) {
+      // background ticker
+    }
+  }, 10000);
+
+  // Full comprehensive portfolio sync (every 10 minutes)
+  setInterval(async () => {
+    try {
+      await refreshAllHoldingsPrices();
+    } catch (err) {}
+  }, 10 * 60 * 1000);
 });

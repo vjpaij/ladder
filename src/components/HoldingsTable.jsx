@@ -122,13 +122,18 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                     <div className="flex items-center gap-3">
                       <HoldingLogo 
                         holding={h} 
-                        className="w-8 h-8 rounded-xl shadow-sm"
+                        className={`w-8 h-8 rounded-xl shadow-sm ${h.quantity <= 0 ? 'grayscale opacity-50' : ''}`}
                         fallbackClass="text-xs"
-                        accentColor={h.category_color}
+                        accentColor={h.quantity <= 0 ? '#64748b' : h.category_color}
                       />
                       <div>
-                        <div className="font-bold text-slate-100 flex items-center gap-1.5">
-                          {h.name}
+                        <div className="font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
+                          <span className={h.quantity <= 0 ? 'text-slate-400 font-medium' : 'text-slate-100'}>{h.name}</span>
+                          {h.quantity <= 0 ? (
+                            <span className="text-[8.5px] px-1.5 py-0.2 bg-slate-800 text-slate-400 border border-slate-700 rounded font-bold uppercase">EXITED</span>
+                          ) : (
+                            <span className="text-[8.5px] px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded font-extrabold uppercase">ACTIVE</span>
+                          )}
                           {isUS && <span className="text-[10px] px-1.5 py-0.2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded font-mono">USD</span>}
                         </div>
                         <div className="text-[11px] text-slate-400 flex items-center gap-2">
@@ -157,15 +162,24 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                     {isUS ? `$${h.avg_buy_price}` : `₹${h.avg_buy_price.toLocaleString('en-IN')}`}
                   </td>
 
-                  {/* Current Price & NSE/BSE Comparison Pill */}
+                  {/* Current Price & Day Change */}
                   <td className="py-4 px-4 text-right font-mono text-slate-100 font-bold">
                     <div>
                       {isUS ? `$${h.current_price}` : `₹${h.current_price.toLocaleString('en-IN')}`}
                     </div>
-                    {h.category_id === 'in_stocks' && h.nse_price > 0 && h.bse_price > 0 && (
-                      <div className="text-[10px] text-emerald-400/90 font-sans mt-0.5">
-                        NSE: ₹{h.nse_price} | BSE: ₹{h.bse_price}
+                    {h.day_change !== undefined ? (
+                      <div className={`text-[9.5px] font-bold flex items-center justify-end gap-0.5 ${
+                        (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}>
+                        <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}{isUS ? `$${Math.abs(h.day_change)}` : `₹${Math.abs(h.day_change).toLocaleString('en-IN')}`}</span>
+                        <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                       </div>
+                    ) : (
+                      h.category_id === 'in_stocks' && h.nse_price > 0 && h.bse_price > 0 && (
+                        <div className="text-[10px] text-emerald-400/90 font-sans mt-0.5">
+                          NSE: ₹{h.nse_price} | BSE: ₹{h.bse_price}
+                        </div>
+                      )
                     )}
                   </td>
 

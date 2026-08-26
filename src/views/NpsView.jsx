@@ -83,7 +83,7 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
       
       {/* Banner */}
       <AnimatedItem>
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-5">
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-cyan-500/12 text-cyan-400 border border-cyan-500/25">
@@ -92,32 +92,41 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
               <span className="text-[10px] font-mono text-slate-400">
                 PRAN #110134589120
               </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                Sorted by <span className="text-cyan-400 font-bold uppercase">{sortField} ({sortOrder})</span>
-              </span>
             </div>
             <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
               <ShieldCheck className="w-5 h-5 text-cyan-400" />
               National Pension System
             </h2>
-            <p className="text-[11px] text-slate-500 mt-0.5">Tier I Active Choice - Live NAVs via npsnav.in</p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase">
-                {statusFilter === 'active' ? 'Active NPS Value' : statusFilter === 'closed' ? 'Closed NPS Value' : 'Total NPS Value'}
-              </span>
-              <div className="text-xl font-black font-mono text-cyan-400">{formatMoney(totalCurrent)}</div>
-              <div className={`text-[10px] font-bold ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {totalGain >= 0 ? '+' : ''}{formatMoney(totalGain)} gain
+          <div className="flex items-center gap-5 flex-wrap sm:flex-nowrap">
+            <div className="flex items-stretch gap-4 bg-slate-900/60 px-4 py-2.5 rounded-2xl border border-slate-800/80">
+              <div className="text-right border-r border-slate-800 pr-4 flex flex-col justify-between">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Invested
+                </span>
+                <div className="text-base font-black font-mono text-slate-200">{formatMoney(totalInvested)}</div>
+                <div className="text-[10px] font-bold font-mono text-slate-500">
+                  Cost Basis
+                </div>
+              </div>
+
+              <div className="text-right flex flex-col justify-between">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
+                  {statusFilter === 'active' ? 'Active Value' : statusFilter === 'closed' ? 'Realized' : 'Total Value'}
+                </span>
+                <div className="text-base font-black font-mono text-cyan-400">{formatMoney(totalCurrent)}</div>
+                <div className={`text-[10px] font-bold font-mono ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {totalGain >= 0 ? '+' : ''}{totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : 0}% ({totalGain >= 0 ? '+' : ''}{formatMoney(totalGain)})
+                </div>
               </div>
             </div>
+
             <motion.button
               onClick={onOpenAddModal}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-teal-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-cyan-500/20 cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-cyan-500/20 cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               Add NPS Scheme
@@ -155,7 +164,7 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
                 }`}
               >
                 <XCircle className="w-3.5 h-3.5" />
-                Exited ({closedCount})
+                Fully Redeemed ({closedCount})
               </button>
               <button
                 onClick={() => setStatusFilter('all')}
@@ -174,7 +183,7 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
               <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search scheme name or code..."
+                placeholder="Search NPS schemes..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
@@ -188,7 +197,7 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
               <thead>
                 <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
                   <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white">
-                    Scheme & Code {getSortIcon('name')}
+                    Scheme Name {getSortIcon('name')}
                   </th>
                   <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                     Units {getSortIcon('quantity')}
@@ -197,13 +206,13 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
                     Avg NAV {getSortIcon('avg_buy_price')}
                   </th>
                   <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    Current NAV {getSortIcon('current_price')}
+                    NAV {getSortIcon('current_price')}
                   </th>
                   <th onClick={() => handleSort('investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    Invested {getSortIcon('investedValueINR')}
+                    Invested Value {getSortIcon('investedValueINR')}
                   </th>
                   <th onClick={() => handleSort('currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                    Current {getSortIcon('currentValueINR')}
+                    Value {getSortIcon('currentValueINR')}
                   </th>
                   <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
                     P&L {getSortIcon('gainINR')}
@@ -220,40 +229,93 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
                   return (
                     <motion.tr 
                       key={h.id} 
-                      onClick={() => (typeof setSelectedHolding === "function" ? setSelectedHolding(h) : (typeof setTargetPortfolio === "function" ? setTargetPortfolio(null) : null))}
-                        className={`cursor-pointer hover:bg-slate-800/30 ${isClosed ? 'opacity-60 bg-slate-900/20' : ''}`}
+                      onClick={() => setSelectedHolding(h)}
+                      className={`cursor-pointer transition-all ${
+                        isClosed
+                          ? 'bg-slate-950/40 hover:bg-slate-900/50 opacity-60 hover:opacity-90 border-l-2 border-l-slate-700/40'
+                          : 'hover:bg-slate-800/40 border-l-2 border-l-transparent hover:border-l-cyan-500'
+                      }`}
                       initial={{ opacity: 0, x: -5 }}
-                      animate={{ opacity: isClosed ? 0.6 : 1, x: 0 }}
-                      transition={{ delay: Math.min(i * 0.03, 0.3) }}
+                      animate={{ opacity: isClosed ? 0.65 : 1, x: 0 }}
+                      transition={{ delay: Math.min(i * 0.02, 0.3) }}
                     >
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2.5">
                           <HoldingLogo 
                             holding={h} 
-                            className="w-7 h-7 rounded-lg" 
+                            className={`w-7 h-7 rounded-lg ${isClosed ? 'grayscale opacity-50' : ''}`} 
                             fallbackClass="text-[10px]"
                             accentColor={isClosed ? '#64748b' : '#06b6d4'}
                           />
                           <div>
-                            <button onClick={() => setSelectedHolding(h)} className="font-bold text-slate-100 text-[12px] hover:text-cyan-400 transition-colors text-left cursor-pointer block">{h.name}</button>
-                            <div className="text-[10px] text-slate-500 font-mono">NPS #{h.symbol} &bull; {h.sector || 'NPS'}</div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`font-bold text-[12px] ${isClosed ? 'text-slate-400 font-medium' : 'text-slate-100 hover:text-cyan-400'}`}>
+                                {h.name}
+                              </span>
+                              {isClosed ? (
+                                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold uppercase tracking-wider bg-slate-800/90 text-slate-400 border border-slate-700/60">
+                                  EXITED
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/25">
+                                  ACTIVE
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono">Tier I • {h.symbol}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-300">
-                        {qty > 0 ? qty.toLocaleString('en-IN', { maximumFractionDigits: 4 }) : <span className="text-slate-600">0</span>}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-400">{Number(h.avg_buy_price).toFixed(4)}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">{Number(h.current_price).toFixed(4)}</td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-400">{formatMoney(h.investedValueINR)}</td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">{formatMoney(h.currentValueINR)}</td>
                       <td className="py-3 px-3 text-right font-mono">
-                        <div className={isGainPositive ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          {isGainPositive ? '+' : ''}{formatMoney(h.gainINR || 0)}
+                        {qty > 0 ? (
+                          <span className="text-slate-200 font-bold">{qty.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-slate-600 font-medium">0</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-slate-400">{formatMoney(h.avg_buy_price, true)}</td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        <div className={`text-[12px] font-bold ${isClosed ? 'text-slate-400 font-medium' : 'text-cyan-400 font-black'}`}>
+                          {formatMoney(h.current_price, true)}
                         </div>
-                        <div className="text-[9px] text-slate-500">
-                          {isGainPositive ? '+' : ''}{h.gainPct || 0}%
-                        </div>
+                        {h.day_change !== undefined && (
+                          <div className={`text-[9.5px] font-bold flex items-center justify-end gap-0.5 ${
+                            isClosed 
+                              ? 'text-slate-500' 
+                              : (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}>
+                            <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}{formatMoney(Math.abs(h.day_change), true)}</span>
+                            <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        {isClosed ? (
+                          <span className="text-slate-600">—</span>
+                        ) : (
+                          <span className="font-bold text-slate-100">{formatMoney(h.investedValueINR, true)}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        {isClosed ? (
+                          <span className="text-slate-600">—</span>
+                        ) : (
+                          <span className="font-black text-slate-100">{formatMoney(h.currentValueINR, true)}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        {isClosed ? (
+                          <span className="text-slate-600 text-[11px]">—</span>
+                        ) : (
+                          <>
+                            <div className={isGainPositive ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                              {isGainPositive ? '+' : ''}{formatMoney(h.gainINR || 0, true)}
+                            </div>
+                            <div className={`text-[9px] ${isGainPositive ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
+                              {isGainPositive ? '+' : ''}{h.gainPct || 0}%
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">

@@ -175,6 +175,11 @@ export default function TopNavbar({
                 <div className="py-1 divide-y divide-slate-800/40">
                   {filtered.map((item, idx) => {
                     const catInfo = normalizeCategory(item.category_id);
+                    const isUS = item.category_id === 'us_stocks';
+                    const hasPrice = Number(item.current_price) > 0;
+                    const dayChange = item.day_change;
+                    const dayChangePct = item.day_change_pct;
+
                     return (
                       <button
                         key={item.id || idx}
@@ -193,7 +198,21 @@ export default function TopNavbar({
                             {item.name}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <div className="flex items-center gap-3 shrink-0 ml-2">
+                          {hasPrice && (
+                            <div className="text-right">
+                              <span className="font-mono text-xs font-bold text-slate-200 block">
+                                {isUS ? `$${Number(item.current_price).toFixed(2)}` : formatMoney(item.current_price, true)}
+                              </span>
+                              {dayChange !== undefined && (
+                                <span className={`text-[9.5px] font-bold block ${
+                                  (dayChange || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                                }`}>
+                                  {(dayChange || 0) >= 0 ? '▲ +' : '▼ '}{dayChangePct !== undefined ? `${dayChangePct}%` : ''}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${catInfo.color}`}>
                             {catInfo.label}
                           </span>

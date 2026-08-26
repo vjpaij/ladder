@@ -35,16 +35,17 @@ function formatTxDate(dateStr) {
   return dateStr;
 }
 
-function MetricCard({ label, value, sub, color = 'text-white', icon: Icon, positive }) {
+function MetricCard({ label, value, sub, color = 'text-white', icon: Icon, positive, accent }) {
   const posClass = positive === true ? 'text-emerald-400' : positive === false ? 'text-rose-400' : color;
+  const accentBar = accent || (positive === true ? 'bg-emerald-500' : positive === false ? 'bg-rose-500' : 'bg-slate-600');
   return (
-    <div className="glass-card rounded-2xl p-4 border border-slate-800 flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5 text-slate-500">
-        {Icon && <Icon className="w-3.5 h-3.5" />}
-        <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
+    <div className="glass-card rounded-xl border border-slate-800/60 flex overflow-hidden h-full group hover:border-slate-700/80 transition-all duration-300">
+      <div className={`w-1 shrink-0 ${accentBar}`} />
+      <div className="flex flex-col py-3 px-3.5 flex-1 min-w-0">
+        <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{label}</span>
+        <div className={`text-[15px] font-black font-mono ${posClass} leading-tight`}>{value}</div>
+        {sub && <div className="mt-auto pt-1.5">{typeof sub === 'string' ? <span className="text-[10px] text-slate-500 font-mono">{sub}</span> : sub}</div>}
       </div>
-      <div className={`text-base font-black font-mono ${posClass}`}>{value}</div>
-      {sub && <div className="text-[10px] text-slate-500 font-mono">{sub}</div>}
     </div>
   );
 }
@@ -169,7 +170,8 @@ const CustomizedEventDot = (props) => {
 };
 
 export default function HoldingDetailModal({ holding, onClose }) {
-  const { currency, fxRate } = useThemeAuth();
+  const { currency, theme, fxRate } = useThemeAuth();
+  const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -270,6 +272,10 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const fmt = isDisplayUSD ? fmtUSD : fmtINR;
   const m = activeMetrics;
   const pricePrefix = isDisplayUSD ? '$' : '₹';
+
+  const quotePriceVal = detail?.quote?.price !== undefined ? detail.quote.price : Number(holding?.current_price || 0);
+  const dayChangeVal = detail?.quote?.dayChange !== undefined ? detail.quote.dayChange : (holding?.day_change !== undefined ? holding.day_change : 0);
+  const dayChangePctVal = detail?.quote?.dayChangePct !== undefined ? detail.quote.dayChangePct : (holding?.day_change_pct !== undefined ? holding.day_change_pct : 0);
 
   const filteredTimeline = React.useMemo(() => {
     if (!activeTimeline || activeTimeline.length === 0) return [];
@@ -373,30 +379,49 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     </span>
                     {!isEodAsset && (Number(holding.quantity) || 0) > 0 && (
                       <span className="text-[10px] text-slate-500 font-mono">
-                        {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })} units @ {
-                          isDisplayUSD
-                            ? `$${Number(holding.current_price).toFixed(2)}`
-                            : isFundOrNps
-                            ? `₹${Number(holding.current_price).toFixed(4)}`
-                            : `₹${(Number(holding.current_price) * (isUSStock ? fxRate : 1)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        }
+                        {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })} units
                       </span>
                     )}
                     {isEodAsset && (
                       <span className="text-[10px] text-slate-400 font-mono font-bold">
-                        Current EOD Balance: {fmt(m.currentValue || holding.current_price)}
+                        Current Balance: {fmt(m.currentValue || holding.current_price)}
                       </span>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+
+              <div className="flex items-center gap-4">
+                {/* Live Price Header Display */}
+                {!isEodAsset && (
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-base sm:text-lg font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        {isDisplayUSD 
+                          ? fmtUSD(quotePriceVal) 
+                          : isFundOrNps 
+                          ? `₹${Number(quotePriceVal).toFixed(4)}` 
+                          : fmtINR(quotePriceVal * (isUSStock && !isDisplayUSD ? fxRate : 1))}
+                      </span>
+                      {dayChangeVal !== undefined && (
+                        <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                          dayChangeVal >= 0 
+                            ? (isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30')
+                            : (isLight ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30')
+                        }`}>
+                          {dayChangeVal >= 0 ? '▲ +' : '▼ '}{isDisplayUSD ? `$${Math.abs(dayChangeVal).toFixed(2)}` : `₹${Math.abs(dayChangeVal).toFixed(2)}`} ({dayChangeVal >= 0 ? '+' : ''}{dayChangePctVal}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {isUSStock && (
                   <>
                     <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/25 text-purple-300 text-xs font-mono">
                       <Globe className="w-3.5 h-3.5 text-purple-400" />
-                      <span className="text-[10px] text-slate-400 uppercase font-sans font-bold">Live FX (Today):</span>
-                      <span className="text-purple-300 font-bold">1 USD = ₹{Number(fxRate || detail?.fxRate || 87.25).toFixed(2)}</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-sans font-bold">FX:</span>
+                      <span className="text-purple-300 font-bold">₹{Number(fxRate || detail?.fxRate || 87.25).toFixed(2)}</span>
                     </div>
 
                     <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-1 text-[11px] font-bold">
@@ -449,6 +474,83 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
               {!loading && !error && detail && (
                 <>
+                  {/* ---- Market Stats Snapshot (Open, High, Low, Prev Close, 52W Range) ---- */}
+                  {!isEodAsset && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-3.5 rounded-2xl border ${
+                        isLight 
+                          ? 'bg-slate-50 border-slate-200/90 shadow-xs' 
+                          : 'glass-card border-slate-800/80 bg-slate-900/40'
+                      }`}
+                    >
+                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                        {/* 4 Key Stat Points */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 flex-1 w-full">
+                          <div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Open</span>
+                            <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              {fmt(detail?.quote?.open || quotePriceVal)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Prev Close</span>
+                            <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                              {fmt(detail?.quote?.previousClose || quotePriceVal)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Day High</span>
+                            <span className="text-xs font-mono font-bold text-emerald-400">
+                              {fmt(detail?.quote?.high || quotePriceVal)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Day Low</span>
+                            <span className="text-xs font-mono font-bold text-rose-400">
+                              {fmt(detail?.quote?.low || quotePriceVal)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 52-Week Range Slider Bar */}
+                        {(() => {
+                          const high52 = Number(detail?.quote?.fiftyTwoWeekHigh || holding.fifty_two_week_high || (quotePriceVal * 1.15));
+                          const low52 = Number(detail?.quote?.fiftyTwoWeekLow || holding.fifty_two_week_low || (quotePriceVal * 0.85));
+                          if (high52 <= low52) return null;
+                          const range = high52 - low52;
+                          const pos = Math.min(Math.max(((quotePriceVal - low52) / range) * 100, 0), 100);
+
+                          return (
+                            <div className="w-full lg:w-72 pl-0 lg:pl-4 lg:border-l border-slate-700/40 flex flex-col justify-center">
+                              <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                                <span>52W L: {fmt(low52)}</span>
+                                <span className={`font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>52W Range</span>
+                                <span>52W H: {fmt(high52)}</span>
+                              </div>
+                              <div className="relative w-full h-2 rounded-full bg-slate-800 overflow-visible mt-1">
+                                <div 
+                                  className="h-full rounded-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500" 
+                                  style={{ width: '100%' }}
+                                />
+                                <motion.div 
+                                  className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 shadow-md ${
+                                    isLight ? 'bg-slate-900 border-white' : 'bg-white border-slate-950'
+                                  }`}
+                                  style={{ left: `${pos}%` }}
+                                  animate={{ scale: [1, 1.25, 1] }}
+                                  transition={{ duration: 2, repeat: Infinity }}
+                                  title={`Current: ${fmt(quotePriceVal)} (${pos.toFixed(0)}% of 52W range)`}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </motion.div>
+                  )}
+
                   {/* ---- Metrics Grid ---- */}
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
@@ -471,47 +573,123 @@ export default function HoldingDetailModal({ holding, onClose }) {
                         <MetricCard label="Tracking Status" value="Daily EOD" icon={Activity} color="text-cyan-400" />
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                        <MetricCard label="Total Invested"  value={fmt(m.totalInvested)}  icon={ArrowDownCircle} color="text-slate-300" />
-                        <MetricCard label="Total Redeemed"  value={fmt(m.totalRedeemed)}  icon={ArrowUpCircle}   color="text-slate-300" />
-                        <MetricCard
-                          label="Current Value"
-                          value={(Number(holding.quantity) || 0) > 0 ? fmt(m.currentValue) : '—'}
-                          sub={isUSStock && (Number(holding.quantity) || 0) > 0
-                            ? (isDisplayUSD ? `≈ ${fmtINR((m.currentValue || 0) * fxRate)}` : `≈ ${fmtUSD(Number(m.currentValue || 0) / fxRate)}`)
-                            : null}
-                          icon={DollarSign}
-                          color="text-white"
-                        />
-                        <MetricCard
-                          label="Unrealized P&L"
-                          value={fmt(m.unrealizedPnl)}
-                          sub={m.unrealizedPct != null ? `${m.unrealizedPct >= 0 ? '+' : ''}${m.unrealizedPct}%` : null}
-                          icon={m.unrealizedPnl >= 0 ? TrendingUp : TrendingDown}
-                          positive={(m.unrealizedPnl || 0) >= 0}
-                        />
-                        <MetricCard
-                          label="Realized P&L"
-                          value={fmt(m.realizedPnl)}
-                          icon={BarChart2}
-                          positive={(m.realizedPnl || 0) >= 0}
-                        />
-                        <MetricCard
-                          label="Dividends"
-                          value={fmt(m.totalDividends)}
-                          sub={m.dividendCount > 0 ? `${m.dividendCount} payments` : null}
-                          icon={Gift}
-                          color="text-amber-400"
-                        />
-                        <MetricCard
-                          label="Total XIRR"
-                          value={`${(m.totalXirr || 0) >= 0 ? '+' : ''}${m.totalXirr || 0}%`}
-                          sub={(m.currentXirr != null && m.currentXirr !== m.totalXirr)
-                            ? `Active: ${(m.currentXirr || 0) >= 0 ? '+' : ''}${m.currentXirr}%`
-                            : 'annualized p.a.'}
-                          icon={Percent}
-                          positive={(m.totalXirr || 0) >= 0}
-                        />
+                      <div className="flex flex-col gap-2.5">
+                        {/* ---- Row 1: P&L Hero + Key Values ---- */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
+
+                          {/* P&L Hero Card - spans 5 cols */}
+                          {(() => {
+                            const totalPnl = (m.unrealizedPnl || 0) + (m.realizedPnl || 0);
+                            const isPositive = totalPnl >= 0;
+
+                            const cardBorder = isLight
+                              ? (isPositive ? 'border-emerald-300/80 shadow-xs' : 'border-rose-300/80 shadow-xs')
+                              : (isPositive ? 'border-emerald-500/20' : 'border-rose-500/20');
+
+                            const gradientBg = isLight
+                              ? (isPositive 
+                                  ? 'bg-gradient-to-br from-emerald-50/90 via-emerald-100/30 to-white' 
+                                  : 'bg-gradient-to-br from-rose-50/90 via-rose-100/30 to-white')
+                              : (isPositive 
+                                  ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900/80 to-slate-950' 
+                                  : 'bg-gradient-to-br from-rose-950/40 via-slate-900/80 to-slate-950');
+
+                            const mainPnlColor = isPositive 
+                              ? (isLight ? 'text-emerald-700' : 'text-emerald-400')
+                              : (isLight ? 'text-rose-700' : 'text-rose-400');
+
+                            const unrealizedColor = (m.unrealizedPnl || 0) >= 0
+                              ? (isLight ? 'text-emerald-700' : 'text-emerald-400/90')
+                              : (isLight ? 'text-rose-700' : 'text-rose-400/90');
+
+                            const realizedColor = (m.realizedPnl || 0) >= 0
+                              ? (isLight ? 'text-emerald-700' : 'text-emerald-400/90')
+                              : (isLight ? 'text-rose-700' : 'text-rose-400/90');
+
+                            const dividerBg = isLight
+                              ? (isPositive ? 'bg-emerald-200' : 'bg-rose-200')
+                              : (isPositive ? 'bg-emerald-500/20' : 'bg-rose-500/20');
+
+                            return (
+                              <div className={`lg:col-span-5 relative rounded-xl overflow-hidden border ${cardBorder}`}>
+                                <div className={`absolute inset-0 ${gradientBg}`} />
+                                <div className={`absolute top-0 left-0 w-32 h-32 rounded-full blur-3xl ${isLight ? 'opacity-30' : 'opacity-20'} ${isPositive ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                                <div className="relative p-4 flex flex-col gap-2">
+                                  <span className={`text-[10px] font-semibold uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Total P&L</span>
+                                  <div className={`text-2xl font-black font-mono ${mainPnlColor}`}>
+                                    {fmt(totalPnl)}
+                                  </div>
+                                  <div className="flex items-center gap-4 mt-1">
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] uppercase tracking-wider text-slate-500 mb-0.5">Unrealized</span>
+                                      <span className={`text-[13px] font-bold font-mono ${unrealizedColor}`}>
+                                        {fmt(m.unrealizedPnl)}
+                                        {m.unrealizedPct != null && <span className="text-[10px] ml-1 opacity-80">({m.unrealizedPct >= 0 ? '+' : ''}{m.unrealizedPct}%)</span>}
+                                      </span>
+                                    </div>
+                                    <div className={`w-px h-8 ${dividerBg}`} />
+                                    <div className="flex flex-col">
+                                      <span className="text-[8px] uppercase tracking-wider text-slate-500 mb-0.5">Realized</span>
+                                      <span className={`text-[13px] font-bold font-mono ${realizedColor}`}>
+                                        {fmt(m.realizedPnl)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Right side - 7 cols with key metrics */}
+                          <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <MetricCard label="Invested" value={fmt(m.totalInvested)} accent="bg-blue-500" color={isLight ? "text-slate-800" : "text-slate-200"} />
+                            <MetricCard label="Redeemed" value={fmt(m.totalRedeemed)} accent="bg-indigo-500" color={isLight ? "text-slate-800" : "text-slate-200"} />
+                            <MetricCard
+                              label="Cost Basis"
+                              value={(Number(holding.quantity) || 0) > 0 ? fmt(m.currentInvested) : '—'}
+                              accent="bg-cyan-500"
+                              color={isLight ? "text-slate-800" : "text-slate-300"}
+                            />
+                            <MetricCard
+                              label="Market Value"
+                              value={(Number(holding.quantity) || 0) > 0 ? fmt(m.currentValue) : '—'}
+                              sub={isUSStock && (Number(holding.quantity) || 0) > 0
+                                ? (isDisplayUSD ? `≈ ${fmtINR((m.currentValue || 0) * fxRate)}` : `≈ ${fmtUSD(Number(m.currentValue || 0) / fxRate)}`)
+                                : null}
+                              accent={isLight ? "bg-slate-800" : "bg-white"}
+                              color={isLight ? "text-slate-900" : "text-white"}
+                            />
+                          </div>
+                        </div>
+
+                        {/* ---- Row 2: Secondary Metrics ---- */}
+                        <div className="grid grid-cols-3 gap-2.5">
+                          <MetricCard
+                            label="Dividends"
+                            value={fmt(m.totalDividends)}
+                            sub={m.dividendCount > 0 ? `${m.dividendCount} payments` : null}
+                            accent="bg-amber-500"
+                            color="text-amber-400"
+                          />
+                          <MetricCard
+                            label="Charges"
+                            value={fmt(m.totalCharges)}
+                            sub={
+                              <div className="flex items-center gap-2">
+                                <span className="text-[8.5px] font-medium text-slate-500">B {fmt(m.buyCharges)}</span>
+                                <span className="text-slate-700/50">|</span>
+                                <span className="text-[8.5px] font-medium text-slate-500">S {fmt(m.sellCharges)}</span>
+                              </div>
+                            }
+                            accent="bg-orange-500"
+                            color="text-amber-500"
+                          />
+                          <MetricCard
+                            label="XIRR"
+                            value={`${(m.totalXirr || 0) >= 0 ? '+' : ''}${m.totalXirr || 0}%`}
+                            positive={(m.totalXirr || 0) >= 0}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -642,7 +820,6 @@ export default function HoldingDetailModal({ holding, onClose }) {
                         <table className="w-full text-left border-collapse text-xs">
                           <thead>
                             <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                              <th className="py-3 px-4">#</th>
                               <th onClick={() => handleTxSort('date')} className="py-3 px-4 cursor-pointer hover:text-white whitespace-nowrap">
                                 Date <SortIcon field="date" />
                               </th>
@@ -695,7 +872,6 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                     animate={{ opacity: 1 }}
                                     transition={{ delay: Math.min(i * 0.015, 0.4) }}
                                   >
-                                    <td className="py-2.5 px-4 text-slate-600 font-mono text-[10px]">{i + 1}</td>
                                     <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{formatTxDate(tx.date)}</td>
                                     <td className="py-2.5 px-4 text-right font-mono font-black text-white">
                                       ₹{eodBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
@@ -743,7 +919,6 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                   animate={{ opacity: 1 }}
                                   transition={{ delay: Math.min(i * 0.015, 0.4) }}
                                 >
-                                  <td className="py-2.5 px-4 text-slate-600 font-mono text-[10px]">{i + 1}</td>
                                   <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap" title={formatDateDDMMYYYY(tx.date)}>{formatDateDDMMYYYY(tx.date)}</td>
                                   <td className="py-2.5 px-4"><TxBadge type={tx.type} /></td>
                                   <td className="py-2.5 px-4 text-right font-mono text-slate-200">
@@ -771,7 +946,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                             })}
                             {sortedTxs.length === 0 && (
                               <tr>
-                                <td colSpan={isEodAsset ? 5 : (isUSStock ? 9 : 8)} className="py-8 text-center text-slate-600">
+                                <td colSpan={isEodAsset ? 4 : (isUSStock ? 8 : 7)} className="py-8 text-center text-slate-600">
                                   No records found
                                 </td>
                               </tr>
