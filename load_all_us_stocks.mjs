@@ -1,4 +1,4 @@
-﻿import XLSX from "xlsx";
+import XLSX from "xlsx";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -138,11 +138,51 @@ async function run() {
     const tickerOrders = orderRows.filter(r => r["Stock Symbol"] === ticker);
     const stockName = tickerOrders[0]["Stock Name"] || ticker;
 
-    // Sort orders by execution date ascending
-    tickerOrders.sort((a, b) => {
-      const da = parseUsOrderDate(a["Order Execution Time"] || a["Order Placed Time"]) || "";
-      const db = parseUsOrderDate(b["Order Execution Time"] || b["Order Placed Time"]) || "";
-      return da.localeCompare(db);
+    // Extract matching Split rows from Book2.xlsx for this ticker
+    const tickerSplits = book2Rows.filter(r => {
+      const mappedTicker = getTickerFromName(r["Name"], r["Display Symbol"]);
+      return mappedTicker === ticker && (r["Type"] || "").toLowerCase() === "split";
+    });
+
+    // Combine order book trades with corporate action splits
+    const combinedEvents = [];
+
+    for (const ord of tickerOrders) {
+      const type = (ord["Transaction Type"] || "").toUpperCase();
+      const dateStr = parseUsOrderDate(ord["Order Execution Time"] || ord["Order Placed Time"]);
+      if (!dateStr) continue;
+      combinedEvents.push({
+        eventType: type,
+        dateStr,
+        qty: parseFloat(ord["Quantity"]) || 0,
+        priceUSD: parseFloat(ord["Price ($)"]) || 0,
+        amountUSD: parseFloat(ord["Order Amount ($)"]) || parseFloat(((parseFloat(ord["Quantity"]) || 0) * (parseFloat(ord["Price ($)"]) || 0)).toFixed(2)),
+        brokerageUSD: parseFloat(ord["Brokerage ($)"]) || 0,
+        raw: ord
+      });
+    }
+
+    for (const spl of tickerSplits) {
+      const dateStr = parseUsOrderDate(spl["Transaction Date"]);
+      if (!dateStr) continue;
+      combinedEvents.push({
+        eventType: "SPLIT",
+        dateStr,
+        oldRatio: parseFloat(spl["Cost Per Share"]) || 1,
+        newRatio: parseFloat(spl["Shares Owned"]) || 1,
+        qty: 0,
+        priceUSD: 0,
+        amountUSD: 0,
+        brokerageUSD: 0,
+        raw: spl
+      });
+    }
+
+    // Deterministic chronological & same-day priority sorting: BUY -> SPLIT -> SELL -> DIVIDEND
+    const eventPriority = { BUY: 1, BONUS: 1, SPLIT: 2, SELL: 3, DIVIDEND: 4 };
+    combinedEvents.sort((a, b) => {
+      if (a.dateStr !== b.dateStr) return a.dateStr.localeCompare(b.dateStr);
+      return (eventPriority[a.eventType] || 9) - (eventPriority[b.eventType] || 9);
     });
 
     let currentQty = 0;
@@ -157,20 +197,18 @@ async function run() {
 
     const processedTxs = [];
 
-    for (const ord of tickerOrders) {
-      const type = (ord["Transaction Type"] || "").toUpperCase();
-      const dateStr = parseUsOrderDate(ord["Order Execution Time"] || ord["Order Placed Time"]);
-      if (!dateStr) continue;
-
-      const qty = parseFloat(ord["Quantity"]) || 0;
-      const priceUSD = parseFloat(ord["Price ($)"]) || 0;
-      const amountUSD = parseFloat(ord["Order Amount ($)"]) || parseFloat((qty * priceUSD).toFixed(2));
-      const brokerageUSD = parseFloat(ord["Brokerage ($)"]) || 0;
+    for (const ev of combinedEvents) {
+      const type = ev.eventType;
+      const dateStr = ev.dateStr;
       const fxRate = historicalFxMap[dateStr] || getFallbackFxRate(dateStr);
 
-      totalChargesUSD += brokerageUSD;
-
       if (type === "BUY") {
+        const qty = ev.qty;
+        const priceUSD = ev.priceUSD;
+        const amountUSD = ev.amountUSD;
+        const brokerageUSD = ev.brokerageUSD;
+
+        totalChargesUSD += brokerageUSD;
         currentQty += qty;
         totalBuyQty += qty;
         totalBuyCostUSD += amountUSD;
@@ -189,7 +227,51 @@ async function run() {
           notes: `Buy @ $${priceUSD.toFixed(2)} | FX: ₹${fxRate.toFixed(2)}/$`
         });
 
+      } else if (type === "SPLIT") {
+        const oldRatio = ev.oldRatio;
+        const newRatio = ev.newRatio;
+        if (oldRatio <= 0 || newRatio <= 0) {
+          console.warn(`[Validation Warning] Invalid split ratio for ${ticker} on ${dateStr}: ${oldRatio}:${newRatio}`);
+          continue;
+        }
+
+        const splitMultiplier = newRatio / oldRatio;
+        const preSplitQty = currentQty;
+        currentQty = currentQty * splitMultiplier;
+        totalBuyQty = totalBuyQty * splitMultiplier;
+
+        // Scale all preceding open buy lots and buy transactions
+        for (const lot of buyLots) {
+          lot.qty = lot.qty * splitMultiplier;
+          lot.priceUSD = lot.priceUSD / splitMultiplier;
+        }
+        for (const tx of processedTxs) {
+          if (tx.type === "BUY") {
+            tx.quantity = parseFloat((tx.quantity * splitMultiplier).toFixed(6));
+            tx.price = parseFloat((tx.price / splitMultiplier).toFixed(4));
+            tx.total_amount = parseFloat((tx.quantity * tx.price).toFixed(2));
+          }
+        }
+
+        processedTxs.push({
+          type: "SPLIT",
+          quantity: 0,
+          price: 0,
+          total_amount: 0,
+          currency: "USD",
+          fx_rate: parseFloat(fxRate.toFixed(4)),
+          charges: 0,
+          date: dateStr,
+          notes: `Stock Split (${oldRatio}:${newRatio}) — holding scaled from ${preSplitQty.toFixed(4)} to ${currentQty.toFixed(4)} shares`
+        });
+
       } else if (type === "SELL") {
+        const qty = ev.qty;
+        const priceUSD = ev.priceUSD;
+        const amountUSD = ev.amountUSD;
+        const brokerageUSD = ev.brokerageUSD;
+        totalChargesUSD += brokerageUSD;
+
         if (qty > 0) {
           totalSellQty += qty;
           currentQty = Math.max(0, currentQty - qty);

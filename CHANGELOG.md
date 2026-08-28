@@ -5,6 +5,18 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.1] - 2026-08-28
+
+### Added
+- **US Stocks Corporate Actions & Stock Split Engine**: Integrated full stock split extraction and retroactive lot scaling into [load_all_us_stocks.mjs](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/load_all_us_stocks.mjs), processing corporate action events from `Book2.xlsx` (such as the Arista Networks `ANET` 4:1 stock split on 2024-12-04). Scaled prior buy quantities (from 5.54 to 22.17 shares) and adjusted cost basis accordingly, bringing US equities to full parity with Indian stocks.
+- **Unified Dividend Ledger Integration**: Updated `/api/holding/:holdingId/detail` in [server/index.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/index.js) to format and interleave all recorded dividends as `DIVIDEND` entries directly into the chronological Transaction Ledger, displaying amber `DIV` badges and dynamic dual USD/INR currency conversions across all equity holdings.
+
+### Changed
+- **Deterministic Event Ordering**: Added same-day event priority sorting (`BUY` -> `SPLIT` -> `SELL` -> `DIVIDEND`) to US equities ingestion.
+- **Historical EOD Parity**: Re-executed [scripts/rebuild_portfolio_eod.mjs](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/scripts/rebuild_portfolio_eod.mjs) across all 6,900 historical days to ensure complete alignment with split-adjusted US positions.
+
+---
+
 ## [4.3.0] - 2026-08-28
 
 ### Changed

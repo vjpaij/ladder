@@ -1305,6 +1305,38 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
     const dayChange = quotePrice - prevClose;
     const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
 
+    // Format dividends and merge with transactions for complete unified ledger
+    const formattedDivs = (divs || []).map(d => {
+      const dDate = d.payment_date || d.ex_date || '';
+      const amtUSD = Number(d.amount_original) || (Number(d.amount_inr) / (Number(d.fx_rate) || 1));
+      const amtINR = Number(d.amount_inr) || (amtUSD * (Number(d.fx_rate) || liveRate));
+      const dRate = Number(d.fx_rate) || (isUSStock ? (getHistoricalFxRate(dDate) || liveRate) : 1.0);
+      return {
+        id: `div-${d.id}`,
+        holding_id: d.holding_id || holding.id,
+        user_id: d.user_id,
+        symbol: d.symbol || holding.symbol,
+        name: d.name || holding.name,
+        type: 'DIVIDEND',
+        quantity: 0,
+        price: 0,
+        total_amount: isUSStock ? Number(amtUSD.toFixed(2)) : Number(amtINR.toFixed(2)),
+        currency: isUSStock ? 'USD' : 'INR',
+        fx_rate: Number(dRate.toFixed(4)),
+        charges: 0,
+        date: dDate,
+        notes: `Dividend: ${isUSStock ? '$' + amtUSD.toFixed(2) : '₹' + amtINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      };
+    });
+
+    const txTypePriority = { BUY: 1, BONUS: 1, DIVIDEND_REINVEST: 1, SPLIT: 2, SELL: 3, DIVIDEND: 4 };
+    const mergedTransactions = [...txs, ...formattedDivs].sort((a, b) => {
+      const da = a.date || '';
+      const db = b.date || '';
+      if (da !== db) return da.localeCompare(db);
+      return (txTypePriority[a.type] || 9) - (txTypePriority[b.type] || 9);
+    });
+
     res.json({
       holding,
       quote: {
@@ -1322,7 +1354,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         currency: isUSStock ? 'USD' : 'INR'
       },
       fxRate: liveRate,
-      transactions: txs,
+      transactions: mergedTransactions,
       dividends: divs,
       timelineUSD,
       timelineINR,
