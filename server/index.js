@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db, { initDatabase } from './db.js';
 import { supabase } from './supabaseClient.js';
-import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav } from './services/priceEngine.js';
+import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav, formatCleanQuoteDate } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
 import axios from 'axios';
 
@@ -15,6 +15,15 @@ const JWT_SECRET = 'ladder-super-secret-key-2026';
 
 app.use(cors());
 app.use(express.json());
+
+// Process-level resilience against network drops & unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.warn('[Server Warning] Unhandled Promise Rejection:', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Server Error] Uncaught Exception:', err?.message || err);
+});
 
 // Initialize DB engine connection
 initDatabase();
@@ -1189,7 +1198,8 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       }
     }
 
-    // Try fetching live quote for stock/MF for exact Day Open, High, Low
+    let quoteDateStr = null;
+
     if (holding.category_id === 'in_stocks' || holding.category_id === 'us_stocks') {
       const sym = holding.category_id === 'in_stocks' ? `${cleanSym}.NS` : holding.symbol;
       try {
@@ -1202,6 +1212,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
           dayLow = Number(liveQ.low) || Math.min(quotePrice, prevClose);
           if (liveQ.fiftyTwoWeekHigh) fiftyTwoWeekHigh = Number(liveQ.fiftyTwoWeekHigh);
           if (liveQ.fiftyTwoWeekLow) fiftyTwoWeekLow = Number(liveQ.fiftyTwoWeekLow);
+          if (liveQ.quoteDate) quoteDateStr = liveQ.quoteDate;
         }
       } catch (e) { /* ignore */ }
     } else if (holding.category_id === 'mutual_funds') {
@@ -1215,8 +1226,27 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
           dayLow = Number(mfQ.low) || quotePrice;
           if (mfQ.fiftyTwoWeekHigh) fiftyTwoWeekHigh = Number(mfQ.fiftyTwoWeekHigh);
           if (mfQ.fiftyTwoWeekLow) fiftyTwoWeekLow = Number(mfQ.fiftyTwoWeekLow);
+          if (mfQ.quoteDate) quoteDateStr = mfQ.quoteDate;
         }
       } catch (e) { /* ignore */ }
+    }
+
+    if (!quoteDateStr && holding.category_id === 'nps') {
+      try {
+        const npsQ = await fetchNpsNavFallback(holding.symbol);
+        if (npsQ?.quoteDate) quoteDateStr = npsQ.quoteDate;
+      } catch (e) {}
+    }
+
+    if (!quoteDateStr) quoteDateStr = liveQuoteCache.get(holding.symbol)?.quoteDate;
+    if (!quoteDateStr && (holding.category_id === 'mutual_funds' || holding.category_id === 'nps')) {
+      const lastPoint = activeTimelineData && activeTimelineData.length > 0 ? activeTimelineData[activeTimelineData.length - 1] : null;
+      if (lastPoint && lastPoint.label) {
+        quoteDateStr = formatCleanQuoteDate(lastPoint.label);
+      }
+    }
+    if (!quoteDateStr && holding.updated_at) {
+      quoteDateStr = formatCleanQuoteDate(holding.updated_at);
     }
 
     const dayChange = quotePrice - prevClose;
@@ -1235,6 +1265,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(2)),
         dayChange: Number(dayChange.toFixed(2)),
         dayChangePct,
+        quoteDate: quoteDateStr || 'Latest Available',
         currency: isUSStock ? 'USD' : 'INR'
       },
       fxRate: liveRate,
@@ -2118,14 +2149,14 @@ app.listen(PORT, () => {
     }
   }, 1000);
 
-  // Real-time active price sync loop (every 10 seconds)
+  // Real-time active price sync loop (every 3 seconds)
   setInterval(async () => {
     try {
       await refreshActiveHoldingsPrices();
     } catch (err) {
       // background ticker
     }
-  }, 10000);
+  }, 3000);
 
   // Full comprehensive portfolio sync (every 10 minutes)
   setInterval(async () => {

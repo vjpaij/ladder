@@ -12,7 +12,7 @@ import {
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
 import { CalendarDays } from 'lucide-react';
-import formatDateDDMMYYYY from '../utils/dateFormatter';
+import formatDateDDMMYYYY, { formatQuoteBadgeDate } from '../utils/dateFormatter';
 
 function fmtINR(val) {
   const n = Number(val) || 0;
@@ -391,31 +391,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                {/* Live Price Header Display */}
-                {!isEodAsset && (
-                  <div className="flex flex-col items-end">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-base sm:text-lg font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                        {isDisplayUSD 
-                          ? fmtUSD(quotePriceVal) 
-                          : isFundOrNps 
-                          ? `₹${Number(quotePriceVal).toFixed(4)}` 
-                          : fmtINR(quotePriceVal * (isUSStock && !isDisplayUSD ? fxRate : 1))}
-                      </span>
-                      {dayChangeVal !== undefined && (
-                        <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
-                          dayChangeVal >= 0 
-                            ? (isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30')
-                            : (isLight ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30')
-                        }`}>
-                          {dayChangeVal >= 0 ? '▲ +' : '▼ '}{isDisplayUSD ? `$${Math.abs(dayChangeVal).toFixed(2)}` : `₹${Math.abs(dayChangeVal).toFixed(2)}`} ({dayChangeVal >= 0 ? '+' : ''}{dayChangePctVal}%)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
+              <div className="flex items-center gap-3 sm:gap-4">
                 {isUSStock && (
                   <>
                     <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/25 text-purple-300 text-xs font-mono">
@@ -444,6 +420,34 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     </div>
                   </>
                 )}
+
+                {/* Live Price Header Display - Always anchored consistently at the right */}
+                {!isEodAsset && (
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-base sm:text-lg font-black font-mono ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        {isDisplayUSD 
+                          ? fmtUSD(quotePriceVal) 
+                          : isFundOrNps 
+                          ? `₹${Number(quotePriceVal).toFixed(4)}` 
+                          : fmtINR(quotePriceVal * (isUSStock && !isDisplayUSD ? fxRate : 1))}
+                      </span>
+                      {dayChangeVal !== undefined && (
+                        <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                          dayChangeVal >= 0 
+                            ? (isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30')
+                            : (isLight ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30')
+                        }`}>
+                          {dayChangeVal >= 0 ? '▲ +' : '▼ '}{isDisplayUSD ? `$${Math.abs(dayChangeVal).toFixed(2)}` : `₹${Math.abs(dayChangeVal).toFixed(2)}`} ({dayChangeVal >= 0 ? '+' : ''}{dayChangePctVal}%)
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                      As of {formatQuoteBadgeDate(detail?.quote?.quoteDate || holding?.quoteDate || detail?.quote?.updated || new Date())}
+                    </div>
+                  </div>
+                )}
+
                 <button
                   onClick={onClose}
                   className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"

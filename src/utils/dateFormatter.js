@@ -34,4 +34,37 @@ export function formatDateDDMMYYYY(dateStr) {
   return str;
 }
 
+/**
+ * Standard Quote Badge Date Formatter to output DD MMM YYYY (e.g. 27 Aug 2026)
+ */
+export function formatQuoteBadgeDate(dateStr) {
+  if (!dateStr) return null;
+  const str = String(dateStr).trim();
+  try {
+    const parts = str.split(/[-T /]/);
+    if (parts.length >= 3) {
+      let day, month, year;
+      if (parts[0].length === 4) {
+        year = parts[0];
+        month = parts[1];
+        day = parts[2];
+      } else {
+        day = parts[0];
+        month = parts[1];
+        year = parts[2];
+      }
+      const mNum = parseInt(month, 10);
+      if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
+        const d = new Date(Date.UTC(parseInt(year, 10), mNum - 1, parseInt(day, 10)));
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      }
+    }
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+  } catch (e) {}
+  return str;
+}
+
 export default formatDateDDMMYYYY;

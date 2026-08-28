@@ -15,6 +15,43 @@ export async function fetchFxRate() {
   return 87.25;
 }
 
+export function formatCleanQuoteDate(dateStr, timeZone) {
+  if (!dateStr) return null;
+  if (typeof dateStr === 'number') {
+    const opts = { day: '2-digit', month: 'short', year: 'numeric' };
+    if (timeZone) opts.timeZone = timeZone;
+    return new Date(dateStr * 1000).toLocaleDateString('en-GB', opts);
+  }
+  if (typeof dateStr === 'string') {
+    const cleanStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.trim();
+    const parts = cleanStr.split(/[-/ ]/);
+    if (parts.length === 3) {
+      let day, month, year;
+      if (parts[0].length === 4) {
+        year = parts[0];
+        month = parts[1];
+        day = parts[2];
+      } else {
+        day = parts[0];
+        month = parts[1];
+        year = parts[2];
+      }
+      const mNum = parseInt(month, 10);
+      if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
+        const d = new Date(Date.UTC(parseInt(year, 10), mNum - 1, parseInt(day, 10)));
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+      }
+    }
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      const opts = { day: '2-digit', month: 'short', year: 'numeric' };
+      if (timeZone) opts.timeZone = timeZone;
+      return parsed.toLocaleDateString('en-GB', opts);
+    }
+  }
+  return dateStr;
+}
+
 export async function fetchStockQuote(symbol) {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
@@ -36,6 +73,17 @@ export async function fetchStockQuote(symbol) {
       const fiftyTwoWeekHigh = Number(result.meta.fiftyTwoWeekHigh || dayHigh * 1.15);
       const fiftyTwoWeekLow = Number(result.meta.fiftyTwoWeekLow || dayLow * 0.85);
 
+      // Derive exchange timezone so US stocks reflect US trading date (e.g. 27 Aug 2026) and Indian stocks reflect Indian date (28 Aug 2026)
+      const exchangeTz = result.meta.exchangeTimezoneName || (symbol.endsWith('.NS') || symbol.endsWith('.BO') ? 'Asia/Kolkata' : 'America/New_York');
+      const quoteTime = result.meta.regularMarketTime || Math.floor(Date.now() / 1000);
+      const d = new Date(quoteTime * 1000);
+      const quoteDate = d.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        timeZone: exchangeTz
+      });
+
       return {
         price,
         adjustedClose: (result.indicators?.quote?.[0]?.adjclose?.[0]) || price,
@@ -49,6 +97,8 @@ export async function fetchStockQuote(symbol) {
         fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(2)),
         fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(2)),
         currency: result.meta.currency || 'INR',
+        quoteDate,
+        exchangeTimezone: exchangeTz,
         updated: new Date().toISOString()
       };
     }
@@ -72,10 +122,12 @@ export async function fetchMutualFundNav(schemeCode) {
       const yearRecords = res.data.data.slice(0, 252).map(r => parseFloat(r.nav)).filter(n => !isNaN(n));
       const fiftyTwoWeekHigh = yearRecords.length > 0 ? Math.max(...yearRecords) : nav;
       const fiftyTwoWeekLow = yearRecords.length > 0 ? Math.min(...yearRecords) : nav;
+      const quoteDate = formatCleanQuoteDate(latest.date);
 
       return {
         nav,
         date: latest.date,
+        quoteDate,
         previousNav: prevNav,
         previousClose: prevNav,
         dayChange: Number(dayChange.toFixed(4)),
@@ -98,24 +150,16 @@ export async function fetchMutualFundNav(schemeCode) {
 // NPS NAV: Primary source = Protean CRA official ZIP, Fallback = npsnav.in
 // ---------------------------------------------------------------------------
 
-/**
- * Fetch all NPS NAVs in a single batch from the official Protean CRA website.
- * The website publishes a daily ZIP file containing a .out CSV with all scheme NAVs.
- * Returns a Map of schemeCode -> { nav, date } or null if the scraper fails.
- */
 export async function fetchProteanNpsNavBatch() {
   try {
-    // Step 1: Fetch the NAV search page to discover the ZIP file URL
     const pageRes = await axios.get('https://www.npscra.proteantech.in/nav-search.php', {
       timeout: 8000,
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
     const html = pageRes.data;
 
-    // Step 2: Extract the ZIP URL from the page (pattern: NAV_File_DDMMYYYY.zip)
     const zipMatch = html.match(/href=["']([^"']*NAV_File_\d+\.zip)["']/i);
     if (!zipMatch) {
-      console.warn('[NPS Protean] Could not find ZIP URL on page - layout may have changed');
       return null;
     }
 
@@ -124,28 +168,22 @@ export async function fetchProteanNpsNavBatch() {
       zipUrl = `https://www.npscra.proteantech.in/${zipUrl.replace(/^\//, '')}`;
     }
 
-    console.log(`[NPS Protean] Downloading ZIP: ${zipUrl}`);
-
-    // Step 3: Download the ZIP as an ArrayBuffer
     const zipRes = await axios.get(zipUrl, {
       timeout: 15000,
       responseType: 'arraybuffer',
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
 
-    // Step 4: Extract the .out file from the ZIP in memory
     const zip = new AdmZip(Buffer.from(zipRes.data));
     const entries = zip.getEntries();
     const outEntry = entries.find(e => e.entryName.endsWith('.out'));
     if (!outEntry) {
-      console.warn('[NPS Protean] No .out file found inside ZIP');
       return null;
     }
 
     const csvContent = outEntry.getData().toString('utf8');
     const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
 
-    // Step 5: Parse CSV lines: Date,PFMCode,PFMName,SchemeCode,SchemeName,NAV
     const navMap = new Map();
     for (const line of lines) {
       const parts = line.split(',');
@@ -154,33 +192,29 @@ export async function fetchProteanNpsNavBatch() {
         const schemeCode = parts[3].trim();
         const nav = parseFloat(parts[5].trim());
         if (schemeCode && !isNaN(nav) && nav > 0) {
-          navMap.set(schemeCode, { nav, date: navDate });
+          navMap.set(schemeCode, { nav, date: navDate, quoteDate: formatCleanQuoteDate(navDate) });
         }
       }
     }
 
-    console.log(`[NPS Protean] Parsed ${navMap.size} scheme NAVs from official data`);
     return navMap;
   } catch (err) {
-    console.warn(`[NPS Protean] Scraper failed: ${err.message} - will fall back to npsnav.in`);
     return null;
   }
 }
 
-/**
- * Fallback: Fetch a single NPS NAV from the community npsnav.in API.
- */
 export async function fetchNpsNavFallback(schemeCode) {
   try {
-    const res = await axios.get(`https://npsnav.in/api/${schemeCode}`, { timeout: 5000 });
-    if (res.data) {
-      const nav = parseFloat(String(res.data).trim());
+    const res = await axios.get(`https://npsnav.in/api/historical/${schemeCode}`, { timeout: 8000 });
+    if (res.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+      const latest = res.data.data[0];
+      const nav = parseFloat(latest.nav);
       if (!isNaN(nav) && nav > 0) {
-        return { nav, date: new Date().toISOString().split('T')[0] };
+        return { nav, date: latest.date, quoteDate: formatCleanQuoteDate(latest.date) };
       }
     }
   } catch (err) {
-    // npsnav.in fallback also failed
+    // fallback
   }
   return null;
 }
@@ -189,10 +223,6 @@ export async function fetchNpsNavFallback(schemeCode) {
 const npsHistoricalCache = new Map();
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-/**
- * Fetch historical daily NAV series for an NPS scheme code.
- * Returns a Map of 'YYYY-MM-DD' -> nav (number) or null if fetch fails.
- */
 export async function fetchNpsHistoricalNav(schemeCode) {
   const cached = npsHistoricalCache.get(schemeCode);
   if (cached && (Date.now() - cached.cachedAt < CACHE_TTL_MS)) {
@@ -225,7 +255,7 @@ export const liveQuoteCache = new Map();
 
 /**
  * High-speed parallel live quote engine for active portfolio holdings.
- * Refreshes US stocks & active Indian stocks in < 1-2 seconds.
+ * Refreshes US stocks, active Indian stocks, MFs & NPS schemes in parallel.
  */
 export async function refreshActiveHoldingsPrices() {
   const holdings = await db.select('holdings');
@@ -277,7 +307,8 @@ export async function refreshActiveHoldingsPrices() {
             high: bestQ.high,
             low: bestQ.low,
             fiftyTwoWeekHigh: bestQ.fiftyTwoWeekHigh,
-            fiftyTwoWeekLow: bestQ.fiftyTwoWeekLow
+            fiftyTwoWeekLow: bestQ.fiftyTwoWeekLow,
+            quoteDate: bestQ.quoteDate
           });
         }
 
@@ -294,6 +325,60 @@ export async function refreshActiveHoldingsPrices() {
     }));
   }
 
+  // 3. Refresh active Mutual Funds in parallel
+  const mfHoldings = activeHoldings.filter(h => h.category_id === 'mutual_funds');
+  await Promise.all(mfHoldings.map(async (h) => {
+    try {
+      const q = await fetchMutualFundNav(h.symbol);
+      if (q && q.nav > 0) {
+        liveQuoteCache.set(h.symbol, {
+          price: q.nav,
+          dayChange: q.dayChange,
+          dayChangePct: q.dayChangePct,
+          open: q.open,
+          high: q.high,
+          low: q.low,
+          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+          fiftyTwoWeekLow: q.fiftyTwoWeekLow,
+          quoteDate: q.quoteDate
+        });
+        if (q.nav !== Number(h.current_price)) {
+          await db.update('holdings', h.id, {
+            current_price: q.nav,
+            updated_at: new Date().toISOString()
+          });
+          updatedCount++;
+        }
+      }
+    } catch (e) {}
+  }));
+
+  // 4. Refresh active NPS schemes in parallel
+  const npsHoldings = activeHoldings.filter(h => h.category_id === 'nps');
+  if (npsHoldings.length > 0) {
+    const proteanMap = await fetchProteanNpsNavBatch();
+    await Promise.all(npsHoldings.map(async (h) => {
+      try {
+        let q = proteanMap?.get(h.symbol);
+        if (!q) q = await fetchNpsNavFallback(h.symbol);
+        if (q && q.nav > 0) {
+          const qDate = q.quoteDate || formatCleanQuoteDate(q.date);
+          liveQuoteCache.set(h.symbol, {
+            price: q.nav,
+            quoteDate: qDate
+          });
+          if (q.nav !== Number(h.current_price)) {
+            await db.update('holdings', h.id, {
+              current_price: q.nav,
+              updated_at: new Date().toISOString()
+            });
+            updatedCount++;
+          }
+        }
+      } catch (e) {}
+    }));
+  }
+
   return { updatedCount, fxRate, activeCount: activeHoldings.length };
 }
 
@@ -302,7 +387,6 @@ export async function refreshAllHoldingsPrices() {
   const fxRate = await fetchFxRate();
   let updatedCount = 0;
 
-  // Pre-fetch all NPS NAVs in a single batch from Protean (or null if scraper fails)
   const npsHoldings = holdings.filter(h => h.category_id === 'nps');
   let proteanNavMap = null;
   if (npsHoldings.length > 0) {
@@ -313,6 +397,7 @@ export async function refreshAllHoldingsPrices() {
     let newPrice = Number(h.current_price) || 0;
     let nseP = Number(h.nse_price) || 0;
     let bseP = Number(h.bse_price) || 0;
+    let qDate = null;
 
     if (h.category_id === 'in_stocks') {
       const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
@@ -321,11 +406,15 @@ export async function refreshAllHoldingsPrices() {
 
       if (nseQuote && nseQuote.price > 0) {
         nseP = nseQuote.price;
+        qDate = nseQuote.quoteDate;
         liveQuoteCache.set(h.symbol, nseQuote);
       }
       if (bseQuote && bseQuote.price > 0) {
         bseP = bseQuote.price;
-        if (!nseQuote) liveQuoteCache.set(h.symbol, bseQuote);
+        if (!nseQuote) {
+          qDate = bseQuote.quoteDate;
+          liveQuoteCache.set(h.symbol, bseQuote);
+        }
       }
 
       if (nseP > 0 || bseP > 0) {
@@ -335,12 +424,15 @@ export async function refreshAllHoldingsPrices() {
       const usQuote = await fetchStockQuote(h.symbol);
       if (usQuote && usQuote.price > 0) {
         newPrice = usQuote.price;
+        qDate = usQuote.quoteDate;
         liveQuoteCache.set(h.symbol, usQuote);
       }
     } else if (h.category_id === 'mutual_funds') {
       const mfNav = await fetchMutualFundNav(h.symbol);
       if (mfNav && mfNav.nav > 0) {
         newPrice = mfNav.nav;
+        qDate = mfNav.quoteDate;
+        liveQuoteCache.set(h.symbol, { price: mfNav.nav, quoteDate: qDate });
       }
     } else if (h.category_id === 'nps') {
       let npsNav = null;
@@ -351,6 +443,8 @@ export async function refreshAllHoldingsPrices() {
       }
       if (npsNav && npsNav.nav > 0) {
         newPrice = npsNav.nav;
+        qDate = npsNav.quoteDate || formatCleanQuoteDate(npsNav.date);
+        liveQuoteCache.set(h.symbol, { price: npsNav.nav, quoteDate: qDate });
       }
     }
 

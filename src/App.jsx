@@ -49,10 +49,10 @@ function AppInner() {
   useEffect(() => {
     fetchDashboardData();
 
-    // Real-time automatic background polling every 5 seconds
+    // Real-time automatic background polling every 2 seconds
     const pollInterval = setInterval(() => {
       fetchDashboardData(true);
-    }, 5000);
+    }, 2000);
 
     // Instant refresh when user switches back to this tab
     const handleFocus = () => {

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.1.6] - 2026-08-28
+
+### Added
+- **Universal Quote Date & Feed Timestamp Tracking**: Integrated exchange-timezone-aware timestamp formatting (`America/New_York` for US stocks, `Asia/Kolkata` for Indian stocks, AMFI official NAV publication dates for mutual funds, and Protean CRA published NAV dates for NPS schemes).
+- **As of Date Badges**: Prominently displayed clean `As of [Date]` timestamp badges in HoldingDetailModal headers and portfolio view page banners.
+- **Dynamic Fully Redeemed Metrics**: Added dedicated columns for Shares/Units Sold, Avg Buy Price/NAV, Avg Sell Price/NAV, Invested Cost Basis, Total Redeemed Proceeds, and Realized P&L in closed position tables.
+
+### Changed
+- **Modal Header Layout Consistency**: Re-architected `HoldingDetailModal` header so the Price Block, day change badge, and quote date remain strictly right-anchored in the same position across all asset modals, placing US Stock FX pills and currency toggles to the left.
+- **Position Status Navigation**: Removed redundant 'All Data' tab across Indian Stocks, US Stocks, Mutual Funds, and NPS views, streamlining views to 'Active Positions' and 'Fully Redeemed'.
+- **Closed Position Aesthetic Overhaul**: Fully redeemed positions now render at 100% opacity with full-color logos, crisp typography, and EXITED/REDEEMED status badges.
+- **Accelerated Live Quote Ticker**: Upgraded active holding price sync to a 3-second backend loop and 2-second frontend polling for near-instant tick updates during market hours.
+
+---
+
 ## [4.0.8] - 2026-08-27
 
 ### Added
