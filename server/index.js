@@ -377,18 +377,82 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
       }
     });
 
-    // 5. Finalize XIRR calculations
-    if (xirrFinalAssetsINR > 0) {
-      overallCashflows.push({ date: new Date().toISOString().split('T')[0], amount: xirrFinalAssetsINR });
-    }
-    const xirrPct = calculateXirr(overallCashflows);
-
+    // 5. Finalize Category Metrics & Precise Holding-Level Weighted XIRR
     const categoryMetrics = Object.values(categoryMetricsMap)
       .filter(c => c.investedINR > 0 || c.currentINR > 0 || c.realizedINR > 0)
       .map(c => {
-        if (c.currentINR > 0) {
-          c.cashflows.push({ date: new Date().toISOString().split('T')[0], amount: c.currentINR });
-        }
+        const catHoldings = holdings.filter(h => h.category_id === c.id);
+        const activeHoldings = catHoldings.filter(h => Number(h.quantity) > 0);
+        const closedHoldings = catHoldings.filter(h => Number(h.quantity) === 0);
+
+        // Calculate Active XIRR
+        let activeCost = 0, activeWeightedXirr = 0;
+        activeHoldings.forEach(h => {
+          const hTxs = txs.filter(t => t.holding_id === h.id);
+          const hDivs = dividends.filter(d => d.holding_id === h.id);
+          const flows = [];
+          if (hTxs.length > 0) {
+            hTxs.forEach(t => flows.push({ date: t.date, amount: (t.type === 'BUY' ? -1 : 1) * Number(t.total_amount || 0) * (h.currency === 'USD' ? getHistoricalFxRate(t.date) : 1.0) }));
+          } else {
+            let earliestDivDate = null;
+            hDivs.forEach(d => {
+              const dt = d.ex_date || d.payment_date;
+              if (dt && (!earliestDivDate || dt < earliestDivDate)) earliestDivDate = dt;
+            });
+            let buyDate = '2022-01-01';
+            if (earliestDivDate) {
+              const dObj = new Date(earliestDivDate);
+              dObj.setMonth(dObj.getMonth() - 1);
+              buyDate = dObj.toISOString().split('T')[0];
+            }
+            const rate = h.currency === 'USD' ? getHistoricalFxRate(buyDate) : 1.0;
+            const cost = Number(h.quantity) * Number(h.avg_buy_price) * rate;
+            flows.push({ date: buyDate, amount: -cost });
+          }
+          hDivs.forEach(d => flows.push({ date: d.ex_date || d.payment_date, amount: Number(d.amount_inr || 0) }));
+          const rate = h.currency === 'USD' ? fxRate : 1.0;
+          const liveQuote = liveQuoteCache.get(h.symbol);
+          const curPrice = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+          const curVal = Number(h.quantity) * curPrice * rate;
+          flows.push({ date: new Date().toISOString().split('T')[0], amount: curVal });
+
+          const xirr = calculateXirr(flows);
+          const cost = Number(h.quantity) * Number(h.avg_buy_price) * rate;
+          activeCost += cost;
+          activeWeightedXirr += (xirr * cost);
+        });
+        const activeXirrPct = activeCost > 0 ? Number((activeWeightedXirr / activeCost).toFixed(2)) : 0;
+
+        // Calculate Closed XIRR
+        let closedCost = 0, closedWeightedXirr = 0;
+        closedHoldings.forEach(h => {
+          const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
+          const avgBuy = Number(h.avg_buy_price) || 0;
+          const rate = h.currency === 'USD' ? getHistoricalFxRate(h.created_at || '2023-01-01') : 1.0;
+          const cost = soldQty > 0 ? (soldQty * avgBuy * rate) : ((Number(h.invested_amount) || 0) * rate);
+          const pnl = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? fxRate : 1.0);
+          const proceeds = cost + pnl;
+
+          const hTxs = txs.filter(t => t.holding_id === h.id);
+          const hDivs = dividends.filter(d => d.holding_id === h.id);
+          const flows = [];
+          if (hTxs.length > 0) {
+            hTxs.forEach(t => flows.push({ date: t.date, amount: (t.type === 'BUY' ? -1 : 1) * Number(t.total_amount || 0) * (h.currency === 'USD' ? getHistoricalFxRate(t.date) : 1.0) }));
+          } else {
+            flows.push({ date: '2023-01-01', amount: -cost });
+          }
+          hDivs.forEach(d => flows.push({ date: d.ex_date || d.payment_date, amount: Number(d.amount_inr || 0) }));
+          flows.push({ date: '2024-06-01', amount: proceeds });
+
+          const xirr = calculateXirr(flows);
+          closedCost += cost;
+          closedWeightedXirr += (xirr * cost);
+        });
+        const closedXirrPct = closedCost > 0 ? Number((closedWeightedXirr / closedCost).toFixed(2)) : 0;
+
+        const totalCategoryCost = activeCost + closedCost;
+        const combinedXirrPct = totalCategoryCost > 0 ? Number(((activeWeightedXirr + closedWeightedXirr) / totalCategoryCost).toFixed(2)) : activeXirrPct;
+
         return {
           id: c.id,
           name: c.name,
@@ -397,11 +461,21 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
           currentINR: Math.round(c.currentINR),
           realizedINR: Math.round(c.realizedINR),
           unrealizedINR: Math.round(c.unrealizedINR),
-          xirrPct: calculateXirr(c.cashflows),
+          activeXirrPct,
+          closedXirrPct,
+          xirrPct: combinedXirrPct,
           absoluteReturnPct: calculateAbsoluteReturn(c.investedINR, c.currentINR)
         };
       })
       .sort((a, b) => b.currentINR - a.currentINR);
+
+    // Overall Portfolio XIRR (weighted across active investments)
+    let totalPortfolioCost = 0, totalPortfolioWeightedXirr = 0;
+    categoryMetrics.forEach(c => {
+      totalPortfolioCost += c.investedINR;
+      totalPortfolioWeightedXirr += (c.activeXirrPct * c.investedINR);
+    });
+    const xirrPct = totalPortfolioCost > 0 ? Number((totalPortfolioWeightedXirr / totalPortfolioCost).toFixed(2)) : 0;
 
     // Latest Daily P&L
     const logs = await db.select('pnl_history');

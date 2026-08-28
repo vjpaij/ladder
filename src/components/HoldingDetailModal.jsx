@@ -673,16 +673,16 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
                           {/* Right side - 7 cols with key metrics */}
                           <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                            <MetricCard label="Invested" value={fmt(m.totalInvested)} accent="bg-blue-500" color={isLight ? "text-slate-800" : "text-slate-200"} />
-                            <MetricCard label="Redeemed" value={fmt(m.totalRedeemed)} accent="bg-indigo-500" color={isLight ? "text-slate-800" : "text-slate-200"} />
+                            <MetricCard label="Total Bought" value={fmt(m.totalInvested)} accent="bg-blue-500" color={isLight ? "text-slate-800" : "text-slate-200"} />
+                            <MetricCard label="Total Sold" value={fmt(m.totalRedeemed)} accent="bg-indigo-500" color={isLight ? "text-slate-800" : "text-slate-200"} />
                             <MetricCard
-                              label="Cost Basis"
+                              label="Current Cost"
                               value={(Number(holding.quantity) || 0) > 0 ? fmt(m.currentInvested) : '—'}
                               accent="bg-cyan-500"
                               color={isLight ? "text-slate-800" : "text-slate-300"}
                             />
                             <MetricCard
-                              label="Market Value"
+                              label="Current Value"
                               value={(Number(holding.quantity) || 0) > 0 ? fmt(m.currentValue) : '—'}
                               sub={isUSStock && (Number(holding.quantity) || 0) > 0
                                 ? (isDisplayUSD ? `≈ ${fmtINR((m.currentValue || 0) * fxRate)}` : `≈ ${fmtUSD(Number(m.currentValue || 0) / fxRate)}`)

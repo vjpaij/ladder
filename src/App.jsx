@@ -158,13 +158,13 @@ function AppInner() {
       case 'calendar':
         return <CalendarView key="calendar" />;
       case 'indian_stocks':
-        return <IndianStocksView key="indian_stocks" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('in_stocks'); setCurrentView('add_investment'); }} />;
+        return <IndianStocksView key="indian_stocks" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('in_stocks'); setCurrentView('add_investment'); }} />;
       case 'us_stocks':
-        return <UsStocksView key="us_stocks" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('us_stocks'); setCurrentView('add_investment'); }} />;
+        return <UsStocksView key="us_stocks" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('us_stocks'); setCurrentView('add_investment'); }} />;
       case 'mutual_funds':
-        return <MutualFundsView key="mutual_funds" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('mutual_funds'); setCurrentView('add_investment'); }} />;
+        return <MutualFundsView key="mutual_funds" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('mutual_funds'); setCurrentView('add_investment'); }} />;
       case 'nps':
-        return <NpsView key="nps" holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('nps'); setCurrentView('add_investment'); }} />;
+        return <NpsView key="nps" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onOpenAddModal={() => { setTargetPortfolio('nps'); setCurrentView('add_investment'); }} />;
       case 'bank':
         return <BankView key="bank" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('bank'); setCurrentView('add_investment'); }} />;
       case 'epf':

@@ -6,7 +6,7 @@ import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
 
-export default function IndianStocksView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
+export default function IndianStocksView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { formatMoney } = useThemeAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
@@ -76,6 +76,31 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
     return { totalCost, totalRedeemed, netPnl, netRoiPct };
   }, [statusFiltered, statusFilter]);
 
+  // Combined overall performance (Active + Redeemed + Dividends)
+  const combinedTotals = useMemo(() => {
+    const metrics = summary?.categoryMetrics?.find(c => c.id === 'in_stocks');
+    let totalCost = 0;
+    rawIndianStocks.forEach(h => {
+      // Active cost
+      totalCost += (h.investedValueINR || 0);
+      // Redeemed cost
+      const soldQty = Number(h.sell_qty) || (Number(h.quantity) === 0 ? Number(h.buy_qty) || 0 : 0);
+      if (soldQty > 0) {
+        const avgBuy = Number(h.avg_buy_price) || 0;
+        const txRate = h.txFxRate || 1; 
+        totalCost += (soldQty * avgBuy * txRate);
+      }
+    });
+
+    const pnl = metrics ? (metrics.realizedINR + metrics.unrealizedINR) : 0;
+    const absPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+    const xirr = metrics ? metrics.xirrPct : 0;
+    const activeXirr = metrics ? metrics.activeXirrPct : 0;
+    const closedXirr = metrics ? metrics.closedXirrPct : 0;
+    
+    return { cost: totalCost, pnl, absPct, xirr, activeXirr, closedXirr };
+  }, [rawIndianStocks, summary]);
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
@@ -101,7 +126,7 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
 
         {/* Banner */}
         <AnimatedItem>
-          <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+          <div className="glass-card p-4 sm:p-5 rounded-3xl border border-slate-800 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
@@ -122,45 +147,122 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
               </h2>
             </div>
 
-            <div className="flex items-center gap-5 flex-wrap sm:flex-nowrap">
-              <div className="flex items-stretch gap-4 bg-slate-900/60 px-4 py-2.5 rounded-2xl border border-slate-800/80">
-                <div className="text-right border-r border-slate-800 pr-4 flex flex-col justify-between">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                    {statusFilter === 'closed' ? 'Cost Basis' : 'Invested'}
-                  </span>
-                  <div className="text-base font-black font-mono text-slate-200">
-                    {formatMoney(statusFilter === 'closed' ? (closedBannerTotals?.totalCost || 0) : totalInvested)}
+            {/* Right: Option C Split Box (Combined + Active/Redeem) & Add Stock Button */}
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap w-full xl:w-auto justify-between xl:justify-end">
+              
+              {/* Single Split Glass Card */}
+              <div className="flex items-stretch bg-slate-900/90 rounded-2xl border border-slate-800 shadow-md backdrop-blur-md overflow-hidden flex-1 sm:flex-initial">
+                
+                {/* Left Compartment: COMBINED */}
+                <div className="p-3 sm:px-4 sm:py-3 border-r border-slate-800/80 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                  {/* Centered Header */}
+                  <div className="flex justify-center mb-1.5">
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      COMBINED
+                    </span>
                   </div>
-                  <div className="text-[10px] font-bold font-mono text-slate-500">
-                    {statusFilter === 'closed' ? 'Invested Total' : 'Cost Basis'}
+                  
+                  {/* Cost and Return */}
+                  <div className="space-y-1 my-0.5 font-mono text-xs">
+                    <div className="text-slate-400 flex items-center justify-between gap-2">
+                      <span>Cost :</span>
+                      <strong className="text-slate-100 font-bold">{formatMoney(combinedTotals.cost, true)}</strong>
+                    </div>
+                    <div className={`flex items-center justify-between gap-2 font-bold ${combinedTotals.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span>Return :</span>
+                      <span>{combinedTotals.pnl >= 0 ? '+' : ''}{formatMoney(combinedTotals.pnl, true)}</span>
+                    </div>
+                  </div>
+
+                  {/* Abs & XIRR with independent profit/loss coloring */}
+                  <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                    <span className={combinedTotals.absPct >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      Abs: {combinedTotals.absPct >= 0 ? '+' : ''}{combinedTotals.absPct.toFixed(2)}%
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className={combinedTotals.xirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      XIRR: {combinedTotals.xirr >= 0 ? '+' : ''}{combinedTotals.xirr.toFixed(2)}%
+                    </span>
                   </div>
                 </div>
 
-                <div className="text-right flex flex-col justify-between">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                    {statusFilter === 'active' ? 'Active Value' : statusFilter === 'closed' ? 'Redeemed' : 'Total Value'}
-                  </span>
-                  <div className="text-base font-black font-mono text-white">
-                    {formatMoney(statusFilter === 'closed' ? (closedBannerTotals?.totalRedeemed || 0) : totalCurrent)}
-                  </div>
-                  <div className={`text-[10px] font-bold font-mono ${
-                    (statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain) >= 0
-                      ? 'text-emerald-400' : 'text-rose-400'
-                  }`}>
-                    {(statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain) >= 0 ? '+' : ''}
-                    {statusFilter === 'closed' ? (closedBannerTotals?.netRoiPct || 0) : roiPct}%
-                    {' '}
-                    ({(statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain) >= 0 ? '+' : ''}
-                    {formatMoney(statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain)})
-                  </div>
+                {/* Right Compartment: ACTIVE / REDEEM */}
+                <div className="p-3 sm:px-4 sm:py-3 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                  {statusFilter === 'active' ? (
+                    <>
+                      {/* Centered Header */}
+                      <div className="flex justify-center mb-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                          ACTIVE
+                        </span>
+                      </div>
+
+                      {/* Cost and Return */}
+                      <div className="space-y-1 my-0.5 font-mono text-xs">
+                        <div className="text-slate-400 flex items-center justify-between gap-2">
+                          <span>Cost :</span>
+                          <strong className="text-slate-100 font-bold">{formatMoney(totalInvested, true)}</strong>
+                        </div>
+                        <div className={`flex items-center justify-between gap-2 font-bold ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <span>Return :</span>
+                          <span>{totalGain >= 0 ? '+' : ''}{formatMoney(totalGain, true)}</span>
+                        </div>
+                      </div>
+
+                      {/* Abs & XIRR with independent profit/loss coloring */}
+                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                        <span className={totalGain >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          Abs: {totalGain >= 0 ? '+' : ''}{roiPct}%
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Centered Header */}
+                      <div className="flex justify-center mb-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          REDEEM
+                        </span>
+                      </div>
+
+                      {/* Cost and Return */}
+                      <div className="space-y-1 my-0.5 font-mono text-xs">
+                        <div className="text-slate-400 flex items-center justify-between gap-2">
+                          <span>Cost :</span>
+                          <strong className="text-slate-100 font-bold">{formatMoney(closedBannerTotals?.totalCost || 0, true)}</strong>
+                        </div>
+                        <div className={`flex items-center justify-between gap-2 font-bold ${(closedBannerTotals?.netPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <span>Return :</span>
+                          <span>{(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{formatMoney(closedBannerTotals?.netPnl || 0, true)}</span>
+                        </div>
+                      </div>
+
+                      {/* Abs & XIRR */}
+                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                        <span className={(closedBannerTotals?.netPnl || 0) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          Abs: {(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{closedBannerTotals?.netRoiPct || 0}%
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
+
               </div>
 
+              {/* Add Stock Button */}
               <motion.button
                 onClick={onOpenAddModal}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/20 cursor-pointer shrink-0"
+                className="flex items-center gap-1.5 px-4 py-3 bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-black rounded-2xl text-xs shadow-lg shadow-emerald-500/20 cursor-pointer shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
                 Add Stock
@@ -180,7 +282,7 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
               <div className="flex items-center bg-slate-900/90 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
                 <button
                   onClick={() => setStatusFilter('active')}
-                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                     statusFilter === 'active'
                       ? 'bg-emerald-500 text-obsidian-950 shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -191,7 +293,7 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                 </button>
                 <button
                   onClick={() => setStatusFilter('closed')}
-                  className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                     statusFilter === 'closed'
                       ? 'bg-emerald-500 text-obsidian-950 shadow-md font-black'
                       : 'text-slate-400 hover:text-white'
@@ -363,16 +465,21 @@ export default function IndianStocksView({ holdings, onDeleteHolding, onEditHold
                                 <span className="text-slate-600 font-medium">0</span>
                               )}
                             </td>
-                            <td className="py-3 px-3 text-right font-mono text-slate-400">{formatMoney(h.avg_buy_price, true)}</td>
-                            <td className="py-3 px-3 text-right font-mono">
+                            <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap">{formatMoney(h.avg_buy_price, true)}</td>
+                            <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                               <div className="text-[12px] font-bold text-emerald-400 font-black">
                                 {formatMoney(h.current_price, true)}
                               </div>
                               {h.day_change !== undefined && (
-                                <div className={`text-[9.5px] font-bold flex items-center justify-end gap-0.5 ${
+                                <div className={`text-[9.5px] font-bold inline-flex items-center justify-end gap-1 whitespace-nowrap ${
                                   (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                                 }`}>
-                                  <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}{formatMoney(Math.abs(h.day_change), true)}</span>
+                                  {(h.day_change || 0) >= 0 ? (
+                                    <ArrowUp className="w-2.5 h-2.5 stroke-[3] shrink-0" />
+                                  ) : (
+                                    <ArrowDown className="w-2.5 h-2.5 stroke-[3] shrink-0" />
+                                  )}
+                                  <span>{(h.day_change || 0) >= 0 ? '+' : '-'}{formatMoney(Math.abs(h.day_change), true)}</span>
                                   <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                                 </div>
                               )}

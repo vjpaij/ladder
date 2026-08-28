@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Globe, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { Globe, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, DollarSign } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
 
-export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
-  const { currency, formatMoney, formatRawUSD, fxRate } = useThemeAuth();
+export default function UsStocksView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
+  const { currency, toggleCurrency, formatMoney, formatRawUSD, fxRate } = useThemeAuth();
   const isUSD = currency === 'USD';
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'closed'
@@ -61,6 +61,8 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
   const totalInvestedINR = useMemo(() => statusFiltered.reduce((sum, h) => sum + (Number(h.investedValueINR) || 0), 0), [statusFiltered]);
   const totalConvertedINR = totalUSD * fxRate;
   const totalGainINR = totalConvertedINR - totalInvestedINR;
+  const totalGainUSD = totalUSD - totalInvestedUSD;
+  const roiPct = totalInvestedUSD > 0 ? ((totalGainUSD / totalInvestedUSD) * 100).toFixed(2) : '0.00';
 
   // Closed positions banner totals
   const closedBannerTotals = useMemo(() => {
@@ -103,6 +105,44 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
     };
   }, [statusFiltered, statusFilter, fxRate]);
 
+  // Combined overall performance (Active + Redeemed + Dividends)
+  const combinedTotals = useMemo(() => {
+    const metrics = summary?.categoryMetrics?.find(c => c.id === 'us_stocks');
+    let totalCostUSD = 0;
+    let totalCostINR = 0;
+    
+    rawUsStocks.forEach(h => {
+      // Active cost
+      const activeQty = Number(h.quantity) || 0;
+      const avgBuyUSD = Number(h.avg_buy_price) || 0;
+      const txRate = h.txFxRate || 82.5;
+      
+      const activeInvestedUSD = activeQty * avgBuyUSD;
+      const activeInvestedINR = Number(h.investedValueINR) || (activeInvestedUSD * txRate);
+      
+      totalCostUSD += activeInvestedUSD;
+      totalCostINR += activeInvestedINR;
+      
+      // Redeemed cost
+      const soldQty = Number(h.sell_qty) || (Number(h.quantity) === 0 ? Number(h.buy_qty) || 0 : 0);
+      if (soldQty > 0) {
+        const closedInvestedUSD = soldQty * avgBuyUSD;
+        const closedInvestedINR = closedInvestedUSD * txRate;
+        totalCostUSD += closedInvestedUSD;
+        totalCostINR += closedInvestedINR;
+      }
+    });
+
+    const pnlINR = metrics ? (metrics.realizedINR + metrics.unrealizedINR) : 0;
+    const pnlUSD = pnlINR / (fxRate || 82.5);
+    const absPct = totalCostINR > 0 ? (pnlINR / totalCostINR) * 100 : 0;
+    const xirr = metrics ? metrics.xirrPct : 0;
+    const activeXirr = metrics ? metrics.activeXirrPct : 0;
+    const closedXirr = metrics ? metrics.closedXirrPct : 0;
+    
+    return { costUSD: totalCostUSD, costINR: totalCostINR, pnlUSD, pnlINR, absPct, xirr, activeXirr, closedXirr };
+  }, [rawUsStocks, summary, fxRate]);
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
@@ -126,131 +166,210 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
     <>
       <AnimatedPage className="space-y-5">
       
-      {/* Banner */}
-      <AnimatedItem>
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-                <motion.span 
-                  className="w-1.5 h-1.5 rounded-full bg-purple-400"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
-                NASDAQ / NYSE LIVE FEED
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </span>
-            </div>
-            <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
-              <Globe className="w-5 h-5 text-purple-400" />
-              US Equity
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-5 flex-wrap sm:flex-nowrap">
-            <div className="flex items-stretch gap-4 bg-slate-900/60 px-4 py-2.5 rounded-2xl border border-slate-800/80">
-              <div className="text-right border-r border-slate-800 pr-4 flex flex-col justify-between">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  {statusFilter === 'closed' ? 'Cost Basis' : 'Invested'}
+        {/* Banner */}
+        <AnimatedItem>
+          <div className="glass-card p-4 sm:p-5 rounded-3xl border border-slate-800 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                  <motion.span 
+                    className="w-1.5 h-1.5 rounded-full bg-purple-400"
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                  NASDAQ / NYSE LIVE FEED
                 </span>
-                <div className="text-base font-black font-mono text-slate-200">
-                  {statusFilter === 'closed' ? (
-                    isUSD ? `$${closedBannerTotals?.totalCostUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(closedBannerTotals?.totalCostINR || 0, true)
-                  ) : (
-                    isUSD ? `$${totalInvestedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalInvestedINR, true)
-                  )}
-                </div>
-                <div className="text-[10px] font-bold font-mono text-slate-500">
-                  {statusFilter === 'closed' ? 'Invested Total' : 'Cost Basis'}
-                </div>
-              </div>
-
-              <div className="text-right flex flex-col justify-between">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  {statusFilter === 'active' ? 'Active Value' : statusFilter === 'closed' ? 'Redeemed' : 'Total Value'}
+                <span className="text-[10px] font-mono text-slate-400">
+                  As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>
-                <div className="text-base font-black font-mono text-purple-400">
-                  {statusFilter === 'closed' ? (
-                    isUSD ? `$${closedBannerTotals?.totalRedeemedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(closedBannerTotals?.totalRedeemedINR || 0, true)
-                  ) : (
-                    isUSD ? `$${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalConvertedINR, true)
-                  )}
-                </div>
-                <div className={`text-[10px] font-bold font-mono ${
-                  (statusFilter === 'closed' ? (closedBannerTotals?.totalRealizedPnlUSD || 0) : totalGainINR) >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                }`}>
-                  {(statusFilter === 'closed' ? (closedBannerTotals?.totalRealizedPnlUSD || 0) : totalGainINR) >= 0 ? '+' : ''}
-                  {statusFilter === 'closed' ? closedBannerTotals?.roiPct : (totalInvestedINR > 0 ? ((totalGainINR / totalInvestedINR) * 100).toFixed(2) : 0)}%
-                  {' '}
-                  ({statusFilter === 'closed' ? (
-                    isUSD ? `${(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? '+' : '-'}$${Math.abs(closedBannerTotals?.totalRealizedPnlUSD || 0).toFixed(2)}` : formatMoney(closedBannerTotals?.totalRealizedPnlINR || 0, true)
-                  ) : (
-                    isUSD ? `${totalGainINR >= 0 ? '+' : '-'}$${Math.abs(totalUSD - totalInvestedUSD).toFixed(2)}` : formatMoney(totalGainINR, true)
-                  )})
-                </div>
               </div>
+              <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
+                <Globe className="w-5 h-5 text-purple-400" />
+                US Equity
+              </h2>
             </div>
 
-            <motion.button
-              onClick={onOpenAddModal}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black rounded-xl text-xs shadow-lg shadow-purple-500/20 cursor-pointer shrink-0"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              Add US Stock
-            </motion.button>
-          </div>
-        </div>
-      </AnimatedItem>
+            {/* Right: Option C Split Box (Combined + Active/Redeem) & Currency / Add US Stock */}
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap w-full xl:w-auto justify-between xl:justify-end">
+              
+              {/* Single Split Glass Card */}
+              <div className="flex items-stretch bg-slate-900/90 rounded-2xl border border-slate-800 shadow-md backdrop-blur-md overflow-hidden flex-1 sm:flex-initial">
+                
+                {/* Left Compartment: COMBINED */}
+                <div className="p-3 sm:px-4 sm:py-3 border-r border-slate-800/80 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                  {/* Centered Header */}
+                  <div className="flex justify-center mb-1.5">
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                      COMBINED
+                    </span>
+                  </div>
+                  
+                  {/* Cost and Return */}
+                  <div className="space-y-1 my-0.5 font-mono text-xs">
+                    <div className="text-slate-400 flex items-center justify-between gap-2">
+                      <span>Cost :</span>
+                      <strong className="text-slate-100 font-bold">{isUSD ? `$${combinedTotals.costUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(combinedTotals.costINR, true)}</strong>
+                    </div>
+                    <div className={`flex items-center justify-between gap-2 font-bold ${combinedTotals.pnlINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span>Return :</span>
+                      <span>{isUSD ? `${combinedTotals.pnlUSD >= 0 ? '+' : '-'}$${Math.abs(combinedTotals.pnlUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${combinedTotals.pnlINR >= 0 ? '+' : ''}${formatMoney(combinedTotals.pnlINR, true)}`}</span>
+                    </div>
+                  </div>
 
-      {/* Table Container */}
-      <AnimatedItem>
-        <div className="glass-card rounded-3xl p-5 border border-slate-800">
-          
-          {/* Controls Bar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-800/60">
+                  {/* Abs & XIRR with independent profit/loss coloring */}
+                  <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                    <span className={combinedTotals.absPct >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      Abs: {combinedTotals.absPct >= 0 ? '+' : ''}{combinedTotals.absPct.toFixed(2)}%
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className={combinedTotals.xirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      XIRR: {combinedTotals.xirr >= 0 ? '+' : ''}{combinedTotals.xirr.toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right Compartment: ACTIVE / REDEEM */}
+                <div className="p-3 sm:px-4 sm:py-3 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                  {statusFilter === 'active' ? (
+                    <>
+                      {/* Centered Header */}
+                      <div className="flex justify-center mb-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                          ACTIVE
+                        </span>
+                      </div>
+
+                      {/* Cost and Return */}
+                      <div className="space-y-1 my-0.5 font-mono text-xs">
+                        <div className="text-slate-400 flex items-center justify-between gap-2">
+                          <span>Cost :</span>
+                          <strong className="text-slate-100 font-bold">{isUSD ? `$${totalInvestedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalInvestedINR, true)}</strong>
+                        </div>
+                        <div className={`flex items-center justify-between gap-2 font-bold ${totalGainINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <span>Return :</span>
+                          <span>{isUSD ? `${totalGainINR >= 0 ? '+' : '-'}$${Math.abs(totalUSD - totalInvestedUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${totalGainINR >= 0 ? '+' : ''}${formatMoney(totalGainINR, true)}`}</span>
+                        </div>
+                      </div>
+
+                      {/* Abs & XIRR with independent profit/loss coloring */}
+                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                        <span className={totalGainINR >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          Abs: {totalGainINR >= 0 ? '+' : ''}{roiPct}%
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Centered Header */}
+                      <div className="flex justify-center mb-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          REDEEM
+                        </span>
+                      </div>
+
+                      {/* Cost and Return */}
+                      <div className="space-y-1 my-0.5 font-mono text-xs">
+                        <div className="text-slate-400 flex items-center justify-between gap-2">
+                          <span>Cost :</span>
+                          <strong className="text-slate-100 font-bold">{isUSD ? `$${(closedBannerTotals?.totalCostUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(closedBannerTotals?.totalCostINR || 0, true)}</strong>
+                        </div>
+                        <div className={`flex items-center justify-between gap-2 font-bold ${(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <span>Return :</span>
+                          <span>{isUSD ? `${(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? '+' : '-'}$${Math.abs(closedBannerTotals?.totalRealizedPnlUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${(closedBannerTotals?.totalRealizedPnlINR || 0) >= 0 ? '+' : ''}${formatMoney(closedBannerTotals?.totalRealizedPnlINR || 0, true)}`}</span>
+                        </div>
+                      </div>
+
+                      {/* Abs & XIRR */}
+                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                        <span className={(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          Abs: {(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? '+' : ''}{closedBannerTotals?.roiPct || 0}%
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Add US Stock Button (Aligned exactly like Indian Stocks, MFs, and NPS) */}
+              <motion.button
+                onClick={onOpenAddModal}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black rounded-2xl text-xs shadow-lg shadow-purple-500/20 cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                Add US Stock
+              </motion.button>
+            </div>
+          </div>
+        </AnimatedItem>
+
+        {/* Table Container */}
+        <AnimatedItem>
+          <div className="glass-card rounded-3xl p-5 border border-slate-800">
             
-            {/* Filter Tabs */}
-            <div className="flex items-center bg-slate-900/90 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
-              <button
-                onClick={() => setStatusFilter('active')}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                  statusFilter === 'active' 
-                    ? 'bg-purple-600 text-white shadow-md font-black' 
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Active Positions ({activeCount})
-              </button>
-              <button
-                onClick={() => setStatusFilter('closed')}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                  statusFilter === 'closed' 
-                    ? 'bg-purple-600 text-white shadow-md font-black' 
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Fully Redeemed ({closedCount})
-              </button>
-            </div>
+            {/* Controls Bar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-800/60">
 
-            {/* Search Box */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search US stocks..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
-              />
+              {/* Filter Tabs */}
+              <div className="flex items-center bg-slate-900/90 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
+                <button
+                  onClick={() => setStatusFilter('active')}
+                  className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    statusFilter === 'active' 
+                      ? 'bg-purple-600 text-white shadow-md font-black' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Active Positions ({activeCount})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('closed')}
+                  className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    statusFilter === 'closed' 
+                      ? 'bg-purple-600 text-white shadow-md font-black' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Fully Redeemed ({closedCount})
+                </button>
+              </div>
+
+              {/* Right: Currency Switcher & Search Box */}
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  onClick={toggleCurrency}
+                  className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-purple-500/50 rounded-xl text-xs font-mono font-bold text-purple-300 hover:text-white transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
+                  title="Toggle Currency"
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-purple-400" />
+                  <span>{isUSD ? 'USD ($)' : 'INR (₹)'}</span>
+                </button>
+
+                {/* Search Box */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search US stocks..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
 
           {/* Table */}
           <div className="overflow-x-auto">
@@ -414,16 +533,21 @@ export default function UsStocksView({ holdings, onDeleteHolding, onEditHolding,
                               <span className="text-slate-600 font-medium">0</span>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-400">${Number(h.avg_buy_price).toFixed(2)}</td>
-                          <td className="py-3 px-3 text-right font-mono">
-                            <div className="text-[12px] font-bold text-purple-400 font-black">
+                          <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap">${Number(h.avg_buy_price).toFixed(2)}</td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            <div className="text-[12px] font-black text-purple-400">
                               ${Number(h.current_price).toFixed(2)}
                             </div>
                             {h.day_change !== undefined && (
-                              <div className={`text-[9.5px] font-bold flex items-center justify-end gap-0.5 ${
+                              <div className={`text-[9.5px] font-bold inline-flex items-center justify-end gap-1 whitespace-nowrap ${
                                 (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                               }`}>
-                                <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}${Math.abs(h.day_change).toFixed(2)}</span>
+                                {(h.day_change || 0) >= 0 ? (
+                                  <ArrowUp className="w-2.5 h-2.5 stroke-[3] shrink-0" />
+                                ) : (
+                                  <ArrowDown className="w-2.5 h-2.5 stroke-[3] shrink-0" />
+                                )}
+                                <span>{(h.day_change || 0) >= 0 ? '+' : '-'}${Math.abs(h.day_change).toFixed(2)}</span>
                                 <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                               </div>
                             )}

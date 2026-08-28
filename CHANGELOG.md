@@ -5,6 +5,77 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.1] - 2026-08-29
+
+### Changed
+- **Holding Detail Modal KPI Terminology Clarification**: Replaced confusing and overlapping labels in `HoldingDetailModal.jsx` (`Invested`, `Redeemed`, `Cost Basis`, `Market Value`) with clear, unambiguous, intuitive terms: `Total Bought` (all historical purchase capital), `Total Sold` (all historical sale proceeds), `Current Cost` (cost basis of active shares currently held), and `Current Value` (live market valuation of active shares). Verified clean build with 0 errors.
+
+---
+
+## [4.4.0] - 2026-08-29
+
+### Changed
+- **Price Column Typography & Alignment Precision Upgrade**: Fixed baseline misalignment and text wrapping in Price column where day changes and Unicode arrow symbols broke onto multiple lines. Replaced unicode arrow characters with crisp Lucide `ArrowUp` and `ArrowDown` icons with `stroke-[3]` and `shrink-0` locked to the exact text baseline. Applied `whitespace-nowrap inline-flex` across `UsStocksView.jsx` and `IndianStocksView.jsx` ensuring numbers, currency symbols, and percentages maintain horizontal alignment.
+
+---
+
+## [4.3.9] - 2026-08-29
+
+### Fixed
+- **Uniform Header Action Alignment & Global roiPct Resolution**: Fixed `roiPct is not defined` crash in `NpsView.jsx` and `MutualFundsView.jsx` by explicitly declaring `roiPct`.
+- **UI Alignment**: Relocated `USD ($) / INR (₹)` currency toggle in `UsStocksView.jsx` from the top header to the table controls bar beside the search input. Aligned top-right split returns card and primary action button (`+ Add Asset`) across all four asset categories (`IndianStocksView`, `UsStocksView`, `MutualFundsView`, `NpsView`) with pixel-perfect consistency. Validated clean build with 0 warnings/errors.
+
+---
+
+## [4.3.8] - 2026-08-29
+
+### Fixed
+- **Robust Multi-Tier XIRR Engine & US Equity Currency Toggle Fix**: Fixed missing `DollarSign` import and wired `toggleCurrency` in `UsStocksView.jsx`. Diagnosed and eliminated mathematical artifacts in XIRR caused by pooling unsynchronized closed holding cashflows lacking exit SELL transactions. Upgraded `/api/summary` in `server/index.js` to compute holding-level weighted XIRRs, exposing distinct `activeXirrPct`, `closedXirrPct`, and `xirrPct` (Combined). Connected individual category views to display true Active XIRR (+18.93% for Indian Stocks) and Combined XIRR (+7.52%), eliminating negative rate anomalies on profitable portfolios.
+
+---
+
+## [4.3.7] - 2026-08-28
+
+### Changed
+- **Split Card Centered Headers & Color-Coded Precision Polish**: Updated both `COMBINED` and `ACTIVE` / `REDEEM` headers to be centered badges atop each compartment across `IndianStocksView`, `UsStocksView`, `MutualFundsView`, and `NpsView`. Standardized fields to clean stacked rows: `Cost : <value>` and `Return : <value>` with exact 2-decimal precision. Added independent color-coding (emerald for profit, rose for loss) to both `Abs: +X.XX%` and `XIRR: +X.XX%` on both sides.
+
+---
+
+## [4.3.6] - 2026-08-28
+
+### Added
+- **Dual-Compartment Split Header Card**: Implemented a single, high-contrast dual-compartment glass card positioned directly to the left of the primary action button across all 4 category views (`IndianStocksView`, `UsStocksView`, `MutualFundsView`, and `NpsView`). Left compartment displays `COMBINED` badge, complete cost basis formatted to 2 decimal places, net return, `Abs: +X.XX%`, and `XIRR: +X.XX%`. Right compartment dynamically switches between `ACTIVE` and `REDEEM` when tabs are toggled.
+
+---
+
+## [4.3.5] - 2026-08-28
+
+### Changed
+- **Unified High-End Micro-Bar Styling**: Polished the integrated control & performance bar in `IndianStocksView`, `UsStocksView`, `MutualFundsView`, and `NpsView` into a single cohesive glassmorphic container. Removed redundant duplicate contextual text, unifying segmented tabs (`Active` vs `Redeemed`), an elegant vertical divider, high-contrast financial stats, and integrated search box in one harmonious horizontal bar.
+
+---
+
+## [4.3.4] - 2026-08-28
+
+### Changed
+- **Ultra-Minimal Integrated Micro-Bar Architecture**: Redesigned the header across `IndianStocksView`, `UsStocksView`, `MutualFundsView`, and `NpsView` to achieve maximum vertical breathing room. Implemented an ultra-sleek integrated micro-bar in the table controls row that seamlessly anchors the segmented tab switch side-by-side with a high-density, clutter-free financial stat strip.
+
+---
+
+## [4.3.3] - 2026-08-28
+
+### Changed
+- **Clean & Aligned Category Banner & Tab Bar Refactor**: Streamlined the top banner across all 4 category views (`IndianStocksView`, `UsStocksView`, `MutualFundsView`, `NpsView`) to feature a single, high-contrast Combined Performance card. Relocated contextual Active / Redeemed metrics into the filter tab bar row as an inline summary badge.
+
+---
+
+## [4.3.2] - 2026-08-28
+
+### Added
+- **Combined Portfolio Performance Banners**: Restored and upgraded the display of Combined Cost Basis and Overall P&L in the portfolio category views (`IndianStocksView`, `UsStocksView`, `MutualFundsView`, `NpsView`). The new design introduces a distinct glowing combination block that aggregates Active Cost Basis, Redeemed Cost Basis, Unrealized P&L, and Realized P&L without cluttering the UI.
+
+---
+
 ## [4.3.1] - 2026-08-28
 
 ### Added

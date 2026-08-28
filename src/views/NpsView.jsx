@@ -6,7 +6,7 @@ import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
 
-export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
+export default function NpsView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { formatMoney } = useThemeAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'closed'
@@ -57,6 +57,7 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
   const totalCurrent = useMemo(() => statusFiltered.reduce((sum, h) => sum + (h.currentValueINR || 0), 0), [statusFiltered]);
   const totalInvested = useMemo(() => statusFiltered.reduce((sum, h) => sum + (h.investedValueINR || 0), 0), [statusFiltered]);
   const totalGain = totalCurrent - totalInvested;
+  const roiPct = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : '0.00';
 
   // Closed positions banner totals
   const closedBannerTotals = useMemo(() => {
@@ -78,6 +79,30 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
     const netRoiPct = totalCost > 0 ? ((netPnl / totalCost) * 100).toFixed(2) : 0;
     return { totalCost, totalRedeemed, netPnl, netRoiPct };
   }, [statusFiltered, statusFilter]);
+
+  // Combined overall performance (Active + Redeemed + Dividends)
+  const combinedTotals = useMemo(() => {
+    const metrics = summary?.categoryMetrics?.find(c => c.id === 'nps');
+    let totalCost = 0;
+    rawNps.forEach(h => {
+      // Active cost
+      totalCost += (h.investedValueINR || 0);
+      // Redeemed cost
+      const soldQty = Number(h.sell_qty) || (Number(h.quantity) === 0 ? Number(h.buy_qty) || 0 : 0);
+      if (soldQty > 0) {
+        const avgBuy = Number(h.avg_buy_price) || 0;
+        totalCost += (soldQty * avgBuy);
+      }
+    });
+
+    const pnl = metrics ? (metrics.realizedINR + metrics.unrealizedINR) : 0;
+    const absPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+    const xirr = metrics ? metrics.xirrPct : 0;
+    const activeXirr = metrics ? metrics.activeXirrPct : 0;
+    const closedXirr = metrics ? metrics.closedXirrPct : 0;
+    
+    return { cost: totalCost, pnl, absPct, xirr, activeXirr, closedXirr };
+  }, [rawNps, summary]);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -102,115 +127,193 @@ export default function NpsView({ holdings, onDeleteHolding, onEditHolding, onOp
     <>
       <AnimatedPage className="space-y-5">
       
-      {/* Banner */}
-      <AnimatedItem>
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-cyan-500/12 text-cyan-400 border border-cyan-500/25">
-                NPS LIVE NAV
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                PRAN #110134589120 • As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </span>
-            </div>
-            <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
-              <ShieldCheck className="w-5 h-5 text-cyan-400" />
-              National Pension System
-            </h2>
-          </div>
-
-          <div className="flex items-center gap-5 flex-wrap sm:flex-nowrap">
-            <div className="flex items-stretch gap-4 bg-slate-900/60 px-4 py-2.5 rounded-2xl border border-slate-800/80">
-              <div className="text-right border-r border-slate-800 pr-4 flex flex-col justify-between">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  {statusFilter === 'closed' ? 'Cost Basis' : 'Invested'}
+        {/* Banner */}
+        <AnimatedItem>
+          <div className="glass-card p-4 sm:p-5 rounded-3xl border border-slate-800 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-cyan-500/12 text-cyan-400 border border-cyan-500/25">
+                  NPS LIVE NAV
                 </span>
-                <div className="text-base font-black font-mono text-slate-200">
-                  {formatMoney(statusFilter === 'closed' ? (closedBannerTotals?.totalCost || 0) : totalInvested)}
-                </div>
-                <div className="text-[10px] font-bold font-mono text-slate-500">
-                  {statusFilter === 'closed' ? 'Invested Total' : 'Cost Basis'}
-                </div>
-              </div>
-
-              <div className="text-right flex flex-col justify-between">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">
-                  {statusFilter === 'active' ? 'Active Value' : statusFilter === 'closed' ? 'Redeemed' : 'Total Value'}
+                <span className="text-[10px] font-mono text-slate-400">
+                  PRAN #110134589120 • As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>
-                <div className="text-base font-black font-mono text-cyan-400">
-                  {formatMoney(statusFilter === 'closed' ? (closedBannerTotals?.totalRedeemed || 0) : totalCurrent)}
-                </div>
-                <div className={`text-[10px] font-bold font-mono ${
-                  (statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain) >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                }`}>
-                  {(statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain) >= 0 ? '+' : ''}
-                  {statusFilter === 'closed' ? closedBannerTotals?.netRoiPct : (totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : 0)}%
-                  {' '}
-                  ({(statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain) >= 0 ? '+' : ''}
-                  {formatMoney(statusFilter === 'closed' ? (closedBannerTotals?.netPnl || 0) : totalGain)})
-                </div>
               </div>
+              <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
+                <ShieldCheck className="w-5 h-5 text-cyan-400" />
+                National Pension System
+              </h2>
             </div>
 
-            <motion.button
-              onClick={onOpenAddModal}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-obsidian-950 font-black rounded-xl text-xs shadow-lg shadow-cyan-500/20 cursor-pointer shrink-0"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              Add NPS Scheme
-            </motion.button>
-          </div>
-        </div>
-      </AnimatedItem>
+            {/* Right: Option C Split Box (Combined + Active/Redeem) & Add NPS Scheme Button */}
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap w-full xl:w-auto justify-between xl:justify-end">
+              
+              {/* Single Split Glass Card */}
+              <div className="flex items-stretch bg-slate-900/90 rounded-2xl border border-slate-800 shadow-md backdrop-blur-md overflow-hidden flex-1 sm:flex-initial">
+                
+                {/* Left Compartment: COMBINED */}
+                <div className="p-3 sm:px-4 sm:py-3 border-r border-slate-800/80 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                  {/* Centered Header */}
+                  <div className="flex justify-center mb-1.5">
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                      COMBINED
+                    </span>
+                  </div>
+                  
+                  {/* Cost and Return */}
+                  <div className="space-y-1 my-0.5 font-mono text-xs">
+                    <div className="text-slate-400 flex items-center justify-between gap-2">
+                      <span>Cost :</span>
+                      <strong className="text-slate-100 font-bold">{formatMoney(combinedTotals.cost, true)}</strong>
+                    </div>
+                    <div className={`flex items-center justify-between gap-2 font-bold ${combinedTotals.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span>Return :</span>
+                      <span>{combinedTotals.pnl >= 0 ? '+' : ''}{formatMoney(combinedTotals.pnl, true)}</span>
+                    </div>
+                  </div>
 
-      {/* Table Container */}
-      <AnimatedItem>
-        <div className="glass-card rounded-3xl p-5 border border-slate-800">
-          
-          {/* Controls Bar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-800/60">
+                  {/* Abs & XIRR with independent profit/loss coloring */}
+                  <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                    <span className={combinedTotals.absPct >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      Abs: {combinedTotals.absPct >= 0 ? '+' : ''}{combinedTotals.absPct.toFixed(2)}%
+                    </span>
+                    <span className="text-slate-600">•</span>
+                    <span className={combinedTotals.xirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      XIRR: {combinedTotals.xirr >= 0 ? '+' : ''}{combinedTotals.xirr.toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right Compartment: ACTIVE / REDEEM */}
+                <div className="p-3 sm:px-4 sm:py-3 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                  {statusFilter === 'active' ? (
+                    <>
+                      {/* Centered Header */}
+                      <div className="flex justify-center mb-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                          ACTIVE
+                        </span>
+                      </div>
+
+                      {/* Cost and Return */}
+                      <div className="space-y-1 my-0.5 font-mono text-xs">
+                        <div className="text-slate-400 flex items-center justify-between gap-2">
+                          <span>Cost :</span>
+                          <strong className="text-slate-100 font-bold">{formatMoney(totalInvested, true)}</strong>
+                        </div>
+                        <div className={`flex items-center justify-between gap-2 font-bold ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <span>Return :</span>
+                          <span>{totalGain >= 0 ? '+' : ''}{formatMoney(totalGain, true)}</span>
+                        </div>
+                      </div>
+
+                      {/* Abs & XIRR with independent profit/loss coloring */}
+                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                        <span className={totalGain >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          Abs: {totalGain >= 0 ? '+' : ''}{roiPct}%
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Centered Header */}
+                      <div className="flex justify-center mb-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          REDEEM
+                        </span>
+                      </div>
+
+                      {/* Cost and Return */}
+                      <div className="space-y-1 my-0.5 font-mono text-xs">
+                        <div className="text-slate-400 flex items-center justify-between gap-2">
+                          <span>Cost :</span>
+                          <strong className="text-slate-100 font-bold">{formatMoney(closedBannerTotals?.totalCost || 0, true)}</strong>
+                        </div>
+                        <div className={`flex items-center justify-between gap-2 font-bold ${(closedBannerTotals?.netPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <span>Return :</span>
+                          <span>{(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{formatMoney(closedBannerTotals?.netPnl || 0, true)}</span>
+                        </div>
+                      </div>
+
+                      {/* Abs & XIRR */}
+                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
+                        <span className={(closedBannerTotals?.netPnl || 0) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          Abs: {(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{closedBannerTotals?.netRoiPct || 0}%
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Add NPS Scheme Button */}
+              <motion.button
+                onClick={onOpenAddModal}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 px-4 py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-obsidian-950 font-black rounded-2xl text-xs shadow-lg shadow-cyan-500/20 cursor-pointer shrink-0"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                Add NPS Scheme
+              </motion.button>
+            </div>
+          </div>
+        </AnimatedItem>
+
+        {/* Table Container */}
+        <AnimatedItem>
+          <div className="glass-card rounded-3xl p-5 border border-slate-800">
             
-            {/* Filter Tabs */}
-            <div className="flex items-center bg-slate-900/90 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
-              <button
-                onClick={() => setStatusFilter('active')}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                  statusFilter === 'active' 
-                    ? 'bg-cyan-500 text-obsidian-950 shadow-md font-black' 
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Active Schemes ({activeCount})
-              </button>
-              <button
-                onClick={() => setStatusFilter('closed')}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                  statusFilter === 'closed' 
-                    ? 'bg-cyan-500 text-obsidian-950 shadow-md font-black' 
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Fully Redeemed ({closedCount})
-              </button>
-            </div>
+            {/* Controls Bar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-800/60">
 
-            {/* Search Box */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search NPS schemes..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
-              />
+              {/* Filter Tabs */}
+              <div className="flex items-center bg-slate-900/90 p-1 rounded-2xl border border-slate-800 text-xs font-bold">
+                <button
+                  onClick={() => setStatusFilter('active')}
+                  className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    statusFilter === 'active' 
+                      ? 'bg-cyan-500 text-obsidian-950 shadow-md font-black' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Active Positions ({activeCount})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('closed')}
+                  className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
+                    statusFilter === 'closed' 
+                      ? 'bg-cyan-500 text-obsidian-950 shadow-md font-black' 
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Fully Redeemed ({closedCount})
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search NPS schemes..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
             </div>
-          </div>
 
           {/* Table */}
           <div className="overflow-x-auto">
