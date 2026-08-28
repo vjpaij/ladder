@@ -204,6 +204,29 @@ ladder/
 | **v4.1.4** | 2026-08-28 | Fixed quote date resolution accuracy: (1) Added `formatCleanQuoteDate` parser in `priceEngine.js`; (2) Ensured Mutual Funds (AMFI) and NPS (Protean) return the exact published NAV date (e.g. 27 Aug 2026) rather than falling back to current system date; (3) Verified Axis Small Cap Fund returns 27 Aug 2026 while NSE stocks return 28 Aug 2026. | Antigravity AI |
 | **v4.1.5** | 2026-08-28 | Universal quote date validation across all asset portfolios: (1) Added `formatQuoteBadgeDate` standardizer in `dateFormatter.js`; (2) Verified that Indian Stocks, US Stocks, Mutual Funds, NPS schemes, and EOD assets accurately extract and display their true underlying exchange/feed quote dates (e.g. 27 Aug 2026 for AMFI MFs vs 28 Aug 2026 for NSE/BSE stocks). | Antigravity AI |
 | **v4.1.6** | 2026-08-28 | Fixed modal header alignment & exchange timezone accuracy: (1) Reordered `HoldingDetailModal.jsx` header so price, day change, and quote date are strictly anchored at the right before the close button across ALL portfolio categories; (2) Shifted US Stock FX badge and USD/INR toggle to the left of the price block; (3) Added exchange timezone awareness (`America/New_York` for US stocks) ensuring US quotes display true US trading session date (27 Aug 2026); (4) Fixed NPS fallback to extract official CRA published NAV date (27 Aug 2026). | Antigravity AI |
+| **v4.1.7** | 2026-08-28 | Search bar runtime bug fix & Mandatory Regression Testing Protocol: (1) Fixed unhandled ReferenceError in `TopNavbar.jsx` by adding missing `formatMoney` destructuring from `useThemeAuth()`; (2) Built `ErrorBoundary.jsx` and wrapped top navigation header and primary view renderer to prevent full-screen blanking on runtime exceptions; (3) Documented mandatory Regression Testing and QA Protocol in `LADDER.md`. | Antigravity AI |
+
+---
+
+## Mandatory Regression Testing & Quality Assurance Protocol
+
+To ensure existing functionality is never broken when new features, refactors, or bug fixes are introduced, all developers and AI agents MUST adhere to the following mandatory regression testing protocol:
+
+1. **Pre-Deployment Build Verification**:
+   - Run `npm run build` before finalizing any changes to ensure zero JSX, syntax, type, or bundling errors exist across all components.
+
+2. **Scope Impact & Component Dependency Analysis**:
+   - Before modifying any shared component, context provider (e.g. `ThemeAuthContext`), or API service, inspect all consuming files to ensure imported functions, props, and hooks are fully declared and preserved.
+
+3. **Core Workflow Regression Verification**:
+   - **Search & Autocomplete**: Verify typing in `TopNavbar.jsx` search input returns filtered asset/liability results without throwing runtime errors or blanking out the screen.
+   - **Navigation & Routing**: Test switching between all primary views (Overview, Calendar, Indian Equity, US Equity, Mutual Funds, NPS, Banks, EPF, Liabilities, Dividends, Reports, Database Studio, Excel Tools).
+   - **Detail Modal & Drill-down**: Click portfolio table rows across all asset classes to verify `HoldingDetailModal.jsx` opens cleanly with full metrics, charts, and transaction ledgers.
+   - **Theme & Currency Toggles**: Switch between currency (`INR` / `USD`) and themes (Obsidian, Midnight, Sunset, Clean Light, Warm Sand, Nordic Frost) to verify UI styling rendering.
+   - **Live Price Engine & Sync**: Ensure background sync (`/api/refresh-prices`) and tick updates run cleanly without console exceptions.
+
+4. **Fault Tolerance & Component Isolation**:
+   - Key layout containers must be wrapped in React `<ErrorBoundary>` blocks so that any localized runtime exception is caught gracefully with a "Try Again" recovery UI, preventing full application blanking.
 
 ---
 

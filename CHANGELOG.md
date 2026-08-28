@@ -5,6 +5,15 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.7] - 2026-08-28
+
+### Added
+- **React Error Boundary Component**: Created `ErrorBoundary.jsx` and wrapped top navigation header and primary view rendering containers to catch component rendering exceptions gracefully with a recovery prompt instead of blanking out the full viewport.
+- **Mandatory Regression Testing & QA Protocol**: Documented a comprehensive testing protocol in `LADDER.md` enforcing pre-deployment build verification (`npm run build`), component scope analysis, and core workflow checks (search, navigation, modals, theme/currency, live price sync).
+
+### Fixed
+- **Search Bar Autocomplete Runtime Bug**: Resolved unhandled `ReferenceError: formatMoney is not defined` in `TopNavbar.jsx` autocomplete dropdown by destructuring `formatMoney` from `useThemeAuth()`.
+
 ---
 
 ## [4.1.6] - 2026-08-28

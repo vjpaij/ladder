@@ -43,7 +43,8 @@ export default function TopNavbar({
     user, 
     updateUserAvatar,
     updateUserAuth,
-    logout 
+    logout,
+    formatMoney
   } = useThemeAuth();
 
   const [query, setQuery] = useState('');

@@ -22,6 +22,7 @@ import ExcelToolsView from './views/ExcelToolsView';
 import HoldingDetailModal from './components/HoldingDetailModal';
 import EditProfileModal from './components/EditProfileModal';
 import AddInvestmentView from './views/AddInvestmentView';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   return (
@@ -200,24 +201,28 @@ function AppInner() {
       {/* Right Main Content Column */}
       <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] gap-3 md:gap-4">
         
-        <TopNavbar
-          currentView={currentView}
-          onRefreshPrices={handleRefreshPrices}
-          isRefreshing={isRefreshing}
-          lastUpdated={lastUpdated}
-          holdings={holdings}
-          liabilities={liabilities}
-          onSelectHolding={(h) => setSelectedHoldingModal(h)}
-          onNavigate={(view) => { setTargetPortfolio(null); setCurrentView(view); }}
-          onOpenProfile={() => setIsEditProfileOpen(true)}
-          summary={summary}
-        />
+        <ErrorBoundary>
+          <TopNavbar
+            currentView={currentView}
+            onRefreshPrices={handleRefreshPrices}
+            isRefreshing={isRefreshing}
+            lastUpdated={lastUpdated}
+            holdings={holdings}
+            liabilities={liabilities}
+            onSelectHolding={(h) => setSelectedHoldingModal(h)}
+            onNavigate={(view) => { setTargetPortfolio(null); setCurrentView(view); }}
+            onOpenProfile={() => setIsEditProfileOpen(true)}
+            summary={summary}
+          />
+        </ErrorBoundary>
 
         <main className="flex-1 glass-card border border-slate-800 rounded-3xl overflow-y-auto w-full relative">
           <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-            <AnimatePresence mode="wait">
-              {renderView()}
-            </AnimatePresence>
+            <ErrorBoundary>
+              <AnimatePresence mode="wait">
+                {renderView()}
+              </AnimatePresence>
+            </ErrorBoundary>
           </div>
         </main>
 
