@@ -6,6 +6,8 @@ Ladder is a modern, stylish, high-performance personal finance and investment da
 
 ## Features
 
+- **Corporate Actions & Split/Bonus Engine**: Full support for Stock Splits (`SPLIT`) and Bonus Issues (`BONUS`) with automatic retroactive open-lot scaling, split-adjusted cost basis tracking, and dedicated visual ledger badges.
+- **Multi-Layer Validation & Over-Sell Guardrails**: Comprehensive datatype and integrity validation across data ingestion, backend REST APIs, and UI entry forms preventing invalid inputs, over-selling active shares, and providing real-time projected position previews.
 - **Multi-Asset Portfolio Tracking**: Indian Equity (NSE/BSE), US Equity (NASDAQ/NYSE), Mutual Funds (AMFI NAVs), Fixed Income (Bank, FD, NPS, EPF).
 - **Liability & Debt Hub**: Track outstanding loan principals, credit card balances, interest rates, and monthly EMIs.
 - **Real-Time Price Engine**: Live price auto-sync for Indian equity (comparative max pricing between NSE & BSE), US equity, and AMFI mutual funds.

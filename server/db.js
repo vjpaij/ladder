@@ -48,12 +48,12 @@ export const db = {
 
   update: async (tableName, id, updates) => {
     const sTable = getSupabaseTableName(tableName);
-    const { data, error } = await supabase.from(sTable).update(updates).eq('id', id).select().single();
+    const { data, error } = await supabase.from(sTable).update(updates).eq('id', id).select();
     if (error) {
       console.error(`[DB Update Error - ${sTable}]:`, error.message);
       throw new Error(error.message);
     }
-    return data;
+    return data?.[0] || null;
   },
 
   delete: async (tableName, id) => {

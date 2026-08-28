@@ -213,8 +213,10 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
       // Active holdings only for assets and invested
       if ((Number(h.quantity) || 0) <= 0) return;
 
+      const liveQuote = liveQuoteCache.get(h.symbol);
+      const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
       const liveRate = h.currency === 'USD' ? fxRate : 1.0;
-      const currentVal = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * liveRate;
+      const currentVal = (Number(h.quantity) || 0) * currentPriceNum * liveRate;
       totalAssetsINR += currentVal;
 
       if (h.currency === 'USD') {
@@ -426,17 +428,17 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     }));
 
     res.json({
-      totalAssetsINR: Math.round(totalAssetsINR),
-      totalLiabilitiesINR: Math.round(totalLiabilitiesINR),
-      netWorthINR: Math.round(netWorthINR),
-      totalInvestedINR: Math.round(totalInvestedINR),
+      totalAssetsINR: Number(totalAssetsINR.toFixed(2)),
+      totalLiabilitiesINR: Number(totalLiabilitiesINR.toFixed(2)),
+      netWorthINR: Number(netWorthINR.toFixed(2)),
+      totalInvestedINR: Number(totalInvestedINR.toFixed(2)),
       totalInvestedUSD: Number(totalInvestedUSD.toFixed(2)),
-      totalGainINR: Math.round(totalGainINR),
-      totalRealizedPnlINR: Math.round(totalRealizedPnlINR),
+      totalGainINR: Number(totalGainINR.toFixed(2)),
+      totalRealizedPnlINR: Number(totalRealizedPnlINR.toFixed(2)),
       totalRealizedPnlUSD: Number(totalRealizedPnlUSD.toFixed(2)),
       absoluteReturnPct,
       xirrPct,
-      dayPnlINR: Math.round(dayPnlINR),
+      dayPnlINR: Number(dayPnlINR.toFixed(2)),
       dayPnlPct,
       fxRate,
       assetAllocation,
@@ -445,6 +447,15 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('[API Error - /api/summary]:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/fx-rate', async (req, res) => {
+  try {
+    const liveRate = await fetchFxRate();
+    res.json({ rate: liveRate, timestamp: Date.now() });
+  } catch (err) {
+    res.json({ rate: 87.25, timestamp: Date.now() });
   }
 });
 
@@ -526,6 +537,7 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
       
       return {
         ...h,
+        current_price: currentPriceNum,
         sector: meta.sector || h.sector || 'Unknown',
         market_cap: meta.capitalisation || h.market_cap || 'Unknown',
         category_name: catMap[h.category_id] ? catMap[h.category_id].name : h.category_id,
@@ -622,6 +634,7 @@ app.delete('/api/holdings/:id', authenticateToken, async (req, res) => {
 app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) => {
   try {
     const { holdingId } = req.params;
+    const today = new Date().toISOString().split('T')[0];
     const fxRate = await fetchFxRate();
 
     // Fetch holding
@@ -723,7 +736,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             balance: val
           });
         }
-        // Ensure last record is included
+        // Ensure last record and today are included
         const lastLog = validLogs[validLogs.length - 1];
         if (timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label !== lastLog.date) {
           const lastVal = Number(lastLog[eodKey].toFixed(2));
@@ -732,6 +745,14 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             invested: lastVal,
             value: lastVal,
             balance: lastVal
+          });
+        }
+        if (timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label < today) {
+          timelineINR.push({
+            label: today,
+            invested: currentVal,
+            value: currentVal,
+            balance: currentVal
           });
         }
 
@@ -809,7 +830,8 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
 
     const isUSD = holding.currency === 'USD';
     const isUSStock = holding.currency === 'USD';
-    const liveRate = isUSStock ? fxRate : 1.0;
+    const currentFx = await fetchFxRate();
+    const liveRate = isUSStock ? currentFx : 1.0;
 
     // Fetch transactions specifically for this holding (prevents Supabase 1000 row limit truncation)
     const { data: txsData, error: txErr } = await supabase
@@ -863,6 +885,32 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       } else if (tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
         buyLotsUSD.push({ qty, price, rem: qty });
         buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, rem: qty });
+      } else if (tx.type === 'SPLIT') {
+        let ratio = 1;
+        const match = (tx.notes || '').match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+        if (match) {
+          const o = parseFloat(match[1]);
+          const n = parseFloat(match[2]);
+          if (o > 0 && n > 0) ratio = n / o;
+        } else if (tx.notes && tx.notes.includes('Multiplier')) {
+          const m = tx.notes.match(/Multiplier\s+(\d+(?:\.\d+)?)x/i);
+          if (m) ratio = parseFloat(m[1]);
+        } else if (Number(tx.quantity) > 0) {
+          const curLots = buyLotsINR.reduce((s, l) => s + l.rem, 0);
+          if (curLots > 0) ratio = (curLots + Number(tx.quantity)) / curLots;
+        }
+        if (ratio > 0 && ratio !== 1) {
+          for (const lot of buyLotsUSD) {
+            lot.rem *= ratio;
+            lot.qty *= ratio;
+            lot.price /= ratio;
+          }
+          for (const lot of buyLotsINR) {
+            lot.rem *= ratio;
+            lot.qty *= ratio;
+            lot.priceUSD /= ratio;
+          }
+        }
       } else if (tx.type === 'SELL') {
         totalSellChargesUSD += chargesUSD;
         totalSellChargesINR += chargesINR;
@@ -893,8 +941,9 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       }
     }
 
+    const liveQuote = liveQuoteCache.get(holding.symbol);
     const currentQty = Number(holding.quantity) || 0;
-    const currentPriceUSD = Number(holding.current_price) || 0;
+    const currentPriceUSD = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(holding.current_price) || 0);
     const avgBuyPriceUSD = Number(holding.avg_buy_price) || 0;
 
     const currentValueUSD = currentQty * currentPriceUSD;
@@ -918,8 +967,6 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
 
     realizedPnlUSD += totalDividendsUSD;
     realizedPnlINR += totalDividendsINR;
-
-    const today = new Date().toISOString().split('T')[0];
 
     // USD Cashflows & XIRR
     const cashflowsUSD = txs
@@ -1103,22 +1150,24 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             });
           }
 
-          if (tx.type === 'BUY' || tx.type === 'BONUS') {
+          if (tx.type === 'BUY') {
             runningQ += qty;
             const txChargesUSD = Number(tx.charges) || 0;
             const txChargesINR = txChargesUSD * txRate;
-            if (tx.type === 'BUY') {
-                runningInvUSD += amtUSD + txChargesUSD;
-                runningInvINR += amtINR + txChargesINR;
-            }
-            if (tx.type === 'BUY' && qty > 0) {
-                lastKnownPriceUSD = price;
-                lastKnownPriceINR = price * txRate;
+            runningInvUSD += amtUSD + txChargesUSD;
+            runningInvINR += amtINR + txChargesINR;
+            if (qty > 0) {
+              lastKnownPriceUSD = price;
+              lastKnownPriceINR = price * txRate;
             }
           } else if (tx.type === 'SELL') {
+            const sellCostUSD = runningQ > 0 ? (qty * (runningInvUSD / runningQ)) : 0;
+            const sellCostINR = runningQ > 0 ? (qty * (runningInvINR / runningQ)) : 0;
             runningQ = Math.max(0, runningQ - qty);
-            runningInvUSD = Math.max(0, runningInvUSD - qty * (avgBuyPriceUSD || price));
-            runningInvINR = Math.max(0, runningInvINR - qty * (avgBuyPriceUSD || price) * txRate);
+            runningInvUSD = Math.max(0, runningInvUSD - sellCostUSD);
+            runningInvINR = Math.max(0, runningInvINR - sellCostINR);
+          } else if (tx.type === 'SPLIT' || tx.type === 'BONUS') {
+            // Corporate action event marker
           }
           if (runningQ <= 1e-6) {
             runningQ = 0;
@@ -1143,7 +1192,10 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         }
 
         // Determine price for this day
-        if (histPrices[dStr] !== undefined) {
+        if (dStr === today && currentPriceUSD > 0) {
+          lastKnownPriceUSD = currentPriceUSD;
+          lastKnownPriceINR = isUSStock ? currentPriceUSD * liveRate : currentPriceUSD;
+        } else if (histPrices[dStr] !== undefined) {
           lastKnownPriceUSD = isUSStock ? histPrices[dStr] : histPrices[dStr] / getHistoricalFxRate(dStr);
           lastKnownPriceINR = isUSStock ? histPrices[dStr] * getHistoricalFxRate(dStr) : histPrices[dStr];
         }
@@ -1172,21 +1224,24 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       
     // Extract market quote data for stocks, MFs, NPS
     const activeTimelineData = isUSStock ? timelineUSD : timelineINR;
-    let quotePrice = Number(holding.current_price) || 0;
-    let prevClose = quotePrice;
-    let dayHigh = quotePrice;
-    let dayLow = quotePrice;
-    let openPrice = quotePrice;
-    let fiftyTwoWeekHigh = Number(holding.fifty_two_week_high) || quotePrice * 1.2;
-    let fiftyTwoWeekLow = Number(holding.fifty_two_week_low) || quotePrice * 0.8;
+    let quotePrice = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(holding.current_price) || 0);
+    let prevClose = (liveQuote && liveQuote.previousClose) ? Number(liveQuote.previousClose) : quotePrice;
+    let dayHigh = (liveQuote && liveQuote.high) ? Number(liveQuote.high) : quotePrice;
+    let dayLow = (liveQuote && liveQuote.low) ? Number(liveQuote.low) : quotePrice;
+    let openPrice = (liveQuote && liveQuote.open) ? Number(liveQuote.open) : quotePrice;
+    let fiftyTwoWeekHigh = (liveQuote && liveQuote.fiftyTwoWeekHigh) ? Number(liveQuote.fiftyTwoWeekHigh) : (Number(holding.fifty_two_week_high) || quotePrice * 1.2);
+    let fiftyTwoWeekLow = (liveQuote && liveQuote.fiftyTwoWeekLow) ? Number(liveQuote.fiftyTwoWeekLow) : (Number(holding.fifty_two_week_low) || quotePrice * 0.8);
+    let quoteDateStr = liveQuote?.quoteDate || null;
 
     const cleanSym = (holding.symbol || '').replace(/\.(NS|BO)$/i, '');
     const hist = historicalPricesCache[holding.symbol] || historicalPricesCache[cleanSym] || historicalPricesCache[`${cleanSym}.NS`] || {};
     const histDates = Object.keys(hist).sort();
-    if (histDates.length >= 2) {
-      prevClose = Number(hist[histDates[histDates.length - 2]]) || quotePrice;
-    } else if (histDates.length === 1) {
-      prevClose = Number(hist[histDates[0]]) || quotePrice;
+    if (!liveQuote || !liveQuote.previousClose) {
+      if (histDates.length >= 2) {
+        prevClose = Number(hist[histDates[histDates.length - 2]]) || quotePrice;
+      } else if (histDates.length === 1) {
+        prevClose = Number(hist[histDates[0]]) || quotePrice;
+      }
     }
 
     if (activeTimelineData && activeTimelineData.length > 0) {
@@ -1198,9 +1253,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       }
     }
 
-    let quoteDateStr = null;
-
-    if (holding.category_id === 'in_stocks' || holding.category_id === 'us_stocks') {
+    if ((!liveQuote || !liveQuote.price) && (holding.category_id === 'in_stocks' || holding.category_id === 'us_stocks')) {
       const sym = holding.category_id === 'in_stocks' ? `${cleanSym}.NS` : holding.symbol;
       try {
         const liveQ = await fetchStockQuote(sym);
@@ -1853,20 +1906,34 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
     if (['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(portfolio)) {
       const { symbol, name, quantity, price, amount, date, type, charges, fxRateOverride, schemeCode } = data;
 
-      if (!symbol || !name) return res.status(400).json({ error: 'Symbol and Name are required' });
+      if (!symbol || !symbol.trim()) return res.status(400).json({ error: 'Symbol/Identifier Code is required and cannot be empty.' });
+      if (!name || !name.trim()) return res.status(400).json({ error: 'Asset Name is required and cannot be empty.' });
 
       const txType = (type || 'BUY').toUpperCase();
       const txDate = date || new Date().toISOString().split('T')[0];
       
-      // Validation
-      if (['BUY', 'SELL', 'REDEEM'].includes(txType)) {
-        if (Number(quantity) <= 0 && Number(amount) <= 0) return res.status(400).json({ error: 'Quantity or Amount must be greater than zero' });
-        if (Number(price) <= 0) return res.status(400).json({ error: 'Price/NAV must be greater than zero' });
+      // Date format validation
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(txDate)) {
+        return res.status(400).json({ error: `Invalid date format '${txDate}'. Must be YYYY-MM-DD.` });
       }
 
-      let txQty = Math.abs(Number(quantity) || 0);
-      let txPrice = Math.abs(Number(price) || 0);
-      let txCharges = Math.abs(Number(charges) || 0);
+      // Numeric validations
+      const rawQty = Number(quantity);
+      const rawPrice = Number(price);
+      const rawCharges = Number(charges) || 0;
+
+      if (['BUY', 'SELL', 'REDEEM'].includes(txType)) {
+        if ((isNaN(rawQty) || rawQty <= 0) && (isNaN(Number(amount)) || Number(amount) <= 0)) {
+          return res.status(400).json({ error: `Invalid quantity '${quantity}'. Must be a positive number greater than zero.` });
+        }
+        if (isNaN(rawPrice) || rawPrice <= 0) {
+          return res.status(400).json({ error: `Invalid price/NAV '${price}'. Must be a positive number greater than zero.` });
+        }
+      }
+
+      let txQty = Math.abs(rawQty || 0);
+      let txPrice = Math.abs(rawPrice || 0);
+      let txCharges = Math.abs(rawCharges || 0);
       let txAmount = txQty * txPrice;
       
       if (txType === 'BUY') {
@@ -1892,16 +1959,30 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       const currency = isUS ? 'USD' : 'INR';
       const txFxRate = isUS ? (Number(fxRateOverride) || fxRate) : null;
 
-      const symbolKey = (portfolio === 'mutual_funds' && schemeCode) ? schemeCode : symbol.toUpperCase();
+      const symbolKey = (portfolio === 'mutual_funds' && schemeCode) ? schemeCode : symbol.trim().toUpperCase();
 
       // Find or create holding
       let holdingId;
       const existingHoldings = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
 
+      // OVER-SELL VALIDATION: For SELL / REDEEM, ensure user actually holds enough active shares
+      if (txType === 'SELL' || txType === 'REDEEM') {
+        if (existingHoldings.length === 0 || (Number(existingHoldings[0].quantity) || 0) <= 0) {
+          return res.status(400).json({
+            error: `Cannot sell ${symbolKey}: you do not have any active shares of this investment in your portfolio.`
+          });
+        }
+        const currentOpenShares = Number(existingHoldings[0].quantity) || 0;
+        if (txQty > currentOpenShares + 0.0001) {
+          return res.status(400).json({
+            error: `Cannot sell ${txQty} shares of ${symbolKey}: only ${currentOpenShares.toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares are currently held in your portfolio.`
+          });
+        }
+      }
+
       if (existingHoldings.length > 0) {
         holdingId = existingHoldings[0].id;
       } else {
-        // Create new holding shell - trigger will compute qty/avg_price
         const exchange = portfolio === 'in_stocks' ? 'NSE' :
                          portfolio === 'us_stocks' ? 'NASDAQ' :
                          portfolio === 'mutual_funds' ? 'AMFI' : 'NPS';
@@ -1909,7 +1990,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
         const newHolding = await db.insert('holdings', {
           category_id: portfolio,
           symbol: symbolKey,
-          name: name,
+          name: name.trim(),
           exchange: exchange,
           quantity: 0,
           avg_buy_price: 0,
@@ -1923,10 +2004,14 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       // Handle DIVIDEND - insert into dividends table
       if (txType === 'DIVIDEND') {
         const divAmount = Number(data.dividendAmount) || txAmount;
+        if (isNaN(divAmount) || divAmount <= 0) {
+          return res.status(400).json({ error: 'Dividend amount must be a positive number.' });
+        }
+
         await db.insert('dividends', {
           holding_id: holdingId,
           symbol: symbolKey,
-          name: name,
+          name: name.trim(),
           amount_original: isUS ? divAmount : divAmount,
           currency: currency,
           fx_rate: txFxRate || 1.0,
@@ -1937,44 +2022,93 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
         return res.json({ success: true, holdingId, action: 'dividend_recorded' });
       }
 
-      // Handle SPLIT - update all open positions quantity
+      // Handle SPLIT - update all open active positions
       if (txType === 'SPLIT') {
         const oldQty = Number(data.splitOldQty) || 1;
         const newQtyRatio = Number(data.splitNewQty) || 1;
-        if (oldQty <= 0 || newQtyRatio <= 0) return res.status(400).json({ error: 'Split quantities must be greater than zero' });
-        const splitRatio = newQtyRatio / oldQty;
-
-        // Update the holding directly
-        const holding = existingHoldings[0];
-        if (holding) {
-          const newQty = (Number(holding.quantity) || 0) * splitRatio;
-          const newAvg = (Number(holding.avg_buy_price) || 0) / splitRatio;
-          const newBuyQty = (Number(holding.buy_qty) || 0) * splitRatio;
-
-          await db.update('holdings', holdingId, {
-            quantity: newQty,
-            buy_qty: newBuyQty,
-            avg_buy_price: newAvg,
-            updated_at: new Date().toISOString()
-          });
-
-          // Record the split as a transaction for audit trail
-          await db.insert('transactions', {
-            holding_id: holdingId,
-            type: 'SPLIT',
-            quantity: newQty - (Number(holding.quantity) || 0),
-            price: 0,
-            total_amount: 0,
-            charges: 0,
-            currency: currency,
-            date: txDate,
-            symbol: symbolKey,
-            name: name,
-            notes: `Stock split ${oldQty}:${newQtyRatio} - Qty ${Number(holding.quantity)} -> ${newQty}, Price ${Number(holding.avg_buy_price).toFixed(2)} -> ${newAvg.toFixed(2)}`
-          });
+        if (isNaN(oldQty) || oldQty <= 0 || isNaN(newQtyRatio) || newQtyRatio <= 0) {
+          return res.status(400).json({ error: 'Split Old Ratio and New Ratio must be valid numbers greater than zero.' });
         }
 
+        if (existingHoldings.length === 0 || (Number(existingHoldings[0].quantity) || 0) <= 0) {
+          return res.status(400).json({ error: `Cannot perform stock split on ${symbolKey}: no active shares found in portfolio.` });
+        }
+
+        const splitRatio = newQtyRatio / oldQty;
+        const holding = existingHoldings[0];
+        const preSplitQty = Number(holding.quantity) || 0;
+        const preSplitAvg = Number(holding.avg_buy_price) || 0;
+
+        const newQty = preSplitQty * splitRatio;
+        const newAvg = preSplitAvg / splitRatio;
+        const newBuyQty = (Number(holding.buy_qty) || preSplitQty) * splitRatio;
+        const addedShares = newQty - preSplitQty;
+
+        await db.update('holdings', holdingId, {
+          quantity: parseFloat(newQty.toFixed(4)),
+          buy_qty: parseFloat(newBuyQty.toFixed(4)),
+          avg_buy_price: parseFloat(newAvg.toFixed(4)),
+          updated_at: new Date().toISOString()
+        });
+
+        // Record the split as a transaction for audit trail and charting
+        await db.insert('transactions', {
+          holding_id: holdingId,
+          type: 'SPLIT',
+          quantity: parseFloat(addedShares.toFixed(4)),
+          price: 0,
+          total_amount: 0,
+          charges: 0,
+          currency: currency,
+          date: txDate,
+          symbol: symbolKey,
+          name: name.trim(),
+          notes: `Stock split ${oldQty}:${newQtyRatio} — holding scaled from ${preSplitQty} to ${newQty} shares, avg cost adjusted from ₹${preSplitAvg.toFixed(2)} to ₹${newAvg.toFixed(2)}`
+        });
+
         return res.json({ success: true, holdingId, action: 'split_applied' });
+      }
+
+      // Handle BONUS - add bonus shares at ₹0 cost and dilute avg price of open active holding
+      if (txType === 'BONUS') {
+        if (isNaN(txQty) || txQty <= 0) {
+          return res.status(400).json({ error: 'Bonus quantity must be a positive number greater than zero.' });
+        }
+
+        if (existingHoldings.length === 0 || (Number(existingHoldings[0].quantity) || 0) <= 0) {
+          return res.status(400).json({ error: `Cannot credit bonus shares for ${symbolKey}: no active shares found in portfolio.` });
+        }
+
+        const holding = existingHoldings[0];
+        const preBonusQty = Number(holding.quantity) || 0;
+        const preBonusAvg = Number(holding.avg_buy_price) || 0;
+
+        const newQty = preBonusQty + txQty;
+        const newAvg = (preBonusQty * preBonusAvg) / newQty;
+        const newBuyQty = (Number(holding.buy_qty) || preBonusQty) + txQty;
+
+        await db.update('holdings', holdingId, {
+          quantity: parseFloat(newQty.toFixed(4)),
+          buy_qty: parseFloat(newBuyQty.toFixed(4)),
+          avg_buy_price: parseFloat(newAvg.toFixed(4)),
+          updated_at: new Date().toISOString()
+        });
+
+        await db.insert('transactions', {
+          holding_id: holdingId,
+          type: 'BONUS',
+          quantity: txQty,
+          price: 0,
+          total_amount: 0,
+          charges: txCharges,
+          currency: currency,
+          date: txDate,
+          symbol: symbolKey,
+          name: name.trim(),
+          notes: `Bonus issue (+${txQty} shares credited at ₹0 cost, avg cost diluted from ₹${preBonusAvg.toFixed(2)} to ₹${newAvg.toFixed(2)})`
+        });
+
+        return res.json({ success: true, holdingId, action: 'bonus_applied' });
       }
 
       // Insert transaction - PL/pgSQL trigger will auto-update holdings
@@ -1988,7 +2122,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
         currency: currency,
         date: txDate,
         symbol: symbolKey,
-        name: name,
+        name: name.trim(),
         notes: data.notes || `${txType} ${txQty} units of ${name} @ ${currency === 'USD' ? '$' : '₹'}${txPrice}`
       };
 
@@ -2139,24 +2273,18 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`[Ladder Server] Running on http://localhost:${PORT}`);
 
-  // Initial fast active price sync on startup
-  setTimeout(async () => {
-    try {
-      const res = await refreshActiveHoldingsPrices();
-      console.log(`[Live Price Engine] Initial live price sync completed (${res.updatedCount} updated, ${res.activeCount} active).`);
-    } catch (err) {
-      console.warn('[Live Price Engine] Initial sync warning:', err.message);
-    }
-  }, 1000);
-
-  // Real-time active price sync loop (every 3 seconds)
-  setInterval(async () => {
+  // Self-scheduling non-overlapping real-time active price & forex sync loop
+  const runLiveTicker = async () => {
     try {
       await refreshActiveHoldingsPrices();
     } catch (err) {
-      // background ticker
+      // background ticker resilience
     }
-  }, 3000);
+    setTimeout(runLiveTicker, 2000);
+  };
+
+  // Start ticker runner after initial boot delay
+  setTimeout(runLiveTicker, 1500);
 
   // Full comprehensive portfolio sync (every 10 minutes)
   setInterval(async () => {

@@ -5,6 +5,115 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2026-08-28
+
+### Changed
+- **Bonus Issue Warm Brown / Bronze Palette**: Replaced pink styling for Bonus Issues with Warm Saddle Brown / Bronze (`#b45309`) across scatter event dots, tooltip badges, and transaction ledger rows in `HoldingDetailModal.jsx`. This eliminates visual proximity with red SELL signals (`#f43f5e`), giving Bonus Issues an earthy, distinct visual identity.
+
+---
+
+## [4.2.9] - 2026-08-28
+
+### Changed
+- **Corporate Action Colors (Purple & Pink)**: Upgraded corporate action styling in `HoldingDetailModal.jsx` to Royal Purple (`#a855f7`) for Stock Splits and Vibrant Fuchsia Pink (`#ec4899`) for Bonus Issues across scatter event dots, tooltip badges, and transaction ledger rows. This creates complete visual distinction from the Sky Blue price line, Green BUY dots, Red SELL dots, and Amber Dividend dots in both Light and Dark themes.
+
+---
+
+## [4.2.8] - 2026-08-28
+
+### Changed
+- **Actual & Tracker Chart Palette**: Upgraded price curve lines to Electric Sky Blue (`#38bdf8` in Dark Mode, `#0284c7` in Light Mode) in `HoldingDetailModal.jsx`. This cleanly separates the continuous price line from emerald green BUY event dots (`#10b981`), rose red SELL dots (`#f43f5e`), and amber DIVIDEND dots (`#f59e0b`).
+
+---
+
+## [4.2.7] - 2026-08-28
+
+### Fixed
+- **Calendar Heatmap & Daily PnL Synchronization**: Re-executed `scripts/rebuild_portfolio_eod.mjs` across all 6,900 daily EOD records (2007-2026), incorporating split-adjusted and bonus-adjusted stock positions from Supabase into `data/portfolio_eod_logs.json`. The Calendar Heatmap (`CalendarView.jsx` and `/api/daily-pnl`) now displays smooth daily wealth and PnL trajectories on corporate action dates with zero artificial valuation spikes.
+
+---
+
+## [4.2.6] - 2026-08-28
+
+### Fixed
+- **Chart Tracker Extension to Real-Time Date**: Resolved the issue where chart timelines appeared flat/stopped after August 21 due to offline cached daily closing files. The dense timeline engine in `server/index.js` now dynamically anchors today's date (`2026-08-28`) directly to live ticking market quotes (`liveQuoteCache` / Yahoo Finance), restoring active chart curve tracking to the present moment.
+- **EOD Asset Timeline Extension**: Appended current live balance points to EOD asset timelines (Bank, EPF, Loans).
+
+---
+
+## [4.2.5] - 2026-08-28
+
+### Fixed
+- **Date Column Alignment**: Positioned the Date strictly in its natural first column matching the ledger table headers, while centering the corporate action badge and detail across all remaining columns.
+- **Removed Repetitive Corporate Action Text**: Eliminated duplicate wording so "Stock Split" and "Bonus" are not repeated (e.g. `[Stock Split] Ratio 1:10` and `[Bonus Issue] +100 Shares Credited`).
+
+---
+
+## [4.2.4] - 2026-08-28
+
+### Added
+- **Global Real-Time Forex Polling**: Added dedicated backend `/api/fx-rate` endpoint and integrated a 3-second live ticker loop in `ThemeAuthContext.jsx` so USD/INR exchange rate ticks dynamically in real-time across top navbar pills, US stock detail headers, and multi-currency conversions.
+- **Bonus Shares Count Display**: Corporate action event bars now show the explicit number of bonus shares received (e.g. `+100 Shares Received as Bonus`) instead of ratio notations.
+
+### Fixed
+- **Light Theme High-Contrast Corporate Action Bars**: Styled corporate action event bars with vibrant indigo and cyan cards, crisp high-contrast dark text in light mode, and centered alignment for both light and dark themes.
+- **Light Theme FX Pill Contrast**: Enhanced modal header FX pill and currency toggle buttons with high-contrast styling in light mode, eliminating the grayed-out look.
+
+---
+
+## [4.2.3] - 2026-08-28
+
+### Added
+- **Full-Width Corporate Action Separator Bars**: Replaced artificial `+shares` ledger rows with dedicated full-width corporate action event bars in `HoldingDetailModal.jsx` displaying date, type badge (`Stock Split` / `Bonus Issue`), and ratio without redundant text.
+- **Split & Bonus Adjusted Open Stock Positions**: Buy quantities and unit cost bases for open stocks are now stored and calculated in split-adjusted units from their acquisition date, preserving exact total invested amounts.
+
+### Fixed
+- **Chart Valuation Distortion for Corporate Actions**: Fixed tracker charts (such as WEBELSOLAR and GAIL) where pre-split quantities multiplied by split-adjusted historical prices caused artificial 10x drops or step-jumps. Market values and cost basis lines now track smoothly across corporate actions.
+
+---
+
+## [4.2.2] - 2026-08-28
+
+### Added
+- **Live Holding Detail Modal Polling**: Integrated a 2-second live polling interval in `HoldingDetailModal.jsx` and updated `/api/holding/:id/detail` to extract from `liveQuoteCache`, ensuring open detail modals stream live prices, day changes, and valuations continuously.
+
+### Fixed
+- **Exact Decimal Precision Restored**: Replaced `Math.round()` with floating-point 2-decimal numbers (`Number(val.toFixed(2))`) in `/api/summary` for all Net Worth metrics (Net Worth, Assets, Liabilities, Invested, Gain, Day P&L), resolving the issue where values were truncated to `.00`.
+
+---
+
+## [4.2.1] - 2026-08-28
+
+### Added
+- **Real-Time USD/INR Live Forex Feed**: Integrated live market ticking USD/INR Forex quotes (`INR=X`) into `priceEngine.js` `fetchFxRate()`, replacing static daily snapshot data.
+- **Top Navbar Real-Time Forex Badge**: Added an institutional live USD/INR exchange rate badge with a pulsing green indicator to `TopNavbar.jsx`.
+
+### Fixed
+- **On-Screen Live Ticker Stagnation**: Fixed a bug where `/api/holdings` was omitting `current_price: currentPriceNum` in returned holding objects, causing the browser UI to display stale database prices while on screen until a full refresh or page navigation occurred.
+- **Instantaneous Summary Recalculation**: Updated `/api/summary` to compute portfolio valuations and day P&L using in-memory `liveQuoteCache`, ensuring seamless live price ticking.
+- **Asynchronous Ticker Loop Stability**: Replaced fixed overlapping `setInterval` with a self-scheduling non-overlapping runner and optimized Indian stock batch fetching to complete in < 1.5 seconds.
+
+---
+
+## [4.2.0] - 2026-08-28
+
+### Added
+- **Corporate Action Support (Stock Splits & Bonus Issues)**:
+  - Added full Stock Split (`SPLIT`) and Bonus Issue (`BONUS`) computation and tracking across database ingestion (`load_all_indian_stocks.mjs`), FIFO lot valuation engine, and dense timeline chart models.
+  - Implemented open buy lot scaling: when a stock splits (e.g. 10:1 split in WEBELSOLAR), remaining shares in all open lots are multiplied by the split ratio while their unit cost bases are divided by the split ratio, preserving exact total invested capital.
+  - Enhanced `HoldingDetailModal.jsx` transaction ledger to render dedicated indigo `SPLIT` badges (`+X shares`, `—` for price/amount, and descriptive notes such as `Stock split 1:10 — holding scaled from 168 to 1,680 shares`) and cyan `BONUS` badges (`+X shares`, `₹0.00` price, and dilution notes).
+  - Added deterministic same-day transaction priority sorting (`BUY/BONUS` -> `SPLIT` -> `SELL` -> `SELL ALL` -> `DIVIDEND`) resolving same-day execution race conditions.
+
+- **Multi-Layer Validation & Over-Sell Guardrails**:
+  - Backend API (`/api/add-investment`): Added strict null checks, datatype assertions (non-negative numbers, valid dates), over-sell assertions preventing users from selling more shares than currently active in their portfolio, and active-holding assertions for splits and bonuses.
+  - Frontend (`AddInvestmentView.jsx` & `AddAssetModal.jsx`): Implemented live holding lookups with dynamic over-sell alert banners, automated submit button disabling when entering excessive sell quantities, and real-time interactive projection cards for stock splits and bonus issues.
+
+### Fixed
+- **WEBELSOLAR Corporate Action & P&L Miscalculation**: Resolved critical issue where WEBELSOLAR omitted a 10:1 stock split, falsely showing `sell_qty (2,115) > buy_qty (1,603)` and a bogus `-₹1.67 Lakh` realized loss. WEBELSOLAR is now correctly marked `ACTIVE` with `1,000` active shares, `₹74.03` average buy price, `-₹2,104.64` realized P&L, and `+₹3,906.61` unrealized gain.
+- **Double Selling Race Condition**: Eliminated false sell discrepancies across 28 Indian stocks caused by same-day sorting ambiguities, correctly restoring total active holdings count from 85 to 86.
+
+---
+
 ## [4.1.7] - 2026-08-28
 
 ### Added

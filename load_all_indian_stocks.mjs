@@ -1,4 +1,4 @@
-﻿import XLSX from "xlsx";
+import XLSX from "xlsx";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -65,10 +65,13 @@ async function run() {
 
     const rawTxRows = symRows.filter(r => r["Type"] !== "" && r["Transaction Date"] !== "");
 
+    const typeOrder = { "Buy": 1, "Dividend Reinvest": 1, "Split": 2, "Sell": 3, "Sell All": 4, "Dividend": 5 };
+
     rawTxRows.sort((a, b) => {
       const da = parseDate(a["Transaction Date"]) || "";
       const db = parseDate(b["Transaction Date"]) || "";
-      return da.localeCompare(db);
+      if (da !== db) return da.localeCompare(db);
+      return (typeOrder[a["Type"]] || 99) - (typeOrder[b["Type"]] || 99);
     });
 
     let currentQty = 0;
@@ -87,15 +90,13 @@ async function run() {
       const dateStr = parseDate(r["Transaction Date"]);
       if (!dateStr) continue;
 
-      // RULE 4: Ignore type Splits
-      if (rawType === "Split") continue;
-
       const price = parseFloat(r["Cost Per Share"]) || 0;
       const commission = parseFloat(r["Commission"]) || 0;
       totalCharges += commission;
 
       if (rawType === "Buy") {
         const qty = parseFloat(r["Shares Owned"]) || 0;
+        if (qty <= 0) continue;
         currentQty += qty;
         totalBuyQty += qty;
         totalBuyCost += qty * price;
@@ -111,26 +112,74 @@ async function run() {
           notes: null
         });
 
-      } else if (rawType === "Dividend Reinvest") {
-        // RULE 3: Dividend Reinvestment is addition of new quantities -> BONUS
+      } else if (rawType === "Dividend Reinvest" || rawType === "Bonus") {
         const qty = parseFloat(r["Shares Owned"]) || 0;
+        if (qty <= 0) continue;
+        const preQty = currentQty;
         currentQty += qty;
         totalBuyQty += qty;
-        totalBuyCost += qty * price;
-        buyLots.push({ qty, price });
+        const bonusMultiplier = preQty > 0 ? (currentQty / preQty) : 1;
+        
+        // Scale all preceding open buy lots and buy transactions
+        for (const lot of buyLots) {
+          lot.qty = lot.qty * bonusMultiplier;
+          lot.price = lot.price / bonusMultiplier;
+        }
+        for (const tx of processedTxs) {
+          if (tx.type === "BUY") {
+            tx.quantity = parseFloat((tx.quantity * bonusMultiplier).toFixed(4));
+            tx.price = parseFloat((tx.price / bonusMultiplier).toFixed(4));
+            tx.total_amount = parseFloat((tx.quantity * tx.price).toFixed(2));
+          }
+        }
 
+        const bonusRatioStr = preQty > 0 ? `1:${parseFloat((qty / preQty).toFixed(2))}` : `+${qty} shares`;
         processedTxs.push({
           type: "BONUS",
-          quantity: qty,
-          price: price,
-          total_amount: parseFloat((qty * price).toFixed(2)),
+          quantity: 0,
+          price: 0,
+          total_amount: 0,
           charges: parseFloat(commission.toFixed(2)),
           date: dateStr,
-          notes: "Dividend Reinvestment / Bonus"
+          notes: `+${qty} Shares Received as Bonus`
+        });
+
+      } else if (rawType === "Split") {
+        const newRatio = parseFloat(r["Shares Owned"]) || 1;
+        const oldRatio = parseFloat(r["Cost Per Share"]) || 1;
+        if (oldRatio <= 0 || newRatio <= 0) {
+          console.warn(`[Validation Warning] Invalid split ratio for ${symbol} on ${dateStr}: ${oldRatio}:${newRatio}`);
+          continue;
+        }
+        const splitMultiplier = newRatio / oldRatio;
+        const preSplitQty = currentQty;
+        currentQty = currentQty * splitMultiplier;
+        totalBuyQty = totalBuyQty * splitMultiplier;
+
+        // Scale all preceding open buy lots and buy transactions
+        for (const lot of buyLots) {
+          lot.qty = lot.qty * splitMultiplier;
+          lot.price = lot.price / splitMultiplier;
+        }
+        for (const tx of processedTxs) {
+          if (tx.type === "BUY") {
+            tx.quantity = parseFloat((tx.quantity * splitMultiplier).toFixed(4));
+            tx.price = parseFloat((tx.price / splitMultiplier).toFixed(4));
+            tx.total_amount = parseFloat((tx.quantity * tx.price).toFixed(2));
+          }
+        }
+
+        processedTxs.push({
+          type: "SPLIT",
+          quantity: 0,
+          price: 0,
+          total_amount: 0,
+          charges: 0,
+          date: dateStr,
+          notes: `Stock Split (${oldRatio}:${newRatio})`
         });
 
       } else if (rawType === "Sell" || rawType === "Sell All") {
-        // RULE 2: When type is Sell All -> Sell quantity is Open quantity at that moment -> SELL
         let qty = 0;
         if (rawType === "Sell All") {
           qty = currentQty;
@@ -164,7 +213,6 @@ async function run() {
         }
 
       } else if (rawType === "Dividend") {
-        // RULE 1: Dividend saved in dividends table
         const rawAmt = parseFloat(r["Cost Per Share"]) || 0;
         const sharesVal = parseFloat(r["Shares Owned"]) || 0;
         const amount = rawAmt > 0 ? rawAmt : sharesVal;
@@ -190,7 +238,14 @@ async function run() {
       }
     }
 
-    const avgBuyPrice = totalBuyQty > 0 ? totalBuyCost / totalBuyQty : 0;
+    // Ingestion Integrity Assertions
+    if (totalSellQty > totalBuyQty + 0.001 || currentQty < -0.001) {
+      throw new Error(`[CRITICAL INGESTION VALIDATION FAILED for ${symbol}]: sell_qty (${totalSellQty}) > buy_qty (${totalBuyQty}) or currentQty (${currentQty}) < 0`);
+    }
+
+    const avgBuyPrice = currentQty > 0 && buyLots.length > 0
+      ? buyLots.reduce((s, l) => s + l.qty * l.price, 0) / currentQty
+      : (totalBuyQty > 0 ? totalBuyCost / totalBuyQty : 0);
     const status = currentQty <= 0 ? "REDEEMED" : "ACTIVE";
 
     if (status === "ACTIVE") totalActiveHoldings++;
@@ -268,6 +323,20 @@ async function run() {
       if (divErr) console.error(`  Error inserting dividends for ${symbol}:`, divErr.message);
       grandTotalDividends += divInserts.reduce((s, d) => s + d.amount_inr, 0);
     }
+
+    // 4. Lock exact holding metrics (ensuring split/FIFO accuracy)
+    await supabase
+      .from("holdings")
+      .update({
+        quantity: parseFloat(currentQty.toFixed(4)),
+        avg_buy_price: parseFloat(avgBuyPrice.toFixed(4)),
+        buy_qty: parseFloat(totalBuyQty.toFixed(4)),
+        sell_qty: parseFloat(totalSellQty.toFixed(4)),
+        realized_pnl: parseFloat(realizedPnl.toFixed(2)),
+        total_charges: parseFloat(totalCharges.toFixed(2)),
+        status: status
+      })
+      .eq("id", holding.id);
 
     if ((idx + 1) % 50 === 0 || idx + 1 === allSymbols.length) {
       console.log(`Progress: [${idx + 1}/${allSymbols.length}] symbols processed...`);

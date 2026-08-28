@@ -44,7 +44,8 @@ export default function TopNavbar({
     updateUserAvatar,
     updateUserAuth,
     logout,
-    formatMoney
+    formatMoney,
+    fxRate
   } = useThemeAuth();
 
   const [query, setQuery] = useState('');
@@ -234,7 +235,19 @@ export default function TopNavbar({
       </div>
 
       {/* ─── Controls & Quick Actions ───────────────────────────── */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
+
+        {/* Live Real-time USD/INR Forex Ticker Pill */}
+        <div 
+          title="Real-time USD/INR live forex exchange rate (auto-updating)"
+          className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border border-slate-700/60 rounded-xl text-xs font-mono select-none"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-500/50 shrink-0" />
+          <span className="text-[10px] font-extrabold text-slate-400">USD/INR</span>
+          <span className="font-extrabold text-emerald-400 text-xs">
+            ₹{(Number(summary?.fxRate || fxRate || 87.25)).toFixed(2)}
+          </span>
+        </div>
 
         {/* Sync Prices Button */}
         <motion.button

@@ -12,7 +12,16 @@
    - Before planning, designing, or implementing any code changes, refactors, bug fixes, or integrations, you **MUST** read [LADDER.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/LADDER.md).
    - Fully understand the architectural layout, UI/UX guidelines, existing data models, API endpoints, and component hierarchy.
 
-2. **FINAL STEP - UPDATE MASTER CONTEXT & CHANGE LOG (`LADDER.md`)**:
+2. **MANDATORY END-TO-END DEPENDENCY MAPPING (CROSS-FUNCTIONAL IMPACT PROTOCOL)**:
+   Whenever modifying calculations, transaction handling, price feeds, or corporate actions, you **MUST** autonomously audit, update, and verify all 6 interconnected pipelines across the application:
+   - **Pipeline 1 (Database & Ingestion Layer)**: Supabase tables (`holdings`, `transactions`, `dividends`), ingestion scripts, and validation engines.
+   - **Pipeline 2 (Real-Time Price & Forex Engine)**: `liveQuoteCache`, `priceEngine.js`, `/api/fx-rate`, and `ThemeAuthContext.jsx`.
+   - **Pipeline 3 (Holding Detail & Dense Timeline)**: `/api/holding/:id/detail`, FIFO lot engine, Tracker Chart, Actual Chart, and transaction ledger.
+   - **Pipeline 4 (Portfolio Summaries & Hero Metrics)**: `/api/summary`, `/api/holdings`, `OverviewView.jsx`, and TopNavbar.
+   - **Pipeline 5 (Time-Series & Calendar Heatmap)**: `data/portfolio_eod_logs.json`, `scripts/rebuild_portfolio_eod.mjs`, `pnl_history`, and `/api/daily-pnl`. Whenever database transactions change, you **MUST autonomously re-execute `rebuild_portfolio_eod.mjs`** and verify the calendar report without waiting for user prompting.
+   - **Pipeline 6 (UI/UX, Themes & Precision)**: High-contrast light/dark themes, exact 2-decimal floating precision, `DD-MM-YYYY` dates, and non-repetitive text.
+
+3. **FINAL STEP - UPDATE MASTER CONTEXT & CHANGE LOG (`LADDER.md`)**:
    - Whenever any file or code in the codebase is modified, added, or deleted, you **MUST** update [LADDER.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/LADDER.md).
    - Record all changes in the **Change Log & Maintenance History** table in `LADDER.md` with:
      - Version increment (e.g. `v1.1.0`)

@@ -32,6 +32,26 @@ export function ThemeAuthProvider({ children }) {
     localStorage.setItem('ladder_currency', currency);
   }, [currency]);
 
+  // Live real-time USD/INR Forex stream
+  useEffect(() => {
+    const fetchLiveFx = async () => {
+      try {
+        const res = await fetch('/api/fx-rate');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.rate > 0) {
+            setFxRate(Number(data.rate));
+          }
+        }
+      } catch (e) {
+        // Fallback gracefully
+      }
+    };
+    fetchLiveFx();
+    const interval = setInterval(fetchLiveFx, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   const toggleTheme = () => {
     const currentIndex = THEMES.findIndex(t => t.id === theme);
     const nextIndex = (currentIndex + 1) % THEMES.length;

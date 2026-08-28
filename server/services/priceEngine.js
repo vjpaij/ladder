@@ -2,7 +2,19 @@ import axios from 'axios';
 import AdmZip from 'adm-zip';
 import db from '../db.js';
 
+export const liveQuoteCache = new Map();
+
 export async function fetchFxRate() {
+  try {
+    const quote = await fetchStockQuote('INR=X');
+    if (quote && quote.price > 0) {
+      liveQuoteCache.set('USDINR', quote);
+      return quote.price;
+    }
+  } catch (err) {
+    // Yahoo Finance FX fallback
+  }
+
   try {
     const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 4000 });
     if (res.data && res.data.rates && res.data.rates.INR) {
@@ -250,8 +262,7 @@ export async function fetchNpsHistoricalNav(schemeCode) {
   return null;
 }
 
-// In-memory live quotes cache: symbol -> quote object
-export const liveQuoteCache = new Map();
+// In-memory live quotes cache: symbol -> quote object (declared at top of module)
 
 /**
  * High-speed parallel live quote engine for active portfolio holdings.
@@ -283,20 +294,26 @@ export async function refreshActiveHoldingsPrices() {
 
   // 2. Refresh active Indian stocks in concurrent batches
   const inHoldings = activeHoldings.filter(h => h.category_id === 'in_stocks');
-  const batchSize = 10;
+  const batchSize = 15;
   for (let i = 0; i < inHoldings.length; i += batchSize) {
     const batch = inHoldings.slice(i, i + batchSize);
     await Promise.all(batch.map(async (h) => {
       try {
         const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
-        const [nseQ, bseQ] = await Promise.all([
-          fetchStockQuote(`${baseSymbol}.NS`),
-          fetchStockQuote(`${baseSymbol}.BO`)
-        ]);
-        let nseP = nseQ?.price || 0;
-        let bseP = bseQ?.price || 0;
-        let newPrice = Math.max(nseP, bseP);
-        const bestQ = (nseP >= bseP ? nseQ : bseQ) || nseQ || bseQ;
+        let bestQ = await fetchStockQuote(`${baseSymbol}.NS`);
+        let nseP = bestQ?.price || 0;
+        let bseP = 0;
+
+        // Fallback to BSE only if NSE is unavailable
+        if (!bestQ || nseP <= 0) {
+          const bseQ = await fetchStockQuote(`${baseSymbol}.BO`);
+          if (bseQ && bseQ.price > 0) {
+            bestQ = bseQ;
+            bseP = bseQ.price;
+          }
+        }
+
+        const newPrice = nseP || bseP || bestQ?.price || 0;
 
         if (bestQ) {
           liveQuoteCache.set(h.symbol, {

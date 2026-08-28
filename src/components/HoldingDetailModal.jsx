@@ -129,7 +129,8 @@ function ActualChartTooltip({ active, payload, label, isUSD, timelineData }) {
                   ev.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
                   ev.type === 'SELL' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
                   ev.type === 'DIVIDEND' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                  'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                  ev.type === 'SPLIT' ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' :
+                  'bg-amber-900/30 text-amber-300 border-amber-700/50'
                 }`}>
                   {ev.type}
                 </span>
@@ -154,7 +155,8 @@ const CustomizedEventDot = (props) => {
   const ev = payload.events[0];
   const color = ev.type === 'BUY' ? '#10b981' :
                 ev.type === 'SELL' ? '#f43f5e' :
-                ev.type === 'DIVIDEND' ? '#f59e0b' : '#06b6d4';
+                ev.type === 'DIVIDEND' ? '#f59e0b' :
+                ev.type === 'SPLIT' ? '#a855f7' : '#b45309';
                 
   let titleText = `${formatDateDDMMYYYY(payload.label)}\n`;
   payload.events.forEach(e => {
@@ -195,11 +197,16 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
   useEffect(() => {
     if (!holding?.id) return;
-    setLoading(true);
-    setError(null);
-    setDetail(null);
-    fetch(`/api/holding/${encodeURIComponent(holding.id)}/detail`)
-      .then(async r => {
+    let isMounted = true;
+
+    const fetchDetail = async (isInitial = false) => {
+      if (isInitial) {
+        setLoading(true);
+        setError(null);
+        setDetail(null);
+      }
+      try {
+        const r = await fetch(`/api/holding/${encodeURIComponent(holding.id)}/detail`);
         const contentType = r.headers.get('content-type') || '';
         const text = await r.text();
         let data;
@@ -207,22 +214,27 @@ export default function HoldingDetailModal({ holding, onClose }) {
           try { data = JSON.parse(text); } catch (e) { /* ignore */ }
         }
         if (!r.ok) {
-          const errMsg = data?.error || `Server error (${r.status} ${r.statusText})`;
-          throw new Error(errMsg);
+          throw new Error(data?.error || `Server error (${r.status})`);
         }
-        if (!data) {
-          throw new Error(`Unexpected server response format (${r.status})`);
+        if (isMounted && data) {
+          setDetail(data);
+          if (isInitial) setLoading(false);
         }
-        return data;
-      })
-      .then(data => {
-        setDetail(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
+      } catch (err) {
+        if (isMounted && isInitial) {
+          setError(err.message);
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchDetail(true);
+    const pollTimer = setInterval(() => fetchDetail(false), 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(pollTimer);
+    };
   }, [holding?.id]);
 
   useEffect(() => {
@@ -260,6 +272,9 @@ export default function HoldingDetailModal({ holding, onClose }) {
     : holding?.category_id === 'epf' ? '#6366f1'
     : (holding?.category_id === 'loans' || holding?.category_id === 'credit_cards') ? '#f43f5e'
     : '#10b981';
+
+  // Professional Sky Blue theme for price curves that contrasts with Green BUY and Red SELL signals
+  const chartLineColor = isLight ? '#0284c7' : '#38bdf8';
 
   const isDisplayUSD = isUSStock && displayCurrency === 'USD';
   const activeMetrics = isDisplayUSD
@@ -394,17 +409,27 @@ export default function HoldingDetailModal({ holding, onClose }) {
               <div className="flex items-center gap-3 sm:gap-4">
                 {isUSStock && (
                   <>
-                    <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/25 text-purple-300 text-xs font-mono">
-                      <Globe className="w-3.5 h-3.5 text-purple-400" />
-                      <span className="text-[10px] text-slate-400 uppercase font-sans font-bold">FX:</span>
-                      <span className="text-purple-300 font-bold">₹{Number(fxRate || detail?.fxRate || 87.25).toFixed(2)}</span>
+                    <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono border ${
+                      isLight
+                        ? 'bg-purple-100 text-purple-950 border-purple-300 shadow-sm font-black'
+                        : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                    }`}>
+                      <Globe className={`w-3.5 h-3.5 ${isLight ? 'text-purple-700' : 'text-purple-400'}`} />
+                      <span className={`text-[10px] uppercase font-sans font-bold ${isLight ? 'text-purple-800' : 'text-slate-400'}`}>FX:</span>
+                      <span className={`font-extrabold ${isLight ? 'text-purple-950' : 'text-purple-200'}`}>
+                        ₹{Number(detail?.fxRate || fxRate || 87.25).toFixed(2)}
+                      </span>
                     </div>
 
-                    <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-1 text-[11px] font-bold">
+                    <div className={`flex items-center rounded-xl p-1 text-[11px] font-bold border ${
+                      isLight ? 'bg-slate-200/80 border-slate-300' : 'bg-slate-900 border-slate-700/80'
+                    }`}>
                       <button
                         onClick={() => setDisplayCurrency('INR')}
                         className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
-                          displayCurrency === 'INR' ? 'bg-purple-600 text-white shadow-md font-black' : 'text-slate-400 hover:text-white'
+                          displayCurrency === 'INR'
+                            ? 'bg-purple-600 text-white shadow-md font-black'
+                            : (isLight ? 'text-slate-700 hover:text-slate-950' : 'text-slate-400 hover:text-white')
                         }`}
                       >
                         ₹ INR
@@ -412,7 +437,9 @@ export default function HoldingDetailModal({ holding, onClose }) {
                       <button
                         onClick={() => setDisplayCurrency('USD')}
                         className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
-                          displayCurrency === 'USD' ? 'bg-purple-600 text-white shadow-md font-black' : 'text-slate-400 hover:text-white'
+                          displayCurrency === 'USD'
+                            ? 'bg-purple-600 text-white shadow-md font-black'
+                            : (isLight ? 'text-slate-700 hover:text-slate-950' : 'text-slate-400 hover:text-white')
                         }`}
                       >
                         $ USD
@@ -787,25 +814,25 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
                                 </linearGradient>
                                 <linearGradient id="hdmGradVal" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="5%" stopColor={accentColor} stopOpacity={0.35} />
-                                  <stop offset="95%" stopColor={accentColor} stopOpacity={0.02} />
+                                  <stop offset="5%" stopColor={chartLineColor} stopOpacity={0.35} />
+                                  <stop offset="95%" stopColor={chartLineColor} stopOpacity={0.02} />
                                 </linearGradient>
                               </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                              <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
                               <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
                               <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${(v / 1000).toFixed(0)}K` : Math.abs(v) >= 1e5 ? `₹${(v / 1e5).toFixed(1)}L` : `₹${(v / 1000).toFixed(0)}K`} width={55} domain={chartMinMax} />
                               <Tooltip content={<ChartTooltip isUSD={isDisplayUSD} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={val => <span style={{ color: '#94a3b8' }}>{val}</span>} />
+                              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={val => <span style={{ color: isLight ? '#475569' : '#94a3b8' }}>{val}</span>} />
                               <Area type="linear" dataKey="invested" name="Cost Basis" stroke="#6366f1" strokeWidth={2} fill="url(#hdmGradInv)" dot={false} activeDot={{ r: 4, fill: '#6366f1', stroke: '#1e293b' }} />
-                              <Area type="linear" dataKey="value" name="Market Value" stroke={accentColor} strokeWidth={2.5} fill="url(#hdmGradVal)" dot={false} activeDot={{ r: 4, fill: accentColor, stroke: '#1e293b' }} />
+                              <Area type="linear" dataKey="value" name="Market Value" stroke={chartLineColor} strokeWidth={2.5} fill="url(#hdmGradVal)" dot={false} activeDot={{ r: 4, fill: chartLineColor, stroke: '#1e293b' }} />
                             </AreaChart>
                           ) : (
                             <ComposedChart data={filteredTimeline} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                              <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
                               <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
                               <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${v.toFixed(2)}` : `₹${v.toFixed(2)}`} width={55} domain={chartMinMax} />
                               <Tooltip content={<ActualChartTooltip isUSD={isDisplayUSD} timelineData={filteredTimeline} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                              <Line type="linear" dataKey="price" name="Asset Price" stroke={accentColor} strokeWidth={2} dot={<CustomizedEventDot />} activeDot={{ r: 5, fill: '#ffffff', stroke: '#64748b', strokeWidth: 2 }} />
+                              <Line type="linear" dataKey="price" name="Asset Price" stroke={chartLineColor} strokeWidth={2.5} dot={<CustomizedEventDot />} activeDot={{ r: 5, fill: chartLineColor, stroke: '#ffffff', strokeWidth: 2 }} />
                             </ComposedChart>
                           )}
                         </ResponsiveContainer>
@@ -894,16 +921,23 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                 );
                               }
 
-                              const isBuy  = tx.type === 'BUY';
-                              const isSell = tx.type === 'SELL';
-                              const isDiv  = tx.type === 'DIVIDEND';
-                              const rowHover = isBuy  ? 'hover:bg-emerald-500/5'
-                                            : isSell ? 'hover:bg-rose-500/5'
-                                            : isDiv  ? 'hover:bg-amber-500/5'
+                              const isBuy   = tx.type === 'BUY';
+                              const isSell  = tx.type === 'SELL';
+                              const isDiv   = tx.type === 'DIVIDEND';
+                              const isSplit = tx.type === 'SPLIT';
+                              const isBonus = tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST';
+                              
+                              const rowHover = isBuy   ? 'hover:bg-emerald-500/5'
+                                            : isSell  ? 'hover:bg-rose-500/5'
+                                            : isDiv   ? 'hover:bg-amber-500/5'
+                                            : isSplit ? 'hover:bg-indigo-500/5'
+                                            : isBonus ? 'hover:bg-cyan-500/5'
                                             : 'hover:bg-slate-800/30';
-                              const amtColor = isBuy  ? 'text-rose-400'
-                                            : isSell ? 'text-emerald-400'
-                                            : isDiv  ? 'text-amber-400'
+                              const amtColor = isBuy   ? 'text-rose-400'
+                                            : isSell  ? 'text-emerald-400'
+                                            : isDiv   ? 'text-amber-400'
+                                            : isSplit ? 'text-indigo-400'
+                                            : isBonus ? 'text-cyan-400'
                                             : 'text-slate-400';
 
                               const txRate = isUSStock ? (Number(tx.fx_rate) || fxRate) : 1.0;
@@ -915,9 +949,93 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                 ? (Number(tx.charges) > 0 ? `$${Number(tx.charges).toFixed(2)}` : '—')
                                 : (Number(tx.charges) > 0 ? `₹${(Number(tx.charges) * txRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
+                              let qtyDisplay = '—';
+                              if (isSplit && Number(tx.quantity) > 0) {
+                                qtyDisplay = `+${Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })}`;
+                              } else if (isBonus && Number(tx.quantity) > 0) {
+                                qtyDisplay = `+${Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })}`;
+                              } else if (Number(tx.quantity) > 0) {
+                                qtyDisplay = Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 });
+                              }
+
+                              let priceDisplay = '—';
+                              if (isSplit) {
+                                priceDisplay = '—';
+                              } else if (isBonus && (!tx.price || Number(tx.price) === 0)) {
+                                priceDisplay = isUSStock ? '$0.00' : '₹0.00';
+                              } else if (Number(tx.price) > 0) {
+                                priceDisplay = `${isUSStock ? '$' : '₹'}${Number(tx.price).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                              }
+
+                              let amountDisplay = '—';
+                              if (isSplit) {
+                                amountDisplay = '—';
+                              } else if (isBonus && (!tx.total_amount || Number(tx.total_amount) === 0)) {
+                                amountDisplay = isUSStock ? '$0.00' : '₹0.00';
+                              } else if (Number(tx.total_amount) > 0) {
+                                amountDisplay = displayAmt;
+                              }
+
+                              if (isSplit || isBonus) {
+                                // Extract concise non-repetitive detail
+                                let actionText = '';
+                                if (isSplit) {
+                                  const ratioMatch = (tx.notes || '').match(/(\d+\s*:\s*\d+)/);
+                                  actionText = ratioMatch ? `Ratio ${ratioMatch[1]}` : '';
+                                } else if (isBonus) {
+                                  const sharesMatch = (tx.notes || '').match(/\+(\d+(?:\.\d+)?)/);
+                                  actionText = sharesMatch ? `+${sharesMatch[1]} Shares Credited` : '+Shares Credited';
+                                }
+
+                                return (
+                                  <tr
+                                    key={tx.id || i}
+                                    className={`border-y transition-colors ${
+                                      isSplit
+                                        ? (isLight
+                                            ? 'bg-purple-50/90 border-purple-200 shadow-sm'
+                                            : 'bg-purple-950/60 border-purple-500/40')
+                                        : (isLight
+                                            ? 'bg-amber-100/60 border-amber-300/80 shadow-sm'
+                                            : 'bg-amber-950/60 border-amber-600/40')
+                                    }`}
+                                  >
+                                    {/* Date aligned in its natural column */}
+                                    <td className={`py-2.5 px-4 font-mono font-bold whitespace-nowrap ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                                      {formatDateDDMMYYYY(tx.date)}
+                                    </td>
+                                    {/* Action badge & short detail centered across all remaining columns */}
+                                    <td colSpan={isUSStock ? 7 : 6} className="py-2.5 px-4 text-center">
+                                      <div className="flex items-center justify-center gap-2.5 text-xs font-mono">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                          isSplit
+                                            ? (isLight
+                                                ? 'bg-purple-100 text-purple-950 border-purple-300'
+                                                : 'bg-purple-500/25 text-purple-300 border-purple-500/40')
+                                            : (isLight
+                                                ? 'bg-amber-200/90 text-amber-950 border-amber-400 font-black'
+                                                : 'bg-amber-900/40 text-amber-300 border-amber-600/50')
+                                        }`}>
+                                          {isSplit ? 'Stock Split' : 'Bonus Issue'}
+                                        </span>
+                                        {actionText && (
+                                          <span className={`font-bold text-[12px] ${
+                                            isSplit
+                                              ? (isLight ? 'text-purple-950 font-black' : 'text-purple-200')
+                                              : (isLight ? 'text-amber-950 font-black' : 'text-amber-300')
+                                          }`}>
+                                            {actionText}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
                               return (
                                 <motion.tr
-                                  key={tx.id}
+                                  key={tx.id || i}
                                   className={`transition-colors ${rowHover}`}
                                   initial={{ opacity: 0 }}
                                   animate={{ opacity: 1 }}
@@ -926,13 +1044,13 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                   <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap" title={formatDateDDMMYYYY(tx.date)}>{formatDateDDMMYYYY(tx.date)}</td>
                                   <td className="py-2.5 px-4"><TxBadge type={tx.type} /></td>
                                   <td className="py-2.5 px-4 text-right font-mono text-slate-200">
-                                    {Number(tx.quantity) > 0 ? Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 }) : '—'}
+                                    {qtyDisplay}
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono text-slate-400">
-                                    {Number(tx.price) > 0 ? `${isUSStock ? '$' : '₹'}${Number(tx.price).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—'}
+                                    {priceDisplay}
                                   </td>
                                   <td className={`py-2.5 px-4 text-right font-mono font-bold ${amtColor}`}>
-                                    {Number(tx.total_amount) > 0 ? displayAmt : '—'}
+                                    {amountDisplay}
                                   </td>
                                   <td className="py-2.5 px-4 text-right font-mono text-slate-500">
                                     {displayCharges}
@@ -942,7 +1060,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                       {tx.fx_rate ? `₹${Number(tx.fx_rate).toFixed(2)}` : '—'}
                                     </td>
                                   )}
-                                  <td className="py-2.5 px-4 text-slate-500 italic text-[10px]">
+                                  <td className="py-2.5 px-4 text-slate-400 text-[11px]">
                                     {tx.notes || ''}
                                   </td>
                                 </motion.tr>

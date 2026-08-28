@@ -12,32 +12,49 @@ export default function AddAssetModal({ isOpen, onClose, onRefresh }) {
   const [avgBuyPrice, setAvgBuyPrice] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [sector, setSector] = useState('');
+  const [errorMsg, setErrorMsg] = useState(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMsg(null);
+
+    const numQty = Number(quantity);
+    const numPrice = Number(avgBuyPrice);
+
+    if (isNaN(numQty) || numQty <= 0) {
+      setErrorMsg('Quantity / Balance must be a positive number greater than zero.');
+      return;
+    }
+    if (isNaN(numPrice) || numPrice < 0) {
+      setErrorMsg('Price / Principal must be a valid non-negative number.');
+      return;
+    }
+
     try {
       if (instrumentType === 'loans' || instrumentType === 'credit_cards') {
         await axios.post('/api/liabilities', {
-          category_id: instrumentType, name,
-          lender: symbol || 'Bank',
-          total_principal: Number(avgBuyPrice || 0),
-          outstanding_balance: Number(quantity || 0),
+          category_id: instrumentType, name: name.trim(),
+          lender: symbol.trim() || 'Bank',
+          total_principal: numPrice,
+          outstanding_balance: numQty,
           interest_rate: 8.5,
-          monthly_emi: Number(quantity || 0) * 0.02
+          monthly_emi: numQty * 0.02
         });
       } else {
         await axios.post('/api/holdings', {
-          category_id: instrumentType, symbol: symbol.toUpperCase(), name, exchange,
-          quantity: Number(quantity), avg_buy_price: Number(avgBuyPrice),
-          current_price: Number(avgBuyPrice),
+          category_id: instrumentType, symbol: symbol.trim().toUpperCase(), name: name.trim(), exchange,
+          quantity: numQty, avg_buy_price: numPrice,
+          current_price: numPrice,
           currency: instrumentType === 'us_stocks' ? 'USD' : 'INR',
-          sector: sector || 'General'
+          sector: sector.trim() || 'General'
         });
       }
       onRefresh(); onClose();
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || err.message);
+    }
   };
 
   return (
@@ -115,6 +132,12 @@ export default function AddAssetModal({ isOpen, onClose, onRefresh }) {
             <input type="text" placeholder="e.g. Technology" value={sector} onChange={(e) => setSector(e.target.value)}
               className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500" />
           </div>
+
+          {errorMsg && (
+            <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 font-bold">
+              {errorMsg}
+            </div>
+          )}
 
           <div className="pt-2 flex items-center justify-end gap-2.5">
             <button type="button" onClick={onClose}
