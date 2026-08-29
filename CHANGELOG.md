@@ -5,6 +5,37 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.5] - 2026-08-29
+
+### Fixed
+- **Weekend Carry-Forward & Non-Trading Timezone Alignment**: Corrected US stock and market asset valuation on weekends by aligning with Indian market non-trading calendar rules. Saturday and Sunday calendar entries carry forward Friday's finalized closing valuation without phantom weekend FX rate noise.
+- **Unified Assets Table Header**: Refactored the Spreadsheet Table Header in `CalendarView.jsx` to group all 12 asset columns under a single top-level `ASSETS` header (`colSpan="12"`), unifying bank accounts, investments, and Total Assets into a single group that matches the `LIABILITIES & DEBT` group.
+
+---
+
+## [4.4.4] - 2026-08-29
+
+### Added
+- **Automated Daily Pricing Ingestion Engine**: Added `scripts/sync_daily_prices.mjs` to fetch live daily market quotes for 86 Indian stocks, 11 US stocks, 16 Mutual Funds, 3 NPS schemes, and daily USD/INR FX rates.
+- **Dual-Tab Date Click Inspector**: Enhanced the calendar drill-down modal with dual-tab support ('Changes' vs 'All Balances') to inspect both individual asset balance movements and the total 8-category portfolio snapshot.
+
+---
+
+## [4.4.3] - 2026-08-29
+
+### Fixed
+- **Continuous Daily EOD Sync & Full Multi-Column Spreadsheet**: Diagnosed and resolved calendar cut-off on 21 August by reconstructing all 6,912 daily records from inception (2007) right up to the current date with full asset/liability carry-forwards, aligning calendar net worth with the dashboard.
+- **True Previous-Day Delta Lookups**: Upgraded `/api/daily-pnl` to perform chronological previous-day lookups across all individual bank accounts, investments, and debts.
+
+---
+
+## [4.4.2] - 2026-08-29
+
+### Added
+- **Calendar Spreadsheet Table View & Interactive Switcher**: Added view toggle in `CalendarView.jsx` between Grid Heatmap and a Spreadsheet Table View with frozen sticky Date column and dynamic column sorting.
+
+---
+
 ## [4.4.1] - 2026-08-29
 
 ### Changed

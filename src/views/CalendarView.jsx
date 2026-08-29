@@ -2,7 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar as CalendarIcon, CalendarDays, RefreshCw, X } from 'lucide-react';
+import { 
+  Calendar as CalendarIcon, CalendarDays, RefreshCw, X, 
+  LayoutGrid, List, ArrowUpDown, ArrowUp, ArrowDown, ChevronRight,
+  TrendingUp, TrendingDown
+} from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
@@ -21,6 +25,22 @@ function formatPrettyDate(dateStr) {
     return `${day} ${month} ${year}`;
   } catch (e) {
     return dateStr;
+  }
+}
+
+// Format day with weekday (e.g. "07 Aug 2026", "Friday")
+function formatDetailedDate(dateStr) {
+  if (!dateStr) return { date: '—', weekday: '' };
+  try {
+    const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00'));
+    if (isNaN(d.getTime())) return { date: dateStr, weekday: '' };
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = d.toLocaleString('en-US', { month: 'short' });
+    const year = d.getFullYear();
+    const weekday = d.toLocaleString('en-US', { weekday: 'short' });
+    return { date: `${day} ${month} ${year}`, weekday };
+  } catch (e) {
+    return { date: dateStr, weekday: '' };
   }
 }
 
@@ -43,6 +63,11 @@ export default function CalendarView() {
   const [selectedLog, setSelectedLog] = useState(null);
   const [modalLog, setModalLog] = useState(null); // Popup modal state
   
+  // View mode: 'grid' or 'table'
+  const [viewMode, setViewMode] = useState('grid');
+  const [sortField, setSortField] = useState('date');
+  const [sortDirection, setSortDirection] = useState('desc');
+
   // Range & Custom Date pickers
   const [activeRange, setActiveRange] = useState('1M');
   const [customStartDate, setCustomStartDate] = useState('');
@@ -92,6 +117,8 @@ export default function CalendarView() {
     }
   };
 
+  const [modalTab, setModalTab] = useState('changed');
+
   const handleRangeClick = (range) => {
     setActiveRange(range);
     setShowCalendarPicker(false);
@@ -100,7 +127,60 @@ export default function CalendarView() {
   const handleCardClick = (log) => {
     setSelectedLog(log);
     setModalLog(log);
+    setModalTab('changed');
   };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortIcon = (field) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-slate-600 inline ml-1" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp className="w-3 h-3 text-emerald-400 inline ml-1" />
+      : <ArrowDown className="w-3 h-3 text-emerald-400 inline ml-1" />;
+  };
+
+  // Sorted logs for table view (defaults to descending by date)
+  const sortedLogs = useMemo(() => {
+    const list = [...logs];
+    return list.sort((a, b) => {
+      let aVal = a[sortField] !== undefined ? a[sortField] : a.log_date;
+      let bVal = b[sortField] !== undefined ? b[sortField] : b.log_date;
+      
+      if (sortField === 'date' || sortField === 'log_date') {
+        aVal = a.log_date || '';
+        bVal = b.log_date || '';
+      } else if (sortField === 'daily_pnl') {
+        aVal = a.daily_pnl_inr || 0;
+        bVal = b.daily_pnl_inr || 0;
+      } else if (sortField === 'pct') {
+        aVal = Number(a.pnl_percentage) || 0;
+        bVal = Number(b.pnl_percentage) || 0;
+      } else if (sortField === 'net_worth') {
+        aVal = a.net_worth_inr || a.wealth || 0;
+        bVal = b.net_worth_inr || b.wealth || 0;
+      } else if (sortField === 'total_assets') {
+        aVal = a.total_assets_inr || a.total_assets || 0;
+        bVal = b.total_assets_inr || b.total_assets || 0;
+      } else if (sortField === 'debt') {
+        aVal = a.liabilities_inr || a.debt || 0;
+        bVal = b.liabilities_inr || b.debt || 0;
+      } else {
+        aVal = Number(a[sortField]) || 0;
+        bVal = Number(b[sortField]) || 0;
+      }
+      
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [logs, sortField, sortDirection]);
 
   // Metrics summary (Win rate formatted to 2 decimal places precision)
   const totalRangePnl = useMemo(() => logs.reduce((sum, item) => sum + (item.daily_pnl_inr || 0), 0), [logs]);
@@ -151,8 +231,37 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {/* Compact Dashboard-Style Date Range Controls */}
-          <div className="flex items-center gap-2 flex-wrap self-end md:self-auto">
+          {/* Controls: View Switcher & Date Range Controls */}
+          <div className="flex items-center gap-2.5 flex-wrap self-end md:self-auto">
+            
+            {/* View Mode Switcher (Grid vs Table) */}
+            <div className="flex items-center p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all duration-200 ${
+                  viewMode === 'grid'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Heatmap Grid View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Grid</span>
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 transition-all duration-200 ${
+                  viewMode === 'table'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Spreadsheet Table View"
+              >
+                <List className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Table</span>
+              </button>
+            </div>
+
             {/* Pill Bar */}
             <div className="flex items-center gap-1 p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
               {RANGE_PILLS.map((range) => (
@@ -260,9 +369,9 @@ export default function CalendarView() {
         ))}
       </div>
 
-      {/* Grid of Daily Valuation Cards (Sized appropriately so full 2-decimal numbers fit without any "..." truncation) */}
+      {/* Main Content Area: Grid Heatmap OR Spreadsheet Table View */}
       <AnimatedItem>
-        <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-4">
+        <div className="glass-card p-5 sm:p-6 rounded-3xl border border-slate-800 space-y-4">
           
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-500">
@@ -273,7 +382,8 @@ export default function CalendarView() {
             <div className="py-16 text-center text-slate-500 text-sm font-medium">
               No daily portfolio logs found for the selected range.
             </div>
-          ) : (
+          ) : viewMode === 'grid' ? (
+            /* ================= GRID HEATMAP VIEW ================= */
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[500px] overflow-y-auto p-2 pr-1 pb-1 custom-scrollbar">
               {logs.map((log, i) => {
                 const isPos = log.daily_pnl_inr > 0;
@@ -346,6 +456,248 @@ export default function CalendarView() {
                   </motion.div>
                 );
               })}
+            </div>
+          ) : (
+            /* ================= SPREADSHEET TABLE VIEW (Exact portfolio.xlsx layout) ================= */
+            <div className="relative overflow-x-auto max-h-[560px] overflow-y-auto rounded-2xl border border-slate-800/80 custom-scrollbar">
+              <table className="w-full text-left border-collapse min-w-[1700px]">
+                <thead className="sticky top-0 z-30 bg-slate-900 shadow-md">
+                  {/* Category Group Header Row */}
+                  <tr className="border-b border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400 select-none">
+                    <th className="sticky left-0 z-40 bg-slate-900 py-2 px-3 border-r border-slate-800">
+                      Timeline
+                    </th>
+                    <th colSpan="12" className="py-2 px-3 text-center bg-emerald-500/10 text-emerald-400 border-r border-slate-800">
+                      Assets
+                    </th>
+                    <th colSpan="3" className="py-2 px-3 text-center bg-rose-500/10 text-rose-400 border-r border-slate-800">
+                      Liabilities &amp; Debt
+                    </th>
+                    <th colSpan="3" className="py-2 px-3 text-center bg-emerald-500/15 text-emerald-300 border-r border-slate-800">
+                      Net Wealth &amp; Performance
+                    </th>
+                    <th className="py-2 px-3 text-center bg-slate-800/60 text-slate-400">
+                      Action
+                    </th>
+                  </tr>
+
+                  {/* Individual Column Header Row */}
+                  <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                    {/* Sticky Date Column */}
+                    <th 
+                      onClick={() => handleSort('date')} 
+                      className="sticky left-0 z-40 bg-slate-900 py-2.5 px-3 border-r border-slate-800 cursor-pointer hover:text-white transition-colors min-w-[130px]"
+                    >
+                      Date {getSortIcon('date')}
+                    </th>
+
+                    {/* Bank Accounts */}
+                    <th onClick={() => handleSort('hdfc')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[100px]">
+                      HDFC {getSortIcon('hdfc')}
+                    </th>
+                    <th onClick={() => handleSort('indusind')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[100px]">
+                      IndusInd {getSortIcon('indusind')}
+                    </th>
+                    <th onClick={() => handleSort('idfc')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[110px]">
+                      IDFC {getSortIcon('idfc')}
+                    </th>
+                    <th onClick={() => handleSort('rbl')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[100px]">
+                      RBL {getSortIcon('rbl')}
+                    </th>
+                    <th onClick={() => handleSort('sbi')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[100px]">
+                      SBI {getSortIcon('sbi')}
+                    </th>
+                    <th onClick={() => handleSort('savings')} className="py-2.5 px-3 text-right cursor-pointer hover:text-blue-400 transition-colors font-black text-blue-400 border-r border-slate-800 min-w-[120px]">
+                      Savings {getSortIcon('savings')}
+                    </th>
+
+                    {/* Investment Portfolios */}
+                    <th onClick={() => handleSort('mutual_funds')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[120px]">
+                      Mutual Funds {getSortIcon('mutual_funds')}
+                    </th>
+                    <th onClick={() => handleSort('indian_stocks')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[120px]">
+                      Indian Stocks {getSortIcon('indian_stocks')}
+                    </th>
+                    <th onClick={() => handleSort('us_stocks')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[110px]">
+                      US Stocks {getSortIcon('us_stocks')}
+                    </th>
+                    <th onClick={() => handleSort('nps')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[100px]">
+                      NPS {getSortIcon('nps')}
+                    </th>
+                    <th onClick={() => handleSort('epf')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors border-r border-slate-800 min-w-[110px]">
+                      EPF {getSortIcon('epf')}
+                    </th>
+
+                    {/* Total Assets */}
+                    <th onClick={() => handleSort('total_assets')} className="py-2.5 px-3 text-right cursor-pointer hover:text-emerald-400 transition-colors font-black text-emerald-400 border-r border-slate-800 min-w-[130px]">
+                      Total Assets {getSortIcon('total_assets')}
+                    </th>
+
+                    {/* Liabilities */}
+                    <th onClick={() => handleSort('loan')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[110px]">
+                      Loan {getSortIcon('loan')}
+                    </th>
+                    <th onClick={() => handleSort('credits')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[100px]">
+                      Credits {getSortIcon('credits')}
+                    </th>
+                    <th onClick={() => handleSort('debt')} className="py-2.5 px-3 text-right cursor-pointer hover:text-rose-400 transition-colors font-black text-rose-400 border-r border-slate-800 min-w-[110px]">
+                      Debt {getSortIcon('debt')}
+                    </th>
+
+                    {/* Net Wealth & Changes */}
+                    <th onClick={() => handleSort('net_worth')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors font-black text-white min-w-[130px]">
+                      Net Wealth {getSortIcon('net_worth')}
+                    </th>
+                    <th onClick={() => handleSort('daily_pnl')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[115px]">
+                      Daily P&amp;L {getSortIcon('daily_pnl')}
+                    </th>
+                    <th onClick={() => handleSort('pct')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors border-r border-slate-800 min-w-[95px]">
+                      % Change {getSortIcon('pct')}
+                    </th>
+
+                    {/* Action */}
+                    <th className="py-2.5 px-3 text-center min-w-[65px]">
+                      View
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/40 text-xs font-mono">
+                  {sortedLogs.map((log, i) => {
+                    const isPos = log.daily_pnl_inr > 0;
+                    const isNeg = log.daily_pnl_inr < 0;
+                    const dateInfo = formatDetailedDate(log.log_date);
+                    const isSelected = selectedLog && selectedLog.log_date === log.log_date;
+
+                    return (
+                      <motion.tr
+                        key={log.log_date}
+                        onClick={() => handleCardClick(log)}
+                        initial={{ opacity: 0, y: 3 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: Math.min(i * 0.01, 0.2), duration: 0.12 }}
+                        className={`cursor-pointer group transition-all ${
+                          isSelected
+                            ? 'bg-emerald-500/15'
+                            : isPos
+                              ? 'hover:bg-emerald-500/8'
+                              : isNeg
+                                ? 'hover:bg-rose-500/8'
+                                : 'hover:bg-slate-800/40'
+                        }`}
+                      >
+                        {/* Sticky Date Column */}
+                        <td className="sticky left-0 z-20 bg-slate-950/95 group-hover:bg-slate-900/95 py-2.5 px-3 font-sans border-r border-slate-800 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${
+                              isPos ? 'bg-emerald-400' : isNeg ? 'bg-rose-400' : 'bg-blue-400'
+                            }`} />
+                            <div>
+                              <span className="font-bold text-slate-100 text-[11px] block group-hover:text-emerald-400 transition-colors whitespace-nowrap">
+                                {dateInfo.date}
+                              </span>
+                              <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider block">
+                                {dateInfo.weekday}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Bank Accounts */}
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.hdfc || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.indusind || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.idfc || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.rbl || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.sbi || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-blue-400 border-r border-slate-800">
+                          {formatMoney(log.savings || 0)}
+                        </td>
+
+                        {/* Investments */}
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.mutual_funds || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.indian_stocks || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.us_stocks || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.nps || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300 border-r border-slate-800">
+                          {formatMoney(log.epf || 0)}
+                        </td>
+
+                        {/* Total Assets */}
+                        <td className="py-2.5 px-3 text-right font-black text-emerald-400 border-r border-slate-800">
+                          {formatMoney(log.total_assets_inr || log.total_assets || 0)}
+                        </td>
+
+                        {/* Liabilities */}
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.loan || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-300">
+                          {formatMoney(log.credits || 0)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-rose-400 border-r border-slate-800">
+                          {formatMoney(log.debt || log.liabilities_inr || 0)}
+                        </td>
+
+                        {/* Net Wealth */}
+                        <td className="py-2.5 px-3 text-right font-black text-white text-[12px]">
+                          {formatMoney(log.net_worth_inr || log.wealth || 0)}
+                        </td>
+
+                        {/* Daily P&L */}
+                        <td className="py-2.5 px-3 text-right font-bold">
+                          <span className={`inline-block px-1.5 py-0.5 rounded ${
+                            isPos
+                              ? 'text-emerald-400 bg-emerald-500/10'
+                              : isNeg
+                                ? 'text-rose-400 bg-rose-500/10'
+                                : 'text-blue-400 bg-blue-500/10'
+                          }`}>
+                            {isPos ? '+' : ''}{formatMoney(log.daily_pnl_inr || 0)}
+                          </span>
+                        </td>
+
+                        {/* % Change */}
+                        <td className="py-2.5 px-3 text-right font-bold border-r border-slate-800 text-[11px]">
+                          <span className={isPos ? 'text-emerald-400' : isNeg ? 'text-rose-400' : 'text-slate-400'}>
+                            {isPos ? '+' : ''}{Number(log.pnl_percentage || 0).toFixed(2)}%
+                          </span>
+                        </td>
+
+                        {/* Action Drilldown */}
+                        <td className="py-2.5 px-3 text-center font-sans">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCardClick(log);
+                            }}
+                            className="p-1 rounded-lg bg-slate-800/80 hover:bg-emerald-500 hover:text-slate-950 text-slate-400 transition-all inline-flex items-center justify-center"
+                            title="Inspect Day Breakdown"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 
@@ -456,14 +808,45 @@ export default function CalendarView() {
                   </div>
                 </div>
 
-                {/* Day Asset & Liability Changes (Clean list without accordion dropdowns) */}
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold text-slate-400 block">Balances Changed on Date</span>
-                    
-                    {changedCategoryKeys.length === 0 ? (
-                      <div className="py-6 text-center text-slate-500 text-xs font-semibold bg-slate-900/40 rounded-xl border border-slate-800/40">
-                        No asset or liability changes recorded.
+                {/* Tab Controls for Modal */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-1 bg-slate-900/80 p-0.5 rounded-xl border border-slate-800 text-[10px] font-bold">
+                    <button
+                      onClick={() => setModalTab('changed')}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        modalTab === 'changed'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Changes ({changedCategoryKeys.length})
+                    </button>
+                    <button
+                      onClick={() => setModalTab('all')}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        modalTab === 'all'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      All Balances (8)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Content based on active tab */}
+                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
+                  {modalTab === 'changed' ? (
+                    changedCategoryKeys.length === 0 ? (
+                      <div className="py-6 text-center space-y-2 bg-slate-900/40 rounded-xl border border-slate-800/40 p-3">
+                        <p className="text-slate-400 text-xs font-semibold">No price changes on this date.</p>
+                        <p className="text-slate-500 text-[10px]">Markets are closed on weekends / holidays.</p>
+                        <button
+                          onClick={() => setModalTab('all')}
+                          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[10px] font-bold rounded-lg border border-slate-700 transition-colors"
+                        >
+                          View All Portfolio Balances →
+                        </button>
                       </div>
                     ) : (
                       <div className="space-y-1.5">
@@ -481,7 +864,6 @@ export default function CalendarView() {
                                 <span className="font-semibold text-slate-200 text-[10px]">{meta.label}</span>
                               </div>
                               <div className="text-right font-mono">
-                                {/* Standard white/black text color for all amounts (Loan is NOT forced Red) */}
                                 <span className="font-bold block text-[10px] text-white">{formatMoney(val)}</span>
                                 <span className={`text-[9px] block font-bold ${
                                   isLiab 
@@ -495,8 +877,42 @@ export default function CalendarView() {
                           );
                         })}
                       </div>
-                    )}
-                  </div>
+                    )
+                  ) : (
+                    /* All Balances View */
+                    <div className="space-y-1.5">
+                      {Object.keys(CATEGORY_META).map((key) => {
+                        const meta = CATEGORY_META[key];
+                        const val = modalLog.breakdown?.[key] || 0;
+                        const prevVal = modalLog.prev_breakdown?.[key] || 0;
+                        const diff = val - prevVal;
+                        const isLiab = key === 'loan' || key === 'credits';
+
+                        return (
+                          <div key={key} className="flex items-center justify-between p-2 glass-subcard rounded-xl border border-slate-800/60 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }}></span>
+                              <span className="font-semibold text-slate-200 text-[10px]">{meta.label}</span>
+                            </div>
+                            <div className="text-right font-mono">
+                              <span className="font-bold block text-[10px] text-white">{formatMoney(val)}</span>
+                              {diff !== 0 ? (
+                                <span className={`text-[8.5px] block font-bold ${
+                                  isLiab 
+                                    ? (diff < 0 ? 'text-emerald-400' : 'text-rose-400')
+                                    : (diff > 0 ? 'text-emerald-400' : 'text-rose-400')
+                                }`}>
+                                  {diff > 0 ? '↑ +' : '↓ '}{formatMoney(diff)}
+                                </span>
+                              ) : (
+                                <span className="text-[8.5px] block text-slate-500 font-sans">No change</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </motion.div>

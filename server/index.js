@@ -1623,11 +1623,16 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
     if (targetStartDate) filtered = filtered.filter(l => l.date >= targetStartDate);
     if (targetEndDate) filtered = filtered.filter(l => l.date <= targetEndDate);
 
+    // Map all eodLogs by date for true previous-day lookups
+    const eodIndexMap = new Map();
+    eodLogs.forEach((l, idx) => eodIndexMap.set(l.date, idx));
+
     // Format output array with daily PnL changes and asset/liability deltas
     const resultLogs = [];
     for (let i = 0; i < filtered.length; i++) {
       const item = filtered[i];
-      const prevItem = i > 0 ? filtered[i - 1] : item;
+      const fullIdx = eodIndexMap.get(item.date);
+      const prevItem = (fullIdx !== undefined && fullIdx > 0) ? eodLogs[fullIdx - 1] : (i > 0 ? filtered[i - 1] : item);
 
       const wCurr = item.total_wealth !== undefined ? item.total_wealth : item.wealth;
       const wPrev = prevItem.total_wealth !== undefined ? prevItem.total_wealth : prevItem.wealth;
@@ -1637,11 +1642,11 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       const pct = prevWealth !== 0 ? ((dailyPnl / prevWealth) * 100).toFixed(2) : '0.00';
 
       const wealth = wCurr || 0;
-      const debt = item.debt || 0;
-      const assets = wealth + debt;
+      const debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));
+      const assets = item.total_assets !== undefined ? item.total_assets : (wealth + debt);
 
-      const prevDebt = prevItem.debt || 0;
-      const prevAssets = prevWealth + prevDebt;
+      const prevDebt = prevItem.debt !== undefined ? prevItem.debt : ((prevItem.loan || 0) + (prevItem.credits || 0));
+      const prevAssets = prevItem.total_assets !== undefined ? prevItem.total_assets : (prevWealth + prevDebt);
 
       const assetDelta = assets - prevAssets;
       const liabilityDelta = debt - prevDebt;
@@ -1655,6 +1660,25 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
         pnl_percentage: Number(pct),
         asset_delta_inr: Number(assetDelta.toFixed(2)),
         liability_delta_inr: Number(liabilityDelta.toFixed(2)),
+        
+        // Exact portfolio.xlsx sheet columns
+        hdfc: Number((item.hdfc || 0).toFixed(2)),
+        indusind: Number((item.indusind || 0).toFixed(2)),
+        idfc: Number((item.idfc || 0).toFixed(2)),
+        rbl: Number((item.rbl || 0).toFixed(2)),
+        sbi: Number((item.sbi || 0).toFixed(2)),
+        federal: Number((item.federal || 0).toFixed(2)),
+        savings: Number((item.savings || 0).toFixed(2)),
+        mutual_funds: Number((item.mutual_funds || 0).toFixed(2)),
+        indian_stocks: Number((item.indian_stocks || 0).toFixed(2)),
+        us_stocks: Number((item.us_stocks || 0).toFixed(2)),
+        nps: Number((item.nps || 0).toFixed(2)),
+        epf: Number((item.epf || 0).toFixed(2)),
+        loan: Number((item.loan || 0).toFixed(2)),
+        credits: Number((item.credits || 0).toFixed(2)),
+        debt: Number((debt || 0).toFixed(2)),
+        wealth: Number((wealth || 0).toFixed(2)),
+
         breakdown: {
           savings: item.savings || 0,
           epf: item.epf || 0,
