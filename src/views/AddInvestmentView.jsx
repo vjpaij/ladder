@@ -656,7 +656,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                   required
                   value={formData.date || ''}
                   onChange={(e) => updateField('date', e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
                 />
               </div>
             </div>
@@ -724,7 +724,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     required
                     value={formData.date || ''}
                     onChange={(e) => updateField('date', e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
                   />
                 </div>
               </div>
@@ -852,7 +852,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     required
                     value={formData.date || ''}
                     onChange={(e) => updateField('date', e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
                   />
                 </div>
               </div>
@@ -978,7 +978,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                       type="date"
                       value={formData.sipEndDate || ''}
                       onChange={(e) => updateField('sipEndDate', e.target.value)}
-                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
+                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white focus:outline-none [color-scheme:dark]"
                     />
                   </div>
                 )}
@@ -1060,7 +1060,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 type="date"
                 value={formData.date || ''}
                 onChange={(e) => updateField('date', e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
               />
             </div>
           </div>
@@ -1133,7 +1133,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 required
                 value={formData.date || ''}
                 onChange={(e) => updateField('date', e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
               />
             </div>
           </div>
@@ -1206,7 +1206,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 required
                 value={formData.date || ''}
                 onChange={(e) => updateField('date', e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
               />
             </div>
           </div>

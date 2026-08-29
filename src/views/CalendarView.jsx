@@ -312,7 +312,7 @@ export default function CalendarView() {
                         type="date" 
                         value={customStartDate} 
                         onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
                       />
                     </div>
                     <div className="flex flex-col gap-1 flex-1">
@@ -321,7 +321,7 @@ export default function CalendarView() {
                         type="date" 
                         value={customEndDate} 
                         onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
                       />
                     </div>
                   </div>
@@ -473,11 +473,8 @@ export default function CalendarView() {
                     <th colSpan="3" className="py-2 px-3 text-center bg-rose-500/10 text-rose-400 border-r border-slate-800">
                       Liabilities &amp; Debt
                     </th>
-                    <th colSpan="3" className="py-2 px-3 text-center bg-emerald-500/15 text-emerald-300 border-r border-slate-800">
+                    <th colSpan="3" className="py-2 px-3 text-center bg-emerald-500/15 text-emerald-300">
                       Net Wealth &amp; Performance
-                    </th>
-                    <th className="py-2 px-3 text-center bg-slate-800/60 text-slate-400">
-                      Action
                     </th>
                   </tr>
 
@@ -551,13 +548,8 @@ export default function CalendarView() {
                     <th onClick={() => handleSort('daily_pnl')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[115px]">
                       Daily P&amp;L {getSortIcon('daily_pnl')}
                     </th>
-                    <th onClick={() => handleSort('pct')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors border-r border-slate-800 min-w-[95px]">
+                    <th onClick={() => handleSort('pct')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[95px]">
                       % Change {getSortIcon('pct')}
-                    </th>
-
-                    {/* Action */}
-                    <th className="py-2.5 px-3 text-center min-w-[65px]">
-                      View
                     </th>
                   </tr>
                 </thead>
@@ -674,24 +666,10 @@ export default function CalendarView() {
                         </td>
 
                         {/* % Change */}
-                        <td className="py-2.5 px-3 text-right font-bold border-r border-slate-800 text-[11px]">
+                        <td className="py-2.5 px-3 text-right font-bold text-[11px]">
                           <span className={isPos ? 'text-emerald-400' : isNeg ? 'text-rose-400' : 'text-slate-400'}>
                             {isPos ? '+' : ''}{Number(log.pnl_percentage || 0).toFixed(2)}%
                           </span>
-                        </td>
-
-                        {/* Action Drilldown */}
-                        <td className="py-2.5 px-3 text-center font-sans">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCardClick(log);
-                            }}
-                            className="p-1 rounded-lg bg-slate-800/80 hover:bg-emerald-500 hover:text-slate-950 text-slate-400 transition-all inline-flex items-center justify-center"
-                            title="Inspect Day Breakdown"
-                          >
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
                         </td>
                       </motion.tr>
                     );

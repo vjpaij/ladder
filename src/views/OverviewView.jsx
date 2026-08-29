@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TrendingUp,
@@ -98,82 +99,77 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [activePieIndex, setActivePieIndex] = useState(null);
 
-  // --- Net Worth History: Date-Accurate Historical Tracking with Sharp Daily Spikes & Drops ---
-  const netWorthData = useMemo(() => {
-    if (!summary?.netWorthINR) return [];
-    
-    const now = new Date();
-    let start = new Date(now);
-    let end = new Date(now);
+  // --- Net Worth History: True Historical EOD Data from /api/daily-pnl ---
+  const [eodLogs, setEodLogs] = useState([]);
+  const [loadingEod, setLoadingEod] = useState(false);
 
-    if (netWorthRange === '1M') {
-      start.setMonth(start.getMonth() - 1);
-    } else if (netWorthRange === '3M') {
-      start.setMonth(start.getMonth() - 3);
-    } else if (netWorthRange === '6M') {
-      start.setMonth(start.getMonth() - 6);
-    } else if (netWorthRange === '1Y') {
-      start.setFullYear(start.getFullYear() - 1);
-    } else if (netWorthRange === '2Y') {
-      start.setFullYear(start.getFullYear() - 2);
-    } else if (netWorthRange === '3Y') {
-      start.setFullYear(start.getFullYear() - 3);
-    } else if (netWorthRange === '5Y') {
-      start.setFullYear(start.getFullYear() - 5);
-    } else if (netWorthRange === '10Y') {
-      start.setFullYear(start.getFullYear() - 10);
-    } else if (netWorthRange === 'ALL') {
-      start.setFullYear(start.getFullYear() - 20);
-    } else if (netWorthRange === 'CUSTOM') {
-      if (customStartDate) start = new Date(customStartDate);
-      if (customEndDate) end = new Date(customEndDate);
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingEod(true);
+    let url = `/api/daily-pnl?range=${netWorthRange}`;
+    if (netWorthRange === 'CUSTOM' && customStartDate && customEndDate) {
+      url = `/api/daily-pnl?startDate=${customStartDate}&endDate=${customEndDate}`;
     }
 
-    if (start >= end) start = new Date(end.getTime() - 30 * 24 * 3600 * 1000);
+    axios.get(url)
+      .then(res => {
+        if (isMounted && Array.isArray(res.data)) {
+          setEodLogs(res.data);
+        }
+      })
+      .catch(err => console.error('[OverviewView] Failed to fetch EOD logs for chart:', err))
+      .finally(() => {
+        if (isMounted) setLoadingEod(false);
+      });
 
-    const diffDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
-    const numPoints = Math.min(diffDays > 60 ? 30 : diffDays, 30);
-    const currentNW = summary.netWorthINR;
-    const totalInvested = summary.totalInvestedINR || 0;
+    return () => {
+      isMounted = false;
+    };
+  }, [netWorthRange, customStartDate, customEndDate]);
+
+  const netWorthData = useMemo(() => {
+    if (!eodLogs || eodLogs.length === 0) return [];
     
-    // System baseline date: Jan 1, 2021 (~2000 days ago)
-    const inceptionDate = new Date('2021-01-01');
-    const totalDaysFromInception = Math.max(1, Math.round((now.getTime() - inceptionDate.getTime()) / (1000 * 3600 * 24)));
-    const baseFixedAssets = 2000000; // Bank + EPF base (~20L)
-
-    const points = [];
-    for (let i = 0; i <= numPoints; i++) {
-      const pointDate = new Date(start.getTime() + (i / numPoints) * (end.getTime() - start.getTime()));
-      
-      const daysFromInception = Math.max(0, Math.round((pointDate.getTime() - inceptionDate.getTime()) / (1000 * 3600 * 24)));
-      const progressFromInception = Math.min(1.0, Math.max(0.05, daysFromInception / totalDaysFromInception));
-
-      const marketInvestedAtDate = totalInvested * Math.pow(progressFromInception, 0.9);
-      const marketGainAtDate = (currentNW - baseFixedAssets - totalInvested) * Math.pow(progressFromInception, 1.3);
-      
-      // Day-to-day session trading noise for sharp spikes and drops
-      const dayHash = Math.sin(pointDate.getTime() * 0.00000001) * 10000;
-      const noise = (dayHash - Math.floor(dayHash) - 0.5) * 0.035; // ±1.75% daily spikes & drops
-      const wave = Math.sin(pointDate.getTime() / (1000 * 3600 * 24 * 45)) * 0.02;
-
-      let calculatedNW = Math.round((baseFixedAssets + marketInvestedAtDate + marketGainAtDate) * (1 + wave + noise));
-
-      if (i === numPoints && end.getTime() >= now.getTime() - 2 * 24 * 3600 * 1000) {
-        calculatedNW = currentNW;
+    const step = Math.max(1, Math.floor(eodLogs.length / 100)); // Sample gracefully if >100 points
+    const sampled = [];
+    for (let i = 0; i < eodLogs.length; i += step) {
+      const item = eodLogs[i];
+      const dParts = (item.log_date || '').split('-');
+      let dateLabel = item.log_date;
+      if (dParts.length === 3) {
+        const dObj = new Date(`${item.log_date}T00:00:00Z`);
+        dateLabel = dObj.toLocaleDateString('en-IN', {
+          month: 'short',
+          day: eodLogs.length <= 90 ? 'numeric' : undefined,
+          year: eodLogs.length > 365 ? '2-digit' : undefined,
+          timeZone: 'UTC'
+        });
       }
-
-      points.push({
-        date: pointDate.toLocaleDateString('en-IN', { 
-          month: 'short', 
-          day: diffDays <= 60 ? 'numeric' : undefined, 
-          year: diffDays > 365 ? '2-digit' : undefined 
-        }),
-        NetWorth: calculatedNW
+      sampled.push({
+        date: dateLabel,
+        rawDate: item.log_date,
+        NetWorth: item.net_worth_inr || item.wealth || 0
       });
     }
 
-    return points;
-  }, [summary?.netWorthINR, summary?.totalInvestedINR, netWorthRange, customStartDate, customEndDate]);
+    // Ensure last point is always included
+    const lastItem = eodLogs[eodLogs.length - 1];
+    if (sampled.length > 0 && sampled[sampled.length - 1].rawDate !== lastItem.log_date) {
+      const dObj = new Date(`${lastItem.log_date}T00:00:00Z`);
+      sampled.push({
+        date: dObj.toLocaleDateString('en-IN', {
+          month: 'short',
+          day: eodLogs.length <= 90 ? 'numeric' : undefined,
+          year: eodLogs.length > 365 ? '2-digit' : undefined,
+          timeZone: 'UTC'
+        }),
+        rawDate: lastItem.log_date,
+        NetWorth: lastItem.net_worth_inr || lastItem.wealth || 0
+      });
+    }
+
+    return sampled;
+  }, [eodLogs]);
 
   // --- Dynamic Y-Axis Scale Domain with 2 decimal precision ---
   const netWorthMinMax = useMemo(() => {
@@ -186,6 +182,11 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
   }, [netWorthData]);
 
   if (!summary) return null;
+
+  const isChartNegative = netWorthData && netWorthData.length >= 2 
+    ? netWorthData[netWorthData.length - 1].NetWorth < netWorthData[0].NetWorth 
+    : false;
+  const chartColor = isChartNegative ? "#EF4444" : "#10B981";
 
   // --- Custom Pie Chart with 3D effect ---
   const allocationData = summary.assetAllocation || [];
@@ -212,7 +213,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
 
           <div className="relative z-10">
             
-            {/* Header row: label | FX badge */}
+            {/* Header row: label */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
                 <motion.span 
@@ -222,10 +223,6 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                 />
                 Net Worth
               </span>
-              {/* Live FX rate — sourced from summary.fxRate (current day, not hardcoded) */}
-              <div className="px-2.5 py-1 bg-slate-900/80 border border-slate-800 rounded-full text-[10px] font-mono text-slate-400">
-                $1 = ₹{(summary.fxRate || fxRate).toFixed(2)}
-              </div>
             </div>
 
             {/* Big Number + Day P&L badge */}
@@ -658,7 +655,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                         type="date" 
                         value={customStartDate} 
                         onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
@@ -667,7 +664,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                         type="date" 
                         value={customEndDate} 
                         onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
                       />
                     </div>
                   </div>
@@ -691,8 +688,8 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                 <AreaChart data={netWorthData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.35}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.0}/>
+                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor={chartColor} stopOpacity={0.0}/>
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="date" stroke="#475569" tick={{ fontSize: 10 }} />
@@ -713,7 +710,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                         return (
                           <div className="bg-slate-900/95 border border-slate-700/80 p-3 rounded-2xl shadow-2xl backdrop-blur-xl text-xs space-y-1 z-50">
                             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{label}</p>
-                            <p className="text-sm font-black font-mono text-emerald-400">
+                            <p className="text-sm font-black font-mono" style={{ color: chartColor }}>
                               {isUSD 
                                 ? '$' + (data.value / summary.fxRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                 : '₹' + Number(data.value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -724,7 +721,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                       return null;
                     }} 
                   />
-                  <Area type="linear" dataKey="NetWorth" stroke="#10B981" strokeWidth={2} fillOpacity={1} fill="url(#nwGrad)" />
+                  <Area type="linear" dataKey="NetWorth" stroke={chartColor} strokeWidth={2} fillOpacity={1} fill="url(#nwGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

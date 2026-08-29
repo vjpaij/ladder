@@ -12,13 +12,16 @@
    - Before planning, designing, or implementing any code changes, refactors, bug fixes, or integrations, you **MUST** read [LADDER.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/LADDER.md).
    - Fully understand the architectural layout, UI/UX guidelines, existing data models, API endpoints, and component hierarchy.
 
-2. **MANDATORY END-TO-END DEPENDENCY MAPPING (CROSS-FUNCTIONAL IMPACT PROTOCOL)**:
-   Whenever modifying calculations, transaction handling, price feeds, or corporate actions, you **MUST** autonomously audit, update, and verify all 6 interconnected pipelines across the application:
+2. **MANDATORY END-TO-END DEPENDENCY MAPPING & UNIVERSAL VIEW SYNCHRONIZATION**:
+   **ZERO TOLERANCE FOR OUT-OF-SYNC PAGES OR DISPARATE CALCULATION ENGINES**:
+   - **UNIFIED SOURCE OF TRUTH**: Never implement separate, ad-hoc, or divergent calculation formulas across different views. Every metric (Net Worth, Total Assets, Liabilities, Gains, Cost Basis, Realized/Unrealized P&L, Daily Change) MUST use identical underlying formulas, price feeds, and FX rates across every page and modal.
+   - **MANDATORY CROSS-PAGE AUDIT BEFORE COMPLETION**: Before completing any task, delivering a response, or presenting data to the user, you **MUST autonomously verify every single affected view and section** (Dashboard, Calendar, Indian Equity, US Equity, Mutual Funds, NPS, Bank, EPF, Liabilities, Dividends, Reports, and Holding Detail Modals) to confirm that all records, totals, and breakdowns match with exact 1-to-1 parity.
+   - Whenever modifying calculations, transaction handling, price feeds, or corporate actions, you **MUST** autonomously audit, update, and verify all 6 interconnected pipelines across the application:
    - **Pipeline 1 (Database & Ingestion Layer)**: Supabase tables (`holdings`, `transactions`, `dividends`), ingestion scripts, and validation engines.
    - **Pipeline 2 (Real-Time Price & Forex Engine)**: `liveQuoteCache`, `priceEngine.js`, `/api/fx-rate`, and `ThemeAuthContext.jsx`.
    - **Pipeline 3 (Holding Detail & Dense Timeline)**: `/api/holding/:id/detail`, FIFO lot engine, Tracker Chart, Actual Chart, and transaction ledger.
    - **Pipeline 4 (Portfolio Summaries & Hero Metrics)**: `/api/summary`, `/api/holdings`, `OverviewView.jsx`, and TopNavbar.
-   - **Pipeline 5 (Time-Series & Calendar Heatmap)**: `data/portfolio_eod_logs.json`, `scripts/rebuild_portfolio_eod.mjs`, `pnl_history`, and `/api/daily-pnl`. Whenever database transactions change, you **MUST autonomously re-execute `rebuild_portfolio_eod.mjs`** and verify the calendar report without waiting for user prompting.
+   - **Pipeline 5 (Time-Series & Calendar Heatmap)**: `data/portfolio_eod_logs.json`, `scripts/rebuild_portfolio_eod.mjs`, `pnl_history`, and `/api/daily-pnl`. Whenever database transactions or prices change, you **MUST autonomously re-execute `rebuild_portfolio_eod.mjs`** and verify the calendar report without waiting for user prompting.
    - **Pipeline 6 (UI/UX, Themes & Precision)**: High-contrast light/dark themes, exact 2-decimal floating precision, `DD-MM-YYYY` dates, and non-repetitive text.
 
 3. **FINAL STEP - UPDATE MASTER CONTEXT & CHANGE LOG (`LADDER.md`)**:

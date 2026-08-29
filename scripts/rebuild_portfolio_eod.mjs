@@ -3,6 +3,7 @@ import path from 'path';
 import xlsx from 'xlsx';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
+import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -48,13 +49,9 @@ async function rebuildEod() {
   initDatabase();
   console.log('Rebuilding portfolio EOD logs from portfolio.xlsx and Supabase holdings...');
 
-  // 1. Read base historical rows from existing JSON cache or Supabase, fallback to Excel only if no base exists
+  // 1. Read base historical rows from Excel up to 2026-08-07, or fallback to JSON for prior history
   let baseLogs = [];
-  if (fs.existsSync(EOD_FILE)) {
-    const raw = fs.readFileSync(EOD_FILE, 'utf-8');
-    baseLogs = JSON.parse(raw);
-    console.log(`Loaded ${baseLogs.length} existing base records from ${EOD_FILE}.`);
-  } else if (fs.existsSync(EXCEL_FILE)) {
+  if (fs.existsSync(EXCEL_FILE)) {
     const wb = xlsx.readFile(EXCEL_FILE);
     const rawRows = xlsx.utils.sheet_to_json(wb.Sheets['Portfolio']);
     
@@ -108,6 +105,11 @@ async function rebuildEod() {
         total_wealth: Number(wealth.toFixed(2))
       });
     }
+  } else if (fs.existsSync(EOD_FILE)) {
+    const raw = fs.readFileSync(EOD_FILE, 'utf-8');
+    const all = JSON.parse(raw);
+    baseLogs = all.filter(l => l.date <= '2026-08-07');
+    console.log(`Loaded ${baseLogs.length} existing base records up to 2026-08-07 from ${EOD_FILE}.`);
   }
 
   baseLogs.sort((a, b) => a.date.localeCompare(b.date));
@@ -165,15 +167,39 @@ async function rebuildEod() {
 
     if (isWeekend) {
       // On Saturday and Sunday, all financial markets (Indian & US) are closed.
-      // Carry forward the finalized Friday closing valuations without phantom FX noise.
+      // Carry forward the finalized Friday closing valuations and totals exactly with 0 change.
       inVal = prevLog.indian_stocks;
       usVal = prevLog.us_stocks;
       mfVal = prevLog.mutual_funds;
       npsVal = prevLog.nps;
+
+      const newLog = {
+        date: dateStr,
+        hdfc: prevLog.hdfc,
+        indusind: prevLog.indusind,
+        idfc: prevLog.idfc,
+        rbl: prevLog.rbl,
+        sbi: prevLog.sbi,
+        federal: prevLog.federal,
+        savings: prevLog.savings,
+        mutual_funds: prevLog.mutual_funds,
+        indian_stocks: prevLog.indian_stocks,
+        us_stocks: prevLog.us_stocks,
+        nps: prevLog.nps,
+        epf: prevLog.epf,
+        loan: prevLog.loan,
+        credits: prevLog.credits,
+        debt: prevLog.debt,
+        total_assets: prevLog.total_assets,
+        wealth: prevLog.wealth,
+        total_wealth: prevLog.total_wealth
+      };
+
+      baseLogs.push(newLog);
+      prevLog = newLog;
     } else {
-      // Indian stocks daily valuation
-      inHoldings.forEach(h => {
-        const q = Number(h.quantity) || 0;
+      const priceMap = {};
+      holdings.forEach(h => {
         const prices = historicalPrices[h.symbol] || {};
         let p = prices[dateStr];
         if (p === undefined) {
@@ -181,76 +207,37 @@ async function rebuildEod() {
           if (prevDates.length > 0) p = prices[prevDates[0]];
           else p = Number(h.current_price) || 0;
         }
-        inVal += q * p;
+        priceMap[h.symbol] = p;
       });
 
-      // US stocks daily valuation (in INR)
-      usHoldings.forEach(h => {
-        const q = Number(h.quantity) || 0;
-        const prices = historicalPrices[h.symbol] || {};
-        let p = prices[dateStr];
-        if (p === undefined) {
-          const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
-          if (prevDates.length > 0) p = prices[prevDates[0]];
-          else p = Number(h.current_price) || 0;
-        }
-        usVal += q * p * fx;
-      });
+      // Construct current snapshot with previous bank & debt carry-forwards
+      const valuation = computePortfolioValuation(holdings, [], priceMap, fx);
 
-      // Mutual funds daily valuation
-      mfHoldings.forEach(h => {
-        const q = Number(h.quantity) || 0;
-        const prices = historicalPrices[h.symbol] || {};
-        let p = prices[dateStr];
-        if (p === undefined) {
-          const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
-          if (prevDates.length > 0) p = prices[prevDates[0]];
-          else p = Number(h.current_price) || 0;
-        }
-        mfVal += q * p;
-      });
+      const newLog = {
+        date: dateStr,
+        hdfc: prevLog.hdfc,
+        indusind: prevLog.indusind,
+        idfc: prevLog.idfc,
+        rbl: prevLog.rbl,
+        sbi: prevLog.sbi,
+        federal: prevLog.federal,
+        savings: prevLog.savings,
+        mutual_funds: valuation.mutual_funds,
+        indian_stocks: valuation.indian_stocks,
+        us_stocks: valuation.us_stocks,
+        nps: valuation.nps,
+        epf: prevLog.epf,
+        loan: prevLog.loan,
+        credits: prevLog.credits,
+        debt: prevLog.debt,
+        total_assets: Number((prevLog.savings + prevLog.epf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps).toFixed(2)),
+        wealth: Number((prevLog.savings + prevLog.epf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps - prevLog.debt).toFixed(2)),
+        total_wealth: Number((prevLog.savings + prevLog.epf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps - prevLog.debt).toFixed(2))
+      };
 
-      // NPS daily valuation
-      npsHoldings.forEach(h => {
-        const q = Number(h.quantity) || 0;
-        const prices = historicalPrices[h.symbol] || {};
-        let p = prices[dateStr];
-        if (p === undefined) {
-          const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
-          if (prevDates.length > 0) p = prices[prevDates[0]];
-          else p = Number(h.current_price) || 0;
-        }
-        npsVal += q * p;
-      });
+      baseLogs.push(newLog);
+      prevLog = newLog;
     }
-
-    const totAssets = prevLog.savings + prevLog.epf + npsVal + mfVal + inVal + usVal;
-    const totWealth = totAssets - prevLog.debt;
-
-    const newLog = {
-      date: dateStr,
-      hdfc: prevLog.hdfc,
-      indusind: prevLog.indusind,
-      idfc: prevLog.idfc,
-      rbl: prevLog.rbl,
-      sbi: prevLog.sbi,
-      federal: prevLog.federal,
-      savings: prevLog.savings,
-      mutual_funds: Number(mfVal.toFixed(2)),
-      indian_stocks: Number(inVal.toFixed(2)),
-      us_stocks: Number(usVal.toFixed(2)),
-      nps: Number(npsVal.toFixed(2)),
-      epf: prevLog.epf,
-      loan: prevLog.loan,
-      credits: prevLog.credits,
-      debt: prevLog.debt,
-      total_assets: Number(totAssets.toFixed(2)),
-      wealth: Number(totWealth.toFixed(2)),
-      total_wealth: Number(totWealth.toFixed(2))
-    };
-
-    baseLogs.push(newLog);
-    prevLog = newLog;
   }
 
   // Calculate daily_pnl and pnl_pct for each record

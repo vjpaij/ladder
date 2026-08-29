@@ -7,6 +7,7 @@ import db, { initDatabase } from './db.js';
 import { supabase } from './supabaseClient.js';
 import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav, formatCleanQuoteDate } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
+import { computeHoldingValueINR } from './services/portfolioCalculator.js';
 import axios from 'axios';
 
 const app = express();
@@ -215,9 +216,8 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
 
       const liveQuote = liveQuoteCache.get(h.symbol);
       const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
-      const liveRate = h.currency === 'USD' ? fxRate : 1.0;
-      const currentVal = (Number(h.quantity) || 0) * currentPriceNum * liveRate;
-      totalAssetsINR += currentVal;
+      const currentVal = computeHoldingValueINR(h, currentPriceNum, fxRate);
+      totalAssetsINR = Number((totalAssetsINR + currentVal).toFixed(2));
 
       if (h.currency === 'USD') {
         const m = usFxMap[h.id] || usFxMap[h.symbol];
@@ -457,10 +457,10 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
           id: c.id,
           name: c.name,
           color: c.color,
-          investedINR: Math.round(c.investedINR),
-          currentINR: Math.round(c.currentINR),
-          realizedINR: Math.round(c.realizedINR),
-          unrealizedINR: Math.round(c.unrealizedINR),
+          investedINR: Number(c.investedINR.toFixed(2)),
+          currentINR: Number(c.currentINR.toFixed(2)),
+          realizedINR: Number(c.realizedINR.toFixed(2)),
+          unrealizedINR: Number(c.unrealizedINR.toFixed(2)),
           activeXirrPct,
           closedXirrPct,
           xirrPct: combinedXirrPct,
@@ -477,12 +477,28 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     });
     const xirrPct = totalPortfolioCost > 0 ? Number((totalPortfolioWeightedXirr / totalPortfolioCost).toFixed(2)) : 0;
 
-    // Latest Daily P&L
-    const logs = await db.select('pnl_history');
-    logs.sort((a, b) => (b.log_date || '').localeCompare(a.log_date || ''));
-    const latestLog = logs[0];
-    const dayPnlINR = latestLog ? (Number(latestLog.daily_pnl_inr) || 0) : (totalGainINR * 0.008);
-    const dayPnlPct = latestLog ? 0.82 : 0.82;
+    // Latest Daily P&L (Consistent with /api/daily-pnl)
+    let latestLog = null;
+    try {
+      const eodPath = './data/portfolio_eod_logs.json';
+      if (fs.existsSync(eodPath)) {
+        const raw = fs.readFileSync(eodPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (parsed.length > 0) {
+          const l = parsed[parsed.length - 1];
+          latestLog = { log_date: l.date, daily_pnl_inr: l.daily_pnl, pnl_percentage: l.pnl_pct };
+        }
+      }
+    } catch (e) {
+      console.warn('[EOD JSON Fetch Error]:', e.message);
+    }
+
+    if (!latestLog) {
+      latestLog = { log_date: new Date().toISOString().slice(0, 10), daily_pnl_inr: 0, pnl_percentage: 0 };
+    }
+    
+    const dayPnlINR = latestLog && latestLog.daily_pnl_inr !== undefined ? Number(latestLog.daily_pnl_inr) : 0;
+    const dayPnlPct = latestLog && latestLog.pnl_percentage !== undefined ? Number(latestLog.pnl_percentage) : 0;
 
     // Asset Breakdown by Category (clean names)
     const categoryValues = {};
@@ -497,7 +513,7 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
 
     const assetAllocation = Object.keys(categoryValues).map(cat => ({
       name: cat,
-      value: Math.round(categoryValues[cat]),
+      value: Number(categoryValues[cat].toFixed(2)),
       percentage: Number(((categoryValues[cat] / (totalAssetsINR || 1)) * 100).toFixed(1))
     }));
 
@@ -579,7 +595,7 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
       const liveQuote = liveQuoteCache.get(h.symbol);
       const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
       const currentValueOriginal = (Number(h.quantity) || 0) * currentPriceNum;
-      const currentValueINR = currentValueOriginal * liveRate;
+      const currentValueINR = computeHoldingValueINR(h, currentPriceNum, fxRate);
       
       const investedValueOriginal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
       const investedValueINR = investedValueOriginal * txRate;

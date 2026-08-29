@@ -5,6 +5,76 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.6] - 2026-08-29
+
+### Fixed
+- **Reinstated 2-Decimal Precision on Category Metrics**: Fixed an issue in `server/index.js` where the `/api/summary` endpoint was using `Math.round()` on category `investedINR`, `currentINR`, `realizedINR`, and `unrealizedINR`. Replaced with strict `.toFixed(2)` float precision to ensure the dashboard's Performance table correctly renders fractional paise instead of defaulting to `.00`.
+
+---
+
+## [4.5.5] - 2026-08-29
+
+### Fixed
+- **Removed Hardcoded Daily PnL Fallbacks**: Fixed a bug in `server/index.js` (`/api/summary`) where the daily PnL percentage was hardcoded to `0.82%` and the absolute change was falling back to an incorrect calculation (`totalGainINR * 0.008`) if the database fetch returned empty. The endpoint now correctly defaults to local `portfolio_eod_logs.json` as a fallback and accurately reports `0.00` change for non-trading weekend days.
+
+---
+
+## [4.5.4] - 2026-08-29
+
+### Added
+- **Dynamic Positive/Negative Coloring for Net Worth Chart**: Updated `OverviewView.jsx` to dynamically compare the start and end values of the selected timeframe. The area chart's stroke, fill gradient, and tooltip text now turn Red (`#EF4444`) if the final portfolio value is lower than the starting value of the range, and Emerald (`#10B981`) if it is higher.
+
+---
+
+## [4.5.3] - 2026-08-29
+
+### Fixed
+- **Dark Theme Native Date Picker Visibility Fix**: Applied `[color-scheme:dark]` CSS property to all `<input type="date">` elements across `OverviewView.jsx`, `CalendarView.jsx`, and `AddInvestmentView.jsx` to ensure native browser calendar icons are inverted and clearly visible in dark mode.
+
+---
+
+## [4.5.2] - 2026-08-29
+
+### Fixed
+- **Dashboard Net Worth Chart True EOD Integration & Redundant FX Badge Cleanup**: (1) Removed redundant `$1 = ₹95.38` badge from the Net Worth hero card in `OverviewView.jsx`; (2) Replaced the synthetic noise/math formula in the Net Worth History chart with true historical daily EOD logs fetched from `/api/daily-pnl` (e.g. 2007-2026 real daily records), ensuring the chart displays exact historical portfolio valuations across all range presets (`1M`, `3M`, `6M`, `1Y`, `2Y`, `3Y`, `5Y`, `10Y`, `ALL`).
+
+---
+
+## [4.5.1] - 2026-08-29
+
+### Changed
+- **Centralized Shared Single-Source-of-Truth Valuation Engine**: (1) Created `server/services/portfolioCalculator.js` (`computeHoldingValueINR` and `computePortfolioValuation`) as the single mathematical authority; (2) Refactored `server/index.js` (`/api/summary`, `/api/holdings`) and `scripts/rebuild_portfolio_eod.mjs` to consume the same shared module; (3) Zero mathematical divergence across all endpoints and views.
+
+---
+
+## [4.5.0] - 2026-08-29
+
+### Changed
+- **Zero-Variance Mathematical Parity Across Dashboard & Calendar**: (1) Standardized per-holding 2-decimal rounded accumulation in `scripts/rebuild_portfolio_eod.mjs` to match `/api/holdings` and `/api/summary` exactly; (2) Rebuilt all 6,912 EOD logs; (3) Verified exact 1-to-1 zero-paise match (`₹18,663,893.70` Net Worth, `₹23,162,513.86` Total Assets, `₹44,98,620.16` Total Liabilities) across Dashboard, Calendar, and Supabase.
+
+---
+
+## [4.4.9] - 2026-08-29
+
+### Fixed
+- **Non-Trading Day & Weekend Precision Alignment**: (1) Fixed floating-point precision summation discrepancy between 28 Aug and 29 Aug in `scripts/rebuild_portfolio_eod.mjs`; (2) Weekend non-trading days now carry forward Friday's exact valuation, total assets, liabilities, and net worth with exactly `₹0.00` daily change (0.00%); (3) Synchronized with Supabase `pnl_history`.
+
+---
+
+## [4.4.8] - 2026-08-29
+
+### Changed
+- **Calendar Table View Action Column Removal**: Removed redundant 'Action / View' column and header from the Calendar spreadsheet table in `CalendarView.jsx`. Entire row remains clickable for opening day valuation breakdown modal.
+
+---
+
+## [4.4.7] - 2026-08-29
+
+### Added
+- **Daily EOD Pricing Reconciliation & Mandatory Universal Page Synchronization Rule**: (1) Updated `data/historical_prices.json` with latest settled Friday closing prices (2026-08-28) across active holdings; (2) Rebuilt all 6,912 historical EOD logs via `scripts/rebuild_portfolio_eod.mjs` and synchronized with Supabase `pnl_history`; (3) Enforced mandatory Cross-Functional Data Integrity rule requiring all updates in any portfolio view or database table to immediately sync with all dependent views.
+
+---
+
 ## [4.4.6] - 2026-08-29
 
 ### Added
