@@ -5,6 +5,53 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.3] - 2026-08-29
+
+### Fixed
+- **CRITICAL: Liability transaction reversal**: `DELETE /api/transactions/:id`, `PUT /api/transactions/:id`, and `POST /api/db-table-update` now correctly fall back to `liability_id` when `holding_id` is null, ensuring loan and credit card transactions trigger proper recalculation upon deletion or edit.
+- **Recalculator query isolation**: Removed fragile `symbol`/`name` OR-matching from transaction queries in `recalculator.js`. All three branches (market, balance, liability) now query by primary key (`holding_id` or `liability_id`) only, preventing cross-contamination.
+- **Form reset defaults**: After successful submission, form now resets to the correct portfolio-specific default type (e.g. `CREDIT` for bank, `CONTRIBUTION` for EPF, `CHARGE` for cards) instead of always resetting to `BUY`.
+
+### Improved
+- **SIP engine hardening**: Added `end_date` auto-closure (SIPs automatically close when their tenure ends), removed dangerous NAV fallback to 100 (skips execution if NAV unavailable), and added skip-tracking with detailed logging.
+- **Recalculator**: Added `OPENING_BALANCE` as a valid debt-increasing transaction type for liabilities.
+- **Success messages**: Context-specific per portfolio type (e.g. "Bank transaction recorded" vs generic "Investment recorded").
+- **GitHub Actions cron**: Restricted to 8 runs/day during NAV declaration windows (IST 21:00-00:00 and 09:00-12:00) instead of 24 runs/day.
+
+---
+
+## [4.7.2] - 2026-08-29
+
+### Added
+- **Transaction-Based UI for Cash & Debt**: Upgraded `AddInvestmentView.jsx` to replace legacy static balance inputs with full transaction forms:
+  - **Bank Accounts**: `Deposit / Earn (Credit)` vs `Spend / Withdraw (Debit)` with transaction amount, date, and description.
+  - **EPF**: `Deposit / Contribution` vs `Withdrawal / Transfer`.
+  - **Loans**: `EMI Payment / Prepayment (Reduces Debt)` vs `New Loan / Borrow (Increases Debt)`.
+  - **Credit Cards**: `Card Expense / Purchase (Charge)` vs `Bill Payment / Refund`.
+  - **Live Balance Projection Cards**: Displays real-time current balance $\to$ projected balance / debt based on the entered amount and action.
+
+---
+
+## [4.7.1] - 2026-08-29
+
+### Fixed
+- **Price Sync Function TypeError**: Fixed a bug in `server/services/priceEngine.js` where `fetchProteanNpsNavBatch` was returning `{ navMap, dbRows }` instead of the `navMap` instance directly, causing `proteanNavMap.get is not a function` during price sync (`/api/refresh-prices`).
+- **Top Search Bar Width**: Expanded search input container in `TopNavbar.jsx` from `w-48 md:w-64` to `w-72 sm:w-80 md:w-96 lg:w-[380px]`, preventing placeholder text truncation (`Search tickers, investments, liabilities...`).
+
+---
+
+## [4.7.0] - 2026-08-29
+
+### Added
+- **Safety & Rollback Engine**: Built `scripts/dump_db_snapshot.mjs` and `scripts/restore_db_snapshot.mjs` with paginated retrieval past Supabase limits, SHA256 checksum verification, and dependency-ordered dry-run / full database recovery.
+- **Universal Recalculation Engine**: Implemented `server/services/recalculator.js` (`recalculateHoldingState`) performing chronological FIFO replay, stock split scaling, bonus share dilution, and cash flow balance reconciliation upon any transaction edit, deletion, or addition.
+- **US Equity Currency Clarity**: Added explicit USD ($) trade price helper note and live converted INR preview to `AddInvestmentView.jsx`.
+- **Multi-Pass NPS & MF Scraping Engine**: Created `nps_daily_navs` table in Supabase, updated Protean CRA daily scraper with date-sorted zip retrieval, added `GET /api/nav/nps/:schemeCode`, added on-demand Refresh NAVs button and status badges to `MutualFundsView.jsx` and `NpsView.jsx`, and scheduled hourly GitHub Actions workflow `.github/workflows/daily_nav_sip_sync.yml`.
+- **Delta-Ledger Migration**: Migrated all 9 Bank, EPF, Loan, and Credit Card accounts from static balances to discrete historical delta transactions (4,996 records from 2007-2026) in Supabase `transactions` table with foreign key `liability_id`, enabling full chronological balance reversibility.
+- **Recurring SIP Engine**: Created `sips` table in Supabase, `/api/sips` CRUD routes, automated execution engine (`processDueSips`), and interactive `SipManagerModal` in `MutualFundsView.jsx`.
+
+---
+
 ## [4.6.1] - 2026-08-29
 
 ### Added

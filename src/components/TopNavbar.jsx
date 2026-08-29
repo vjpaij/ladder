@@ -142,37 +142,37 @@ export default function TopNavbar({
       <div className="flex items-center gap-3">
 
         {/* ─── Search Bar ─────────────────────────────────────────── */}
-        <div ref={searchRef} className="relative w-48 md:w-64">
+        <div ref={searchRef} className="relative w-72 sm:w-80 md:w-96 lg:w-[380px]">
           <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setIsSearchOpen(true);
-          }}
-          onFocus={() => setIsSearchOpen(true)}
-          placeholder="Search tickers, investments, liabilities..."
-          className="w-full pl-10 pr-9 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all"
-        />
-        {query && (
-          <button
-            onClick={() => { setQuery(''); setIsSearchOpen(false); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {/* Autocomplete Dropdown */}
-        <AnimatePresence>
-          {isSearchOpen && query.trim() !== '' && (
-            <motion.div
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 5 }}
-              className="absolute top-full left-0 right-0 mt-2 bg-slate-900/95 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-2xl max-h-80 overflow-y-auto"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setIsSearchOpen(true);
+            }}
+            onFocus={() => setIsSearchOpen(true)}
+            placeholder="Search tickers, investments, liabilities..."
+            className="w-full pl-10 pr-9 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all"
+          />
+          {query && (
+            <button
+              onClick={() => { setQuery(''); setIsSearchOpen(false); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
             >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Autocomplete Dropdown */}
+          <AnimatePresence>
+            {isSearchOpen && query.trim() !== '' && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 5 }}
+                className="absolute top-full left-0 w-full sm:w-[420px] mt-2 bg-slate-900/95 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50 backdrop-blur-2xl max-h-80 overflow-y-auto"
+              >
               {filtered.length > 0 ? (
                 <div className="py-1 divide-y divide-slate-800/40">
                   {filtered.map((item, idx) => {
@@ -337,7 +337,11 @@ export default function TopNavbar({
                   {user?.avatarUrl && (
                     <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex justify-end">
                       <button
-                        onClick={() => updateUserAvatar(null)}
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to remove your profile photo?')) {
+                            updateUserAvatar(null);
+                          }
+                        }}
                         className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />

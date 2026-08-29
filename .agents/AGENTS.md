@@ -24,13 +24,17 @@
    - **Pipeline 5 (Time-Series & Calendar Heatmap)**: `data/portfolio_eod_logs.json`, `scripts/rebuild_portfolio_eod.mjs`, `pnl_history`, and `/api/daily-pnl`. Whenever database transactions or prices change, you **MUST autonomously re-execute `rebuild_portfolio_eod.mjs`** and verify the calendar report without waiting for user prompting.
    - **Pipeline 6 (UI/UX, Themes & Precision)**: High-contrast light/dark themes, exact 2-decimal floating precision, `DD-MM-YYYY` dates, and non-repetitive text.
 
-3. **FINAL STEP - UPDATE MASTER CONTEXT & CHANGE LOG (`LADDER.md`)**:
-   - Whenever any file or code in the codebase is modified, added, or deleted, you **MUST** update [LADDER.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/LADDER.md).
+3. **FINAL STEP - UPDATE MASTER CONTEXT & DOCUMENTATION (`LADDER.md` & `README.md`)**:
+   - Whenever any file, feature, or architecture in the codebase is modified, added, or deleted, you **MUST** update both [LADDER.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/LADDER.md) and [README.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/README.md).
    - Record all changes in the **Change Log & Maintenance History** table in `LADDER.md` with:
      - Version increment (e.g. `v1.1.0`)
      - Date
      - Clear description of architectural, feature, or database changes
      - Author/Agent identifier
+   - Ensure `README.md` accurately describes current features, architecture, scripts, and workflows.
+
+4. **MANDATORY CONFIRMATION ON ALL DELETE ACTIONS**:
+   - Any user action that deletes or removes data (holdings, transactions, recurring SIPs, profile media) MUST always prompt for explicit user confirmation (`window.confirm`) displaying the asset or schedule name before executing. Never perform unconfirmed deletions.
 
 ## Mandatory Git Push & Release Workflow Rules
 
@@ -57,3 +61,6 @@ When asked to commit, release, or push code to Git:
 
 6. **Build & Verify Before Finalizing Changes**:
    - Before completing any task or pushing code, you **MUST** ensure the current code doesn't break by verifying it. Run `npm run build` or the corresponding test/build commands to catch syntax errors or unresolved variables (e.g. `ReferenceError` during mapping). Never leave a file with untested breaking changes.
+
+7. **Backend Daemon & Port 5000 Health Check**:
+   - Before handing over any task, you **MUST** verify that the Express backend server (`node server/index.js`) is active on port 5000 and responds to `GET http://127.0.0.1:5000/api/summary` with HTTP 200 without ECONNREFUSED. If not running, start it as a background daemon process so the user never encounters connection errors.

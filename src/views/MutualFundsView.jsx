@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { LineChart, Plus, Search, Edit3, Trash2, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { LineChart, Plus, Search, Edit3, Trash2, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, RefreshCw, Loader2, Clock, Repeat } from 'lucide-react';
+import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
+import SipManagerModal from '../components/SipManagerModal';
 
 export default function MutualFundsView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
   const { formatMoney } = useThemeAuth();
@@ -13,11 +15,38 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
   const [sortField, setSortField] = useState('name'); // Default sort by name
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
   const [selectedHolding, setSelectedHolding] = useState(null);
+  const [isRefreshingNavs, setIsRefreshingNavs] = useState(false);
+  const [refreshToast, setRefreshToast] = useState(null);
+  const [isSipModalOpen, setIsSipModalOpen] = useState(false);
   const closeDetail = useCallback(() => setSelectedHolding(null), []);
+
+  const handleRefreshNavs = async () => {
+    setIsRefreshingNavs(true);
+    try {
+      const res = await axios.post('/api/refresh-navs');
+      setRefreshToast(res.data.message || 'NAVs updated successfully!');
+      setTimeout(() => setRefreshToast(null), 4000);
+    } catch (err) {
+      setRefreshToast('Error syncing NAVs: ' + (err.response?.data?.error || err.message));
+      setTimeout(() => setRefreshToast(null), 4000);
+    } finally {
+      setIsRefreshingNavs(false);
+    }
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
   const rawMfs = useMemo(() => {
     return holdings.filter(h => h.category_id === 'mutual_funds');
   }, [holdings]);
+
+  const upToDateCount = useMemo(() => {
+    return rawMfs.filter(h => {
+      const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
+      return qd === todayStr || qd === todayFormatted;
+    }).length;
+  }, [rawMfs, todayStr, todayFormatted]);
 
   // Filter by status tab
   const statusFiltered = useMemo(() => {
@@ -138,6 +167,13 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                 <span className="text-[10px] font-mono text-slate-400">
                   As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                  upToDateCount === activeCount && activeCount > 0
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                }`}>
+                  {upToDateCount} / {activeCount} Schemes Up-to-Date
+                </span>
               </div>
               <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
                 <LineChart className="w-5 h-5 text-amber-400" />
@@ -254,6 +290,31 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                 </div>
 
               </div>
+
+              {/* Recurring SIPs Button */}
+              <motion.button
+                onClick={() => setIsSipModalOpen(true)}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 px-3.5 py-3 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-bold rounded-2xl text-xs border border-slate-800 cursor-pointer shrink-0"
+                title="Manage automated recurring SIP schedules"
+              >
+                <Repeat className="w-3.5 h-3.5 text-amber-400" />
+                Recurring SIPs
+              </motion.button>
+
+              {/* Refresh NAVs Button */}
+              <motion.button
+                onClick={handleRefreshNavs}
+                disabled={isRefreshingNavs}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 px-3.5 py-3 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-bold rounded-2xl text-xs border border-slate-800 cursor-pointer shrink-0 disabled:opacity-50"
+                title="Sweep AMFI to refresh and catch up latest NAVs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isRefreshingNavs ? 'animate-spin' : ''}`} />
+                {isRefreshingNavs ? 'Refreshing...' : 'Refresh NAVs'}
+              </motion.button>
 
               {/* Add Mutual Fund Button */}
               <motion.button
@@ -424,7 +485,19 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol} • {h.sector || 'Mutual Funds'}</div>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol} • {h.sector || 'Mutual Funds'}</span>
+                              {h.quote_date && (
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
+                                  (h.quote_date === todayStr || h.quote_date === todayFormatted)
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                                    : 'bg-amber-500/10 text-amber-400/90 border border-amber-500/20'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${(h.quote_date === todayStr || h.quote_date === todayFormatted) ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                  {(h.quote_date === todayStr || h.quote_date === todayFormatted) ? `Today (${h.quote_date})` : `As of ${h.quote_date}`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -522,6 +595,12 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
       {selectedHolding && (
         <HoldingDetailModal holding={selectedHolding} onClose={closeDetail} />
       )}
+
+      <SipManagerModal
+        isOpen={isSipModalOpen}
+        onClose={() => setIsSipModalOpen(false)}
+        holdings={holdings}
+      />
     </>
   );
 }

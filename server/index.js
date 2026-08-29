@@ -5,9 +5,11 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db, { initDatabase } from './db.js';
 import { supabase } from './supabaseClient.js';
-import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav, formatCleanQuoteDate } from './services/priceEngine.js';
+import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav, formatCleanQuoteDate, syncAllMissingNavs, syncDailyNpsNavs } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
 import { computeHoldingValueINR } from './services/portfolioCalculator.js';
+import { recalculateHoldingState } from './services/recalculator.js';
+import { processDueSips } from './services/sipEngine.js';
 import axios from 'axios';
 
 const app = express();
@@ -1821,9 +1823,62 @@ app.post('/api/db-table-update', authenticateToken, async (req, res) => {
     const updateObj = {};
     updateObj[column] = isNaN(value) ? value : Number(value);
     await db.update(tableName, id, updateObj);
+
+    // If a transaction is amended, automatically recalculate its parent holding or liability
+    if (tableName === 'transactions') {
+      const { data: txs } = await supabase.from('transactions').select('holding_id, liability_id').eq('id', id);
+      const parentId = txs?.[0]?.holding_id || txs?.[0]?.liability_id;
+      if (parentId) {
+        await recalculateHoldingState(parentId);
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Dedicated Transaction Delete with Automatic Reversal/Recalculation
+app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: txs } = await supabase.from('transactions').select('*').eq('id', id);
+    if (!txs || txs.length === 0) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+    const parentId = txs[0].holding_id || txs[0].liability_id;
+    await supabase.from('transactions').delete().eq('id', id);
+
+    if (parentId) {
+      await recalculateHoldingState(parentId);
+    }
+
+    res.json({ success: true, message: 'Transaction deleted and holding position automatically recalculated.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dedicated Transaction Update with Automatic Reversal/Recalculation
+app.put('/api/transactions/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const { data: txs } = await supabase.from('transactions').select('*').eq('id', id);
+    if (!txs || txs.length === 0) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+    const parentId = txs[0].holding_id || txs[0].liability_id;
+    await supabase.from('transactions').update(updates).eq('id', id);
+
+    if (parentId) {
+      await recalculateHoldingState(parentId);
+    }
+
+    res.json({ success: true, message: 'Transaction updated and holding position automatically recalculated.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1934,6 +1989,178 @@ app.get('/api/nav/mutual-funds/:schemeCode', async (req, res) => {
     } else {
       res.status(404).json({ error: 'NAV not found' });
     }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// NPS NAV Lookup by Scheme Code and Date (with Protean DB & Archive fallback)
+app.get('/api/nav/nps/:schemeCode', async (req, res) => {
+  try {
+    const { schemeCode } = req.params;
+    const { date } = req.query;
+    const cleanDate = date || new Date().toISOString().split('T')[0];
+
+    // 1. Try local database table nps_daily_navs first (Protean verified)
+    const { data: dbRows } = await supabase
+      .from('nps_daily_navs')
+      .select('*')
+      .eq('scheme_code', schemeCode)
+      .lte('nav_date', cleanDate)
+      .order('nav_date', { ascending: false })
+      .limit(1);
+
+    if (dbRows && dbRows.length > 0) {
+      return res.json({ nav: Number(dbRows[0].nav), date: dbRows[0].nav_date, source: 'protean_db' });
+    }
+
+    // 2. Fallback to historical cache (covers back to 2013)
+    const histMap = await fetchNpsHistoricalNav(schemeCode);
+    if (histMap && histMap.size > 0) {
+      if (histMap.has(cleanDate)) {
+        return res.json({ nav: histMap.get(cleanDate), date: cleanDate, source: 'historical_archive' });
+      }
+      const dates = Array.from(histMap.keys()).filter(d => d <= cleanDate).sort().reverse();
+      if (dates.length > 0) {
+        return res.json({ nav: histMap.get(dates[0]), date: dates[0], source: 'historical_archive' });
+      }
+    }
+
+    res.status(404).json({ error: 'NPS NAV not found for given date' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Universal On-Demand NAV Catch-Up Endpoint (Mutual Funds + NPS)
+app.post('/api/refresh-navs', authenticateToken, async (req, res) => {
+  try {
+    const results = await syncAllMissingNavs();
+    res.json({
+      success: true,
+      message: `Sync complete: ${results.npsUpdated} NPS schemes & ${results.mfUpdated} Mutual Funds updated.`,
+      results
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Recurring SIP Management Endpoints
+// ---------------------------------------------------------------------------
+
+// List all SIPs
+app.get('/api/sips', authenticateToken, async (req, res) => {
+  try {
+    const { data: sips, error } = await supabase
+      .from('sips')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json(sips || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create new SIP
+app.post('/api/sips', authenticateToken, async (req, res) => {
+  try {
+    const { holding_id, symbol, name, amount, day_of_month, frequency, start_date } = req.body;
+    if (!symbol || !name || !amount) {
+      return res.status(400).json({ error: 'Symbol, name and amount are required' });
+    }
+
+    const dom = Math.min(28, Math.max(1, parseInt(day_of_month) || 1));
+    const today = new Date();
+    let nextDate = start_date ? new Date(start_date) : new Date(today.getFullYear(), today.getMonth(), dom);
+    if (nextDate < today) {
+      nextDate = new Date(today.getFullYear(), today.getMonth() + 1, dom);
+    }
+    const nextRunStr = nextDate.toISOString().split('T')[0];
+
+    const { data: inserted, error } = await supabase
+      .from('sips')
+      .insert({
+        holding_id: holding_id || null,
+        symbol,
+        name,
+        amount: Number(amount),
+        frequency: frequency || 'MONTHLY',
+        day_of_month: dom,
+        next_run_date: nextRunStr,
+        status: 'ACTIVE'
+      })
+      .select();
+
+    if (error) throw error;
+    res.json({ success: true, sip: inserted[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update SIP parameters (amount, day, next_run_date)
+app.put('/api/sips/:id', authenticateToken, async (req, res) => {
+  try {
+    const { amount, day_of_month, next_run_date } = req.body;
+    const updates = { updated_at: new Date().toISOString() };
+    if (amount !== undefined) updates.amount = Number(amount);
+    if (day_of_month !== undefined) updates.day_of_month = parseInt(day_of_month);
+    if (next_run_date !== undefined) updates.next_run_date = next_run_date;
+
+    const { data: updated, error } = await supabase
+      .from('sips')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select();
+
+    if (error) throw error;
+    res.json({ success: true, sip: updated[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Change SIP status: ACTIVE, PAUSED, CLOSED
+app.patch('/api/sips/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['ACTIVE', 'PAUSED', 'CLOSED'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be ACTIVE, PAUSED, or CLOSED' });
+    }
+
+    const { data: updated, error } = await supabase
+      .from('sips')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id)
+      .select();
+
+    if (error) throw error;
+    res.json({ success: true, sip: updated[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete SIP
+app.delete('/api/sips/:id', authenticateToken, async (req, res) => {
+  try {
+    const { error } = await supabase.from('sips').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Manual trigger to process due SIPs immediately
+app.post('/api/sips/process-due', authenticateToken, async (req, res) => {
+  try {
+    const result = await processDueSips();
+    res.json({ success: true, result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2212,6 +2439,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
           notes: `Stock split ${oldQty}:${newQtyRatio} — holding scaled from ${preSplitQty} to ${newQty} shares, avg cost adjusted from ₹${preSplitAvg.toFixed(2)} to ₹${newAvg.toFixed(2)}`
         });
 
+        await recalculateHoldingState(holdingId);
         return res.json({ success: true, holdingId, action: 'split_applied' });
       }
 
@@ -2254,6 +2482,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
           notes: `Bonus issue (+${txQty} shares credited at ₹0 cost, avg cost diluted from ₹${preBonusAvg.toFixed(2)} to ₹${newAvg.toFixed(2)})`
         });
 
+        await recalculateHoldingState(holdingId);
         return res.json({ success: true, holdingId, action: 'bonus_applied' });
       }
 
@@ -2275,28 +2504,24 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       if (txFxRate) txRecord.fx_rate = txFxRate;
 
       await db.insert('transactions', txRecord);
+      await recalculateHoldingState(holdingId);
 
       return res.json({ success: true, holdingId, action: 'transaction_recorded' });
     }
 
-    // Handle Bank / EPF (balance-based)
+    // Handle Bank / EPF (delta-ledger based)
     if (portfolio === 'bank' || portfolio === 'epf') {
-      const { name: accName, balance, date: entryDate } = data;
+      const { name: accName, balance, amount, type: rawType, date: entryDate, notes } = data;
       if (!accName) return res.status(400).json({ error: 'Account name is required' });
-      if (Number(balance) < 0) return res.status(400).json({ error: 'Balance cannot be negative' });
 
       const symbolKey = portfolio === 'epf' ? 'EPF-RETIREMENT' :
                         accName.toUpperCase().replace(/\s+/g, '-') + '-SAVINGS';
 
       const existing = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
+      let holdingId;
 
       if (existing.length > 0) {
-        await db.update('holdings', existing[0].id, {
-          current_price: Number(balance) || 0,
-          quantity: 1,
-          updated_at: new Date().toISOString()
-        });
-        return res.json({ success: true, holdingId: existing[0].id, action: 'balance_updated' });
+        holdingId = existing[0].id;
       } else {
         const newHolding = await db.insert('holdings', {
           category_id: portfolio,
@@ -2304,109 +2529,206 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
           name: accName,
           exchange: portfolio === 'bank' ? 'BANK' : 'EPF',
           quantity: 1,
-          avg_buy_price: Number(balance) || 0,
-          current_price: Number(balance) || 0,
+          avg_buy_price: 0,
+          current_price: 0,
           currency: 'INR',
           status: 'ACTIVE'
         });
-        return res.json({ success: true, holdingId: newHolding.id, action: 'account_created' });
+        holdingId = newHolding[0]?.id || newHolding.id;
       }
+
+      const txDate = entryDate || new Date().toISOString().split('T')[0];
+
+      // Determine transaction type and amount
+      if (amount !== undefined && Number(amount) > 0) {
+        const amt = Number(amount);
+        let txType = (rawType || '').toUpperCase();
+        if (!txType) {
+          txType = portfolio === 'epf' ? 'CONTRIBUTION' : 'CREDIT';
+        }
+
+        await db.insert('transactions', {
+          holding_id: holdingId,
+          type: txType,
+          quantity: 1,
+          price: amt,
+          total_amount: amt,
+          charges: 0,
+          currency: 'INR',
+          date: txDate,
+          symbol: symbolKey,
+          name: accName,
+          notes: notes || `${portfolio === 'epf' ? 'EPF' : 'Bank'} ${txType}: ₹${amt.toFixed(2)}`
+        });
+      } else if (balance !== undefined) {
+        const currentBal = existing.length > 0 ? (Number(existing[0].current_price) || 0) : 0;
+        const targetBal = Math.max(0, Number(balance));
+        const diff = targetBal - currentBal;
+
+        if (Math.abs(diff) > 0.001) {
+          let txType;
+          if (portfolio === 'epf') {
+            txType = diff > 0 ? 'CONTRIBUTION' : 'WITHDRAWAL';
+          } else {
+            txType = diff > 0 ? 'CREDIT' : 'DEBIT';
+          }
+
+          await db.insert('transactions', {
+            holding_id: holdingId,
+            type: txType,
+            quantity: 1,
+            price: Math.abs(diff),
+            total_amount: Math.abs(diff),
+            charges: 0,
+            currency: 'INR',
+            date: txDate,
+            symbol: symbolKey,
+            name: accName,
+            notes: notes || `Balance Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
+          });
+        }
+      }
+
+      await recalculateHoldingState(holdingId);
+      return res.json({ success: true, holdingId, action: 'ledger_updated' });
     }
 
-    // Handle Loan
+    // Handle Loan (delta-ledger based)
     if (portfolio === 'loans') {
-      const { name: loanName, balance, date } = data;
+      const { name: loanName, balance, amount, type: rawType, date: entryDate, notes } = data;
       if (!loanName) return res.status(400).json({ error: 'Loan name is required' });
-      const newBalance = Math.max(0, Number(balance) || 0);
 
       const existing = await db.selectWhere('liabilities', { category_id: 'loans', name: loanName });
+      let liabilityId;
 
       if (existing.length > 0) {
-        const currentBal = Number(existing[0].outstanding_balance) || 0;
-        
-        let txType, txAmount;
-        if (newBalance > currentBal) {
-          txType = 'TAKE';
-          txAmount = newBalance - currentBal;
-          // Increase total principal for a take
-          await db.update('liabilities', existing[0].id, {
-            total_principal: (Number(existing[0].total_principal) || 0) + txAmount,
-            outstanding_balance: newBalance,
-            updated_at: new Date().toISOString()
-          });
-        } else {
-          txType = 'PAY';
-          txAmount = currentBal - newBalance;
-          await db.update('liabilities', existing[0].id, {
-            outstanding_balance: newBalance,
-            updated_at: new Date().toISOString()
-          });
-        }
-
-        if (txAmount > 0) {
-          await db.insert('transactions', {
-            holding_id: existing[0].id,
-            type: txType,
-            date: date || new Date().toISOString().split('T')[0],
-            quantity: 1,
-            price: txAmount,
-            amount: txAmount,
-            total_amount: txAmount,
-            charges: 0,
-            status: 'COMPLETED'
-          });
-        }
+        liabilityId = existing[0].id;
       } else {
-        const initialPrincipal = newBalance;
         const inserted = await db.insert('liabilities', {
           category_id: 'loans',
           name: loanName,
-          total_principal: initialPrincipal,
-          outstanding_balance: newBalance,
+          total_principal: Number(balance || amount || 0),
+          outstanding_balance: 0,
           updated_at: new Date().toISOString()
         });
-        
-        if (initialPrincipal > 0) {
+        liabilityId = inserted[0]?.id || inserted.id;
+      }
+
+      const txDate = entryDate || new Date().toISOString().split('T')[0];
+
+      if (amount !== undefined && Number(amount) > 0) {
+        const amt = Number(amount);
+        const txType = (rawType || 'EMI_PAYMENT').toUpperCase();
+
+        await db.insert('transactions', {
+          holding_id: null,
+          liability_id: liabilityId,
+          type: txType,
+          quantity: 1,
+          price: amt,
+          total_amount: amt,
+          charges: 0,
+          currency: 'INR',
+          date: txDate,
+          symbol: 'LOAN',
+          name: loanName,
+          notes: notes || `Loan ${txType}: ₹${amt.toFixed(2)}`
+        });
+      } else if (balance !== undefined) {
+        const currentBal = existing.length > 0 ? (Number(existing[0].outstanding_balance) || 0) : 0;
+        const targetBal = Math.max(0, Number(balance));
+        const diff = targetBal - currentBal;
+
+        if (Math.abs(diff) > 0.001) {
+          const txType = diff > 0 ? 'BORROW' : 'EMI_PAYMENT';
           await db.insert('transactions', {
-            holding_id: inserted[0].id,
-            type: 'TAKE',
-            date: date || new Date().toISOString().split('T')[0],
+            holding_id: null,
+            liability_id: liabilityId,
+            type: txType,
             quantity: 1,
-            price: initialPrincipal,
-            amount: initialPrincipal,
-            total_amount: initialPrincipal,
+            price: Math.abs(diff),
+            total_amount: Math.abs(diff),
             charges: 0,
-            status: 'COMPLETED'
+            currency: 'INR',
+            date: txDate,
+            symbol: 'LOAN',
+            name: loanName,
+            notes: notes || `Loan Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
           });
         }
       }
 
-      return res.json({ success: true });
+      await recalculateHoldingState(liabilityId);
+      return res.json({ success: true, liabilityId, action: 'loan_ledger_updated' });
     }
 
-    // Handle Credit Card
+    // Handle Credit Card (delta-ledger based)
     if (portfolio === 'credit_cards') {
-      const { name: cardName, balance, date: txDate } = data;
+      const { name: cardName, balance, amount, type: rawType, date: entryDate, notes } = data;
       if (!cardName) return res.status(400).json({ error: 'Card name is required' });
-      if (Number(balance) < 0) return res.status(400).json({ error: 'Balance cannot be negative' });
 
       const existing = await db.selectWhere('liabilities', { category_id: 'credit_cards', name: cardName });
+      let cardId;
 
       if (existing.length > 0) {
-        await db.update('liabilities', existing[0].id, {
-          outstanding_balance: Number(balance) || 0,
-          updated_at: new Date().toISOString()
-        });
-        return res.json({ success: true, id: existing[0].id, action: `credit_card_updated` });
+        cardId = existing[0].id;
       } else {
         const newCard = await db.insert('liabilities', {
           category_id: 'credit_cards',
           name: cardName,
           total_principal: 0,
-          outstanding_balance: Number(balance) || 0
+          outstanding_balance: 0,
+          updated_at: new Date().toISOString()
         });
-        return res.json({ success: true, id: newCard.id, action: 'credit_card_created' });
+        cardId = newCard[0]?.id || newCard.id;
       }
+
+      const txDate = entryDate || new Date().toISOString().split('T')[0];
+
+      if (amount !== undefined && Number(amount) > 0) {
+        const amt = Number(amount);
+        const txType = (rawType || 'CHARGE').toUpperCase();
+
+        await db.insert('transactions', {
+          holding_id: null,
+          liability_id: cardId,
+          type: txType,
+          quantity: 1,
+          price: amt,
+          total_amount: amt,
+          charges: 0,
+          currency: 'INR',
+          date: txDate,
+          symbol: 'CARD',
+          name: cardName,
+          notes: notes || `Card ${txType}: ₹${amt.toFixed(2)}`
+        });
+      } else if (balance !== undefined) {
+        const currentBal = existing.length > 0 ? (Number(existing[0].outstanding_balance) || 0) : 0;
+        const targetBal = Math.max(0, Number(balance));
+        const diff = targetBal - currentBal;
+
+        if (Math.abs(diff) > 0.001) {
+          const txType = diff > 0 ? 'CHARGE' : 'BILL_PAYMENT';
+          await db.insert('transactions', {
+            holding_id: null,
+            liability_id: cardId,
+            type: txType,
+            quantity: 1,
+            price: Math.abs(diff),
+            total_amount: Math.abs(diff),
+            charges: 0,
+            currency: 'INR',
+            date: txDate,
+            symbol: 'CARD',
+            name: cardName,
+            notes: notes || `Card Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
+          });
+        }
+      }
+
+      await recalculateHoldingState(cardId);
+      return res.json({ success: true, cardId, action: 'card_ledger_updated' });
     }
 
     return res.status(400).json({ error: `Unknown portfolio type: ${portfolio}` });

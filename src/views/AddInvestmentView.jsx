@@ -60,8 +60,10 @@ const TX_TYPES = {
   us_stocks: ['BUY', 'SELL', 'BONUS', 'DIVIDEND', 'SPLIT'],
   mutual_funds: ['BUY', 'SELL', 'DIVIDEND'],
   nps: ['BUY', 'SELL'],
-  loans: ['TAKE', 'PAY'],
-  credit_cards: []
+  bank: ['CREDIT', 'DEBIT'],
+  epf: ['CONTRIBUTION', 'WITHDRAWAL'],
+  loans: ['EMI_PAYMENT', 'BORROW'],
+  credit_cards: ['CHARGE', 'BILL_PAYMENT']
 };
 
 // Autocomplete dropdown component
@@ -181,6 +183,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
   const [errorMsg, setErrorMsg] = useState(null);
   const [mfNavInfo, setMfNavInfo] = useState(null);
   const [holdings, setHoldings] = useState([]);
+  const [liabilities, setLiabilities] = useState([]);
 
   // Form state
   const [formData, setFormData] = useState({});
@@ -201,12 +204,24 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
   const currentTheme = availableThemes.find(t => t.id === theme) || availableThemes[0];
   const accentColor = currentTheme.accent;
 
+  const getDefaultTxType = (port) => {
+    switch (port) {
+      case 'bank': return 'CREDIT';
+      case 'epf': return 'CONTRIBUTION';
+      case 'loans': return 'EMI_PAYMENT';
+      case 'credit_cards': return 'CHARGE';
+      default: return 'BUY';
+    }
+  };
+
   // Reset form when portfolio changes
   useEffect(() => {
     setFormData({
-      type: selectedPortfolio === 'loans' ? 'TAKE' : 'BUY',
+      type: getDefaultTxType(selectedPortfolio),
       date: new Date().toISOString().split('T')[0],
-      fxRate: fxRate
+      fxRate: fxRate,
+      name: selectedPortfolio === 'epf' ? 'Employee Provident Fund' : '',
+      amount: ''
     });
     setSearchQuery('');
     setSearchResults([]);
@@ -217,18 +232,20 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
     setMfNavInfo(null);
   }, [selectedPortfolio, fxRate]);
 
-  // Load NPS schemes and existing accounts on mount
+  // Load NPS schemes, existing accounts, holdings, and liabilities on mount
   useEffect(() => {
     const init = async () => {
       try {
-        const [accRes, npsRes, hRes] = await Promise.all([
+        const [accRes, npsRes, hRes, liabRes] = await Promise.all([
           axios.get('/api/accounts'),
           axios.get('/api/search/nps-schemes'),
-          axios.get('/api/holdings')
+          axios.get('/api/holdings'),
+          axios.get('/api/liabilities')
         ]);
         setExistingAccounts(accRes.data || { banks: [], epf: [], loans: [], creditCards: [] });
         setNpsSchemes(npsRes.data || []);
         setHoldings(hRes.data || []);
+        setLiabilities(liabRes.data || []);
       } catch (err) {}
     };
     init();
@@ -243,7 +260,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Fetch Mutual Fund NAV when schemeCode or date changes
+  // Fetch Mutual Fund or NPS NAV when schemeCode or date changes
   useEffect(() => {
     if (selectedPortfolio === 'mutual_funds' && formData.schemeCode && formData.date) {
       const fetchNav = async () => {
@@ -258,8 +275,22 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
         }
       };
       fetchNav();
+    } else if (selectedPortfolio === 'nps' && (formData.schemeCode || formData.symbol) && formData.date) {
+      const code = formData.schemeCode || formData.symbol;
+      const fetchNpsNav = async () => {
+        try {
+          const navRes = await axios.get(`/api/nav/nps/${code}?date=${formData.date}`);
+          if (navRes.data && navRes.data.nav) {
+            updateField('price', navRes.data.nav);
+            setMfNavInfo(`Protean NAV: ₹${navRes.data.nav} (As of ${navRes.data.date})`);
+          }
+        } catch (err) {
+          setMfNavInfo(null);
+        }
+      };
+      fetchNpsNav();
     }
-  }, [formData.schemeCode, formData.date, selectedPortfolio]);
+  }, [formData.schemeCode, formData.symbol, formData.date, selectedPortfolio]);
 
   // Auto-calculate charges for Mutual Funds on amount change
   useEffect(() => {
@@ -360,12 +391,24 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
       const res = await axios.post('/api/add-investment', payload);
 
       if (res.data.success) {
-        setSuccessMsg(`Investment recorded successfully`);
+        const actionLabel = {
+          bank: 'Bank transaction recorded successfully',
+          epf: 'EPF transaction recorded successfully',
+          loans: 'Loan transaction recorded successfully',
+          credit_cards: 'Credit card transaction recorded successfully',
+          mutual_funds: 'Mutual fund transaction recorded successfully',
+          nps: 'NPS transaction recorded successfully',
+          in_stocks: 'Indian equity transaction recorded successfully',
+          us_stocks: 'US equity transaction recorded successfully'
+        }[selectedPortfolio] || 'Transaction recorded successfully';
+        setSuccessMsg(actionLabel);
         // Reset form for another entry
         setFormData({
-          type: selectedPortfolio === 'loans' ? 'TAKE' : 'BUY',
+          type: getDefaultTxType(selectedPortfolio),
           date: new Date().toISOString().split('T')[0],
-          fxRate: fxRate
+          fxRate: fxRate,
+          name: selectedPortfolio === 'epf' ? 'Employee Provident Fund' : '',
+          amount: ''
         });
         setSearchQuery('');
         setMfNavInfo(null);
@@ -836,8 +879,13 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     <button type="button" onClick={() => updateField('price', '')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"><X className="w-3.5 h-3.5"/></button>
                   )}
                 </div>
-                {mfNavInfo && isMF && (
-                  <p className="mt-1.5 text-[10px] text-blue-400 font-medium">{mfNavInfo}</p>
+                {isUS && (
+                  <p className="mt-1 text-[10px] text-blue-400 font-medium">
+                    Note: Enter trade price in USD ($) as quoted on US exchanges.
+                  </p>
+                )}
+                {mfNavInfo && (isMF || isNPS) && (
+                  <p className={`mt-1.5 text-[10px] font-medium ${isNPS ? 'text-cyan-400' : 'text-blue-400'}`}>{mfNavInfo}</p>
                 )}
               </div>
             </div>
@@ -920,6 +968,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 </span>
               </div>
             )}
+            {isUS && (formData.quantity || formData.amount) && formData.price && (
+              <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-800/50">
+                <span className="text-[10px] font-medium text-slate-500">Converted INR Value (@ ₹{formData.fxRate || fxRate})</span>
+                <span className="text-[10px] font-bold text-emerald-400 font-mono">
+                  ₹{(Number(formData.quantity || 0) * Number(formData.price || 0) * (Number(formData.fxRate) || fxRate)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -994,15 +1050,61 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
   };
 
   const renderBalanceForm = (portfolio) => {
+    const isEpf = portfolio === 'epf';
+    const txTypes = isEpf ? ['CONTRIBUTION', 'WITHDRAWAL'] : ['CREDIT', 'DEBIT'];
+    const currentType = formData.type || (isEpf ? 'CONTRIBUTION' : 'CREDIT');
+
+    // Find existing holding to calculate balance projection
+    const accountHolding = holdings.find(h => 
+      h.category_id === portfolio && (
+        isEpf || (formData.name && (h.name === formData.name || (h.symbol && h.symbol.includes(formData.name.toUpperCase().replace(/\s+/g, '-')))))
+      )
+    );
+    const currentBal = accountHolding ? Number(accountHolding.current_price || 0) : 0;
+    const txAmt = Math.abs(Number(formData.amount) || 0);
+    const isCredit = currentType === 'CREDIT' || currentType === 'CONTRIBUTION';
+    const projectedBal = isCredit ? currentBal + txAmt : Math.max(0, currentBal - txAmt);
+
     return (
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Transaction Action */}
         <div>
           <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
-            {selectedPortfolio === 'epf' ? 'Account Label' : 'Account Name'}
+            Transaction Action
           </label>
-          {selectedPortfolio === 'epf' && !isNewAccount ? (
+          <div className="flex gap-2">
+            {txTypes.map(t => {
+              const active = currentType === t;
+              const isPositive = t === 'CREDIT' || t === 'CONTRIBUTION';
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => updateField('type', t)}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                    active
+                      ? isPositive
+                        ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-sm'
+                        : 'bg-rose-500/15 border-rose-500/50 text-rose-400 shadow-sm'
+                      : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                  <span>{isEpf ? (t === 'CONTRIBUTION' ? 'Deposit / Contribution' : 'Withdrawal / Transfer') : (t === 'CREDIT' ? 'Deposit / Earn (Credit)' : 'Spend / Withdraw (Debit)')}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Account Name Dropdown / Input */}
+        <div>
+          <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
+            {isEpf ? 'Account' : 'Account Name'}
+          </label>
+          {isEpf ? (
             <CustomSelect
-              value={formData.name || 'Employee Provident Fund'}
+              value="Employee Provident Fund"
               disabled={true}
               placeholder="Employee Provident Fund"
             />
@@ -1027,7 +1129,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               <button
                 type="button"
                 onClick={() => { setIsNewAccount(false); updateField('name', ''); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-white cursor-pointer"
               >
                 Cancel
               </button>
@@ -1035,29 +1137,33 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           )}
         </div>
 
+        {/* Amount & Date */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Current Balance (₹)</label>
+            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
+              Transaction Amount (₹)
+            </label>
             <div className="relative">
               <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 required
-                value={formData.balance || ''}
-                onChange={(e) => updateField('balance', e.target.value)}
-                placeholder="1,50,000"
+                value={formData.amount || ''}
+                onChange={(e) => updateField('amount', e.target.value)}
+                placeholder="25,000"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
               />
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">As of Date</label>
+            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Transaction Date</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
                 type="date"
+                required
                 value={formData.date || ''}
                 onChange={(e) => updateField('date', e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
@@ -1066,14 +1172,88 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           </div>
         </div>
 
+        {/* Description / Notes */}
+        <div>
+          <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
+            Description / Notes (Optional)
+          </label>
+          <input
+            type="text"
+            value={formData.notes || ''}
+            onChange={(e) => updateField('notes', e.target.value)}
+            placeholder={isEpf ? "e.g. Monthly EPF Contribution, Annual Interest" : "e.g. Salary, Rent Inflow, Groceries, Utility Bill"}
+            className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+          />
+        </div>
+
+        {/* Live Balance Projection Pill */}
+        {(formData.name || isEpf) && (
+          <div className="glass-subcard p-3 rounded-xl flex items-center justify-between text-xs font-mono">
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase">Current Balance</span>
+              <span className="text-slate-300 font-bold">₹{currentBal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-600" />
+            <div className="text-right">
+              <span className="text-[10px] text-slate-500 block uppercase">Projected Balance</span>
+              <span className={`font-bold ${isCredit ? 'text-emerald-400' : 'text-amber-400'}`}>
+                ₹{projectedBal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        )}
+
         {renderSubmitButton()}
       </form>
     );
   };
 
   const renderLoanForm = (portfolio) => {
+    const txTypes = ['EMI_PAYMENT', 'BORROW'];
+    const currentType = formData.type || 'EMI_PAYMENT';
+
+    const accountLiab = liabilities.find(l => l.name === formData.name);
+    const currentBal = accountLiab ? Number(accountLiab.outstanding_balance || 0) : 0;
+    const txAmt = Math.abs(Number(formData.amount) || 0);
+    const isPayment = currentType === 'EMI_PAYMENT';
+    const projectedBal = isPayment ? Math.max(0, currentBal - txAmt) : currentBal + txAmt;
+
     return (
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Transaction Action */}
+        <div>
+          <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
+            Loan Action
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => updateField('type', 'EMI_PAYMENT')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                currentType === 'EMI_PAYMENT'
+                  ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-sm'
+                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <TrendingDown className="w-3.5 h-3.5" />
+              <span>EMI Payment / Prepayment (Reduces Debt)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => updateField('type', 'BORROW')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                currentType === 'BORROW'
+                  ? 'bg-rose-500/15 border-rose-500/50 text-rose-400 shadow-sm'
+                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>New Loan / Disbursement (Increases Debt)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Loan Selection */}
         <div>
           <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Loan Name</label>
           {!isNewAccount ? (
@@ -1097,7 +1277,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               <button
                 type="button"
                 onClick={() => { setIsNewAccount(false); updateField('name', ''); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-white cursor-pointer"
               >
                 Cancel
               </button>
@@ -1105,27 +1285,28 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           )}
         </div>
 
+        {/* Amount & Date */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
-              Outstanding Balance (₹)
+              {isPayment ? 'Payment Amount (₹)' : 'Borrow Amount (₹)'}
             </label>
             <div className="relative">
               <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 required
-                value={formData.balance || ''}
-                onChange={(e) => updateField('balance', e.target.value)}
-                placeholder="50,00,000"
+                value={formData.amount || ''}
+                onChange={(e) => updateField('amount', e.target.value)}
+                placeholder="40,000"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
               />
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">As of Date</label>
+            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Payment Date</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
@@ -1139,14 +1320,88 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           </div>
         </div>
 
+        {/* Notes */}
+        <div>
+          <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
+            Description / Notes (Optional)
+          </label>
+          <input
+            type="text"
+            value={formData.notes || ''}
+            onChange={(e) => updateField('notes', e.target.value)}
+            placeholder="e.g. Monthly Home Loan EMI, Part Prepayment"
+            className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+          />
+        </div>
+
+        {/* Live Loan Projection Pill */}
+        {formData.name && (
+          <div className="glass-subcard p-3 rounded-xl flex items-center justify-between text-xs font-mono">
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase">Outstanding Debt</span>
+              <span className="text-rose-400 font-bold">₹{currentBal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-600" />
+            <div className="text-right">
+              <span className="text-[10px] text-slate-500 block uppercase">Projected Debt</span>
+              <span className={`font-bold ${isPayment ? 'text-emerald-400' : 'text-rose-400'}`}>
+                ₹{projectedBal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        )}
+
         {renderSubmitButton()}
       </form>
     );
   };
 
   const renderCreditCardForm = (portfolio) => {
+    const txTypes = ['CHARGE', 'BILL_PAYMENT'];
+    const currentType = formData.type || 'CHARGE';
+
+    const accountLiab = liabilities.find(l => l.name === formData.name);
+    const currentBal = accountLiab ? Number(accountLiab.outstanding_balance || 0) : 0;
+    const txAmt = Math.abs(Number(formData.amount) || 0);
+    const isPayment = currentType === 'BILL_PAYMENT';
+    const projectedBal = isPayment ? Math.max(0, currentBal - txAmt) : currentBal + txAmt;
+
     return (
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Card Action */}
+        <div>
+          <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
+            Card Action
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => updateField('type', 'CHARGE')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                currentType === 'CHARGE'
+                  ? 'bg-rose-500/15 border-rose-500/50 text-rose-400 shadow-sm'
+                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Card Expense / Purchase (Charge)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => updateField('type', 'BILL_PAYMENT')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+                currentType === 'BILL_PAYMENT'
+                  ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-sm'
+                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <TrendingDown className="w-3.5 h-3.5" />
+              <span>Bill Payment / Refund (Reduces Debt)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card Name */}
         <div>
           <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Card Name</label>
           {!isNewAccount ? (
@@ -1170,7 +1425,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               <button
                 type="button"
                 onClick={() => { setIsNewAccount(false); updateField('name', ''); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-white cursor-pointer"
               >
                 Cancel
               </button>
@@ -1178,27 +1433,28 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           )}
         </div>
 
+        {/* Amount & Date */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
-              Outstanding Balance (₹)
+              {isPayment ? 'Payment Amount (₹)' : 'Expense Amount (₹)'}
             </label>
             <div className="relative">
               <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 required
-                value={formData.balance || ''}
-                onChange={(e) => updateField('balance', e.target.value)}
-                placeholder="15,000"
+                value={formData.amount || ''}
+                onChange={(e) => updateField('amount', e.target.value)}
+                placeholder="4,500"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
               />
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">As of Date</label>
+            <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Date</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
@@ -1211,6 +1467,37 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             </div>
           </div>
         </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
+            Description / Notes (Optional)
+          </label>
+          <input
+            type="text"
+            value={formData.notes || ''}
+            onChange={(e) => updateField('notes', e.target.value)}
+            placeholder="e.g. Flight booking, Dining, Monthly card statement settlement"
+            className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+          />
+        </div>
+
+        {/* Live Card Projection Pill */}
+        {formData.name && (
+          <div className="glass-subcard p-3 rounded-xl flex items-center justify-between text-xs font-mono">
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase">Outstanding Debt</span>
+              <span className="text-rose-400 font-bold">₹{currentBal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-600" />
+            <div className="text-right">
+              <span className="text-[10px] text-slate-500 block uppercase">Projected Debt</span>
+              <span className={`font-bold ${isPayment ? 'text-emerald-400' : 'text-rose-400'}`}>
+                ₹{projectedBal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        )}
 
         {renderSubmitButton()}
       </form>

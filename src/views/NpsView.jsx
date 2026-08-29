@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Plus, Search, Edit3, Trash2, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { ShieldCheck, Plus, Search, Edit3, Trash2, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, RefreshCw, Loader2, Clock } from 'lucide-react';
+import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
@@ -13,11 +14,37 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
   const [sortField, setSortField] = useState('name'); // Default sort by name
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
   const [selectedHolding, setSelectedHolding] = useState(null);
+  const [isRefreshingNavs, setIsRefreshingNavs] = useState(false);
+  const [refreshToast, setRefreshToast] = useState(null);
   const closeDetail = useCallback(() => setSelectedHolding(null), []);
+
+  const handleRefreshNavs = async () => {
+    setIsRefreshingNavs(true);
+    try {
+      const res = await axios.post('/api/refresh-navs');
+      setRefreshToast(res.data.message || 'NPS NAVs updated successfully from Protean!');
+      setTimeout(() => setRefreshToast(null), 4000);
+    } catch (err) {
+      setRefreshToast('Error syncing NPS NAVs: ' + (err.response?.data?.error || err.message));
+      setTimeout(() => setRefreshToast(null), 4000);
+    } finally {
+      setIsRefreshingNavs(false);
+    }
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
   const rawNps = useMemo(() => {
     return holdings.filter(h => h.category_id === 'nps');
   }, [holdings]);
+
+  const upToDateCount = useMemo(() => {
+    return rawNps.filter(h => {
+      const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
+      return qd === todayStr || qd === todayFormatted;
+    }).length;
+  }, [rawNps, todayStr, todayFormatted]);
 
   // Filter by status tab
   const statusFiltered = useMemo(() => {
@@ -138,6 +165,13 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                 <span className="text-[10px] font-mono text-slate-400">
                   PRAN #110134589120 • As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </span>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                  upToDateCount === activeCount && activeCount > 0
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    : 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
+                }`}>
+                  {upToDateCount} / {activeCount} Schemes Up-to-Date
+                </span>
               </div>
               <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
                 <ShieldCheck className="w-5 h-5 text-cyan-400" />
@@ -254,6 +288,19 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                 </div>
 
               </div>
+
+              {/* Refresh NAVs Button */}
+              <motion.button
+                onClick={handleRefreshNavs}
+                disabled={isRefreshingNavs}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-1.5 px-3.5 py-3 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-bold rounded-2xl text-xs border border-slate-800 cursor-pointer shrink-0 disabled:opacity-50"
+                title="Trigger Protean CRA scrape to refresh and catch up latest NPS NAVs"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isRefreshingNavs ? 'animate-spin' : ''}`} />
+                {isRefreshingNavs ? 'Refreshing...' : 'Refresh NAVs'}
+              </motion.button>
 
               {/* Add NPS Scheme Button */}
               <motion.button
@@ -424,7 +471,19 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-slate-500 font-mono">Tier I • {h.symbol}</div>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[10px] text-slate-500 font-mono">Tier I • {h.symbol}</span>
+                              {h.quote_date && (
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
+                                  (h.quote_date === todayStr || h.quote_date === todayFormatted)
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                                    : 'bg-cyan-500/10 text-cyan-400/90 border border-cyan-500/20'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${(h.quote_date === todayStr || h.quote_date === todayFormatted) ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
+                                  {(h.quote_date === todayStr || h.quote_date === todayFormatted) ? `Today (${h.quote_date})` : `As of ${h.quote_date}`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>

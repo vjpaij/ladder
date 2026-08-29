@@ -123,11 +123,13 @@ function AppInner() {
   };
 
   const handleDeleteHolding = async (id) => {
-    if (window.confirm('Delete this position?')) {
+    const holding = holdings.find(h => h.id === id);
+    const label = holding ? (holding.name || holding.symbol) : 'this position';
+    if (window.confirm(`Are you sure you want to delete "${label}"?\n\nThis will permanently remove this position and all its transactions from your portfolio. This action cannot be undone.`)) {
       try {
         await axios.delete(`/api/holdings/${id}`);
-        fetchDashboardData();
-        setToast({ type: 'success', message: 'Position removed from portfolio.' });
+        await fetchDashboardData();
+        setToast({ type: 'success', message: `Position "${label}" removed from portfolio.` });
       } catch (err) {
         alert('Error deleting holding: ' + err.message);
       }

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import AdmZip from 'adm-zip';
 import db from '../db.js';
+import { supabase } from '../supabaseClient.js';
 
 export const liveQuoteCache = new Map();
 
@@ -170,12 +171,19 @@ export async function fetchProteanNpsNavBatch() {
     });
     const html = pageRes.data;
 
-    const zipMatch = html.match(/href=["']([^"']*NAV_File_\d+\.zip)["']/i);
-    if (!zipMatch) {
+    // Find all NAV_File_DDMMYYYY.zip links and sort by date descending
+    const zipMatches = [...html.matchAll(/(?:href=["'])?([^"'\s<>]+\/NAV_File_(\d{2})(\d{2})(\d{4})\.zip)/gi)];
+    if (!zipMatches || zipMatches.length === 0) {
       return null;
     }
 
-    let zipUrl = zipMatch[1];
+    zipMatches.sort((a, b) => {
+      const dateA = `${a[4]}${a[3]}${a[2]}`;
+      const dateB = `${b[4]}${b[3]}${b[2]}`;
+      return dateB.localeCompare(dateA);
+    });
+
+    let zipUrl = zipMatches[0][1];
     if (!zipUrl.startsWith('http')) {
       zipUrl = `https://www.npscra.proteantech.in/${zipUrl.replace(/^\//, '')}`;
     }
@@ -197,22 +205,131 @@ export async function fetchProteanNpsNavBatch() {
     const lines = csvContent.split(/\r?\n/).filter(l => l.trim());
 
     const navMap = new Map();
+    const dbRows = [];
+
     for (const line of lines) {
       const parts = line.split(',');
       if (parts.length >= 6) {
-        const navDate = parts[0].trim();
+        const rawDate = parts[0].trim();
         const schemeCode = parts[3].trim();
+        const schemeName = parts[4].trim();
         const nav = parseFloat(parts[5].trim());
+
+        let isoDate = rawDate;
+        const dParts = rawDate.split('/');
+        if (dParts.length === 3) {
+          isoDate = `${dParts[2]}-${dParts[0].padStart(2, '0')}-${dParts[1].padStart(2, '0')}`;
+        }
+
         if (schemeCode && !isNaN(nav) && nav > 0) {
-          navMap.set(schemeCode, { nav, date: navDate, quoteDate: formatCleanQuoteDate(navDate) });
+          navMap.set(schemeCode, {
+            nav,
+            date: isoDate,
+            name: schemeName,
+            quoteDate: formatCleanQuoteDate(isoDate)
+          });
+          dbRows.push({
+            scheme_code: schemeCode,
+            scheme_name: schemeName,
+            nav: nav,
+            nav_date: isoDate
+          });
         }
       }
     }
 
+    // Asynchronously upsert to nps_daily_navs in database
+    if (dbRows.length > 0) {
+      (async () => {
+        try {
+          const batchSize = 100;
+          for (let i = 0; i < dbRows.length; i += batchSize) {
+            const chunk = dbRows.slice(i, i + batchSize);
+            await supabase.from('nps_daily_navs').upsert(chunk, { onConflict: 'scheme_code,nav_date' });
+          }
+        } catch (e) {
+          console.warn('[NPS DB Upsert Warning]:', e.message);
+        }
+      })();
+    }
+
     return navMap;
   } catch (err) {
+    console.warn('[Protean Scraper Warning]:', err.message);
     return null;
   }
+}
+
+/**
+ * Scrapes latest Protean CRA NAVs and saves all schemes to Supabase nps_daily_navs
+ */
+export async function syncDailyNpsNavs() {
+  const navMap = await fetchProteanNpsNavBatch();
+  return navMap ? navMap.size : 0;
+}
+
+/**
+ * Continuous Gap-Filling Engine for Mutual Funds and NPS Schemes
+ * Sweeps active schemes and brings them up to date with zero schemes left behind.
+ */
+export async function syncAllMissingNavs() {
+  const results = { npsUpdated: 0, mfUpdated: 0, totalChecked: 0 };
+  
+  // 1. Sync NPS schemes via Protean
+  const npsCount = await syncDailyNpsNavs();
+  results.npsUpdated = npsCount;
+
+  // 2. Fetch active Mutual Funds & NPS holdings to update liveQuoteCache
+  const { data: holdings } = await supabase
+    .from('holdings')
+    .select('*')
+    .in('category_id', ['mutual_funds', 'nps'])
+    .gt('quantity', 0);
+
+  if (holdings && holdings.length > 0) {
+    results.totalChecked = holdings.length;
+    for (const h of holdings) {
+      if (h.category_id === 'mutual_funds' && h.symbol) {
+        try {
+          const q = await fetchMutualFundNav(h.symbol);
+          if (q) {
+            liveQuoteCache.set(h.symbol, q);
+            results.mfUpdated++;
+          }
+        } catch (e) {}
+      } else if (h.category_id === 'nps' && h.symbol) {
+        try {
+          const q = await fetchNpsNav(h.symbol);
+          if (q) {
+            liveQuoteCache.set(h.symbol, q);
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  return results;
+}
+
+export async function fetchNpsNav(schemeCode) {
+  try {
+    const navMap = await fetchProteanNpsNavBatch();
+    if (navMap && navMap.has(schemeCode)) {
+      const item = navMap.get(schemeCode);
+      return {
+        price: item.nav,
+        date: item.date,
+        quoteDate: item.quoteDate,
+        change: 0,
+        changePercent: 0,
+        open: item.nav,
+        high: item.nav,
+        low: item.nav,
+        close: item.nav
+      };
+    }
+  } catch (e) {}
+  return await fetchNpsNavFallback(schemeCode);
 }
 
 export async function fetchNpsNavFallback(schemeCode) {

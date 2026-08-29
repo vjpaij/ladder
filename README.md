@@ -1,35 +1,49 @@
 # Ladder - Institutional Finance & Investment Dashboard
 
-Ladder is a modern, stylish, high-performance personal finance and investment dashboard designed for tracking multi-asset portfolios including Indian Equity, US Equity, Mutual Funds, Fixed Income/Retirement (Bank, FDs, NPS, EPF), Liability (Loans, Credit Cards), and Dividends.
+Ladder is an institutional-grade personal finance and investment management dashboard designed for tracking multi-asset portfolios including Indian Equity, US Equity, Mutual Funds, Fixed Income / Retirement (Bank Accounts, Fixed Deposits, NPS, EPF), Liabilities (Loans, Credit Cards), and Dividends.
 
 ---
 
-## Features
+## Architecture & System Overview
 
-- **Corporate Actions & Split/Bonus Engine**: Full support for Stock Splits (`SPLIT`) and Bonus Issues (`BONUS`) with automatic retroactive open-lot scaling, split-adjusted cost basis tracking, and dedicated visual ledger badges.
-- **Multi-Layer Validation & Over-Sell Guardrails**: Comprehensive datatype and integrity validation across data ingestion, backend REST APIs, and UI entry forms preventing invalid inputs, over-selling active shares, and providing real-time projected position previews.
-- **Multi-Asset Portfolio Tracking**: Indian Equity (NSE/BSE), US Equity (NASDAQ/NYSE), Mutual Funds (AMFI NAVs), Fixed Income (Bank, FD, NPS, EPF).
-- **Liability & Debt Hub**: Track outstanding loan principals, credit card balances, interest rates, and monthly EMIs.
-- **Real-Time Price Engine**: Live price auto-sync for Indian equity (comparative max pricing between NSE & BSE), US equity, and AMFI mutual funds.
-- **Dual Currency & FX Engine**: Default primary display in INR (₹) with real-time USD/INR live conversion rate ($1 = ₹X) and instant header currency toggle.
-- **Advanced Analytics & Reports**: Strict tabbed UI architecture isolating Consolidated Portfolio, Equity Hub, Fixed Income, and NPS. Includes Market Cap tracking (Mega to Micro), sector concentration bar charts, and growth trajectory performance against Nifty 50, Nifty Midcap 150, Nifty 250, S&P 500, and NASDAQ.
-- **P&L Calendar Heatmap**: Visual trading session green/red day calendar, date range filtering, win rate metrics, and day-by-day P&L inspection.
-- **Dividends Ledger**: India & US dividend cashflow tracker with automatic currency conversion and annualized yield calculation.
-- **Supabase Cloud Database & Automated Triggers**: Powered by Supabase PostgreSQL with automated PL/pgSQL triggers for position calculation, realized/unrealized PnL, charges, and Row Level Security (RLS) policies.
-- **Relational Database Studio**: Embedded visual database viewer and CRUD editor for direct inline table record management and auto-cascade updates.
-- **Data Import & Export**: Excel/CSV portfolio parser and full database backup snapshot exporter.
-- **Modern Fintech Aesthetics**: Modern floating glass-card layout, dynamic collapsible sidebar rail, Framer Motion staggered animations, odometer-style counting numbers, and micro-interactions.
-- **Dynamic Logo Pipeline**: Real-time asset logo resolution engine automatically mapping and pulling official company, AMC, and Bank icons from multiple CDN sources.
-- **Universal Multi-Theme System**: 6 custom high-contrast palettes spanning Dark Themes (Obsidian Dark, Midnight Blue, Sunset Rose) and Light Themes (Clean Light, Warm Sand, Nordic Frost), ensuring deep oceanic/plum gradients and crisp light layouts with theme-aware navigation highlights and popups.
+1. **Universal Calculation & Recalculation Engine**
+   - Centralized FIFO lot accounting engine (`server/services/recalculator.js`).
+   - Replays transactions chronologically to compute weighted average buy price, open quantity, realized gains, and total charges.
+   - Retroactive corporate actions: scales shares on stock splits (`SPLIT`) and dilutes average price on bonus issues (`BONUS`) at zero cost.
+   - Automatically triggered on transaction additions, edits, and deletions across all asset classes.
+
+2. **Multi-Pass Daily NAV & Market Data Engine**
+   - **Indian Equities**: Live quotes comparing NSE and BSE prices, automatically locking the higher market quote (`NSE/BSE MAX`).
+   - **US Equities**: Real-time quotes from NASDAQ/NYSE with dynamic USD to INR conversion. Entries are strictly in USD ($) with real-time INR preview.
+   - **Mutual Funds**: Real-time NAV synchronization via AMFI Scheme API.
+   - **NPS (National Pension System)**: Automated daily scraper extracting official NAV files directly from Protean CRA archives (`nps_daily_navs` table in Supabase) with historical backfill fallback.
+   - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).
+
+3. **Delta-Ledger Architecture for Cash, EPF & Debt**
+   - Bank Accounts, EPF, Loans, and Credit Cards operate as a transaction-backed delta ledger.
+   - Over 4,900 historical balance adjustments from 2007 through 2026 are modeled as discrete delta transactions (`CREDIT`, `DEBIT`, `CONTRIBUTION`, `WITHDRAWAL`, `BORROW`, `EMI_PAYMENT`, `CHARGE`, `BILL_PAYMENT`).
+   - Any historical adjustment or deletion automatically recalculates downstream balances accurately.
+
+4. **Automated Recurring SIP Engine**
+   - In-app SIP manager (`src/components/SipManagerModal.jsx`) allowing users to schedule, edit, pause, resume, or close recurring investments.
+   - Automated cloud background runner (`server/services/sipEngine.js`) executes due SIPs at the latest NAV, allocates units with 0.015% stamp duty charges, and advances the next schedule by one month.
+
+5. **Historical Time-Series & Multi-Granularity Calendar**
+   - Daily, monthly, and yearly portfolio valuation history spanning 19 years (2007-2026) across 18 asset and liability columns (`data/portfolio_eod_logs.json`).
+   - Interactive color-coded heatmap grid and tabular view with period P&L and ROI metrics.
+
+6. **Safety, Backup & Atomic Restoration**
+   - Paginated backup tool (`scripts/dump_db_snapshot.mjs`) exporting full database state and EOD logs past Supabase row limits.
+   - Dependency-ordered restoration tool (`scripts/restore_db_snapshot.mjs`) with SHA256 checksum verification and dry-run safety simulation.
 
 ---
 
 ## Tech Stack
 
-- **Frontend**: React 18, Vite, Tailwind CSS v4, Framer Motion, Recharts, Lucide Icons
+- **Frontend**: React 18, Vite, Tailwind CSS, Framer Motion, Recharts, Lucide Icons
 - **Backend**: Express.js, Node.js, Axios, JWT Authentication, Bcrypt
-- **Database**: Supabase Cloud PostgreSQL, `@supabase/supabase-js`, Row Level Security (RLS), Supabase Vault
-- **Automation**: PL/pgSQL database triggers & audit functions
+- **Database**: Supabase Cloud PostgreSQL, `@supabase/supabase-js`, Row Level Security (RLS)
+- **Cloud Automation**: GitHub Actions (`daily_nav_sip_sync.yml`)
 
 ---
 
@@ -38,42 +52,103 @@ Ladder is a modern, stylish, high-performance personal finance and investment da
 ### Prerequisites
 - Node.js (v18 or higher recommended)
 - npm or yarn
+- Supabase project credentials
 
-### Installation Steps
+### Step 1: Clone Repository & Install Dependencies
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/vjpaij/ladder.git
-   cd ladder
-   ```
+```bash
+git clone https://github.com/vjpaij/ladder.git
+cd ladder
+npm install
+```
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+### Step 2: Configure Environment Variables
 
-3. **Configure Environment Variables**:
-   Create a `.env` file in the project root:
-   ```env
-   VITE_SUPABASE_URL=https://ladder.supabase.co
-   SUPABASE_URL=https://ladder.supabase.co
-   SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
+Create a `.env` file in the root directory:
 
-4. **Start the application**:
-   - Run Express server & Vite dev server:
-     ```bash
-     npm run server
-     npm run dev
-     ```
-   - Access the web interface at `http://localhost:3000`.
+```env
+PORT=5000
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+### Step 3: Run the Application Locally
+
+Start both the backend API server and the Vite development server:
+
+```bash
+# Terminal 1: Start Express API server (port 5000)
+npm run server
+
+# Terminal 2: Start Vite frontend dev server (port 5173 / 3000)
+npm run dev
+```
+
+Open your browser and navigate to `http://localhost:5173` (or the URL displayed in the terminal).
+
+### Default Authentication Credentials
+- **Email**: `admin@ladder.com`
+- **Password**: `admin123`
 
 ---
 
-## Default Credentials
+## Operational Scripts & Workflows
 
-- **Email**: `admin@ladder.com`
-- **Password**: `admin123`
+### 1. Database Backup (Safety Snapshot)
+Exports all holdings, transactions, dividends, liabilities, daily logs, and EOD files with pagination and SHA256 verification:
+
+```bash
+node scripts/dump_db_snapshot.mjs
+```
+Snapshots are saved to `data/backups/snapshot_<timestamp>.json` and `data/backups/snapshot_latest.json`.
+
+### 2. Database Restoration
+Restores the database from a verified JSON backup snapshot:
+
+```bash
+# Dry-run validation (verifies record counts without modifying database)
+node scripts/restore_db_snapshot.mjs data/backups/snapshot_latest.json --dry-run
+
+# Full live restore
+node scripts/restore_db_snapshot.mjs data/backups/snapshot_latest.json
+```
+
+### 3. Rebuilding Historical Portfolio EOD Logs
+Rebuilds the 19-year daily valuation logs from transactions and holdings into `data/portfolio_eod_logs.json` and syncs with Supabase `pnl_history`:
+
+```bash
+node scripts/rebuild_portfolio_eod.mjs
+```
+
+### 4. Running Daily NAV & SIP Synchronization
+Manually triggers the background worker to scrape Protean NPS NAVs, AMFI Mutual Fund NAVs, and execute due recurring SIPs:
+
+```bash
+node scripts/sync_navs_and_sips.mjs
+```
+
+### 5. Automated Cloud Scheduling (GitHub Actions)
+The workflow `.github/workflows/daily_nav_sip_sync.yml` automatically runs every hour on GitHub Actions. To enable it on a remote repository:
+1. Go to repository **Settings** -> **Secrets and variables** -> **Actions**.
+2. Add Repository Secrets:
+   - `SUPABASE_URL`: Your Supabase Project URL.
+   - `SUPABASE_ANON_KEY`: Your Supabase Anon Public Key.
+3. The workflow runs hourly and can also be manually dispatched via the **Actions** tab with one click.
+
+---
+
+## Maintenance & Contribution Rules
+
+Whenever modifying the codebase, adhere to the following mandatory standards:
+
+1. **Delete Operations Must Require Confirmation**: Every delete action (holding, transaction, SIP, profile photo) must present an explicit confirmation prompt displaying the asset or schedule name before executing.
+2. **Synchronize All 6 Data Pipelines**: Changes to transactions or holding calculations must be reflected across Ingestion, Price Engine, Detail Modals, Summaries, EOD Time-Series, and Themes.
+3. **Rebuild EOD Logs on Price/Transaction Changes**: Execute `node scripts/rebuild_portfolio_eod.mjs` to keep the calendar heatmap in exact parity.
+4. **Build Verification**: Run `npm run build` prior to finalizing changes to catch syntax or bundling issues.
+5. **Documentation Integrity**: Always update `README.md`, `CHANGELOG.md`, and `LADDER.md` (Change Log table) with clear descriptions of architectural and feature updates.
+6. **Professional Text**: Do not use any emoticons or emojis in code, commits, or documentation.
 
 ---
 
