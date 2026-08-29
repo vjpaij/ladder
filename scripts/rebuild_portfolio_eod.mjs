@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
 import { db, initDatabase } from '../server/db.js';
+import { supabase } from '../server/supabaseClient.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -47,9 +48,13 @@ async function rebuildEod() {
   initDatabase();
   console.log('Rebuilding portfolio EOD logs from portfolio.xlsx and Supabase holdings...');
 
-  // 1. Read base historical rows from portfolio.xlsx (2007 to 2026-08-07)
+  // 1. Read base historical rows from existing JSON cache or Supabase, fallback to Excel only if no base exists
   let baseLogs = [];
-  if (fs.existsSync(EXCEL_FILE)) {
+  if (fs.existsSync(EOD_FILE)) {
+    const raw = fs.readFileSync(EOD_FILE, 'utf-8');
+    baseLogs = JSON.parse(raw);
+    console.log(`Loaded ${baseLogs.length} existing base records from ${EOD_FILE}.`);
+  } else if (fs.existsSync(EXCEL_FILE)) {
     const wb = xlsx.readFile(EXCEL_FILE);
     const rawRows = xlsx.utils.sheet_to_json(wb.Sheets['Portfolio']);
     
@@ -260,6 +265,61 @@ async function rebuildEod() {
 
   fs.writeFileSync(EOD_FILE, JSON.stringify(baseLogs, null, 2), 'utf-8');
   console.log(`Saved ${baseLogs.length} total EOD logs to ${EOD_FILE}. Inception: ${baseLogs[0]?.date}, Latest: ${baseLogs[baseLogs.length - 1]?.date}`);
+
+  // Upsert the recent 60 daily records directly to Supabase pnl_history
+  try {
+    const recentLogs = baseLogs.slice(-60);
+    const dbRecords = recentLogs.map(l => {
+      const breakdown = {
+        savings: Number((l.savings || 0).toFixed(2)),
+        epf: Number((l.epf || 0).toFixed(2)),
+        mutual_funds: Number((l.mutual_funds || 0).toFixed(2)),
+        indian_stocks: Number((l.indian_stocks || 0).toFixed(2)),
+        us_stocks: Number((l.us_stocks || 0).toFixed(2)),
+        nps: Number((l.nps || 0).toFixed(2)),
+        loan: Number((l.loan || 0).toFixed(2)),
+        credits: Number((l.credits || 0).toFixed(2))
+      };
+      const debt = Number((l.debt !== undefined ? l.debt : ((l.loan || 0) + (l.credits || 0))).toFixed(2));
+      const totalAssets = Number((l.total_assets || (l.wealth + debt)).toFixed(2));
+      const wealth = Number((l.total_wealth !== undefined ? l.total_wealth : l.wealth).toFixed(2));
+
+      return {
+        log_date: l.date,
+        total_assets_inr: totalAssets,
+        total_liabilities_inr: debt,
+        net_worth_inr: wealth,
+        daily_pnl_inr: Number((l.daily_pnl || 0).toFixed(2)),
+        pnl_percentage: Number((l.pnl_pct || 0).toFixed(2)),
+        hdfc: Number((l.hdfc || 0).toFixed(2)),
+        indusind: Number((l.indusind || 0).toFixed(2)),
+        idfc: Number((l.idfc || 0).toFixed(2)),
+        rbl: Number((l.rbl || 0).toFixed(2)),
+        sbi: Number((l.sbi || 0).toFixed(2)),
+        federal: Number((l.federal || 0).toFixed(2)),
+        savings: Number((l.savings || 0).toFixed(2)),
+        mutual_funds: Number((l.mutual_funds || 0).toFixed(2)),
+        indian_stocks: Number((l.indian_stocks || 0).toFixed(2)),
+        us_stocks: Number((l.us_stocks || 0).toFixed(2)),
+        nps: Number((l.nps || 0).toFixed(2)),
+        epf: Number((l.epf || 0).toFixed(2)),
+        loan: Number((l.loan || 0).toFixed(2)),
+        credits: Number((l.credits || 0).toFixed(2)),
+        debt: debt,
+        wealth: wealth,
+        breakdown: breakdown
+      };
+    });
+
+    const { error } = await supabase.from('pnl_history').upsert(dbRecords, { onConflict: 'log_date' });
+    if (error) {
+      console.warn('[Supabase Sync Warning]:', error.message);
+    } else {
+      console.log(`[Supabase Sync] Successfully synchronized ${dbRecords.length} latest daily logs to Supabase pnl_history.`);
+    }
+  } catch (syncErr) {
+    console.warn('[Supabase Sync Exception]:', syncErr.message);
+  }
 }
 
 rebuildEod().then(() => process.exit(0)).catch((err) => {

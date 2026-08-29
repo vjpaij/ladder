@@ -5,6 +5,13 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.6] - 2026-08-29
+
+### Added
+- **Supabase Cloud Database Historical EOD Migration & Complete Excel Decoupling**: Upgraded Supabase `pnl_history` table schema with all 18 granular asset/liability breakdown columns and unique date constraint. Migrated all 6,912 daily historical records (2007 through 2026-08-29) from the spreadsheet directly into Supabase PostgreSQL Cloud. Reconfigured EOD engine to load base records and persist daily updates directly to Supabase `pnl_history`, completely severing runtime dependency on `portfolio.xlsx`.
+
+---
+
 ## [4.4.5] - 2026-08-29
 
 ### Fixed
