@@ -5,6 +5,41 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.1] - 2026-08-29
+
+### Added
+- **Calendar Multi-Granularity Engine (Daily / Monthly / Yearly)**: (1) Added a segmented Granularity selector `[ Daily | Monthly | Yearly ]` in `CalendarView.jsx`; (2) Implemented robust chronological aggregation mapping across all 18 portfolio asset/liability columns with exact period-end snapshots and true cumulative period P&L / % return calculations; (3) Enabled full interactive Heatmap Grid and Spreadsheet Table view rendering at monthly and annual scale; (4) Upgraded drill-down popup modal to dynamically render period labels and period category changes.
+
+---
+
+## [4.6.0] - 2026-08-29
+
+### Changed
+- **Net Worth Chart Clean 0 Y-Axis Tick**: (1) Removed the text label (`₹0 Baseline`) from the reference line in `OverviewView.jsx`; (2) Explicitly injected `0` into the Y-axis `ticks` array when the domain spans across or below zero, rendering a clean `0` tick directly on the vertical axis.
+
+---
+
+## [4.5.9] - 2026-08-29
+
+### Added
+- **Dashboard Net Worth Chart DD-MM-YYYY Hover Date & 0-Baseline Reference Line**: (1) Enhanced Net Worth area chart tooltip in `OverviewView.jsx` to render the complete `DD-MM-YYYY` calendar date on hover (e.g. `24-06-2026`); (2) Added a subtle dashed `ReferenceLine` at `y=0` when the selected timeframe's Y-domain spans across or below 0; (3) Added negative sign formatting to Y-axis tick values and tooltips.
+
+---
+
+## [4.5.8] - 2026-08-29
+
+### Changed
+- **Post-May 12 2023 Missing Indian Equity Charges Full Population**: (1) Parsed remaining 735 records from `charges.xlsx` and populated charges for 615 previously unpopulated post-May 12 2023 Indian Equity transactions in Supabase; (2) Preserved already populated charges (24 transactions); (3) Re-aggregated and updated `total_charges` across 147 affected holdings; (4) Rebuilt all 6,912 daily EOD logs via `scripts/rebuild_portfolio_eod.mjs` and synced with Supabase `pnl_history`.
+
+---
+
+## [4.5.7] - 2026-08-29
+
+### Changed
+- **Pre-May 12 2023 Indian Equity Charges Population & Parity Sync**: (1) Parsed `charges.xlsx` and populated pre-2023-05-12 transaction charges across 365 Indian Equity transactions in Supabase; (2) Handled multiple transactions on the same date by allocating total charges to the transaction with the highest trade value (`quantity * price`); (3) Applied confirmed symbol aliases (`HDFC` -> `HDFCBANK`, `MAHINDCIE` -> `CIEINDIA`, `HBLPOWER` -> `HBLENGINE`, `ZOMATO` -> `ETERNAL`, `GET&D` -> `GVT&D`, `SKIPPERPP` -> `SKIPPER`); (4) Recalculated `total_charges` across 105 affected holdings and re-synchronized all 6,912 daily EOD logs via `scripts/rebuild_portfolio_eod.mjs` and Supabase `pnl_history`.
+
+---
+
 ## [4.5.6] - 2026-08-29
 
 ### Fixed

@@ -24,7 +24,8 @@ import {
   Area, 
   XAxis, 
   YAxis, 
-  CartesianGrid 
+  CartesianGrid,
+  ReferenceLine 
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
@@ -697,23 +698,54 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                     stroke="#475569" 
                     tick={{ fontSize: 10 }} 
                     domain={netWorthMinMax} 
+                    ticks={(() => {
+                      const [min, max] = netWorthMinMax;
+                      if (min <= 0 && max >= 0) {
+                        // Ensure 0 is explicitly included as a tick
+                        return [min, 0, max];
+                      }
+                      return undefined;
+                    })()}
                     tickFormatter={(v) => {
-                      if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
-                      return `₹${(v / 100000).toFixed(2)}L`;
+                      if (v === 0) return '0';
+                      const absV = Math.abs(v);
+                      const sign = v < 0 ? '-' : '';
+                      if (absV >= 10000000) return `${sign}₹${(absV / 10000000).toFixed(2)}Cr`;
+                      return `${sign}₹${(absV / 100000).toFixed(2)}L`;
                     }} 
                   />
                   <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
+                  
+                  {/* Subtle 0 Value Reference Line */}
+                  {netWorthMinMax[0] <= 0 && netWorthMinMax[1] >= 0 && (
+                    <ReferenceLine 
+                      y={0} 
+                      stroke="#f43f5e" 
+                      strokeDasharray="4 4" 
+                      strokeWidth={1.5}
+                      strokeOpacity={0.6}
+                    />
+                  )}
+
                   <Tooltip 
-                    content={({ active, payload, label }) => {
+                    content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const data = payload[0];
+                        const raw = data.payload?.rawDate;
+                        let fullDate = raw;
+                        if (raw) {
+                          const parts = String(raw).split('-');
+                          if (parts.length === 3) {
+                            fullDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                          }
+                        }
                         return (
                           <div className="bg-slate-900/95 border border-slate-700/80 p-3 rounded-2xl shadow-2xl backdrop-blur-xl text-xs space-y-1 z-50">
-                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{label}</p>
+                            <p className="text-[10px] font-bold text-slate-300 font-mono tracking-wider">{fullDate || data.payload?.date}</p>
                             <p className="text-sm font-black font-mono" style={{ color: chartColor }}>
                               {isUSD 
-                                ? '$' + (data.value / summary.fxRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                : '₹' + Number(data.value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ? (data.value < 0 ? '-' : '') + '$' + Math.abs(data.value / summary.fxRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                : (data.value < 0 ? '-₹' : '₹') + Math.abs(Number(data.value)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
                           </div>
                         );

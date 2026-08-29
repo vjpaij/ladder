@@ -65,6 +65,8 @@ export default function CalendarView() {
   
   // View mode: 'grid' or 'table'
   const [viewMode, setViewMode] = useState('grid');
+  // Granularity: 'daily', 'monthly', 'yearly'
+  const [granularity, setGranularity] = useState('daily');
   const [sortField, setSortField] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
 
@@ -146,9 +148,74 @@ export default function CalendarView() {
       : <ArrowDown className="w-3 h-3 text-emerald-400 inline ml-1" />;
   };
 
-  // Sorted logs for table view (defaults to descending by date)
+  // Group logs by Period (Daily, Monthly, Yearly)
+  const displayLogs = useMemo(() => {
+    if (!logs || logs.length === 0) return [];
+    if (granularity === 'daily') return logs;
+
+    // Group logs by Month (YYYY-MM) or Year (YYYY)
+    const groups = new Map();
+    for (const log of logs) {
+      const dt = log.log_date || '';
+      const periodKey = granularity === 'monthly' ? dt.slice(0, 7) : dt.slice(0, 4);
+      if (!groups.has(periodKey)) {
+        groups.set(periodKey, []);
+      }
+      groups.get(periodKey).push(log);
+    }
+
+    const aggregated = [];
+    for (const [periodKey, groupLogs] of groups.entries()) {
+      groupLogs.sort((a, b) => (a.log_date || '').localeCompare(b.log_date || ''));
+      const firstLog = groupLogs[0];
+      const lastLog = groupLogs[groupLogs.length - 1];
+
+      // Net period P&L = sum of daily P&Ls or difference between last wealth and start-of-period base
+      const periodPnl = groupLogs.reduce((s, l) => s + (Number(l.daily_pnl_inr) || 0), 0);
+      const startWealth = (Number(firstLog.net_worth_inr) || Number(firstLog.wealth) || 0) - (Number(firstLog.daily_pnl_inr) || 0);
+      const endWealth = Number(lastLog.net_worth_inr) || Number(lastLog.wealth) || 0;
+      const periodPct = startWealth > 0 ? ((periodPnl / startWealth) * 100) : 0;
+
+      // Period Delta breakdown
+      const firstBreakdown = firstLog.prev_breakdown || firstLog.breakdown || {};
+      const lastBreakdown = lastLog.breakdown || {};
+
+      let labelText = periodKey;
+      let dateSubText = '';
+      if (granularity === 'monthly') {
+        const [y, m] = periodKey.split('-');
+        const monthDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+        labelText = monthDate.toLocaleString('en-US', { month: 'short' });
+        dateSubText = `${monthDate.toLocaleString('en-US', { month: 'short' })} ${y}`;
+      } else {
+        labelText = periodKey;
+        dateSubText = `Year ${periodKey}`;
+      }
+
+      aggregated.push({
+        ...lastLog,
+        id: `period_${periodKey}`,
+        period_key: periodKey,
+        log_date: lastLog.log_date,
+        period_label: labelText,
+        period_subtext: dateSubText,
+        period_type: granularity,
+        first_date: firstLog.log_date,
+        last_date: lastLog.log_date,
+        daily_pnl_inr: Number(periodPnl.toFixed(2)),
+        pnl_percentage: Number(periodPct.toFixed(2)),
+        days_count: groupLogs.length,
+        prev_breakdown: firstBreakdown,
+        breakdown: lastBreakdown
+      });
+    }
+
+    return aggregated;
+  }, [logs, granularity]);
+
+  // Sorted logs for table/grid view (defaults to descending by date/period)
   const sortedLogs = useMemo(() => {
-    const list = [...logs];
+    const list = [...displayLogs];
     return list.sort((a, b) => {
       let aVal = a[sortField] !== undefined ? a[sortField] : a.log_date;
       let bVal = b[sortField] !== undefined ? b[sortField] : b.log_date;
@@ -180,13 +247,13 @@ export default function CalendarView() {
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [logs, sortField, sortDirection]);
+  }, [displayLogs, sortField, sortDirection]);
 
   // Metrics summary (Win rate formatted to 2 decimal places precision)
-  const totalRangePnl = useMemo(() => logs.reduce((sum, item) => sum + (item.daily_pnl_inr || 0), 0), [logs]);
-  const positiveDays = useMemo(() => logs.filter(l => l.daily_pnl_inr > 0).length, [logs]);
-  const negativeDays = useMemo(() => logs.filter(l => l.daily_pnl_inr < 0).length, [logs]);
-  const winRate = useMemo(() => (logs.length > 0 ? ((positiveDays / logs.length) * 100).toFixed(2) : '0.00'), [logs, positiveDays]);
+  const totalRangePnl = useMemo(() => displayLogs.reduce((sum, item) => sum + (item.daily_pnl_inr || 0), 0), [displayLogs]);
+  const positiveDays = useMemo(() => displayLogs.filter(l => l.daily_pnl_inr > 0).length, [displayLogs]);
+  const negativeDays = useMemo(() => displayLogs.filter(l => l.daily_pnl_inr < 0).length, [displayLogs]);
+  const winRate = useMemo(() => (displayLogs.length > 0 ? ((positiveDays / displayLogs.length) * 100).toFixed(2) : '0.00'), [displayLogs, positiveDays]);
 
   // Calculate Net Asset & Liability changes over the selected range
   const rangeAssetDelta = useMemo(() => {
@@ -231,9 +298,31 @@ export default function CalendarView() {
             </div>
           </div>
 
-          {/* Controls: View Switcher & Date Range Controls */}
+          {/* Controls: Granularity, View Switcher & Date Range Controls */}
           <div className="flex items-center gap-2.5 flex-wrap self-end md:self-auto">
             
+            {/* Granularity Switcher (Daily vs Monthly vs Yearly) */}
+            <div className="flex items-center p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
+              {[
+                { id: 'daily', label: 'Daily' },
+                { id: 'monthly', label: 'Monthly' },
+                { id: 'yearly', label: 'Yearly' }
+              ].map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => setGranularity(g.id)}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-all duration-200 ${
+                    granularity === g.id
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title={`View ${g.label} Performance`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+
             {/* View Mode Switcher (Grid vs Table) */}
             <div className="flex items-center p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
               <button
@@ -348,8 +437,8 @@ export default function CalendarView() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Range P&L', value: totalRangePnl, color: totalRangePnl > 0 ? 'text-emerald-400' : totalRangePnl < 0 ? 'text-rose-400' : 'text-blue-400', format: true },
-          { label: 'Positive Days', value: positiveDays, color: 'text-emerald-400' },
-          { label: 'Negative Days', value: negativeDays, color: 'text-rose-400' },
+          { label: granularity === 'daily' ? 'Positive Days' : granularity === 'monthly' ? 'Positive Months' : 'Positive Years', value: positiveDays, color: 'text-emerald-400' },
+          { label: granularity === 'daily' ? 'Negative Days' : granularity === 'monthly' ? 'Negative Months' : 'Negative Years', value: negativeDays, color: 'text-rose-400' },
           { label: 'Win Rate', value: winRate, color: 'text-indigo-400', suffix: '%' },
         ].map((stat) => (
           <AnimatedItem key={stat.label}>
@@ -376,24 +465,25 @@ export default function CalendarView() {
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-500">
               <RefreshCw className="w-7 h-7 animate-spin text-emerald-400" />
-              <span className="text-xs font-semibold">Loading daily valuation records...</span>
+              <span className="text-xs font-semibold">Loading valuation records...</span>
             </div>
-          ) : logs.length === 0 ? (
+          ) : sortedLogs.length === 0 ? (
             <div className="py-16 text-center text-slate-500 text-sm font-medium">
-              No daily portfolio logs found for the selected range.
+              No portfolio logs found for the selected range.
             </div>
           ) : viewMode === 'grid' ? (
             /* ================= GRID HEATMAP VIEW ================= */
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[500px] overflow-y-auto p-2 pr-1 pb-1 custom-scrollbar">
-              {logs.map((log, i) => {
+              {sortedLogs.map((log, i) => {
                 const isPos = log.daily_pnl_inr > 0;
                 const isNeg = log.daily_pnl_inr < 0;
-                const isSelected = selectedLog && selectedLog.log_date === log.log_date;
+                const isSelected = selectedLog && (selectedLog.period_key === log.period_key || selectedLog.log_date === log.log_date);
 
                 const d = new Date(log.log_date + 'T00:00:00');
                 const dayNum = String(d.getDate()).padStart(2, '0');
                 const monthShort = d.toLocaleString('en-US', { month: 'short' });
                 const yearShort = String(d.getFullYear()).slice(-2);
+                const fullYear = String(d.getFullYear());
 
                 // Exact matching border & background colors based on state
                 let cardStyle = '';
@@ -422,7 +512,7 @@ export default function CalendarView() {
 
                 return (
                   <motion.div
-                    key={log.log_date}
+                    key={log.period_key || log.log_date}
                     onClick={() => handleCardClick(log)}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -430,12 +520,24 @@ export default function CalendarView() {
                     whileHover={{ scale: 1.04, y: -2 }}
                     className={`p-3 rounded-2xl border cursor-pointer transition-all min-w-0 flex flex-col justify-between ${cardStyle}`}
                   >
-                    {/* Stylish Creative Date Header */}
+                    {/* Stylish Creative Date / Period Header */}
                     <div className="flex items-center justify-between gap-1 mb-2 min-w-0 border-b border-slate-800 pb-1.5">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-base sm:text-lg font-black text-slate-100 font-mono leading-none">{dayNum}</span>
-                        <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider font-sans">{monthShort} '{yearShort}</span>
-                      </div>
+                      {granularity === 'daily' ? (
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-base sm:text-lg font-black text-slate-100 font-mono leading-none">{dayNum}</span>
+                          <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider font-sans">{monthShort} '{yearShort}</span>
+                        </div>
+                      ) : granularity === 'monthly' ? (
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-base sm:text-lg font-black text-slate-100 font-mono leading-none">{monthShort}</span>
+                          <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider font-sans">'{yearShort}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-base sm:text-lg font-black text-slate-100 font-mono leading-none">{fullYear}</span>
+                          <span className="text-[8px] font-extrabold uppercase text-slate-400 tracking-wider font-sans">FY</span>
+                        </div>
+                      )}
                       <span className={`w-2 h-2 rounded-full shrink-0 ${badgeDot}`} />
                     </div>
 
@@ -485,7 +587,7 @@ export default function CalendarView() {
                       onClick={() => handleSort('date')} 
                       className="sticky left-0 z-40 bg-slate-900 py-2.5 px-3 border-r border-slate-800 cursor-pointer hover:text-white transition-colors min-w-[130px]"
                     >
-                      Date {getSortIcon('date')}
+                      {granularity === 'daily' ? 'Date' : granularity === 'monthly' ? 'Month' : 'Year'} {getSortIcon('date')}
                     </th>
 
                     {/* Bank Accounts */}
@@ -546,7 +648,7 @@ export default function CalendarView() {
                       Net Wealth {getSortIcon('net_worth')}
                     </th>
                     <th onClick={() => handleSort('daily_pnl')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[115px]">
-                      Daily P&amp;L {getSortIcon('daily_pnl')}
+                      {granularity === 'daily' ? 'Daily P&L' : granularity === 'monthly' ? 'Monthly P&L' : 'Annual P&L'} {getSortIcon('daily_pnl')}
                     </th>
                     <th onClick={() => handleSort('pct')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white transition-colors min-w-[95px]">
                       % Change {getSortIcon('pct')}
@@ -558,11 +660,11 @@ export default function CalendarView() {
                     const isPos = log.daily_pnl_inr > 0;
                     const isNeg = log.daily_pnl_inr < 0;
                     const dateInfo = formatDetailedDate(log.log_date);
-                    const isSelected = selectedLog && selectedLog.log_date === log.log_date;
+                    const isSelected = selectedLog && (selectedLog.period_key === log.period_key || selectedLog.log_date === log.log_date);
 
                     return (
                       <motion.tr
-                        key={log.log_date}
+                        key={log.period_key || log.log_date}
                         onClick={() => handleCardClick(log)}
                         initial={{ opacity: 0, y: 3 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -577,7 +679,7 @@ export default function CalendarView() {
                                 : 'hover:bg-slate-800/40'
                         }`}
                       >
-                        {/* Sticky Date Column */}
+                        {/* Sticky Date / Period Column */}
                         <td className="sticky left-0 z-20 bg-slate-950/95 group-hover:bg-slate-900/95 py-2.5 px-3 font-sans border-r border-slate-800 transition-colors">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full shrink-0 ${
@@ -585,10 +687,10 @@ export default function CalendarView() {
                             }`} />
                             <div>
                               <span className="font-bold text-slate-100 text-[11px] block group-hover:text-emerald-400 transition-colors whitespace-nowrap">
-                                {dateInfo.date}
+                                {granularity === 'daily' ? dateInfo.date : log.period_subtext || dateInfo.date}
                               </span>
                               <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider block">
-                                {dateInfo.weekday}
+                                {granularity === 'daily' ? dateInfo.weekday : `${log.days_count || 1} sessions`}
                               </span>
                             </div>
                           </div>
@@ -652,7 +754,7 @@ export default function CalendarView() {
                           {formatMoney(log.net_worth_inr || log.wealth || 0)}
                         </td>
 
-                        {/* Daily P&L */}
+                        {/* Period P&L */}
                         <td className="py-2.5 px-3 text-right font-bold">
                           <span className={`inline-block px-1.5 py-0.5 rounded ${
                             isPos
@@ -752,15 +854,25 @@ export default function CalendarView() {
                   const mDayNum = String(md.getDate()).padStart(2, '0');
                   const mMonthShort = md.toLocaleString('en-US', { month: 'short' });
                   const mYearShort = String(md.getFullYear()).slice(-2);
+                  const isPeriod = modalLog.period_type && modalLog.period_type !== 'daily';
 
                   return (
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                       <div className="flex items-center gap-3">
-                        <span className="text-5xl font-black font-sans leading-none text-slate-100 tracking-tight">{mDayNum}</span>
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">Valuation Date</span>
-                          <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider leading-none mt-0.5">{mMonthShort} 20{mYearShort}</span>
-                        </div>
+                        {isPeriod ? (
+                          <div className="flex flex-col">
+                            <span className="text-3xl font-black font-sans leading-none text-slate-100 tracking-tight">{modalLog.period_label}</span>
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 mt-1">{modalLog.period_subtext || modalLog.period_type}</span>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-5xl font-black font-sans leading-none text-slate-100 tracking-tight">{mDayNum}</span>
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">Valuation Date</span>
+                              <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider leading-none mt-0.5">{mMonthShort} 20{mYearShort}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       <button
                         onClick={() => setModalLog(null)}
@@ -772,14 +884,18 @@ export default function CalendarView() {
                   );
                 })()}
 
-                {/* Day Net Summary Banner */}
+                {/* Day / Period Net Summary Banner */}
                 <div className="grid grid-cols-2 gap-3 p-3 glass-subcard rounded-2xl border border-slate-800">
                   <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Net Worth</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                      {modalLog.period_type === 'monthly' ? 'Month-End Wealth' : modalLog.period_type === 'yearly' ? 'Year-End Wealth' : 'Net Worth'}
+                    </span>
                     <span className="text-sm font-black font-mono text-white">{formatMoney(modalLog.net_worth_inr)}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Daily P&L</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                      {modalLog.period_type === 'monthly' ? 'Monthly P&L' : modalLog.period_type === 'yearly' ? 'Annual P&L' : 'Daily P&L'}
+                    </span>
                     <span className={`text-sm font-black font-mono ${modalLog.daily_pnl_inr > 0 ? 'text-emerald-400' : modalLog.daily_pnl_inr < 0 ? 'text-rose-400' : 'text-blue-400'}`}>
                       {modalLog.daily_pnl_inr > 0 ? '+' : ''}{formatMoney(modalLog.daily_pnl_inr)}
                     </span>
