@@ -161,9 +161,15 @@ export async function fetchMutualFundNav(schemeCode) {
 
 // ---------------------------------------------------------------------------
 // NPS NAV: Primary source = Protean CRA official ZIP, Fallback = npsnav.in
-// ---------------------------------------------------------------------------
+// In-memory cache for Protean NPS NAV batch: { navMap, cachedAt }
+let proteanBatchCache = null;
+const PROTEAN_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function fetchProteanNpsNavBatch() {
+  if (proteanBatchCache && (Date.now() - proteanBatchCache.cachedAt < PROTEAN_CACHE_TTL_MS)) {
+    return proteanBatchCache.navMap;
+  }
+
   try {
     const pageRes = await axios.get('https://www.npscra.proteantech.in/nav-search.php', {
       timeout: 8000,
@@ -253,6 +259,7 @@ export async function fetchProteanNpsNavBatch() {
       })();
     }
 
+    proteanBatchCache = { navMap, cachedAt: Date.now() };
     return navMap;
   } catch (err) {
     console.warn('[Protean Scraper Warning]:', err.message);
@@ -276,10 +283,10 @@ export async function syncAllMissingNavs() {
   const results = { npsUpdated: 0, mfUpdated: 0, totalChecked: 0 };
   
   // 1. Sync NPS schemes via Protean
-  const npsCount = await syncDailyNpsNavs();
-  results.npsUpdated = npsCount;
+  const navMap = await fetchProteanNpsNavBatch();
+  results.npsUpdated = navMap ? navMap.size : 0;
 
-  // 2. Fetch active Mutual Funds & NPS holdings to update liveQuoteCache
+  // 2. Fetch active Mutual Funds & NPS holdings in parallel to update liveQuoteCache
   const { data: holdings } = await supabase
     .from('holdings')
     .select('*')
@@ -288,7 +295,7 @@ export async function syncAllMissingNavs() {
 
   if (holdings && holdings.length > 0) {
     results.totalChecked = holdings.length;
-    for (const h of holdings) {
+    await Promise.all(holdings.map(async (h) => {
       if (h.category_id === 'mutual_funds' && h.symbol) {
         try {
           const q = await fetchMutualFundNav(h.symbol);
@@ -299,13 +306,20 @@ export async function syncAllMissingNavs() {
         } catch (e) {}
       } else if (h.category_id === 'nps' && h.symbol) {
         try {
-          const q = await fetchNpsNav(h.symbol);
-          if (q) {
-            liveQuoteCache.set(h.symbol, q);
+          let item = navMap?.get(h.symbol);
+          if (!item) {
+            const fallback = await fetchNpsNavFallback(h.symbol);
+            if (fallback) item = { nav: fallback.nav, quoteDate: fallback.quoteDate };
+          }
+          if (item) {
+            liveQuoteCache.set(h.symbol, {
+              price: item.nav,
+              quoteDate: item.quoteDate
+            });
           }
         } catch (e) {}
       }
-    }
+    }));
   }
 
   return results;

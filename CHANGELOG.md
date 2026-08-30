@@ -5,6 +5,14 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.5] - 2026-08-30
+
+### Performance
+- **Parallelized Cloud NAV Sweeps**: Refactored `syncAllMissingNavs()` in `server/services/priceEngine.js` to process Mutual Funds and NPS schemes in parallel with `Promise.all`, and added a 30-minute in-memory cache to `fetchProteanNpsNavBatch()`. Eliminated redundant Protean ZIP re-downloads and slashed script execution time from over 1 minute down to ~4 seconds.
+- **Workflow Dependency Caching**: Upgraded `.github/workflows/daily_nav_sip_sync.yml` with `actions/cache@v4` on `node_modules` and deterministic `npm ci --omit=dev`. Avoids re-downloading and resolving packages on every run, saving 15-20 seconds per run.
+
+---
+
 ## [4.7.4] - 2026-08-30
 
 ### Fixed

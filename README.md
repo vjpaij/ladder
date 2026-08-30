@@ -130,12 +130,13 @@ node scripts/sync_navs_and_sips.mjs
 ```
 
 ### 5. Automated Cloud Scheduling (GitHub Actions)
-The workflow `.github/workflows/daily_nav_sip_sync.yml` automatically runs every hour on GitHub Actions. To enable it on a remote repository:
+The workflow `.github/workflows/daily_nav_sip_sync.yml` automatically runs every hour on GitHub Actions using the Node.js 24 runner environment. To enable it on a remote repository:
 1. Go to repository **Settings** -> **Secrets and variables** -> **Actions**.
 2. Add Repository Secrets:
    - `SUPABASE_URL`: Your Supabase Project URL.
    - `SUPABASE_ANON_KEY`: Your Supabase Anon Public Key.
 3. The workflow runs hourly and can also be manually dispatched via the **Actions** tab with one click.
+4. The scheduled job uses `actions/checkout@v5` and `actions/setup-node@v5` with `node-version: '24'` to maintain compatibility with the GitHub-hosted runner deprecation timeline.
 
 ---
 
