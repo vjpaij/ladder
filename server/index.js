@@ -12,6 +12,7 @@ import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculato
 import { computeHoldingValueINR, computePortfolioValuation } from './services/portfolioCalculator.js';
 import { recalculateHoldingState } from './services/recalculator.js';
 import { processDueSips } from './services/sipEngine.js';
+import { computeGrowthBenchmarks, invalidateBenchmarkCache } from './services/benchmarkEngine.js';
 import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -80,7 +81,7 @@ function formatDateDDMMYYYY(dateStr) {
       const year = d.getFullYear();
       return `${day}-${month}-${year}`;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const parts = str.split(/[-T /]/);
   if (parts.length >= 3) {
@@ -95,7 +96,7 @@ function formatDateDDMMYYYY(dateStr) {
 function getHistoricalFxRate(dateStr) {
   if (!dateStr) return 80.5;
   if (historicalFxRatesCache[dateStr]) return historicalFxRatesCache[dateStr];
-  
+
   // If exact date not found, attempt to find nearest previous date
   const prevDates = Object.keys(historicalFxRatesCache).filter(d => d < dateStr).sort().reverse();
   if (prevDates.length > 0) {
@@ -137,7 +138,7 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   const users = await db.selectWhere('users', { email: email || 'admin@ladder.com' });
   const user = users[0];
-  
+
   if (!user && (email === 'admin@ladder.com' || !email)) {
     const token = jwt.sign({ userId: 1, email: 'admin@ladder.com' }, JWT_SECRET, { expiresIn: '7d' });
     return res.json({ token, user: { id: 1, email: 'admin@ladder.com', name: 'Vijay Pai' } });
@@ -290,7 +291,7 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
         const liveQuote = liveQuoteCache.get(h.symbol);
         const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
         const currentVal = (Number(h.quantity) || 0) * currentPriceNum * liveRate;
-        
+
         let txRate = 1.0;
         if (h.currency === 'USD') {
           const m = usFxMap[h.id] || usFxMap[h.symbol];
@@ -315,7 +316,7 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
       const rate = (h.currency === 'USD') ? getHistoricalFxRate(t.date) : 1.0;
       const amount = (t.type === 'BUY' ? -1 : 1) * (Number(t.total_amount) || 0) * rate;
       const flow = { date: t.date, amount };
-      
+
       if (categoryMetricsMap[h.category_id]) {
         categoryMetricsMap[h.category_id].cashflows.push(flow);
         categoryMetricsMap[h.category_id].holdingsCovered.add(h.id);
@@ -596,7 +597,7 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
     try {
       const { data } = await supabase.from('asset_metadata').select('*');
       metaData = data;
-    } catch (e) {}
+    } catch (e) { }
 
     // Fallback to local cache if DB was unreachable or empty
     if (!metaData || metaData.length === 0) {
@@ -605,7 +606,7 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
         if (fs.existsSync(localPath)) {
           metaData = JSON.parse(fs.readFileSync(localPath, 'utf8'));
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const metadataMap = {};
@@ -631,10 +632,10 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
       const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
       const currentValueOriginal = (Number(h.quantity) || 0) * currentPriceNum;
       const currentValueINR = computeHoldingValueINR(h, currentPriceNum, fxRate);
-      
+
       const investedValueOriginal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
       const investedValueINR = investedValueOriginal * txRate;
-      
+
       const gainINR = currentValueINR - investedValueINR;
       const gainPct = investedValueINR > 0 ? ((gainINR / investedValueINR) * 100).toFixed(2) : 0;
 
@@ -660,7 +661,7 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
 
       const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim();
       const meta = metadataMap[h.symbol] || metadataMap[cleanSym] || metadataMap[cleanSym.toUpperCase()] || {};
-      
+
       return {
         ...h,
         current_price: currentPriceNum,
@@ -769,7 +770,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
     // Fetch holding
     const holdings = await db.select('holdings');
     let holding = holdings.find(h => h.id === holdingId || h.id == holdingId || h.symbol === holdingId);
-    
+
     // If not found in holdings, check liabilities
     if (!holding) {
       const liabilities = await db.select('liabilities');
@@ -787,7 +788,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         };
       }
     }
-    
+
     if (!holding) return res.status(404).json({ error: 'Holding not found' });
 
     // --- Check if Bank, EPF, or Liability account with EOD daily tracking ---
@@ -838,8 +839,8 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         const validLogs = nonZeroLogs.length > 0 ? nonZeroLogs : activeLogs;
 
         const livePrice = Number(holding.current_price);
-        const currentVal = (livePrice !== undefined && livePrice !== null && !isNaN(livePrice) && livePrice > 0) 
-          ? livePrice 
+        const currentVal = (livePrice !== undefined && livePrice !== null && !isNaN(livePrice) && livePrice > 0)
+          ? livePrice
           : (validLogs[validLogs.length - 1]?.[eodKey] || 0);
         const peakVal = Math.max(...validLogs.map(l => l[eodKey]), currentVal);
         const minVal = Math.min(...validLogs.map(l => l[eodKey]), currentVal);
@@ -1095,7 +1096,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
     const costBasisINR = activeLotsINR.length > 0
       ? activeLotsINR.reduce((s, l) => s + (l.rem * l.priceUSD * l.fxRate), 0)
       : (costBasisUSD * (totalInvestedUSD > 0 ? (totalInvestedINR / totalInvestedUSD) : liveRate));
-    
+
     const unrealizedPnlINR = currentValueINR - costBasisINR;
     const unrealizedPctINR = costBasisINR > 0 ? Number(((unrealizedPnlINR / costBasisINR) * 100).toFixed(2)) : 0;
 
@@ -1118,7 +1119,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
           amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
         };
       });
-    
+
     if (isUSStock) {
       for (const d of divs) {
         cashflowsUSD.push({ date: d.ex_date || d.payment_date, amount: (Number(d.amount_original) || 0) });
@@ -1140,7 +1141,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
           amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
         };
       });
-      
+
     for (const d of divs) {
       cashflowsINR.push({ date: d.ex_date || d.payment_date, amount: (Number(d.amount_inr) || 0) });
     }
@@ -1182,7 +1183,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             const tx = txs[txIdx];
             const qty = Number(tx.quantity) || 0;
             const amt = Number(tx.total_amount) || (qty * (Number(tx.price) || 0));
-            
+
             if (tx.date === d && tx.type !== 'DIVIDEND') {
               dayEvents.push({
                 type: tx.type,
@@ -1204,7 +1205,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             }
             txIdx++;
           }
-          
+
           if (divsByDate[d]) {
             for (const div of divsByDate[d]) {
               dayEvents.push({
@@ -1250,7 +1251,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       const lastTxDate = txs[txs.length - 1].date;
       const isExited = (Number(holding.quantity) || 0) <= 0;
       const endLimitStr = isExited ? lastTxDate : today;
-      
+
       let runningQ = 0;
       let runningInvUSD = 0;
       let runningInvINR = 0;
@@ -1261,7 +1262,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       const startDate = new Date(firstTxDate);
       const endDate = new Date(endLimitStr);
       if (endDate > new Date(today)) endDate.setTime(new Date(today).getTime());
-      
+
       let currentDate = new Date(startDate);
 
       while (currentDate <= endDate) {
@@ -1360,7 +1361,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         currentDate.setDate(currentDate.getDate() + 1);
       }
     }
-      
+
     // Extract market quote data for stocks, MFs, NPS
     const activeTimelineData = isUSStock ? timelineUSD : timelineINR;
     let quotePrice = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(holding.current_price) || 0);
@@ -1427,7 +1428,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       try {
         const npsQ = await fetchNpsNavFallback(holding.symbol);
         if (npsQ?.quoteDate) quoteDateStr = npsQ.quoteDate;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (!quoteDateStr) quoteDateStr = liveQuoteCache.get(holding.symbol)?.quoteDate;
@@ -1498,51 +1499,51 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       timelineUSD,
       timelineINR,
       metricsUSD: {
-        totalInvested:  Number(totalInvestedUSD.toFixed(2)),
-        totalRedeemed:  Number(totalRedeemedUSD.toFixed(2)),
+        totalInvested: Number(totalInvestedUSD.toFixed(2)),
+        totalRedeemed: Number(totalRedeemedUSD.toFixed(2)),
         currentInvested: Number(costBasisUSD.toFixed(2)),
-        totalCharges:   Number((totalBuyChargesUSD + totalSellChargesUSD).toFixed(2)),
-        buyCharges:     Number(totalBuyChargesUSD.toFixed(2)),
-        sellCharges:    Number(totalSellChargesUSD.toFixed(2)),
-        currentValue:   Number(currentValueUSD.toFixed(2)),
-        unrealizedPnl:  Number(unrealizedPnlUSD.toFixed(2)),
-        unrealizedPct:  unrealizedPctUSD,
-        realizedPnl:    Number(realizedPnlUSD.toFixed(2)),
+        totalCharges: Number((totalBuyChargesUSD + totalSellChargesUSD).toFixed(2)),
+        buyCharges: Number(totalBuyChargesUSD.toFixed(2)),
+        sellCharges: Number(totalSellChargesUSD.toFixed(2)),
+        currentValue: Number(currentValueUSD.toFixed(2)),
+        unrealizedPnl: Number(unrealizedPnlUSD.toFixed(2)),
+        unrealizedPct: unrealizedPctUSD,
+        realizedPnl: Number(realizedPnlUSD.toFixed(2)),
         totalDividends: Number(totalDividendsUSD.toFixed(2)),
-        dividendCount:  divs.length,
-        totalXirr:      totalXirrUSD
+        dividendCount: divs.length,
+        totalXirr: totalXirrUSD
       },
       metricsINR: {
-        totalInvested:  Number(totalInvestedINR.toFixed(2)),
-        totalRedeemed:  Number(totalRedeemedINR.toFixed(2)),
+        totalInvested: Number(totalInvestedINR.toFixed(2)),
+        totalRedeemed: Number(totalRedeemedINR.toFixed(2)),
         currentInvested: Number(costBasisINR.toFixed(2)),
-        totalCharges:   Number((totalBuyChargesINR + totalSellChargesINR).toFixed(2)),
-        buyCharges:     Number(totalBuyChargesINR.toFixed(2)),
-        sellCharges:    Number(totalSellChargesINR.toFixed(2)),
-        currentValue:   Number(currentValueINR.toFixed(2)),
-        unrealizedPnl:  Number(unrealizedPnlINR.toFixed(2)),
-        unrealizedPct:  unrealizedPctINR,
-        realizedPnl:    Number(realizedPnlINR.toFixed(2)),
+        totalCharges: Number((totalBuyChargesINR + totalSellChargesINR).toFixed(2)),
+        buyCharges: Number(totalBuyChargesINR.toFixed(2)),
+        sellCharges: Number(totalSellChargesINR.toFixed(2)),
+        currentValue: Number(currentValueINR.toFixed(2)),
+        unrealizedPnl: Number(unrealizedPnlINR.toFixed(2)),
+        unrealizedPct: unrealizedPctINR,
+        realizedPnl: Number(realizedPnlINR.toFixed(2)),
         totalDividends: Number(totalDividendsINR.toFixed(2)),
-        dividendCount:  divs.length,
-        totalXirr:      totalXirrINR
+        dividendCount: divs.length,
+        totalXirr: totalXirrINR
       },
       // Backward-compatible top-level properties
       timeline: isUSStock ? timelineUSD : timelineINR,
       metrics: {
-        totalInvested:  Number((isUSStock ? totalInvestedUSD : totalInvestedINR).toFixed(2)),
-        totalRedeemed:  Number((isUSStock ? totalRedeemedUSD : totalRedeemedINR).toFixed(2)),
+        totalInvested: Number((isUSStock ? totalInvestedUSD : totalInvestedINR).toFixed(2)),
+        totalRedeemed: Number((isUSStock ? totalRedeemedUSD : totalRedeemedINR).toFixed(2)),
         currentInvested: Number((isUSStock ? costBasisUSD : costBasisINR).toFixed(2)),
-        totalCharges:   Number(((isUSStock ? totalBuyChargesUSD : totalBuyChargesINR) + (isUSStock ? totalSellChargesUSD : totalSellChargesINR)).toFixed(2)),
-        buyCharges:     Number((isUSStock ? totalBuyChargesUSD : totalBuyChargesINR).toFixed(2)),
-        sellCharges:    Number((isUSStock ? totalSellChargesUSD : totalSellChargesINR).toFixed(2)),
-        currentValue:   Number((isUSStock ? currentValueUSD : currentValueINR).toFixed(2)),
-        unrealizedPnl:  Number((isUSStock ? unrealizedPnlUSD : unrealizedPnlINR).toFixed(2)),
-        unrealizedPct:  isUSStock ? unrealizedPctUSD : unrealizedPctINR,
-        realizedPnl:    Number((isUSStock ? realizedPnlUSD : realizedPnlINR).toFixed(2)),
+        totalCharges: Number(((isUSStock ? totalBuyChargesUSD : totalBuyChargesINR) + (isUSStock ? totalSellChargesUSD : totalSellChargesINR)).toFixed(2)),
+        buyCharges: Number((isUSStock ? totalBuyChargesUSD : totalBuyChargesINR).toFixed(2)),
+        sellCharges: Number((isUSStock ? totalSellChargesUSD : totalSellChargesINR).toFixed(2)),
+        currentValue: Number((isUSStock ? currentValueUSD : currentValueINR).toFixed(2)),
+        unrealizedPnl: Number((isUSStock ? unrealizedPnlUSD : unrealizedPnlINR).toFixed(2)),
+        unrealizedPct: isUSStock ? unrealizedPctUSD : unrealizedPctINR,
+        realizedPnl: Number((isUSStock ? realizedPnlUSD : realizedPnlINR).toFixed(2)),
         totalDividends: Number((isUSStock ? totalDividendsUSD : totalDividendsINR).toFixed(2)),
-        dividendCount:  divs.length,
-        totalXirr:      isUSStock ? totalXirrUSD : totalXirrINR
+        dividendCount: divs.length,
+        totalXirr: isUSStock ? totalXirrUSD : totalXirrINR
       }
     });
   } catch (err) {
@@ -1772,7 +1773,7 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
         pnl_percentage: Number(pct),
         asset_delta_inr: Number(assetDelta.toFixed(2)),
         liability_delta_inr: Number(liabilityDelta.toFixed(2)),
-        
+
         // Exact portfolio.xlsx sheet columns
         hdfc: Number((item.hdfc || 0).toFixed(2)),
         indusind: Number((item.indusind || 0).toFixed(2)),
@@ -2044,7 +2045,7 @@ app.get('/api/search/mutual-funds', async (req, res) => {
 
     const master = await getAmfiMaster();
     const queryTerms = q.toLowerCase().split(/\s+/);
-    
+
     const matches = master
       .filter(m => {
         const name = (m.schemeName || '').toLowerCase();
@@ -2068,7 +2069,7 @@ app.get('/api/nav/mutual-funds/:schemeCode', async (req, res) => {
     const { date } = req.query;
     const mfRes = await axios.get(`https://api.mfapi.in/mf/${req.params.schemeCode}`, { timeout: 8000 });
     const dataArray = mfRes.data?.data;
-    
+
     if (dataArray && dataArray.length > 0) {
       let match = dataArray[0];
       if (date) {
@@ -2378,7 +2379,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
 
       const txType = (type || 'BUY').toUpperCase();
       const txDate = date || new Date().toISOString().split('T')[0];
-      
+
       // Date format validation
       if (!/^\d{4}-\d{2}-\d{2}$/.test(txDate)) {
         return res.status(400).json({ error: `Invalid date format '${txDate}'. Must be YYYY-MM-DD.` });
@@ -2402,7 +2403,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       let txPrice = Math.abs(rawPrice || 0);
       let txCharges = Math.abs(rawCharges || 0);
       let txAmount = txQty * txPrice;
-      
+
       if (txType === 'BUY') {
         txAmount += txCharges;
       } else if (txType === 'SELL') {
@@ -2451,8 +2452,8 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
         holdingId = existingHoldings[0].id;
       } else {
         const exchange = portfolio === 'in_stocks' ? 'NSE' :
-                         portfolio === 'us_stocks' ? 'NASDAQ' :
-                         portfolio === 'mutual_funds' ? 'AMFI' : 'NPS';
+          portfolio === 'us_stocks' ? 'NASDAQ' :
+            portfolio === 'mutual_funds' ? 'AMFI' : 'NPS';
 
         const newHolding = await db.insert('holdings', {
           category_id: portfolio,
@@ -2599,6 +2600,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
 
       await db.insert('transactions', txRecord);
       await recalculateHoldingState(holdingId);
+      invalidateBenchmarkCache();
 
       return res.json({ success: true, holdingId, action: 'transaction_recorded' });
     }
@@ -2609,7 +2611,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       if (!accName) return res.status(400).json({ error: 'Account name is required' });
 
       const symbolKey = portfolio === 'epf' ? 'EPF-RETIREMENT' :
-                        accName.toUpperCase().replace(/\s+/g, '-') + '-SAVINGS';
+        accName.toUpperCase().replace(/\s+/g, '-') + '-SAVINGS';
 
       const existing = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
       let holdingId;
@@ -2880,7 +2882,7 @@ app.get('/api/reports/mf-holdings', async (req, res) => {
           });
         });
       }
-    } catch (e) {}
+    } catch (e) { }
 
     if (!mfPortfolios) {
       const mfFile = path.join(__dirname, '../data/mutual_fund_holdings.json');
@@ -2901,7 +2903,7 @@ app.get('/api/reports/mf-holdings', async (req, res) => {
       const portfolio = mfPortfolios[code] || { companies: [] };
       const companiesWithVal = (portfolio.companies || []).map(c => {
         const allocatedVal = Number(((c.allocation_pct / 100) * scheme.currentValueINR).toFixed(2));
-        
+
         if (!aggregatedCompanies[c.company]) {
           aggregatedCompanies[c.company] = {
             company: c.company,
@@ -2966,211 +2968,8 @@ app.get('/api/reports/mf-holdings', async (req, res) => {
 
 app.get('/api/reports/growth-benchmarks', async (req, res) => {
   try {
-    const { timeframe = '1Y', scope = 'all', startDate: customStart, endDate: customEnd } = req.query;
-
-    const eodFile = path.join(__dirname, '../data/portfolio_eod_logs.json');
-    let eodLogs = [];
-    if (fs.existsSync(eodFile)) {
-      eodLogs = JSON.parse(fs.readFileSync(eodFile, 'utf8'));
-    }
-
-    const idxFile = path.join(__dirname, '../data/index_history.json');
-    let indexHistory = {};
-    if (fs.existsSync(idxFile)) {
-      indexHistory = JSON.parse(fs.readFileSync(idxFile, 'utf8'));
-    }
-
-    if (!Array.isArray(eodLogs) || eodLogs.length === 0) {
-      return res.json({ series: [] });
-    }
-
-    // Helper to extract portfolio valuation based on requested scope
-    const getScopeValue = (log) => {
-      if (!scope || scope === 'all' || scope === 'consolidated') {
-        return Number(log.wealth || log.total_wealth || log.total_assets || 0);
-      }
-      const scopeParts = scope.toLowerCase().split(',');
-      let total = 0;
-      if (scopeParts.some(s => s.includes('india') || s.includes('indian'))) {
-        total += Number(log.indian_stocks || 0);
-      }
-      if (scopeParts.some(s => s.includes('us'))) {
-        total += Number(log.us_stocks || 0);
-      }
-      if (scopeParts.some(s => s.includes('mf') || s.includes('mutual'))) {
-        total += Number(log.mutual_funds || 0);
-      }
-      if (scopeParts.some(s => s.includes('nps'))) {
-        total += Number(log.nps || 0);
-      }
-      if (scopeParts.some(s => s.includes('epf'))) {
-        total += Number(log.epf || 0);
-      }
-      if (scopeParts.some(s => s.includes('bank'))) {
-        total += Number(log.bank || 0);
-      }
-      return total;
-    };
-
-    // Calculate scope's total invested cost basis from database holdings
-    const holdings = await db.select('holdings');
-    let scopeInvestedCost = 0;
-    const scopeParts = (scope || 'all').toLowerCase().split(',');
-
-    holdings.forEach(h => {
-      if ((Number(h.quantity) || 0) <= 0) return;
-      const cat = h.category_id;
-      let inScope = false;
-      if (scope === 'all' || scope === 'consolidated') {
-        inScope = true;
-      } else if (scopeParts.some(s => s.includes('india') || s.includes('indian')) && cat === 'in_stocks') {
-        inScope = true;
-      } else if (scopeParts.some(s => s.includes('us')) && cat === 'us_stocks') {
-        inScope = true;
-      } else if (scopeParts.some(s => s.includes('mf') || s.includes('mutual')) && cat === 'mutual_funds') {
-        inScope = true;
-      } else if (scopeParts.some(s => s.includes('nps')) && cat === 'nps') {
-        inScope = true;
-      } else if (scopeParts.some(s => s.includes('epf')) && cat === 'epf') {
-        inScope = true;
-      } else if (scopeParts.some(s => s.includes('bank')) && cat === 'bank') {
-        inScope = true;
-      }
-
-      if (inScope) {
-        if (h.currency === 'USD') {
-          scopeInvestedCost += (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * 82.5;
-        } else {
-          scopeInvestedCost += (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
-        }
-      }
-    });
-
-    // Filter logs that have non-zero value for the requested scope
-    const nonZeroLogs = eodLogs.filter(l => getScopeValue(l) > 0);
-    const earliestDataDate = nonZeroLogs.length > 0 ? nonZeroLogs[0].date : eodLogs[0].date;
-
-    const now = new Date();
-    let startDate = new Date();
-    let endDate = new Date();
-
-    if (timeframe === 'CUSTOM' && customStart) {
-      startDate = new Date(customStart);
-      if (customEnd) endDate = new Date(customEnd);
-    } else if (timeframe === '1M') startDate.setMonth(now.getMonth() - 1);
-    else if (timeframe === '3M') startDate.setMonth(now.getMonth() - 3);
-    else if (timeframe === '6M') startDate.setMonth(now.getMonth() - 6);
-    else if (timeframe === '1Y') startDate.setFullYear(now.getFullYear() - 1);
-    else if (timeframe === 'ALL') startDate = new Date(earliestDataDate);
-
-    const startIso = startDate.toISOString().split('T')[0];
-    const endIso = endDate.toISOString().split('T')[0];
-
-    const filteredLogs = eodLogs.filter(log => log.date >= startIso && log.date <= endIso && getScopeValue(log) > 0);
-    if (filteredLogs.length === 0) {
-      return res.json({ series: [] });
-    }
-
-    const firstLog = filteredLogs[0];
-    const actualStartIso = firstLog.date;
-    const basePortfolio = Math.max(1, getScopeValue(firstLog));
-    const baseBenchmarkCapital = basePortfolio;
-
-    const baseIndexPrices = {};
-    const runningIndexPrices = {};
-    const indexKeys = ['NIFTY_50', 'NIFTY_MIDCAP_150', 'NIFTY_SMALLCAP_250', 'SP_500', 'NASDAQ'];
-    
-    // Find initial base price for each index on or nearest to actualStartIso
-    indexKeys.forEach(k => {
-      const closes = indexHistory[k]?.closes || {};
-      const dates = Object.keys(closes).sort();
-      let baseP = closes[actualStartIso];
-      if (!baseP) {
-        // Find nearest preceding date
-        for (let i = dates.length - 1; i >= 0; i--) {
-          if (dates[i] <= actualStartIso) {
-            baseP = closes[dates[i]];
-            break;
-          }
-        }
-        // If not found preceding, find nearest succeeding
-        if (!baseP && dates.length > 0) {
-          for (let i = 0; i < dates.length; i++) {
-            if (dates[i] >= actualStartIso) {
-              baseP = closes[dates[i]];
-              break;
-            }
-          }
-        }
-      }
-      baseIndexPrices[k] = baseP || 1;
-      runningIndexPrices[k] = baseP || 1;
-    });
-
-    const step = Math.max(1, Math.floor(filteredLogs.length / 80));
-    const sampled = [];
-
-    for (let i = 0; i < filteredLogs.length; i += step) {
-      const log = filteredLogs[i];
-      const d = log.date;
-      const val = getScopeValue(log);
-
-      const point = {
-        date: d,
-        Portfolio: Number(val.toFixed(2)),
-        PortfolioGrowthPct: basePortfolio > 0 ? Number((((val - basePortfolio) / basePortfolio) * 100).toFixed(2)) : 0
-      };
-
-      indexKeys.forEach(k => {
-        const closes = indexHistory[k]?.closes || {};
-        if (closes[d] !== undefined && closes[d] > 0) {
-          runningIndexPrices[k] = closes[d];
-        }
-        const currentP = runningIndexPrices[k];
-        const baseP = baseIndexPrices[k];
-        const growthPct = baseP > 0 ? Number((((currentP - baseP) / baseP) * 100).toFixed(2)) : 0;
-        point[k] = currentP;
-        point[`${k}_GrowthPct`] = growthPct;
-        // Simulated index portfolio: starting value grown at index return rate from that date
-        point[`${k}_Normalized`] = Number((baseBenchmarkCapital * (1 + growthPct / 100)).toFixed(2));
-      });
-
-      sampled.push(point);
-    }
-
-    const lastLog = filteredLogs[filteredLogs.length - 1];
-    if (sampled.length > 0 && sampled[sampled.length - 1].date !== lastLog.date) {
-      const d = lastLog.date;
-      const val = getScopeValue(lastLog);
-      const point = {
-        date: d,
-        Portfolio: Number(val.toFixed(2)),
-        PortfolioGrowthPct: basePortfolio > 0 ? Number((((val - basePortfolio) / basePortfolio) * 100).toFixed(2)) : 0
-      };
-      indexKeys.forEach(k => {
-        const closes = indexHistory[k]?.closes || {};
-        if (closes[d] !== undefined && closes[d] > 0) {
-          runningIndexPrices[k] = closes[d];
-        }
-        const currentP = runningIndexPrices[k];
-        const baseP = baseIndexPrices[k];
-        const growthPct = baseP > 0 ? Number((((currentP - baseP) / baseP) * 100).toFixed(2)) : 0;
-        point[k] = currentP;
-        point[`${k}_GrowthPct`] = growthPct;
-        point[`${k}_Normalized`] = Number((baseBenchmarkCapital * (1 + growthPct / 100)).toFixed(2));
-      });
-      sampled.push(point);
-    }
-
-    res.json({
-      timeframe,
-      scope,
-      baseDate: actualStartIso,
-      basePortfolio,
-      baseBenchmarkCapital,
-      scopeInvestedCost,
-      series: sampled
-    });
+    const result = await computeGrowthBenchmarks(req.query);
+    res.json(result);
   } catch (err) {
     console.error('[Growth Benchmarks Error]:', err);
     res.status(500).json({ error: err.message });
@@ -3179,12 +2978,12 @@ app.get('/api/reports/growth-benchmarks', async (req, res) => {
 
 app.post('/api/reports/sync-metadata', async (req, res) => {
   try {
+    invalidateBenchmarkCache();
     const { syncAssetMetadata } = await import('../scripts/sync_asset_metadata.mjs');
     const { syncMutualFundHoldings } = await import('../scripts/sync_mf_holdings.mjs');
     const { syncIndexHistory } = await import('../scripts/sync_index_history.mjs');
 
     syncAssetMetadata(true).catch(e => console.error('[Background Sync Asset Error]:', e));
-    syncMutualFundHoldings().catch(e => console.error('[Background Sync MF Error]:', e));
     syncIndexHistory().catch(e => console.error('[Background Sync Index Error]:', e));
 
     res.json({ success: true, message: 'Metadata and benchmark index sync initiated.' });
@@ -3213,6 +3012,6 @@ app.listen(PORT, () => {
   setInterval(async () => {
     try {
       await refreshAllHoldingsPrices();
-    } catch (err) {}
+    } catch (err) { }
   }, 10 * 60 * 1000);
 });

@@ -33,7 +33,12 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Dynamic real-time single-source-of-truth engine: today's current valuation updates live from real-time price feeds with 0 delay and zero scripts needed.
    - Interactive color-coded heatmap grid and tabular view with period P&L and ROI metrics.
 
-6. **Safety, Backup & Atomic Restoration**
+6. **High-Performance Growth Benchmark Engine**
+   - Dedicated service (`server/services/benchmarkEngine.js`) calculating true money-weighted performance vs Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ.
+   - High-speed in-memory caching of scoped transactions and holdings with sub-10ms response times on timeframe shifts.
+   - Pre-sorted index date arrays with $O(\log N)$ binary search lookup, eliminating synchronous array sorting and CPU event-loop spin.
+
+7. **Safety, Backup & Atomic Restoration**
    - Paginated backup tool (`scripts/dump_db_snapshot.mjs`) exporting full database state and EOD logs past Supabase row limits.
    - Dependency-ordered restoration tool (`scripts/restore_db_snapshot.mjs`) with SHA256 checksum verification and dry-run safety simulation.
 
