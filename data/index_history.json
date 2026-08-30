@@ -2,7 +2,7 @@
   "NIFTY_50": {
     "name": "Nifty 50",
     "ticker": "^NSEI",
-    "last_updated": "2026-08-30T12:17:07.188Z",
+    "last_updated": "2026-08-30T14:10:20.305Z",
     "closes": {
       "2016-08-29": 8607.45,
       "2016-08-30": 8744.35,
@@ -2474,7 +2474,7 @@
   "NIFTY_MIDCAP_150": {
     "name": "Nifty Midcap 150",
     "ticker": "NIFTYMIDCAP150.NS",
-    "last_updated": "2026-08-30T12:17:07.507Z",
+    "last_updated": "2026-08-30T14:10:20.474Z",
     "closes": {
       "2019-01-14": 6256.65,
       "2019-01-15": 6290.5,
@@ -4359,7 +4359,7 @@
   "NIFTY_SMALLCAP_250": {
     "name": "Nifty Smallcap 250",
     "ticker": "HDFCSML250.NS",
-    "last_updated": "2026-08-30T12:17:07.613Z",
+    "last_updated": "2026-08-30T14:10:20.574Z",
     "closes": {
       "2023-02-21": 93.48,
       "2023-02-22": 92.02,
@@ -5233,7 +5233,7 @@
   "SP_500": {
     "name": "S&P 500",
     "ticker": "^GSPC",
-    "last_updated": "2026-08-30T12:17:07.788Z",
+    "last_updated": "2026-08-30T14:10:20.790Z",
     "closes": {
       "2016-08-29": 2180.38,
       "2016-08-30": 2176.12,
@@ -7753,7 +7753,7 @@
   "NASDAQ": {
     "name": "NASDAQ",
     "ticker": "^IXIC",
-    "last_updated": "2026-08-30T12:17:08.051Z",
+    "last_updated": "2026-08-30T14:10:20.955Z",
     "closes": {
       "2016-08-29": 5232.33,
       "2016-08-30": 5222.99,

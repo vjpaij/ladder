@@ -91,6 +91,17 @@ async function runIntegrityAudit() {
     assert.strictEqual(sumRes.dayPnlINR, latestCalendarLog.daily_pnl_inr, 'Dashboard Day PnL and Calendar Day PnL must match exactly');
     assert.strictEqual(sumRes.dayPnlPct, latestCalendarLog.pnl_percentage, 'Dashboard Day PnL % and Calendar Day PnL % must match exactly');
 
+    // 4b. Holdings Level Individual Valuation & Zero-Quantity Invariance
+    const holdingsRes = await fetch('http://127.0.0.1:5000/api/holdings').then(r => r.json());
+    holdingsRes.forEach(h => {
+      const isUnitBased = ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id);
+      if (isUnitBased && Number(h.quantity) <= 0) {
+        assert.strictEqual(h.currentValueINR, 0, `Zero-quantity holding ${h.symbol} (${h.name}) must evaluate to strictly ₹0.00`);
+        assert.strictEqual(h.investedValueINR, 0, `Zero-quantity holding ${h.symbol} (${h.name}) must have invested value ₹0.00`);
+      }
+    });
+    console.log(`✓ Holding-Level Zero-Quantity & Individual Valuation Invariance Verified across ${holdingsRes.length} assets.`);
+
     console.log(`✓ API Parity Verified (Exact 1-to-1 Cent Match across Dashboard and Calendar):`);
     console.log(`  - Net Worth:   Dashboard ₹${sumRes.netWorthINR} === Calendar ₹${latestCalendarLog.net_worth_inr}`);
     console.log(`  - Assets:      Dashboard ₹${sumRes.totalAssetsINR} === Calendar ₹${latestCalendarLog.total_assets_inr}`);

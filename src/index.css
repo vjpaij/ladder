@@ -429,6 +429,55 @@ body {
   color: #94A3B8 !important;
 }
 
+/* ─── Reports Theme Utilities (Strict Single-Source Theme Parity) ── */
+.reports-card {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.reports-subcard {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.reports-pill {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.reports-table-container {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.reports-table-head {
+  background-color: var(--bg-main) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  color: var(--text-muted) !important;
+}
+
+.reports-table-row {
+  border-bottom: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.reports-table-row:hover {
+  background-color: var(--bg-card) !important;
+}
+
+.light .reports-subcard, .warm_light .reports-subcard, .nordic_light .reports-subcard {
+  background-color: #F8FAFC !important;
+}
+.warm_light .reports-subcard {
+  background-color: #F5EFEB !important;
+}
+.nordic_light .reports-subcard {
+  background-color: #F0F4F8 !important;
+}
+
 /* ─── Glassmorphism Cards ───────────────────────────── */
 .glass-card,
 .glass-panel {

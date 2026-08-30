@@ -512,12 +512,9 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
       console.warn('[EOD JSON Fetch Error]:', e.message);
     }
 
-    if (yesterdayWealth === null) {
-      yesterdayWealth = netWorthINR;
-    }
-    
-    const dayPnlINR = Number((netWorthINR - yesterdayWealth).toFixed(2));
-    const dayPnlPct = yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0;
+    const isWeekend = (new Date().getUTCDay() === 0 || new Date().getUTCDay() === 6);
+    const dayPnlINR = isWeekend ? 0 : Number((netWorthINR - yesterdayWealth).toFixed(2));
+    const dayPnlPct = isWeekend ? 0 : (yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0);
 
     // Asset Breakdown by Category (clean names)
     const categoryValues = {};
@@ -1689,14 +1686,21 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
     // Sort chronologically
     eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
+    const isWeekendDay = (dStr) => {
+      if (!dStr) return false;
+      const d = new Date(`${dStr}T00:00:00Z`);
+      const day = d.getUTCDay();
+      return day === 0 || day === 6;
+    };
+
     // Recompute daily_pnl and pnl_pct across all logs so today is accurate against yesterday
     for (let i = 0; i < eodLogs.length; i++) {
       const cur = eodLogs[i];
       const prev = i > 0 ? eodLogs[i - 1] : cur;
       const curWealth = cur.total_wealth !== undefined ? cur.total_wealth : (cur.wealth || 0);
       const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
-      const pnl = curWealth - prevWealth;
-      const pct = prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0;
+      const pnl = isWeekendDay(cur.date) ? 0 : (curWealth - prevWealth);
+      const pct = isWeekendDay(cur.date) ? 0 : (prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0);
       cur.daily_pnl = Number(pnl.toFixed(2));
       cur.pnl_pct = Number(pct.toFixed(2));
       cur.total_wealth = curWealth;
@@ -1746,8 +1750,8 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       const wPrev = prevItem.total_wealth !== undefined ? prevItem.total_wealth : prevItem.wealth;
 
       const prevWealth = wPrev !== undefined ? wPrev : wCurr;
-      const dailyPnl = item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth);
-      const pct = prevWealth !== 0 ? ((dailyPnl / prevWealth) * 100).toFixed(2) : '0.00';
+      const dailyPnl = isWeekendDay(item.date) ? 0 : (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth));
+      const pct = isWeekendDay(item.date) ? 0 : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
 
       const wealth = wCurr || 0;
       const debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));
@@ -3008,6 +3012,40 @@ app.get('/api/reports/growth-benchmarks', async (req, res) => {
       return total;
     };
 
+    // Calculate scope's total invested cost basis from database holdings
+    const holdings = await db.select('holdings');
+    let scopeInvestedCost = 0;
+    const scopeParts = (scope || 'all').toLowerCase().split(',');
+
+    holdings.forEach(h => {
+      if ((Number(h.quantity) || 0) <= 0) return;
+      const cat = h.category_id;
+      let inScope = false;
+      if (scope === 'all' || scope === 'consolidated') {
+        inScope = true;
+      } else if (scopeParts.some(s => s.includes('india') || s.includes('indian')) && cat === 'in_stocks') {
+        inScope = true;
+      } else if (scopeParts.some(s => s.includes('us')) && cat === 'us_stocks') {
+        inScope = true;
+      } else if (scopeParts.some(s => s.includes('mf') || s.includes('mutual')) && cat === 'mutual_funds') {
+        inScope = true;
+      } else if (scopeParts.some(s => s.includes('nps')) && cat === 'nps') {
+        inScope = true;
+      } else if (scopeParts.some(s => s.includes('epf')) && cat === 'epf') {
+        inScope = true;
+      } else if (scopeParts.some(s => s.includes('bank')) && cat === 'bank') {
+        inScope = true;
+      }
+
+      if (inScope) {
+        if (h.currency === 'USD') {
+          scopeInvestedCost += (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * 82.5;
+        } else {
+          scopeInvestedCost += (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
+        }
+      }
+    });
+
     // Filter logs that have non-zero value for the requested scope
     const nonZeroLogs = eodLogs.filter(l => getScopeValue(l) > 0);
     const earliestDataDate = nonZeroLogs.length > 0 ? nonZeroLogs[0].date : eodLogs[0].date;
@@ -3036,6 +3074,7 @@ app.get('/api/reports/growth-benchmarks', async (req, res) => {
     const firstLog = filteredLogs[0];
     const actualStartIso = firstLog.date;
     const basePortfolio = Math.max(1, getScopeValue(firstLog));
+    const baseBenchmarkCapital = basePortfolio;
 
     const baseIndexPrices = {};
     const runningIndexPrices = {};
@@ -3092,8 +3131,8 @@ app.get('/api/reports/growth-benchmarks', async (req, res) => {
         const growthPct = baseP > 0 ? Number((((currentP - baseP) / baseP) * 100).toFixed(2)) : 0;
         point[k] = currentP;
         point[`${k}_GrowthPct`] = growthPct;
-        // Simulated index portfolio: initial capital invested in index grown at index return rate
-        point[`${k}_Normalized`] = Number((basePortfolio * (1 + growthPct / 100)).toFixed(2));
+        // Simulated index portfolio: starting value grown at index return rate from that date
+        point[`${k}_Normalized`] = Number((baseBenchmarkCapital * (1 + growthPct / 100)).toFixed(2));
       });
 
       sampled.push(point);
@@ -3118,7 +3157,7 @@ app.get('/api/reports/growth-benchmarks', async (req, res) => {
         const growthPct = baseP > 0 ? Number((((currentP - baseP) / baseP) * 100).toFixed(2)) : 0;
         point[k] = currentP;
         point[`${k}_GrowthPct`] = growthPct;
-        point[`${k}_Normalized`] = Number((basePortfolio * (1 + growthPct / 100)).toFixed(2));
+        point[`${k}_Normalized`] = Number((baseBenchmarkCapital * (1 + growthPct / 100)).toFixed(2));
       });
       sampled.push(point);
     }
@@ -3128,6 +3167,8 @@ app.get('/api/reports/growth-benchmarks', async (req, res) => {
       scope,
       baseDate: actualStartIso,
       basePortfolio,
+      baseBenchmarkCapital,
+      scopeInvestedCost,
       series: sampled
     });
   } catch (err) {

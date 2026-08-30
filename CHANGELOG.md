@@ -5,6 +5,22 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.0] - 2026-08-30
+
+### Added & Enhanced
+- **Zero-Quantity Direct Holding Valuation Fix**: Hardened `computeHoldingValueINR` in `portfolioCalculator.js` and `companyMfBreakdown` in `ReportsView.jsx` to ensure unit-based assets (stocks/MFs/NPS) with 0 open shares/units return strictly ₹0.00 rather than falling back to the market share price as a ledger balance.
+- **Interactive Company Mutual Fund Breakdown Modal**: Clicking any company name in MF Composition, Market Cap drill-down, or Sector drill-down opens a detailed modal displaying total holding value, direct equity allocation, and a scheme-by-scheme breakdown of every Mutual Fund holding that stock with exact fund weight (%), allocated rupee amount, and share of holding (%).
+- **Theme-Adaptive High Contrast Across Light & Dark Modes**: Replaced all hardcoded dark classes (`bg-slate-900`, `text-white`) with responsive theme-aware classes (`bg-white/80 dark:bg-slate-900/80`, `text-slate-900 dark:text-white`, `border-slate-200 dark:border-slate-800`), ensuring crisp readability in Warm Light, Pure Light, and Dark themes.
+- **MF Composition Report**: Renamed and positioned the dedicated Mutual Fund composition report as 'MF Composition' with an adaptive scheme selector dropdown.
+- **Equity Hub Multi-Scope Retention**: Preserved Indian Stock, US Stock, and Mutual Funds scope checkboxes in Equity Hub.
+- **Aggregated Company Valuations in Drill-Downs**: Aggregated company holdings across direct stocks and mutual funds into unified rows with combined rupee values.
+- **Floating Persistent Back Button**: Added a semi-transparent floating back button at the bottom-right of the screen for scrolling drill-down views.
+- **Benchmark Historical Date Alignment**: Aligned simulated benchmark trajectory starting capital to exact historical valuation on the initial date of the selected range.
+- **Bar Chart Tooltip Title**: Fixed hover tooltip titles in Bar Chart mode to display asset/sector/cap tier names.
+- **Clean Label Renaming**: Renamed 'Sectors & Drill-down' to 'Sectors' and 'Growth vs Indices' to 'Benchmark'.
+
+---
+
 ## [4.8.5] - 2026-08-30
 
 ### Fixed & Enhanced

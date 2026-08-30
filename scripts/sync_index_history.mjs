@@ -14,7 +14,7 @@ export const BENCHMARK_INDICES = [
   { key: 'NASDAQ', ticker: '^IXIC', name: 'NASDAQ' }
 ];
 
-export async function fetchIndexDailyCloses(ticker, range = '10y') {
+export async function fetchIndexDailyCloses(ticker, range = 'max') {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=${range}`;
     const res = await fetch(url, {

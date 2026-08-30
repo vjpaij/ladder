@@ -15,20 +15,22 @@
  */
 export function computeHoldingValueINR(holding, overridePrice = null, fxRate = 87.25) {
   const qty = Number(holding.quantity) || 0;
-  if (qty <= 0) {
-    // EOD / Balance based holdings (Bank, EPF, Loan, etc.)
-    const balance = overridePrice !== null && overridePrice !== undefined 
-      ? Number(overridePrice) 
+  const isUnitBased = ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(holding.category_id);
+
+  if (isUnitBased) {
+    if (qty <= 0) return 0;
+    const price = overridePrice !== null && overridePrice !== undefined && overridePrice > 0
+      ? Number(overridePrice)
       : (Number(holding.current_price) || 0);
-    return Number(balance.toFixed(2));
+    const rate = holding.currency === 'USD' ? fxRate : 1.0;
+    return Number((qty * price * rate).toFixed(2));
   }
 
-  const price = overridePrice !== null && overridePrice !== undefined && overridePrice > 0
-    ? Number(overridePrice)
+  // Balance-based holdings (Bank, EPF, Loan, Credit Cards)
+  const balance = overridePrice !== null && overridePrice !== undefined 
+    ? Number(overridePrice) 
     : (Number(holding.current_price) || 0);
-
-  const rate = holding.currency === 'USD' ? fxRate : 1.0;
-  return Number((qty * price * rate).toFixed(2));
+  return Number(balance.toFixed(2));
 }
 
 /**

@@ -153,17 +153,7 @@ export default function TopNavbar({
 
       <div className="flex items-center gap-2.5">
 
-        {/* Inline Back Button */}
-        {currentView && currentView !== 'overview' && (
-          <button
-            onClick={() => onNavigate && onNavigate('overview')}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/60 rounded-xl text-xs font-semibold text-slate-300 hover:text-white transition-all shadow-sm shrink-0 cursor-pointer active:scale-95 group"
-            title="Back to Dashboard"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-            <span className="hidden sm:inline text-xs font-bold">Back</span>
-          </button>
-        )}
+
 
         {/* ─── Search Bar ─────────────────────────────────────────── */}
         <div ref={searchRef} className="relative w-72 sm:w-80 md:w-96 lg:w-[380px]">

@@ -257,6 +257,22 @@ function AppInner() {
         />
       )}
 
+      {/* Floating Bottom-Right Back Button (Persistent, Transparent, Only Arrow Symbol) */}
+      <AnimatePresence>
+        {currentView && currentView !== 'overview' && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0, y: 15 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0, opacity: 0, y: 15 }}
+            onClick={() => { setTargetPortfolio(null); setCurrentView('overview'); }}
+            className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-900/30 hover:bg-slate-900/60 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 backdrop-blur-md border border-slate-400/20 dark:border-slate-600/30 text-slate-800 dark:text-white shadow-xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center group"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Edit Profile Modal */}
       <EditProfileModal
         isOpen={isEditProfileOpen}

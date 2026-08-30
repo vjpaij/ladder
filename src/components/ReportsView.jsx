@@ -38,7 +38,9 @@ import {
   Search,
   SlidersHorizontal,
   ChevronDown,
-  Compass
+  Compass,
+  ArrowLeft,
+  ExternalLink
 } from 'lucide-react';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 
@@ -126,16 +128,16 @@ function normalizeSector(raw) {
 export default function ReportsView({ summary, holdings }) {
   const { formatMoney, isUSD } = useThemeAuth();
   
-  // Master Tab states
-  const [activeTab, setActiveTab] = useState('EQUITY'); // CONSOLIDATED, EQUITY, FIXED_INCOME, NPS
+  // Master Tab states: CONSOLIDATED, EQUITY, MF_COMPOSITION, FIXED_INCOME, NPS
+  const [activeTab, setActiveTab] = useState('EQUITY');
   
-  // View states within tabs
-  const [reportType, setReportType] = useState('MARKET_CAP'); // ALLOCATION, MARKET_CAP, SECTOR, MF_LOOKTHROUGH, TRAJECTORY
+  // View states within tabs: ALLOCATION, MARKET_CAP, SECTOR, TRAJECTORY
+  const [reportType, setReportType] = useState('MARKET_CAP');
   
   // Chart visual type switcher: PIE vs BAR
   const [chartStyle, setChartStyle] = useState('PIE');
   
-  // Equity Hub Sub-Filters
+  // Equity Hub Sub-Filters (Indian Stock, US Stock, Mutual Funds)
   const [equityOptions, setEquityOptions] = useState({
     india: true,
     us: true,
@@ -145,13 +147,19 @@ export default function ReportsView({ summary, holdings }) {
   // Market Cap Source Toggle: ALL, DIRECT, MF
   const [mcapSource, setMcapSource] = useState('ALL');
 
-  // Interactive Sector Drill-down Modal/Drawer
+  // Interactive Sector Drill-down
   const [selectedSector, setSelectedSector] = useState(null);
+
+  // Interactive Market Cap Drill-down
+  const [selectedMarketCap, setSelectedMarketCap] = useState(null);
 
   // Mutual Fund Explorer: selected scheme code
   const [selectedMfScheme, setSelectedMfScheme] = useState('ALL');
   const [isMfDropdownOpen, setIsMfDropdownOpen] = useState(false);
   const mfDropdownRef = useRef(null);
+
+  // Company Mutual Fund Breakdown Modal
+  const [companyDetailTarget, setCompanyDetailTarget] = useState(null);
 
   // Benchmark Growth settings & Date Picker
   const [benchmark, setBenchmark] = useState('NIFTY_50');
@@ -180,6 +188,15 @@ export default function ReportsView({ summary, holdings }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Close company modal on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setCompanyDetailTarget(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Load MF underlying company data
   useEffect(() => {
     let isMounted = true;
@@ -204,10 +221,11 @@ export default function ReportsView({ summary, holdings }) {
   // Compute selected scope string for Growth vs Indices
   const activeScopeParam = useMemo(() => {
     if (activeTab === 'CONSOLIDATED') return 'all';
+    if (activeTab === 'MF_COMPOSITION') return 'mutual_funds';
     if (activeTab === 'FIXED_INCOME') return 'bank,epf';
     if (activeTab === 'NPS') return 'nps';
     
-    // In EQUITY tab: check selected equityOptions
+    // In EQUITY tab: check selected equityOptions (india, us, mf)
     const parts = [];
     if (equityOptions.india) parts.push('indian_stocks');
     if (equityOptions.us) parts.push('us_stocks');
@@ -254,6 +272,9 @@ export default function ReportsView({ summary, holdings }) {
         if (cat === 'us_stocks' && equityOptions.us) return true;
         if (cat === 'mutual_funds' && equityOptions.mf) return true;
         return false;
+      }
+      if (activeTab === 'MF_COMPOSITION') {
+        return cat === 'mutual_funds';
       }
       if (activeTab === 'FIXED_INCOME') {
         return cat === 'bank' || cat === 'epf' || cat === 'loans';
@@ -330,7 +351,7 @@ export default function ReportsView({ summary, holdings }) {
     ];
   }, [summary.assetAllocation, filteredHoldings, activeTab]);
 
-  // Sector Data with Full Look-Through & Zero "Mutual Funds" Category
+  // Sector Data with Full Look-Through & Aggregated Unique Companies
   const sectorData = useMemo(() => {
     const map = {};
     const companyMap = {};
@@ -342,58 +363,85 @@ export default function ReportsView({ summary, holdings }) {
           mfScheme.companies.forEach(c => {
             const sec = normalizeSector(c.sector);
             if (!map[sec]) map[sec] = 0;
-            if (!companyMap[sec]) companyMap[sec] = [];
+            if (!companyMap[sec]) companyMap[sec] = {};
+            
             map[sec] += c.allocatedINR || 0;
-            companyMap[sec].push({
-              name: c.company || c.name,
-              symbol: c.symbol,
-              source: `MF: ${mfScheme.scheme_name}`,
-              allocatedINR: c.allocatedINR,
-              mcap_category: c.mcap_category || 'Mid Cap'
-            });
+            const compKey = (c.company || c.name || '').trim();
+            if (!companyMap[sec][compKey]) {
+              companyMap[sec][compKey] = {
+                name: compKey,
+                symbol: c.symbol,
+                sources: [`MF: ${mfScheme.scheme_name}`],
+                allocatedINR: 0,
+                mcap_category: c.mcap_category || 'Mid Cap'
+              };
+            } else {
+              companyMap[sec][compKey].sources.push(`MF: ${mfScheme.scheme_name}`);
+            }
+            companyMap[sec][compKey].allocatedINR += c.allocatedINR || 0;
           });
         } else {
           const sec = 'Cash, Debt & Other';
           if (!map[sec]) map[sec] = 0;
-          if (!companyMap[sec]) companyMap[sec] = [];
+          if (!companyMap[sec]) companyMap[sec] = {};
           map[sec] += h.currentValueINR || 0;
-          companyMap[sec].push({
-            name: h.name,
-            symbol: h.symbol,
-            source: 'Mutual Fund',
-            allocatedINR: h.currentValueINR,
-            mcap_category: 'Diversified'
-          });
+          const compKey = (h.name || h.symbol).trim();
+          if (!companyMap[sec][compKey]) {
+            companyMap[sec][compKey] = {
+              name: compKey,
+              symbol: h.symbol,
+              sources: ['Mutual Fund'],
+              allocatedINR: 0,
+              mcap_category: 'Diversified'
+            };
+          }
+          companyMap[sec][compKey].allocatedINR += h.currentValueINR || 0;
         }
       } else {
         // Direct Stock / Bank / etc
         const sec = normalizeSector(h.sector);
         if (!map[sec]) map[sec] = 0;
-        if (!companyMap[sec]) companyMap[sec] = [];
+        if (!companyMap[sec]) companyMap[sec] = {};
         map[sec] += h.currentValueINR || 0;
-        companyMap[sec].push({
-          name: h.name || h.symbol,
-          symbol: h.symbol,
-          source: h.category_name || 'Direct Equity',
-          allocatedINR: h.currentValueINR,
-          mcap_category: h.market_cap || 'Small Cap'
-        });
+        const compKey = (h.name || h.symbol).trim();
+        if (!companyMap[sec][compKey]) {
+          companyMap[sec][compKey] = {
+            name: compKey,
+            symbol: h.symbol,
+            sources: [h.category_name || 'Direct Equity'],
+            allocatedINR: 0,
+            mcap_category: h.market_cap || 'Small Cap'
+          };
+        } else {
+          companyMap[sec][compKey].sources.push(h.category_name || 'Direct Equity');
+        }
+        companyMap[sec][compKey].allocatedINR += h.currentValueINR || 0;
       }
     });
 
     const total = Object.values(map).reduce((sum, v) => sum + v, 0);
 
-    return Object.keys(map).map((s, idx) => ({
-      name: s,
-      sector: s,
-      color: PALETTE[idx % PALETTE.length],
-      value: Math.round(map[s]),
-      percentage: total > 0 ? Number(((map[s] / total) * 100).toFixed(2)) : 0,
-      companies: companyMap[s]?.sort((a, b) => b.allocatedINR - a.allocatedINR) || []
-    })).sort((a, b) => b.value - a.value);
+    return Object.keys(map).map((s, idx) => {
+      const compDict = companyMap[s] || {};
+      const compList = Object.values(compDict).map(c => ({
+        ...c,
+        source: c.sources.length === 1 
+          ? c.sources[0] 
+          : `${c.sources.length} Sources (${c.sources.some(src => src.includes('Direct')) ? 'Direct + MF' : 'Multi-MF'})`
+      })).sort((a, b) => b.allocatedINR - a.allocatedINR);
+
+      return {
+        name: s,
+        sector: s,
+        color: PALETTE[idx % PALETTE.length],
+        value: Math.round(map[s]),
+        percentage: total > 0 ? Number(((map[s] / total) * 100).toFixed(2)) : 0,
+        companies: compList
+      };
+    }).sort((a, b) => b.value - a.value);
   }, [filteredHoldings, mfData]);
 
-  // Market Cap Data: Mega, Large, Mid, Small, Micro, Cash
+  // Market Cap Data: Mega, Large, Mid, Small, Micro, Cash with Aggregated Unique Companies
   const marketCapData = useMemo(() => {
     const buckets = {
       'Mega Cap': 0,
@@ -404,13 +452,13 @@ export default function ReportsView({ summary, holdings }) {
       'Cash': 0
     };
 
-    const constituentList = {
-      'Mega Cap': [],
-      'Large Cap': [],
-      'Mid Cap': [],
-      'Small Cap': [],
-      'Micro Cap': [],
-      'Cash': []
+    const constituentDict = {
+      'Mega Cap': {},
+      'Large Cap': {},
+      'Mid Cap': {},
+      'Small Cap': {},
+      'Micro Cap': {},
+      'Cash': {}
     };
 
     filteredHoldings.forEach(h => {
@@ -424,36 +472,54 @@ export default function ReportsView({ summary, holdings }) {
             const capTier = c.mcap_category || 'Mid Cap';
             const targetTier = buckets[capTier] !== undefined ? capTier : 'Mid Cap';
             buckets[targetTier] += c.allocatedINR || 0;
-            constituentList[targetTier].push({
-              name: c.company || c.name,
-              symbol: c.symbol,
-              source: `MF: ${mfScheme.scheme_name}`,
-              allocatedINR: c.allocatedINR,
-              mcapCr: null
-            });
+            
+            const compKey = (c.company || c.name || '').trim();
+            if (!constituentDict[targetTier][compKey]) {
+              constituentDict[targetTier][compKey] = {
+                name: compKey,
+                symbol: c.symbol,
+                sources: [`MF: ${mfScheme.scheme_name}`],
+                allocatedINR: 0,
+                mcapCr: null
+              };
+            } else {
+              constituentDict[targetTier][compKey].sources.push(`MF: ${mfScheme.scheme_name}`);
+            }
+            constituentDict[targetTier][compKey].allocatedINR += c.allocatedINR || 0;
           });
         } else {
           buckets['Mid Cap'] += h.currentValueINR || 0;
-          constituentList['Mid Cap'].push({
-            name: h.name,
-            symbol: h.symbol,
-            source: 'Mutual Fund',
-            allocatedINR: h.currentValueINR,
-            mcapCr: null
-          });
+          const compKey = (h.name || h.symbol).trim();
+          if (!constituentDict['Mid Cap'][compKey]) {
+            constituentDict['Mid Cap'][compKey] = {
+              name: compKey,
+              symbol: h.symbol,
+              sources: ['Mutual Fund'],
+              allocatedINR: 0,
+              mcapCr: null
+            };
+          }
+          constituentDict['Mid Cap'][compKey].allocatedINR += h.currentValueINR || 0;
         }
       } else {
         if (mcapSource === 'MF') return;
         let mc = h.market_cap || 'Small Cap';
         if (buckets[mc] === undefined) mc = 'Small Cap';
         buckets[mc] += h.currentValueINR || 0;
-        constituentList[mc].push({
-          name: h.name || h.symbol,
-          symbol: h.symbol,
-          source: h.category_name || 'Direct Equity',
-          allocatedINR: h.currentValueINR,
-          mcapCr: h.market_cap_cr
-        });
+
+        const compKey = (h.name || h.symbol).trim();
+        if (!constituentDict[mc][compKey]) {
+          constituentDict[mc][compKey] = {
+            name: compKey,
+            symbol: h.symbol,
+            sources: [h.category_name || 'Direct Equity'],
+            allocatedINR: 0,
+            mcapCr: h.market_cap_cr
+          };
+        } else {
+          constituentDict[mc][compKey].sources.push(h.category_name || 'Direct Equity');
+        }
+        constituentDict[mc][compKey].allocatedINR += h.currentValueINR || 0;
       }
     });
 
@@ -461,13 +527,23 @@ export default function ReportsView({ summary, holdings }) {
 
     return Object.keys(buckets)
       .filter(k => buckets[k] > 0)
-      .map(k => ({
-        name: k,
-        color: CAP_COLORS[k] || '#3B82F6',
-        value: Math.round(buckets[k]),
-        percentage: total > 0 ? Number(((buckets[k] / total) * 100).toFixed(2)) : 0,
-        companies: constituentList[k]?.sort((a, b) => b.allocatedINR - a.allocatedINR) || []
-      }));
+      .map(k => {
+        const compList = Object.values(constituentDict[k]).map(c => ({
+          ...c,
+          source: c.sources.length === 1 
+            ? c.sources[0] 
+            : `${c.sources.length} Sources (${c.sources.some(src => src.includes('Direct')) ? 'Direct + MF' : 'Multi-MF'})`
+        })).sort((a, b) => b.allocatedINR - a.allocatedINR);
+
+        return {
+          name: k,
+          capTier: k,
+          color: CAP_COLORS[k] || '#3B82F6',
+          value: Math.round(buckets[k]),
+          percentage: total > 0 ? Number(((buckets[k] / total) * 100).toFixed(2)) : 0,
+          companies: compList
+        };
+      });
   }, [filteredHoldings, mfData, mcapSource]);
 
   // Selected MF Scheme detail data
@@ -483,30 +559,92 @@ export default function ReportsView({ summary, holdings }) {
     return mfData.schemes.find(s => s.scheme_code === selectedMfScheme) || null;
   }, [mfData, selectedMfScheme]);
 
-  // Universal Custom Tooltip
+  // Mutual Fund Breakdown Finder for a clicked Company
+  const companyMfBreakdown = useMemo(() => {
+    if (!companyDetailTarget || !mfData?.schemes) return null;
+    const targetName = (companyDetailTarget.name || companyDetailTarget.company || '').trim().toLowerCase();
+    const targetSym = (companyDetailTarget.symbol || '').trim().toLowerCase();
+
+    const schemeMatches = [];
+    let totalMfAllocated = 0;
+
+    mfData.schemes.forEach(scheme => {
+      const match = scheme.companies?.find(c => {
+        const cName = (c.company || c.name || '').trim().toLowerCase();
+        const cSym = (c.symbol || '').trim().toLowerCase();
+        return (targetSym && cSym && targetSym === cSym) || (cName && (cName === targetName || cName.includes(targetName) || targetName.includes(cName)));
+      });
+
+      if (match) {
+        const alloc = match.allocatedINR || 0;
+        totalMfAllocated += alloc;
+        schemeMatches.push({
+          scheme_code: scheme.scheme_code,
+          scheme_name: scheme.scheme_name,
+          fund_weight_pct: match.allocation_pct || match.percentage || 0,
+          allocatedINR: alloc,
+          scheme_total_val: scheme.currentValueINR
+        });
+      }
+    });
+
+    // Check direct equity holding if any (strictly require open direct equity with quantity > 0)
+    const directHolding = holdings.find(h => {
+      const isDirectEquity = (h.category_id === 'in_stocks' || h.category_id === 'us_stocks') && Number(h.quantity) > 0;
+      if (!isDirectEquity) return false;
+      const hName = (h.name || '').trim().toLowerCase();
+      const hSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toLowerCase();
+      const cleanTargetSym = targetSym.replace(/\.(NS|BO)$/i, '');
+      return (cleanTargetSym && hSym && hSym === cleanTargetSym) ||
+             (hName && targetName && hName === targetName);
+    });
+
+    const directVal = (directHolding && Number(directHolding.quantity) > 0) ? (Number(directHolding.currentValueINR) || 0) : 0;
+    const totalGrandVal = totalMfAllocated + directVal;
+
+    // Calculate share of total for each scheme
+    const enrichedSchemes = schemeMatches.map(s => ({
+      ...s,
+      shareOfStockPct: totalGrandVal > 0 ? Number(((s.allocatedINR / totalGrandVal) * 100).toFixed(2)) : 0
+    })).sort((a, b) => b.allocatedINR - a.allocatedINR);
+
+    return {
+      name: companyDetailTarget.name || companyDetailTarget.company,
+      symbol: companyDetailTarget.symbol || directHolding?.symbol || '',
+      sector: normalizeSector(companyDetailTarget.sector || directHolding?.sector),
+      capTier: companyDetailTarget.mcap_category || directHolding?.market_cap || 'Large Cap',
+      totalMfAllocated,
+      directVal,
+      directHolding,
+      totalGrandVal: totalGrandVal > 0 ? totalGrandVal : (companyDetailTarget.allocatedINR || 0),
+      schemes: enrichedSchemes
+    };
+  }, [companyDetailTarget, mfData, holdings]);
+
+  // Universal Custom Tooltip with Theme Adaptive Styling
   const CustomChartTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0];
-      const name = data.name || data.payload?.sector || data.payload?.name;
+      const name = data.payload?.name || data.payload?.sector || (data.name !== 'value' ? data.name : '') || 'Asset';
       const value = data.value !== undefined ? data.value : data.payload?.value;
       const percentage = data.payload?.percentage;
       const color = data.color || data.payload?.fill || PALETTE[0];
 
       return (
-        <div className="glass-card p-3 rounded-2xl shadow-xl text-xs space-y-1.5 z-50 pointer-events-none min-w-[180px] border border-slate-800">
-          <p className="font-extrabold text-white flex items-center gap-2">
+        <div className="reports-card p-3 rounded-2xl shadow-xl text-xs space-y-1.5 z-50 pointer-events-none min-w-[180px]">
+          <p className="font-extrabold flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }}></span>
             <span className="truncate">{name}</span>
           </p>
-          <div className="pt-1 text-[11px] font-mono space-y-1 border-t border-slate-800/80">
-            <p className="flex justify-between gap-4 text-slate-300">
-              <span className="text-slate-400">Value:</span>
-              <span className="font-bold text-emerald-400">{formatMoney(value)}</span>
+          <div className="pt-1 text-[11px] font-mono space-y-1 border-t border-inherit opacity-90">
+            <p className="flex justify-between gap-4">
+              <span className="opacity-70">Value:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(value)}</span>
             </p>
             {percentage !== undefined && (
-              <p className="flex justify-between gap-4 text-slate-300">
-                <span className="text-slate-400">Allocation:</span>
-                <span className="font-bold text-white">{Number(percentage).toFixed(2)}%</span>
+              <p className="flex justify-between gap-4">
+                <span className="opacity-70">Allocation:</span>
+                <span className="font-bold">{Number(percentage).toFixed(2)}%</span>
               </p>
             )}
           </div>
@@ -522,34 +660,35 @@ export default function ReportsView({ summary, holdings }) {
       const point = payload[0].payload;
       const portVal = point.Portfolio;
       const portGrowth = point.PortfolioGrowthPct;
+      const benchVal = point[`${benchmark}_Normalized`];
       const benchGrowth = point[`${benchmark}_GrowthPct`];
       const alpha = (portGrowth !== undefined && benchGrowth !== undefined) ? Number((portGrowth - benchGrowth).toFixed(2)) : 0;
 
       return (
-        <div className="glass-card p-3.5 rounded-2xl shadow-xl text-xs space-y-2 z-50 pointer-events-none min-w-[200px] border border-slate-800">
-          <p className="font-mono font-bold text-slate-400 text-[11px] border-b border-slate-800 pb-1 flex items-center justify-between">
+        <div className="reports-card p-3.5 rounded-2xl shadow-xl text-xs space-y-2 z-50 pointer-events-none min-w-[220px]">
+          <p className="font-mono font-bold opacity-75 text-[11px] border-b border-inherit pb-1 flex items-center justify-between">
             <span>{label}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${alpha >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${alpha >= 0 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/20 text-rose-600 dark:text-rose-400'}`}>
               Alpha: {alpha >= 0 ? `+${alpha}%` : `${alpha}%`}
             </span>
           </p>
           <div className="space-y-1 font-mono text-[11px]">
-            <div className="flex justify-between gap-4 text-slate-200">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <div className="flex justify-between gap-4">
+              <span className="flex items-center gap-1.5 opacity-80">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 Portfolio:
               </span>
-              <span className="font-bold text-emerald-400">
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
                 {formatMoney(portVal)} ({portGrowth >= 0 ? `+${portGrowth}%` : `${portGrowth}%`})
               </span>
             </div>
-            <div className="flex justify-between gap-4 text-slate-300">
-              <span className="flex items-center gap-1.5">
+            <div className="flex justify-between gap-4">
+              <span className="flex items-center gap-1.5 opacity-80">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: BENCHMARK_COLORS[benchmark] }}></span>
                 {BENCHMARK_LABELS[benchmark]}:
               </span>
               <span className="font-bold" style={{ color: BENCHMARK_COLORS[benchmark] }}>
-                {benchGrowth >= 0 ? `+${benchGrowth}%` : `${benchGrowth}%`}
+                {benchVal !== undefined ? `${formatMoney(benchVal)} ` : ''}({benchGrowth >= 0 ? `+${benchGrowth}%` : `${benchGrowth}%`})
               </span>
             </div>
           </div>
@@ -559,7 +698,7 @@ export default function ReportsView({ summary, holdings }) {
     return null;
   };
 
-  // Modern Ranked List Component (Rock solid, theme adhering, no serial numbers)
+  // Modern Ranked List Component (100% Theme-Adaptive)
   const RankedBarList = ({ items, onItemClick, activeIndex, onHoverIndex }) => {
     return (
       <div className="space-y-2 pt-1">
@@ -573,10 +712,8 @@ export default function ReportsView({ summary, holdings }) {
                 if (onItemClick) onItemClick(item);
                 if (onHoverIndex) onHoverIndex(isSelected ? null : index);
               }}
-              className={`group relative overflow-hidden p-3 rounded-2xl border transition-all duration-150 cursor-pointer ${
-                isSelected 
-                  ? 'bg-emerald-500/15 border-emerald-500/60 shadow-md' 
-                  : 'bg-slate-900/40 hover:bg-slate-800/60 border-slate-800/80'
+              className={`group relative overflow-hidden p-3 rounded-2xl border transition-all duration-150 cursor-pointer reports-subcard ${
+                isSelected ? 'ring-2 ring-emerald-500' : ''
               }`}
             >
               {/* Subtle Progress Fill Bar */}
@@ -592,20 +729,20 @@ export default function ReportsView({ summary, holdings }) {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: color }} />
                   <div className="min-w-0">
-                    <p className="text-xs font-extrabold truncate text-white">
+                    <p className="text-xs font-extrabold truncate">
                       {item.name}
                     </p>
                     {item.symbol && item.symbol !== 'OTHER' && (
-                      <p className="text-[10px] text-slate-400 font-mono font-semibold truncate">{item.symbol}</p>
+                      <p className="text-[10px] opacity-60 font-mono font-semibold truncate">{item.symbol}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="text-right shrink-0 font-mono">
-                  <p className="text-xs font-black text-white group-hover:text-emerald-400 transition-colors">
+                  <p className="text-xs font-black group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                     {formatMoney(item.value)}
                   </p>
-                  <p className="text-[10px] font-extrabold text-emerald-400">{item.percentage}%</p>
+                  <p className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">{item.percentage}%</p>
                 </div>
               </div>
             </div>
@@ -615,22 +752,29 @@ export default function ReportsView({ summary, holdings }) {
     );
   };
 
-  // Crisp Institutional Bar Chart View
+  // Crisp Institutional Bar Chart View with Clear X-Axis Values
   const CleanBarChartView = ({ items, onItemClick }) => {
     return (
-      <div className="h-[360px] w-full pt-2">
+      <div className="h-[380px] w-full pt-2">
         <ResponsiveContainer width="100%" height="100%">
-          <ReBarChart data={items} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+          <ReBarChart data={items} margin={{ top: 10, right: 15, left: 10, bottom: 45 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#94A3B833" vertical={false} />
             <XAxis 
               dataKey="name" 
               stroke="#64748B" 
-              tick={{ fontSize: 10 }}
-              tickFormatter={(str) => str.length > 12 ? `${str.substring(0, 10)}...` : str}
+              tick={{ fill: 'currentColor', fontSize: 10, fontWeight: 700 }}
+              tickFormatter={(str) => {
+                if (!str) return '';
+                return str.length > 15 ? `${str.substring(0, 13)}...` : str;
+              }}
+              interval={0}
+              angle={-20}
+              textAnchor="end"
+              height={55}
             />
             <YAxis 
               stroke="#64748B" 
-              tick={{ fontSize: 10 }} 
+              tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 600 }} 
               tickFormatter={(v) => `₹${(v/100000).toFixed(1)}L`} 
             />
             <Tooltip content={<CustomChartTooltip />} />
@@ -659,23 +803,24 @@ export default function ReportsView({ summary, holdings }) {
       
       {/* ─── Top Header Bar ─────────────────────────────────────────── */}
       <AnimatedItem>
-        <div className="glass-card p-4 sm:p-5 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="reports-card p-4 sm:p-5 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
+            <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400">
               <PieChart className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white flex items-center gap-2">
+              <h2 className="text-xl font-black flex items-center gap-2">
                 Reports
               </h2>
             </div>
           </div>
 
           {/* Master Navigation Tabs */}
-          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-2xl border border-slate-800 shrink-0">
+          <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl shrink-0">
             {[
               { key: 'CONSOLIDATED', label: 'Consolidated' },
               { key: 'EQUITY', label: 'Equity Hub' },
+              { key: 'MF_COMPOSITION', label: 'MF Composition' },
               { key: 'FIXED_INCOME', label: 'Fixed Income' },
               { key: 'NPS', label: 'NPS' }
             ].map(tab => (
@@ -683,14 +828,18 @@ export default function ReportsView({ summary, holdings }) {
                 key={tab.key}
                 onClick={() => {
                   setActiveTab(tab.key);
-                  if (tab.key !== 'EQUITY' && reportType !== 'ALLOCATION' && reportType !== 'TRAJECTORY') {
+                  setSelectedSector(null);
+                  setSelectedMarketCap(null);
+                  if (tab.key === 'EQUITY') {
+                    setReportType('MARKET_CAP');
+                  } else {
                     setReportType('ALLOCATION');
                   }
                 }}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                   activeTab === tab.key 
                     ? 'bg-emerald-500 text-slate-950 shadow-md' 
-                    : 'text-slate-400 hover:text-white'
+                    : 'opacity-70 hover:opacity-100'
                 }`}
               >
                 {tab.label}
@@ -702,11 +851,11 @@ export default function ReportsView({ summary, holdings }) {
 
       {/* ─── Sub-Header Controls & Scope Filters ─────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-        {/* Equity Scope Checkboxes */}
+        {/* Equity Scope Checkboxes (Indian Stock, US Stock, Mutual Funds) */}
         {activeTab === 'EQUITY' ? (
-          <div className="flex items-center gap-4 text-xs font-extrabold text-white bg-slate-900/90 px-4 py-2 rounded-2xl border border-slate-800 shadow-sm">
-            <span className="text-slate-400 font-black text-[11px] uppercase tracking-wider">Scope:</span>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-emerald-400">
+          <div className="flex items-center gap-4 text-xs font-extrabold reports-pill px-4 py-2 rounded-2xl shadow-sm">
+            <span className="opacity-60 font-black text-[11px] uppercase tracking-wider">Scope:</span>
+            <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-emerald-600 dark:hover:text-emerald-400">
               <input
                 type="checkbox"
                 checked={equityOptions.india}
@@ -715,7 +864,7 @@ export default function ReportsView({ summary, holdings }) {
               />
               <span>Indian Stock</span>
             </label>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-blue-400">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-blue-600 dark:hover:text-blue-400">
               <input
                 type="checkbox"
                 checked={equityOptions.us}
@@ -724,7 +873,7 @@ export default function ReportsView({ summary, holdings }) {
               />
               <span>US Stock</span>
             </label>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-purple-400">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none hover:text-purple-600 dark:hover:text-purple-400">
               <input
                 type="checkbox"
                 checked={equityOptions.mf}
@@ -737,14 +886,14 @@ export default function ReportsView({ summary, holdings }) {
         ) : <div />}
 
         {/* Global Chart Style Switcher (Shown ONLY for Allocation, Market Cap, and Sector) */}
-        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) ? (
-          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-2xl border border-slate-800 shadow-sm">
+        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) && activeTab !== 'MF_COMPOSITION' && !selectedSector && !selectedMarketCap ? (
+          <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl shadow-sm">
             <button
               onClick={() => setChartStyle('PIE')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 chartStyle === 'PIE' 
                   ? 'bg-emerald-500 text-slate-950 shadow-sm' 
-                  : 'text-slate-400 hover:text-white'
+                  : 'opacity-70 hover:opacity-100'
               }`}
             >
               <PieChart className="w-3.5 h-3.5" />
@@ -755,7 +904,7 @@ export default function ReportsView({ summary, holdings }) {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 chartStyle === 'BAR' 
                   ? 'bg-emerald-500 text-slate-950 shadow-sm' 
-                  : 'text-slate-400 hover:text-white'
+                  : 'opacity-70 hover:opacity-100'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
@@ -766,35 +915,164 @@ export default function ReportsView({ summary, holdings }) {
       </div>
 
       {/* ─── Main Content Container ─────────────────────────────────── */}
-      <div className="glass-card border border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm space-y-6">
+      <div className="reports-card rounded-3xl p-5 md:p-6 shadow-sm space-y-6">
         
-        {/* Navigation Tabs Bar */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
-          {[
-            { key: 'ALLOCATION', label: 'Allocation' },
-            ...(activeTab === 'EQUITY' ? [
-              { key: 'MARKET_CAP', label: 'Market Cap' },
-              { key: 'SECTOR', label: 'Sectors & Drill-down' },
-              { key: 'MF_LOOKTHROUGH', label: 'Mutual Fund Look-Through' }
-            ] : []),
-            { key: 'TRAJECTORY', label: 'Growth vs Indices' }
-          ].map(view => (
-            <button
-              key={view.key}
-              onClick={() => setReportType(view.key)}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
-                reportType === view.key
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              }`}
-            >
-              {view.label}
-            </button>
-          ))}
-        </div>
+        {/* Navigation Tabs Bar (Hidden in dedicated MF_COMPOSITION tab) */}
+        {activeTab !== 'MF_COMPOSITION' && (
+          <div className="flex items-center gap-2 border-b border-inherit opacity-95 pb-3 overflow-x-auto">
+            {[
+              { key: 'ALLOCATION', label: 'Allocation' },
+              ...(activeTab === 'EQUITY' ? [
+                { key: 'MARKET_CAP', label: 'Market Cap' },
+                { key: 'SECTOR', label: 'Sectors' }
+              ] : []),
+              { key: 'TRAJECTORY', label: 'Benchmark' }
+            ].map(view => (
+              <button
+                key={view.key}
+                onClick={() => {
+                  setReportType(view.key);
+                  setSelectedSector(null);
+                  setSelectedMarketCap(null);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer ${
+                  reportType === view.key
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-sm'
+                    : 'opacity-70 hover:opacity-100 hover:bg-slate-500/10'
+                }`}
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ─── DEDICATED MASTER TAB: MUTUAL FUND COMPOSITION ────────── */}
+        {activeTab === 'MF_COMPOSITION' && (
+          <div className="space-y-4">
+            {/* Custom Scheme Selector Dropdown */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-inherit opacity-95 pb-3">
+              <div className="relative" ref={mfDropdownRef}>
+                <button
+                  onClick={() => setIsMfDropdownOpen(!isMfDropdownOpen)}
+                  className="flex items-center justify-between gap-3 min-w-[280px] sm:min-w-[340px] px-4 py-2.5 reports-subcard rounded-2xl shadow-sm hover:border-emerald-500 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Compass className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="text-xs font-black truncate">
+                      {selectedMfDetails?.scheme_name || 'Select Scheme'}
+                    </span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 opacity-60 transition-transform duration-200 ${isMfDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {isMfDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      className="absolute left-0 top-12 z-50 w-full max-h-[320px] overflow-y-auto p-2 reports-card rounded-2xl shadow-2xl space-y-1"
+                    >
+                      <button
+                        onClick={() => {
+                          setSelectedMfScheme('ALL');
+                          setIsMfDropdownOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left rounded-xl text-xs font-black flex items-center justify-between transition-colors cursor-pointer ${
+                          selectedMfScheme === 'ALL'
+                            ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                            : 'opacity-80 hover:opacity-100 hover:bg-slate-500/10'
+                        }`}
+                      >
+                        <span>Consolidated Mutual Funds</span>
+                        <span className="font-mono text-[11px] opacity-70">{formatMoney(mfData?.totalMfValueINR || 0)}</span>
+                      </button>
+
+                      {mfData?.schemes?.map(s => (
+                        <button
+                          key={s.scheme_code}
+                          onClick={() => {
+                            setSelectedMfScheme(s.scheme_code);
+                            setIsMfDropdownOpen(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left rounded-xl text-xs font-black flex items-center justify-between transition-colors cursor-pointer ${
+                            selectedMfScheme === s.scheme_code
+                              ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                              : 'opacity-80 hover:opacity-100 hover:bg-slate-500/10'
+                          }`}
+                        >
+                          <span className="truncate pr-2">{s.scheme_name}</span>
+                          <span className="font-mono text-[11px] opacity-70 shrink-0">{formatMoney(s.currentValueINR)}</span>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {selectedMfDetails && (
+                <div className="font-mono text-sm text-emerald-600 dark:text-emerald-400 font-black">
+                  {formatMoney(selectedMfDetails.currentValueINR)}
+                </div>
+              )}
+            </div>
+
+            {selectedMfDetails && selectedMfDetails.companies?.length > 0 ? (
+              <div className="overflow-x-auto rounded-2xl reports-table-container">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="reports-table-head font-bold uppercase text-[10px]">
+                      <th className="py-3 pl-4">Company</th>
+                      <th className="py-3">Sector</th>
+                      <th className="py-3">Cap Tier</th>
+                      <th className="py-3 text-right">Fund Weight</th>
+                      <th className="py-3 text-right pr-4">Allocated Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-inherit font-mono">
+                    {selectedMfDetails.companies.map((c, i) => (
+                      <tr 
+                        key={`${c.company || c.name}-${i}`} 
+                        onClick={() => setCompanyDetailTarget(c)}
+                        className="reports-table-row transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3 pl-4">
+                          <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                            <span>{c.company || c.name}</span>
+                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                          </div>
+                          {c.symbol && c.symbol !== 'OTHER' && (
+                            <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>
+                          )}
+                        </td>
+                        <td className="py-3 opacity-80 font-sans font-medium">{normalizeSector(c.sector)}</td>
+                        <td className="py-3">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
+                            {c.mcap_category || 'Mid Cap'}
+                          </span>
+                        </td>
+                        <td className="py-3 text-right opacity-80 font-bold">
+                          {c.allocation_pct ? `${c.allocation_pct}%` : `${c.percentage}%`}
+                        </td>
+                        <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
+                          {formatMoney(c.allocatedINR || c.totalAllocatedINR || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs opacity-60">
+                Loading constituent holdings data...
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ─── VIEW 1: ASSET ALLOCATION ──────────────────────────────── */}
-        {reportType === 'ALLOCATION' && (
+        {reportType === 'ALLOCATION' && activeTab !== 'MF_COMPOSITION' && (
           <div className="space-y-4">
             {chartStyle === 'PIE' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
@@ -855,87 +1133,134 @@ export default function ReportsView({ summary, holdings }) {
           </div>
         )}
 
-        {/* ─── VIEW 2: MARKET CAPITALIZATION ──────────────────────────── */}
+        {/* ─── VIEW 2: MARKET CAPITALIZATION & DRILL-DOWN ─────────────── */}
         {reportType === 'MARKET_CAP' && activeTab === 'EQUITY' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-end pb-1">
-              {/* Scope Switcher: All (Combined) vs Direct Stocks vs Mutual Funds */}
-              <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-2xl border border-slate-800">
-                {[
-                  { key: 'ALL', label: 'Combined' },
-                  { key: 'DIRECT', label: 'Direct Stocks' },
-                  { key: 'MF', label: 'Mutual Funds' }
-                ].map(s => (
-                  <button
-                    key={s.key}
-                    onClick={() => setMcapSource(s.key)}
-                    className={`px-3.5 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                      mcapSource === s.key 
-                        ? 'bg-blue-600/40 text-blue-400 border border-blue-500/40 shadow-sm' 
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {selectedMarketCap ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-inherit opacity-95 pb-3">
+                  <h4 className="text-sm font-black flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedMarketCap.color }}></span>
+                    <span>{selectedMarketCap.name || selectedMarketCap.capTier}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">({formatMoney(selectedMarketCap.value)} • {selectedMarketCap.percentage}%)</span>
+                  </h4>
+                </div>
 
-            {chartStyle === 'PIE' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                <div className="lg:col-span-7 h-[360px] w-full flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RePieChart>
-                      <Pie
-                        data={marketCapData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={80}
-                        outerRadius={135}
-                        paddingAngle={3}
-                        dataKey="value"
-                        isAnimationActive={false}
-                        onClick={(_, idx) => setActivePieIndex(activePieIndex === idx ? null : idx)}
+                <div className="overflow-x-auto rounded-2xl reports-table-container">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="reports-table-head font-bold uppercase text-[10px]">
+                        <th className="py-3 pl-4">Stock / Asset</th>
+                        <th className="py-3">Portfolio Source</th>
+                        <th className="py-3 text-right">Contribution</th>
+                        <th className="py-3 text-right pr-4">Allocated Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-inherit font-mono">
+                      {selectedMarketCap.companies?.map((c, idx) => {
+                        const contribPct = selectedMarketCap.value > 0 
+                          ? Number(((c.allocatedINR / selectedMarketCap.value) * 100).toFixed(2)) 
+                          : 0;
+                        return (
+                          <tr 
+                            key={`${c.name}-${idx}`} 
+                            onClick={() => setCompanyDetailTarget(c)}
+                            className="reports-table-row transition-colors cursor-pointer group"
+                          >
+                            <td className="py-3 pl-4">
+                              <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                                <span>{c.name}</span>
+                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                              </div>
+                              {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
+                            </td>
+                            <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
+                            <td className="py-3 text-right opacity-80 font-bold">
+                              {contribPct}%
+                            </td>
+                            <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
+                              {formatMoney(c.allocatedINR)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-end pb-1">
+                  {/* Scope Switcher: All (Combined) vs Direct Stocks vs Mutual Funds */}
+                  <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl">
+                    {[
+                      { key: 'ALL', label: 'Combined' },
+                      { key: 'DIRECT', label: 'Direct Stocks' },
+                      { key: 'MF', label: 'Mutual Funds' }
+                    ].map(s => (
+                      <button
+                        key={s.key}
+                        onClick={() => setMcapSource(s.key)}
+                        className={`px-3.5 py-1 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                          mcapSource === s.key 
+                            ? 'bg-blue-600/20 dark:bg-blue-600/40 text-blue-600 dark:text-blue-400 border border-blue-500/40 shadow-sm' 
+                            : 'opacity-70 hover:opacity-100'
+                        }`}
                       >
-                        {marketCapData.map((entry, index) => {
-                          const isSelected = activePieIndex === index;
-                          const color = entry.color;
-                          return (
-                            <Cell 
-                              key={`mcap-cell-${index}`} 
-                              fill={color}
-                              stroke={isSelected ? '#FFFFFF' : 'none'}
-                              strokeWidth={isSelected ? 2 : 0}
-                              style={{
-                                cursor: 'pointer',
-                                filter: isSelected ? `drop-shadow(0px 0px 8px ${color})` : 'none',
-                                transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                                transformOrigin: 'center center',
-                                transition: 'all 0.2s ease-out'
-                              }}
-                            />
-                          );
-                        })}
-                      </Pie>
-                      <Tooltip content={<CustomChartTooltip />} />
-                    </RePieChart>
-                  </ResponsiveContainer>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="lg:col-span-5 max-h-[380px] overflow-y-auto pr-1">
-                  <RankedBarList 
+                {chartStyle === 'PIE' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                    <div className="lg:col-span-7 h-[360px] w-full flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RePieChart>
+                          <Pie
+                            data={marketCapData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={80}
+                            outerRadius={135}
+                            paddingAngle={3}
+                            dataKey="value"
+                            isAnimationActive={false}
+                            onClick={(entry) => setSelectedMarketCap(entry)}
+                          >
+                            {marketCapData.map((entry, index) => {
+                              const color = entry.color;
+                              return (
+                                <Cell 
+                                  key={`mcap-cell-${index}`} 
+                                  fill={color}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                              );
+                            })}
+                          </Pie>
+                          <Tooltip content={<CustomChartTooltip />} />
+                        </RePieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="lg:col-span-5 max-h-[380px] overflow-y-auto pr-1">
+                      <RankedBarList 
+                        items={marketCapData} 
+                        onItemClick={(item) => setSelectedMarketCap(item)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {chartStyle === 'BAR' && (
+                  <CleanBarChartView 
                     items={marketCapData} 
-                    activeIndex={activePieIndex} 
-                    onHoverIndex={setActivePieIndex} 
+                    onItemClick={(item) => setSelectedMarketCap(item)}
                   />
-                </div>
+                )}
               </div>
-            )}
-
-            {chartStyle === 'BAR' && (
-              <CleanBarChartView 
-                items={marketCapData} 
-              />
             )}
           </div>
         )}
@@ -945,45 +1270,44 @@ export default function ReportsView({ summary, holdings }) {
           <div className="space-y-4">
             {selectedSector ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <button
-                      onClick={() => setSelectedSector(null)}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black transition-colors cursor-pointer border border-slate-700"
-                    >
-                      ← Back
-                    </button>
-                    <h4 className="text-sm font-black text-white flex items-center gap-2">
-                      <span>{selectedSector.sector}</span>
-                      <span className="text-xs text-emerald-400 font-mono">({formatMoney(selectedSector.value)} • {selectedSector.percentage}%)</span>
-                    </h4>
-                  </div>
+                <div className="flex items-center justify-between border-b border-inherit opacity-95 pb-3">
+                  <h4 className="text-sm font-black flex items-center gap-2">
+                    <span>{selectedSector.sector}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">({formatMoney(selectedSector.value)} • {selectedSector.percentage}%)</span>
+                  </h4>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                <div className="overflow-x-auto rounded-2xl reports-table-container">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-800 bg-slate-900/50 text-slate-400 font-black uppercase text-[10px]">
+                      <tr className="reports-table-head font-bold uppercase text-[10px]">
                         <th className="py-3 pl-4">Company</th>
                         <th className="py-3">Portfolio Source</th>
                         <th className="py-3">Cap Tier</th>
                         <th className="py-3 text-right pr-4">Allocated Value</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                    <tbody className="divide-y divide-inherit font-mono">
                       {selectedSector.companies.map((c, idx) => (
-                        <tr key={`${c.name}-${idx}`} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3 pl-4 text-white">
-                            <div className="font-sans font-bold">{c.name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{c.symbol}</div>
+                        <tr 
+                          key={`${c.name}-${idx}`} 
+                          onClick={() => setCompanyDetailTarget(c)}
+                          className="reports-table-row transition-colors cursor-pointer group"
+                        >
+                          <td className="py-3 pl-4">
+                            <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                              <span>{c.name}</span>
+                              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                            </div>
+                            {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
                           </td>
-                          <td className="py-3 text-slate-300 font-sans font-medium">{c.source}</td>
+                          <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
                           <td className="py-3">
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
                               {c.mcap_category}
                             </span>
                           </td>
-                          <td className="py-3 text-right pr-4 text-emerald-400 font-black">{formatMoney(c.allocatedINR)}</td>
+                          <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">{formatMoney(c.allocatedINR)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1044,138 +1368,20 @@ export default function ReportsView({ summary, holdings }) {
           </div>
         )}
 
-        {/* ─── VIEW 4: MUTUAL FUND LOOK-THROUGH ──────────────────────── */}
-        {reportType === 'MF_LOOKTHROUGH' && activeTab === 'EQUITY' && (
-          <div className="space-y-4">
-            
-            {/* Custom Luxury Animated Dropdown */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-              <div className="relative" ref={mfDropdownRef}>
-                <button
-                  onClick={() => setIsMfDropdownOpen(!isMfDropdownOpen)}
-                  className="flex items-center justify-between gap-3 min-w-[280px] sm:min-w-[340px] px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm hover:border-emerald-500 transition-all cursor-pointer text-white"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Compass className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-xs font-black truncate">
-                      {selectedMfDetails?.scheme_name || 'Select Scheme'}
-                    </span>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isMfDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                <AnimatePresence>
-                  {isMfDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                      className="absolute left-0 top-12 z-50 w-full max-h-[320px] overflow-y-auto p-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl space-y-1 text-white"
-                    >
-                      <button
-                        onClick={() => {
-                          setSelectedMfScheme('ALL');
-                          setIsMfDropdownOpen(false);
-                        }}
-                        className={`w-full px-3 py-2 text-left rounded-xl text-xs font-black flex items-center justify-between transition-colors cursor-pointer ${
-                          selectedMfScheme === 'ALL'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <span>Consolidated Mutual Funds</span>
-                        <span className="font-mono text-[11px] text-slate-400">{formatMoney(mfData?.totalMfValueINR || 0)}</span>
-                      </button>
-
-                      {mfData?.schemes?.map(s => (
-                        <button
-                          key={s.scheme_code}
-                          onClick={() => {
-                            setSelectedMfScheme(s.scheme_code);
-                            setIsMfDropdownOpen(false);
-                          }}
-                          className={`w-full px-3 py-2 text-left rounded-xl text-xs font-black flex items-center justify-between transition-colors cursor-pointer ${
-                            selectedMfScheme === s.scheme_code
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'text-slate-300 hover:bg-slate-800'
-                          }`}
-                        >
-                          <span className="truncate pr-2">{s.scheme_name}</span>
-                          <span className="font-mono text-[11px] text-slate-400 shrink-0">{formatMoney(s.currentValueINR)}</span>
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {selectedMfDetails && (
-                <div className="font-mono text-sm text-emerald-400 font-black">
-                  {formatMoney(selectedMfDetails.currentValueINR)}
-                </div>
-              )}
-            </div>
-
-            {selectedMfDetails && selectedMfDetails.companies?.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl border border-slate-800">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 bg-slate-900/50 text-slate-400 font-black uppercase text-[10px]">
-                      <th className="py-3 pl-4">Company</th>
-                      <th className="py-3">Sector</th>
-                      <th className="py-3">Cap Tier</th>
-                      <th className="py-3 text-right">Fund Weight</th>
-                      <th className="py-3 text-right pr-4">Allocated Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 font-mono">
-                    {selectedMfDetails.companies.map((c, i) => (
-                      <tr key={`${c.company || c.name}-${i}`} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 pl-4 text-white">
-                          <div className="font-sans font-bold">{c.company || c.name}</div>
-                          {c.symbol && c.symbol !== 'OTHER' && (
-                            <div className="text-[10px] text-slate-400 font-mono">{c.symbol}</div>
-                          )}
-                        </td>
-                        <td className="py-3 text-slate-300 font-sans font-medium">{normalizeSector(c.sector)}</td>
-                        <td className="py-3">
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                            {c.mcap_category || 'Mid Cap'}
-                          </span>
-                        </td>
-                        <td className="py-3 text-right text-slate-300 font-black">
-                          {c.allocation_pct ? `${c.allocation_pct}%` : `${c.percentage}%`}
-                        </td>
-                        <td className="py-3 text-right pr-4 text-emerald-400 font-black">
-                          {formatMoney(c.allocatedINR || c.totalAllocatedINR || 0)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-8 text-center text-xs text-slate-400">
-                Loading constituent holdings data...
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── VIEW 5: REAL-TIME GROWTH VS INDICES ───────────────────── */}
-        {reportType === 'TRAJECTORY' && (
+        {/* ─── VIEW 4: BENCHMARK GROWTH TRAJECTORY ────────────────────── */}
+        {reportType === 'TRAJECTORY' && activeTab !== 'MF_COMPOSITION' && (
           <div className="space-y-4">
             
             {/* Trajectory Controls & Date Range Selector */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-inherit opacity-95 pb-3">
               
               {/* Benchmark Index Selector */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-black">Benchmark:</span>
+                <span className="text-xs opacity-75 font-bold">Benchmark:</span>
                 <select
                   value={benchmark}
                   onChange={(e) => setBenchmark(e.target.value)}
-                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-black focus:outline-none focus:border-emerald-500"
+                  className="reports-subcard rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none focus:border-emerald-500"
                 >
                   <option value="NIFTY_50">Nifty 50</option>
                   <option value="NIFTY_MIDCAP_150">Nifty Midcap 150</option>
@@ -1187,7 +1393,7 @@ export default function ReportsView({ summary, holdings }) {
 
               {/* Timeframe Presets & Custom Calendar Popover Trigger */}
               <div className="relative flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-1 reports-pill p-1 rounded-xl">
                   {['1M', '3M', '6M', '1Y', 'ALL'].map(tf => (
                     <button
                       key={tf}
@@ -1195,10 +1401,10 @@ export default function ReportsView({ summary, holdings }) {
                         setGrowthTimeframe(tf);
                         setShowCalendarPicker(false);
                       }}
-                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         growthTimeframe === tf
                           ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                          : 'text-slate-400 hover:text-white'
+                          : 'opacity-70 hover:opacity-100'
                       }`}
                     >
                       {tf}
@@ -1211,8 +1417,8 @@ export default function ReportsView({ summary, holdings }) {
                   onClick={() => setShowCalendarPicker(!showCalendarPicker)}
                   className={`p-1.5 rounded-xl border transition-all duration-200 flex items-center gap-1 text-xs font-bold cursor-pointer ${
                     growthTimeframe === 'CUSTOM' || showCalendarPicker
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
+                      : 'reports-pill opacity-75 hover:opacity-100'
                   }`}
                   title="Select Custom Date Range"
                 >
@@ -1226,29 +1432,29 @@ export default function ReportsView({ summary, holdings }) {
                       initial={{ opacity: 0, y: -8, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                      className="absolute right-0 top-11 z-40 p-3.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col gap-2.5 text-xs text-white min-w-[260px]"
+                      className="absolute right-0 top-11 z-40 p-3.5 reports-card rounded-2xl shadow-xl flex flex-col gap-2.5 text-xs min-w-[260px]"
                     >
-                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                        <CalendarDays className="w-3.5 h-3.5 text-emerald-400" />
+                      <p className="text-[10px] font-bold uppercase tracking-wider opacity-75 flex items-center gap-1.5">
+                        <CalendarDays className="w-3.5 h-3.5 text-emerald-500" />
                         Custom Date Range
                       </p>
                       <div className="flex items-center gap-2">
                         <div className="flex flex-col gap-1">
-                          <span className="text-[9px] text-slate-400 font-bold">From</span>
+                          <span className="text-[9px] opacity-75 font-bold">From</span>
                           <input 
                             type="date" 
                             value={customStartDate} 
                             onChange={(e) => setCustomStartDate(e.target.value)}
-                            className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                            className="reports-subcard rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
                           />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <span className="text-[9px] text-slate-400 font-bold">To</span>
+                          <span className="text-[9px] opacity-75 font-bold">To</span>
                           <input 
                             type="date" 
                             value={customEndDate} 
                             onChange={(e) => setCustomEndDate(e.target.value)}
-                            className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                            className="reports-subcard rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
                           />
                         </div>
                       </div>
@@ -1257,7 +1463,7 @@ export default function ReportsView({ summary, holdings }) {
                           setGrowthTimeframe('CUSTOM');
                           setShowCalendarPicker(false);
                         }}
-                        className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs transition-colors shadow cursor-pointer"
+                        className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow cursor-pointer"
                       >
                         Apply Range
                       </button>
@@ -1276,21 +1482,21 @@ export default function ReportsView({ summary, holdings }) {
 
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-3.5 bg-slate-900/40 rounded-2xl border border-slate-800">
-                    <p className="text-[10px] uppercase font-black text-slate-400">Selected Scope Return</p>
-                    <p className={`text-base font-black font-mono mt-1 ${portGrowth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <div className="p-3.5 reports-subcard rounded-2xl">
+                    <p className="text-[10px] uppercase font-bold opacity-75">Selected Scope Return</p>
+                    <p className={`text-base font-black font-mono mt-1 ${portGrowth >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                       {portGrowth >= 0 ? `+${portGrowth}%` : `${portGrowth}%`}
                     </p>
                   </div>
-                  <div className="p-3.5 bg-slate-900/40 rounded-2xl border border-slate-800">
-                    <p className="text-[10px] uppercase font-black text-slate-400">{BENCHMARK_LABELS[benchmark]} Return</p>
+                  <div className="p-3.5 reports-subcard rounded-2xl">
+                    <p className="text-[10px] uppercase font-bold opacity-75">{BENCHMARK_LABELS[benchmark]} Return</p>
                     <p className="text-base font-black font-mono mt-1" style={{ color: BENCHMARK_COLORS[benchmark] }}>
                       {idxGrowth >= 0 ? `+${idxGrowth}%` : `${idxGrowth}%`}
                     </p>
                   </div>
-                  <div className="p-3.5 bg-slate-900/40 rounded-2xl border border-slate-800">
-                    <p className="text-[10px] uppercase font-black text-slate-400">Relative Alpha</p>
-                    <p className={`text-base font-black font-mono mt-1 ${alpha >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <div className="p-3.5 reports-subcard rounded-2xl">
+                    <p className="text-[10px] uppercase font-bold opacity-75">Relative Alpha</p>
+                    <p className={`text-base font-black font-mono mt-1 ${alpha >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                       {alpha >= 0 ? `+${alpha}%` : `${alpha}%`}
                     </p>
                   </div>
@@ -1301,7 +1507,7 @@ export default function ReportsView({ summary, holdings }) {
             {/* Trajectory ComposedChart (Both Area and Visible Benchmark Line) */}
             <div className="h-[340px] w-full pt-2">
               {loadingGrowth ? (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400 font-bold">
+                <div className="h-full flex items-center justify-center text-xs opacity-60 font-bold">
                   Loading real-time index benchmarks...
                 </div>
               ) : (
@@ -1314,10 +1520,10 @@ export default function ReportsView({ summary, holdings }) {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#94A3B833" vertical={false} />
-                    <XAxis dataKey="date" stroke="#64748B" tick={{ fontSize: 10 }} />
+                    <XAxis dataKey="date" stroke="#64748B" tick={{ fill: 'currentColor', fontSize: 10 }} />
                     <YAxis 
                       stroke="#64748B" 
-                      tick={{ fontSize: 10 }} 
+                      tick={{ fill: 'currentColor', fontSize: 10 }} 
                       tickFormatter={(v) => `₹${(v/100000).toFixed(1)}L`} 
                     />
                     <Tooltip content={<TrajectoryTooltip />} />
@@ -1347,6 +1553,132 @@ export default function ReportsView({ summary, holdings }) {
         )}
 
       </div>
+
+      {/* ─── FLOATING BOTTOM-RIGHT TRANSPARENT BACK BUTTON (NO TEXT, ONLY ARROW) ─── */}
+      <AnimatePresence>
+        {(selectedSector || selectedMarketCap) && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0, y: 15 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0, opacity: 0, y: 15 }}
+            onClick={() => {
+              setSelectedSector(null);
+              setSelectedMarketCap(null);
+            }}
+            className="fixed bottom-8 right-8 z-50 w-11 h-11 rounded-full bg-slate-900/30 hover:bg-slate-900/60 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 backdrop-blur-md border border-slate-400/20 dark:border-slate-600/30 text-slate-800 dark:text-white shadow-xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center group"
+            title="Back"
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* ─── COMPANY MUTUAL FUND BREAKDOWN MODAL ───────────────────── */}
+      <AnimatePresence>
+        {companyDetailTarget && companyMfBreakdown && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-2xl modal-surface reports-card rounded-3xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Modal Header */}
+              <div className="flex items-start justify-between gap-4 border-b border-inherit opacity-95 pb-4">
+                <div>
+                  <h3 className="text-lg font-black flex items-center gap-2">
+                    <span>{companyMfBreakdown.name}</span>
+                    {companyMfBreakdown.symbol && (
+                      <span className="text-xs px-2 py-0.5 rounded-md reports-subcard font-mono font-bold opacity-80">
+                        {companyMfBreakdown.symbol}
+                      </span>
+                    )}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 pt-1.5 text-xs opacity-75 font-medium">
+                    <span>{companyMfBreakdown.sector}</span>
+                    <span>•</span>
+                    <span className="font-bold">{companyMfBreakdown.capTier}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setCompanyDetailTarget(null)}
+                  className="p-2 rounded-xl opacity-60 hover:opacity-100 hover:bg-slate-500/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Total Holding Stat Banner */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 reports-subcard rounded-2xl">
+                  <p className="text-[10px] uppercase font-bold opacity-75">Total Portfolio Value</p>
+                  <p className="text-base font-black font-mono mt-1 text-emerald-600 dark:text-emerald-400">
+                    {formatMoney(companyMfBreakdown.totalGrandVal)}
+                  </p>
+                </div>
+                <div className="p-3.5 reports-subcard rounded-2xl">
+                  <p className="text-[10px] uppercase font-bold opacity-75">Via Mutual Funds</p>
+                  <p className="text-base font-black font-mono mt-1 text-purple-600 dark:text-purple-400">
+                    {formatMoney(companyMfBreakdown.totalMfAllocated)}
+                  </p>
+                </div>
+                <div className="p-3.5 reports-subcard rounded-2xl">
+                  <p className="text-[10px] uppercase font-bold opacity-75">Direct Equity Holding</p>
+                  <p className="text-base font-black font-mono mt-1 text-blue-600 dark:text-blue-400">
+                    {formatMoney(companyMfBreakdown.directVal)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Mutual Funds Scheme Breakdown Table */}
+              <div className="space-y-2.5">
+                <p className="text-xs font-black uppercase tracking-wider opacity-80">
+                  Mutual Fund Schemes Breakdown ({companyMfBreakdown.schemes.length})
+                </p>
+
+                {companyMfBreakdown.schemes.length > 0 ? (
+                  <div className="overflow-x-auto rounded-2xl reports-table-container">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="reports-table-head font-bold uppercase text-[10px]">
+                          <th className="py-3 pl-4">Mutual Fund Scheme</th>
+                          <th className="py-3 text-right">Fund Weight</th>
+                          <th className="py-3 text-right">Allocated Value</th>
+                          <th className="py-3 text-right pr-4">Share of Holding</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-inherit font-mono">
+                        {companyMfBreakdown.schemes.map((s, idx) => (
+                          <tr key={`${s.scheme_code}-${idx}`} className="reports-table-row transition-colors">
+                            <td className="py-3 pl-4 font-sans font-bold">
+                              {s.scheme_name}
+                            </td>
+                            <td className="py-3 text-right opacity-80 font-bold">
+                              {s.fund_weight_pct}%
+                            </td>
+                            <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                              {formatMoney(s.allocatedINR)}
+                            </td>
+                            <td className="py-3 text-right pr-4 text-purple-600 dark:text-purple-400 font-black">
+                              {s.shareOfStockPct}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs opacity-70 reports-subcard rounded-2xl">
+                    This company is held directly as equity shares in your portfolio.
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </AnimatedPage>
   );
 }
