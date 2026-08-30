@@ -1,23 +1,59 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { CandlestickChart, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { CandlestickChart, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, RefreshCw } from 'lucide-react';
+import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
 
-export default function IndianStocksView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
+export default function IndianStocksView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal, onRefresh }) {
   const { formatMoney } = useThemeAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const [selectedHolding, setSelectedHolding] = useState(null);
+  const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+  const [refreshToast, setRefreshToast] = useState(null);
   const closeDetail = useCallback(() => setSelectedHolding(null), []);
+
+  const handleRefreshPrices = async () => {
+    setIsRefreshingPrices(true);
+    try {
+      const res = await axios.post('/api/refresh-prices');
+      if (onRefresh) await onRefresh();
+      setRefreshToast(res.data?.message || 'Live quotes updated successfully!');
+      setTimeout(() => setRefreshToast(null), 4000);
+    } catch (err) {
+      setRefreshToast('Error refreshing quotes: ' + (err.response?.data?.error || err.message));
+      setTimeout(() => setRefreshToast(null), 4000);
+    } finally {
+      setIsRefreshingPrices(false);
+    }
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+  const todayShortFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const isUpToDate = (qd) => {
+    if (!qd) return false;
+    return qd === todayStr || qd === todayFormatted || qd === todayShortFormatted;
+  };
 
   const rawIndianStocks = useMemo(() => {
     return holdings.filter(h => h.category_id === 'in_stocks');
   }, [holdings]);
+
+  const upToDateCount = useMemo(() => {
+    return rawIndianStocks
+      .filter(h => (Number(h.quantity) || 0) > 0)
+      .filter(h => {
+        const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
+        return isUpToDate(qd);
+      }).length;
+  }, [rawIndianStocks, todayStr, todayFormatted, todayShortFormatted]);
 
   const statusFiltered = useMemo(() => {
     return rawIndianStocks.filter(h => {
@@ -128,7 +164,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
         <AnimatedItem>
           <div className="glass-card p-4 sm:p-5 rounded-3xl border border-slate-800 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                   <motion.span 
                     className="w-1.5 h-1.5 rounded-full bg-emerald-400"
@@ -137,14 +173,33 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                   />
                   NSE / BSE LIVE FEED
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  <CandlestickChart className="w-5 h-5 text-emerald-400" />
+                  Indian Equity
+                </h2>
+                <motion.button
+                  onClick={handleRefreshPrices}
+                  disabled={isRefreshingPrices}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="p-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 border border-slate-800 cursor-pointer transition-all disabled:opacity-50"
+                  title="Refresh Indian Stock Quotes"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingPrices ? 'animate-spin text-emerald-400' : ''}`} />
+                </motion.button>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1.5 ${
+                  upToDateCount === activeCount && activeCount > 0
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${upToDateCount === activeCount && activeCount > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  {upToDateCount === activeCount && activeCount > 0 ? 'All Stocks Up-to-Date' : `${upToDateCount} / ${activeCount} Stocks Up-to-Date`}
                 </span>
               </div>
-              <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
-                <CandlestickChart className="w-5 h-5 text-emerald-400" />
-                Indian Equity
-              </h2>
             </div>
 
             {/* Right: Option C Split Box (Combined + Active/Redeem) & Add Stock Button */}
@@ -425,7 +480,19 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-slate-500 font-mono">{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</div>
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span className="text-[10px] text-slate-500 font-mono">{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</span>
+                                {h.quote_date && (
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
+                                    isUpToDate(h.quote_date)
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                                      : 'bg-amber-500/10 text-amber-400/90 border border-amber-500/20'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isUpToDate(h.quote_date) ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                    {isUpToDate(h.quote_date) ? `Today (${h.quote_date})` : `As of ${h.quote_date}`}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>

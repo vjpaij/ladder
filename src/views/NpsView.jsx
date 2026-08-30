@@ -7,7 +7,7 @@ import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
 
-export default function NpsView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal }) {
+export default function NpsView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal, onRefresh }) {
   const { formatMoney } = useThemeAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'closed'
@@ -22,6 +22,7 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
     setIsRefreshingNavs(true);
     try {
       const res = await axios.post('/api/refresh-navs');
+      if (onRefresh) await onRefresh();
       setRefreshToast(res.data.message || 'NPS NAVs updated successfully from Protean!');
       setTimeout(() => setRefreshToast(null), 4000);
     } catch (err) {
@@ -34,17 +35,25 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+  const todayShortFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const isUpToDate = (qd) => {
+    if (!qd) return false;
+    return qd === todayStr || qd === todayFormatted || qd === todayShortFormatted;
+  };
 
   const rawNps = useMemo(() => {
     return holdings.filter(h => h.category_id === 'nps');
   }, [holdings]);
 
   const upToDateCount = useMemo(() => {
-    return rawNps.filter(h => {
-      const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
-      return qd === todayStr || qd === todayFormatted;
-    }).length;
-  }, [rawNps, todayStr, todayFormatted]);
+    return rawNps
+      .filter(h => (Number(h.quantity) || 0) > 0)
+      .filter(h => {
+        const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
+        return isUpToDate(qd);
+      }).length;
+  }, [rawNps, todayStr, todayFormatted, todayShortFormatted]);
 
   // Filter by status tab
   const statusFiltered = useMemo(() => {
@@ -84,7 +93,7 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
   const totalCurrent = useMemo(() => statusFiltered.reduce((sum, h) => sum + (h.currentValueINR || 0), 0), [statusFiltered]);
   const totalInvested = useMemo(() => statusFiltered.reduce((sum, h) => sum + (h.investedValueINR || 0), 0), [statusFiltered]);
   const totalGain = totalCurrent - totalInvested;
-  const roiPct = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : '0.00';
+  const roiPct = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : 0;
 
   // Closed positions banner totals
   const closedBannerTotals = useMemo(() => {
@@ -158,25 +167,40 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
         <AnimatedItem>
           <div className="glass-card p-4 sm:p-5 rounded-3xl border border-slate-800 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-cyan-500/12 text-cyan-400 border border-cyan-500/25">
                   NPS LIVE NAV
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  PRAN #110134589120 • As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                <span className="text-[10px] font-mono text-slate-500">
+                  PRAN #110134589120
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+              </div>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-xl font-black text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-cyan-400" />
+                  National Pension System
+                </h2>
+                <motion.button
+                  onClick={handleRefreshNavs}
+                  disabled={isRefreshingNavs}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="p-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-cyan-400 border border-slate-800 cursor-pointer transition-all disabled:opacity-50"
+                  title="Refresh NPS NAVs"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingNavs ? 'animate-spin text-cyan-400' : ''}`} />
+                </motion.button>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border flex items-center gap-1.5 ${
                   upToDateCount === activeCount && activeCount > 0
                     ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                     : 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                 }`}>
-                  {upToDateCount} / {activeCount} Schemes Up-to-Date
+                  <span className={`w-1.5 h-1.5 rounded-full ${upToDateCount === activeCount && activeCount > 0 ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
+                  {upToDateCount === activeCount && activeCount > 0 ? 'All Schemes Up-to-Date' : `${upToDateCount} / ${activeCount} Schemes Up-to-Date`}
                 </span>
               </div>
-              <h2 className="text-xl font-black text-white flex items-center gap-2 mt-1.5">
-                <ShieldCheck className="w-5 h-5 text-cyan-400" />
-                National Pension System
-              </h2>
             </div>
 
             {/* Right: Option C Split Box (Combined + Active/Redeem) & Add NPS Scheme Button */}
@@ -288,19 +312,6 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                 </div>
 
               </div>
-
-              {/* Refresh NAVs Button */}
-              <motion.button
-                onClick={handleRefreshNavs}
-                disabled={isRefreshingNavs}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className="flex items-center gap-1.5 px-3.5 py-3 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-bold rounded-2xl text-xs border border-slate-800 cursor-pointer shrink-0 disabled:opacity-50"
-                title="Trigger Protean CRA scrape to refresh and catch up latest NPS NAVs"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isRefreshingNavs ? 'animate-spin' : ''}`} />
-                {isRefreshingNavs ? 'Refreshing...' : 'Refresh NAVs'}
-              </motion.button>
 
               {/* Add NPS Scheme Button */}
               <motion.button
@@ -473,16 +484,16 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[10px] text-slate-500 font-mono">Tier I • {h.symbol}</span>
-                              {h.quote_date && (
-                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
-                                  (h.quote_date === todayStr || h.quote_date === todayFormatted)
-                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
-                                    : 'bg-cyan-500/10 text-cyan-400/90 border border-cyan-500/20'
-                                }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${(h.quote_date === todayStr || h.quote_date === todayFormatted) ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
-                                  {(h.quote_date === todayStr || h.quote_date === todayFormatted) ? `Today (${h.quote_date})` : `As of ${h.quote_date}`}
-                                </span>
-                              )}
+                                {h.quote_date && (
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
+                                    isUpToDate(h.quote_date)
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                                      : 'bg-cyan-500/10 text-cyan-400/90 border border-cyan-500/20'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isUpToDate(h.quote_date) ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
+                                    {isUpToDate(h.quote_date) ? `Today (${h.quote_date})` : `As of ${h.quote_date}`}
+                                  </span>
+                                )}
                             </div>
                           </div>
                         </div>

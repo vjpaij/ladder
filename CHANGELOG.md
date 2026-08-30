@@ -5,6 +5,18 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-08-30
+
+### Added & Enhanced
+- **Portfolio Views Header Redesign & Minimalist Layout**: Removed generic "As of [Date]" text from Mutual Funds, NPS, Indian Equity, and US Equity headers. Placed "Schemes / Stocks Up-to-Date" indicator badges directly below portfolio titles.
+- **Inline Minimalist Refresh Buttons**: Added compact, icon-only Refresh buttons next to section titles across Indian Equity, US Equity, Mutual Funds, and NPS with interactive spin animations on click.
+- **Indian & US Stocks Table Row Refresh Status Badges**: Added individual quote status pills (`Today (Date)` / `As of Date`) next to ticker and sector in Indian Equity and US Equity table rows, matching Mutual Funds and NPS styling.
+- **Active Position Count Normalization**: Updated `upToDateCount` evaluation across all 4 portfolio views to strictly filter active holdings (`quantity > 0`).
+- **Recurring SIP Placement**: Moved the Recurring SIP button in Mutual Funds from the top banner to the table controls bar adjacent to the search input.
+- **Header Clutter Cleanup**: Removed the redundant USD/INR badge from the US Equity banner, keeping currency display centralized in the top navigation bar.
+
+---
+
 ## [4.9.7] - 2026-08-30
 
 ### Added & Enhanced
