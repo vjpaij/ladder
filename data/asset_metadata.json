@@ -1,982 +1,3432 @@
 [
   {
-    "symbol": "POCL",
-    "name": "Pondy Oxides &amp; Chemicals Ltd",
+    "symbol": "HINDPETRO",
+    "name": "HINDUSTAN PETROLEUM CORP",
     "category_id": "in_stocks",
-    "market_cap": 3884,
-    "mcap_category": "Small Cap",
-    "sector": "Metals & Mining",
-    "industry": "Diversified Metals",
-    "last_updated": "2026-08-30T11:49:58.929Z"
+    "market_cap": 77453,
+    "mcap_category": "Large Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Oil & Gas Refining & Marketing",
+    "last_updated": "2026-08-30T17:49:09.235Z"
   },
   {
-    "symbol": "CLEDUCATE",
-    "name": "CL Educate Ltd",
+    "symbol": "POCL",
+    "name": "PONDY OXIDES & CHEM LTD",
     "category_id": "in_stocks",
-    "market_cap": 355,
+    "market_cap": 3890,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:49:09.240Z"
+  },
+  {
+    "symbol": "PENIND",
+    "name": "PENNAR INDUSTRIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 2198,
     "mcap_category": "Micro Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Education",
-    "last_updated": "2026-08-30T11:50:00.237Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:49:09.242Z"
+  },
+  {
+    "symbol": "OBEROIRLTY",
+    "name": "OBEROI REALTY LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 67994,
+    "mcap_category": "Large Cap",
+    "sector": "Infrastructure & Real Estate",
+    "industry": "Real Estate - Development",
+    "last_updated": "2026-08-30T17:49:09.252Z"
+  },
+  {
+    "symbol": "PITTIENG",
+    "name": "PITTI ENGINEERING LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 4127,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:49:09.527Z"
+  },
+  {
+    "symbol": "KIOCL",
+    "name": "KIOCL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 23599,
+    "mcap_category": "Mid Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:49:09.530Z"
+  },
+  {
+    "symbol": "STLTECH",
+    "name": "STERLITE TECHNOLOGIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 37438,
+    "mcap_category": "Mid Cap",
+    "sector": "Information Technology",
+    "industry": "Communication Equipment",
+    "last_updated": "2026-08-30T17:49:09.543Z"
+  },
+  {
+    "symbol": "PFS",
+    "name": "PTC INDIA FIN SERV LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1734,
+    "mcap_category": "Micro Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:49:09.843Z"
+  },
+  {
+    "symbol": "OFSS",
+    "name": "ORACLE FIN SERV SOFT LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 106154,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Software - Infrastructure",
+    "last_updated": "2026-08-30T17:49:10.169Z"
+  },
+  {
+    "symbol": "NH",
+    "name": "NARAYANA HRUDAYALAYA LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 39290,
+    "mcap_category": "Mid Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Medical Care Facilities",
+    "last_updated": "2026-08-30T17:49:10.170Z"
+  },
+  {
+    "symbol": "TCS",
+    "name": "TATA CONSULTANCY SERV LT",
+    "category_id": "in_stocks",
+    "market_cap": 847356,
+    "mcap_category": "Mega Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:49:10.171Z"
   },
   {
     "symbol": "JSWENERGY",
-    "name": "JSW Energy Ltd",
+    "name": "JSW ENERGY LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 98146,
+    "market_cap": 98087,
     "mcap_category": "Large Cap",
     "sector": "Energy, Power & Utilities",
-    "industry": "Power Generation",
-    "last_updated": "2026-08-30T11:50:00.556Z"
+    "industry": "Utilities - Independent Power Producers",
+    "last_updated": "2026-08-30T17:49:10.428Z"
+  },
+  {
+    "symbol": "RAIN",
+    "name": "RAIN INDUSTRIES LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 6703,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:49:10.431Z"
+  },
+  {
+    "symbol": "PPLPHARMA",
+    "name": "PIRAMAL PHARMA LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 28872,
+    "mcap_category": "Mid Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:49:10.435Z"
+  },
+  {
+    "symbol": "CLEDUCATE",
+    "name": "CL EDUCATE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 355,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Education & Training Services",
+    "last_updated": "2026-08-30T17:49:10.462Z"
+  },
+  {
+    "symbol": "TATAMTRDVR",
+    "name": "Tata Motors Dvr A Ord",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:49:18.702Z"
+  },
+  {
+    "symbol": "RELIANCE",
+    "name": "RELIANCE INDUSTRIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1741629,
+    "mcap_category": "Mega Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Oil & Gas Refining & Marketing",
+    "last_updated": "2026-08-30T17:49:19.566Z"
+  },
+  {
+    "symbol": "VALIANTORG",
+    "name": "VALIANT ORGANICS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 841,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Chemicals",
+    "last_updated": "2026-08-30T17:49:19.693Z"
+  },
+  {
+    "symbol": "POWERGRID",
+    "name": "POWER GRID CORP. LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 247443,
+    "mcap_category": "Mega Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Regulated Electric",
+    "last_updated": "2026-08-30T17:49:19.893Z"
+  },
+  {
+    "symbol": "SJVN",
+    "name": "SJVN LTD",
+    "category_id": "in_stocks",
+    "market_cap": 25528,
+    "mcap_category": "Mid Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Renewable",
+    "last_updated": "2026-08-30T17:49:20.035Z"
+  },
+  {
+    "symbol": "SBICARD",
+    "name": "SBI CARDS & PAY SER LTD",
+    "category_id": "in_stocks",
+    "market_cap": 61005,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:49:20.174Z"
   },
   {
     "symbol": "EBGNG",
-    "name": "GNG Electronics Ltd",
+    "name": "GNG ELECTRONICS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 7241,
+    "market_cap": 7184,
     "mcap_category": "Small Cap",
     "sector": "Information Technology",
-    "industry": "Computers Hardware &amp; Equipments",
-    "last_updated": "2026-08-30T11:50:00.917Z"
+    "industry": "Computer Hardware",
+    "last_updated": "2026-08-30T17:49:20.256Z"
+  },
+  {
+    "symbol": "PETRONET",
+    "name": "PETRONET LNG LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 43800,
+    "mcap_category": "Mid Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Oil & Gas Refining & Marketing",
+    "last_updated": "2026-08-30T17:49:20.343Z"
+  },
+  {
+    "symbol": "NEWJAISA",
+    "name": "Newjaisa Technologies Ltd",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:49:28.316Z"
   },
   {
     "symbol": "PTC",
-    "name": "PTC India Ltd",
+    "name": "PTC INDIA LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 4668,
+    "market_cap": 4667,
     "mcap_category": "Small Cap",
     "sector": "Energy, Power & Utilities",
-    "industry": "Power Trading",
-    "last_updated": "2026-08-30T11:50:01.493Z"
+    "industry": "Utilities - Independent Power Producers",
+    "last_updated": "2026-08-30T17:49:28.845Z"
+  },
+  {
+    "symbol": "TATACONSUM",
+    "name": "TATA CONSUMER PRODUCT LTD",
+    "category_id": "in_stocks",
+    "market_cap": 102997,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Packaged Foods",
+    "last_updated": "2026-08-30T17:49:29.025Z"
+  },
+  {
+    "symbol": "NCC",
+    "name": "NCC LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 9330,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:49:29.573Z"
+  },
+  {
+    "symbol": "SKFINDIA",
+    "name": "SKF INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 7752,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Tools & Accessories",
+    "last_updated": "2026-08-30T17:49:32.447Z"
+  },
+  {
+    "symbol": "ITCHOTELS",
+    "name": "ITC HOTELS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 34026,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Resorts & Casinos",
+    "last_updated": "2026-08-30T17:49:32.857Z"
+  },
+  {
+    "symbol": "TRENT",
+    "name": "TRENT LTD",
+    "category_id": "in_stocks",
+    "market_cap": 154531,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Apparel Retail",
+    "last_updated": "2026-08-30T17:49:32.918Z"
+  },
+  {
+    "symbol": "TITAN",
+    "name": "TITAN COMPANY LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 458669,
+    "mcap_category": "Mega Cap",
+    "sector": "Diversified & Other",
+    "industry": "Luxury Goods",
+    "last_updated": "2026-08-30T17:49:33.131Z"
+  },
+  {
+    "symbol": "KEI",
+    "name": "KEI INDUSTRIES LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 53250,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:49:33.198Z"
+  },
+  {
+    "symbol": "JUBLFOOD",
+    "name": "JUBILANT FOODWORKS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 32256,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Restaurants",
+    "last_updated": "2026-08-30T17:49:33.508Z"
+  },
+  {
+    "symbol": "MAZDOCK",
+    "name": "MAZAGON DOCK SHIPBUIL LTD",
+    "category_id": "in_stocks",
+    "market_cap": 103064,
+    "mcap_category": "Large Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Aerospace & Defense",
+    "last_updated": "2026-08-30T17:49:33.522Z"
+  },
+  {
+    "symbol": "GUFICBIO",
+    "name": "GUFIC BIOSCIENCES LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 4106,
+    "mcap_category": "Small Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:49:33.527Z"
+  },
+  {
+    "symbol": "PRESTIGE",
+    "name": "PRESTIGE ESTATE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 68400,
+    "mcap_category": "Large Cap",
+    "sector": "Infrastructure & Real Estate",
+    "industry": "Real Estate - Diversified",
+    "last_updated": "2026-08-30T17:49:33.543Z"
+  },
+  {
+    "symbol": "INFY",
+    "name": "INFOSYS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 463354,
+    "mcap_category": "Mega Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:49:33.773Z"
+  },
+  {
+    "symbol": "VESUVIUS",
+    "name": "VESUVIUS INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 8565,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:49:33.780Z"
+  },
+  {
+    "symbol": "USHAMART",
+    "name": "USHA MARTIN LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 14973,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:49:33.781Z"
+  },
+  {
+    "symbol": "INDHOTEL",
+    "name": "THE INDIAN HOTELS CO. LTD",
+    "category_id": "in_stocks",
+    "market_cap": 102188,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Lodging",
+    "last_updated": "2026-08-30T17:49:33.832Z"
+  },
+  {
+    "symbol": "MFSL",
+    "name": "MAX FINANCIAL SERV LTD",
+    "category_id": "in_stocks",
+    "market_cap": 53706,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Insurance - Life",
+    "last_updated": "2026-08-30T17:49:34.140Z"
+  },
+  {
+    "symbol": "HDFCAMC",
+    "name": "HDFC AMC LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 110161,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Asset Management",
+    "last_updated": "2026-08-30T17:49:34.141Z"
   },
   {
     "symbol": "OIL",
-    "name": "Oil India Ltd",
+    "name": "OIL INDIA LTD",
     "category_id": "in_stocks",
     "market_cap": 78541,
     "mcap_category": "Large Cap",
     "sector": "Energy, Power & Utilities",
-    "industry": "Oil Exploration &amp; Production",
-    "last_updated": "2026-08-30T11:50:01.796Z"
-  },
-  {
-    "symbol": "GUFICBIO",
-    "name": "Gufic BioSciences Ltd",
-    "category_id": "in_stocks",
-    "market_cap": 4074,
-    "mcap_category": "Small Cap",
-    "sector": "Healthcare & Pharmaceuticals",
-    "industry": "Pharmaceuticals",
-    "last_updated": "2026-08-30T11:50:02.092Z"
+    "industry": "Oil & Gas Integrated",
+    "last_updated": "2026-08-30T17:49:34.146Z"
   },
   {
     "symbol": "MSFT",
     "name": "Microsoft Corporation",
     "category_id": "us_stocks",
-    "market_cap": 2650000,
+    "market_cap": 381324,
     "mcap_category": "Mega Cap",
     "sector": "Information Technology",
     "industry": "Software - Infrastructure",
-    "last_updated": "2026-08-30T11:50:02.305Z"
+    "last_updated": "2026-08-30T17:49:34.147Z"
+  },
+  {
+    "symbol": "IONEXCHANG",
+    "name": "ION EXCHANGE (INDIA) LTD",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Pollution & Treatment Controls",
+    "last_updated": "2026-08-30T17:49:34.408Z"
+  },
+  {
+    "symbol": "SHANTIGEAR",
+    "name": "SHANTHI GEARS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 3951,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:49:34.409Z"
   },
   {
     "symbol": "CRM",
     "name": "Salesforce, Inc.",
     "category_id": "us_stocks",
-    "market_cap": 260000,
-    "mcap_category": "Mega Cap",
+    "market_cap": 21069,
+    "mcap_category": "Mid Cap",
     "sector": "Information Technology",
     "industry": "Software - Application",
-    "last_updated": "2026-08-30T11:50:02.457Z"
+    "last_updated": "2026-08-30T17:49:34.409Z"
+  },
+  {
+    "symbol": "ISEC",
+    "name": "Icici Securities Limited",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:49:42.741Z"
+  },
+  {
+    "symbol": "INDUSTOWER",
+    "name": "INDUS TOWERS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 100214,
+    "mcap_category": "Large Cap",
+    "sector": "Telecommunication & Media",
+    "industry": "Telecom Services",
+    "last_updated": "2026-08-30T17:49:43.513Z"
+  },
+  {
+    "symbol": "IOC",
+    "name": "INDIAN OIL CORP LTD",
+    "category_id": "in_stocks",
+    "market_cap": 193602,
+    "mcap_category": "Large Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Oil & Gas Refining & Marketing",
+    "last_updated": "2026-08-30T17:49:43.514Z"
+  },
+  {
+    "symbol": "HPL",
+    "name": "HPL ELECTRIC & POWER LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1990,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:49:43.515Z"
   },
   {
     "symbol": "ANET",
     "name": "Arista Networks, Inc.",
     "category_id": "us_stocks",
-    "market_cap": 110000,
-    "mcap_category": "Large Cap",
+    "market_cap": 24642,
+    "mcap_category": "Mid Cap",
     "sector": "Information Technology",
-    "industry": "Computer Hardware & Networking",
-    "last_updated": "2026-08-30T11:50:02.988Z"
+    "industry": "Computer Hardware",
+    "last_updated": "2026-08-30T17:49:43.560Z"
+  },
+  {
+    "symbol": "KIRLFER",
+    "name": "KIRLOSKAR FERROUS IND LTD",
+    "category_id": "in_stocks",
+    "market_cap": 7448,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:49:44.019Z"
+  },
+  {
+    "symbol": "HINDWAREAP",
+    "name": "HINDWARE HME INOVATON LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1608,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "last_updated": "2026-08-30T17:49:44.021Z"
+  },
+  {
+    "symbol": "NHPC",
+    "name": "NHPC LTD",
+    "category_id": "in_stocks",
+    "market_cap": 75157,
+    "mcap_category": "Large Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Renewable",
+    "last_updated": "2026-08-30T17:49:44.098Z"
+  },
+  {
+    "symbol": "JIOFIN",
+    "name": "JIO FIN SERVICES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 157419,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Asset Management",
+    "last_updated": "2026-08-30T17:49:44.099Z"
+  },
+  {
+    "symbol": "HCLTECH",
+    "name": "HCL TECHNOLOGIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 356106,
+    "mcap_category": "Mega Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:49:44.412Z"
+  },
+  {
+    "symbol": "ICICIBANK",
+    "name": "ICICI BANK LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 1021090,
+    "mcap_category": "Mega Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:49:44.412Z"
+  },
+  {
+    "symbol": "HINDZINC",
+    "name": "HINDUSTAN ZINC LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 262815,
+    "mcap_category": "Mega Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Other Industrial Metals & Mining",
+    "last_updated": "2026-08-30T17:49:44.414Z"
   },
   {
     "symbol": "SHRIRAMFIN",
-    "name": "Shriram Finance Ltd",
+    "name": "SHRIRAM FINANCE LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 255746,
+    "market_cap": 255742,
     "mcap_category": "Mega Cap",
     "sector": "Financial Services",
-    "industry": "Non Banking Financial Company (NBFC)",
-    "last_updated": "2026-08-30T11:50:03.199Z"
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:49:44.424Z"
   },
   {
-    "symbol": "INDOTECH",
-    "name": "Indo Tech Transformers Ltd",
+    "symbol": "FAIRCHEMOR",
+    "name": "FAIRCHEM ORGANICS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 5000,
-    "mcap_category": "Small Cap",
+    "market_cap": 857,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:49:44.671Z"
+  },
+  {
+    "symbol": "APLAPOLLO",
+    "name": "APL APOLLO TUBES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 62906,
+    "mcap_category": "Large Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:49:44.676Z"
+  },
+  {
+    "symbol": "BDL",
+    "name": "BHARAT DYNAMICS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 47873,
+    "mcap_category": "Mid Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Heavy Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:03.652Z"
-  },
-  {
-    "symbol": "INDGN",
-    "name": "Indegene Ltd",
-    "category_id": "in_stocks",
-    "market_cap": 13948,
-    "mcap_category": "Small Cap",
-    "sector": "Healthcare & Pharmaceuticals",
-    "industry": "Healthcare Research, Analytics &amp; Technology",
-    "last_updated": "2026-08-30T11:50:04.297Z"
+    "industry": "Aerospace & Defense",
+    "last_updated": "2026-08-30T17:49:44.683Z"
   },
   {
     "symbol": "PFC",
-    "name": "Power Finance Corporation Ltd",
+    "name": "POWER FIN CORP LTD.",
     "category_id": "in_stocks",
     "market_cap": 116164,
     "mcap_category": "Large Cap",
     "sector": "Financial Services",
-    "industry": "Financial Institution",
-    "last_updated": "2026-08-30T11:50:04.920Z"
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:49:44.790Z"
+  },
+  {
+    "symbol": "INDOTECH",
+    "name": "INDO TECH TRANSFORM LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 3984,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:49:45.141Z"
+  },
+  {
+    "symbol": "NAM-INDIA",
+    "name": "NIPPON L I A M LTD",
+    "category_id": "in_stocks",
+    "market_cap": 76416,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Asset Management",
+    "last_updated": "2026-08-30T17:49:45.143Z"
+  },
+  {
+    "symbol": "INDGN",
+    "name": "INDEGENE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 14015,
+    "mcap_category": "Small Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Health Information Services",
+    "last_updated": "2026-08-30T17:49:45.145Z"
   },
   {
     "symbol": "MANAKCOAT",
-    "name": "Manaksia Coated Metals &amp; Industries Ltd",
+    "name": "MAN COAT METAL & IND LTD",
     "category_id": "in_stocks",
-    "market_cap": 1310,
+    "market_cap": 1292,
     "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Iron &amp; Steel Products",
-    "last_updated": "2026-08-30T11:50:05.344Z"
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:49:45.169Z"
   },
   {
     "symbol": "SOLARWORLD",
-    "name": "Solarworld Energy Solutions Ltd",
+    "name": "SOLARWORLD ENERGY SOL LTD",
     "category_id": "in_stocks",
-    "market_cap": 1289,
+    "market_cap": 1283,
     "mcap_category": "Micro Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Civil Construction",
-    "last_updated": "2026-08-30T11:50:05.654Z"
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:49:45.424Z"
   },
   {
     "symbol": "MPSLTD",
-    "name": "MPS Ltd",
+    "name": "MPS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 4581,
+    "market_cap": 4544,
     "mcap_category": "Small Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Printing &amp; Publication",
-    "last_updated": "2026-08-30T11:50:05.986Z"
+    "sector": "Telecommunication & Media",
+    "industry": "Publishing",
+    "last_updated": "2026-08-30T17:49:45.425Z"
+  },
+  {
+    "symbol": "UJJIVANSFB",
+    "name": "UJJIVAN SMALL FINANC BANK",
+    "category_id": "in_stocks",
+    "market_cap": 13209,
+    "mcap_category": "Small Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:49:45.466Z"
+  },
+  {
+    "symbol": "IIFL",
+    "name": "IIFL FINANCE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 27984,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:49:45.525Z"
+  },
+  {
+    "symbol": "NAVA",
+    "name": "NAVA LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 16050,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Conglomerates",
+    "last_updated": "2026-08-30T17:49:46.083Z"
+  },
+  {
+    "symbol": "HGINFRA",
+    "name": "H.G.INFRA ENGINEERING LTD",
+    "category_id": "in_stocks",
+    "market_cap": 3244,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:49:46.084Z"
+  },
+  {
+    "symbol": "VOLTAS",
+    "name": "VOLTAS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 39706,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "last_updated": "2026-08-30T17:49:46.084Z"
+  },
+  {
+    "symbol": "GLAXO",
+    "name": "GLAXOSMITHKLINE PHARMA LT",
+    "category_id": "in_stocks",
+    "market_cap": 52601,
+    "mcap_category": "Mid Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - General",
+    "last_updated": "2026-08-30T17:49:46.085Z"
   },
   {
     "symbol": "REDINGTON",
-    "name": "Redington Ltd",
+    "name": "REDINGTON LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 28613,
+    "market_cap": 28652,
     "mcap_category": "Mid Cap",
-    "sector": "Diversified & Other",
-    "industry": "Trading &amp; Distributors",
-    "last_updated": "2026-08-30T11:50:06.839Z"
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:49:46.373Z"
   },
   {
     "symbol": "MMP",
-    "name": "MMP Industries Ltd",
+    "name": "MMP INDUSTRIES LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 1027,
+    "market_cap": 1034,
     "mcap_category": "Micro Cap",
-    "sector": "Metals & Mining",
-    "industry": "Aluminium",
-    "last_updated": "2026-08-30T11:50:08.431Z"
+    "sector": "Chemicals & Materials",
+    "industry": "Aluminum",
+    "last_updated": "2026-08-30T17:49:46.375Z"
+  },
+  {
+    "symbol": "AMBER",
+    "name": "AMBER ENTERPRISES (I) LTD",
+    "category_id": "in_stocks",
+    "market_cap": 27068,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "last_updated": "2026-08-30T17:49:46.376Z"
+  },
+  {
+    "symbol": "MEDPLUS",
+    "name": "MEDPLUS HEALTH SERV LTD",
+    "category_id": "in_stocks",
+    "market_cap": 8124,
+    "mcap_category": "Small Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Pharmaceutical Retailers",
+    "last_updated": "2026-08-30T17:49:46.480Z"
+  },
+  {
+    "symbol": "IRCON",
+    "name": "IRCON INTERNATIONAL LTD",
+    "category_id": "in_stocks",
+    "market_cap": 11568,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:49:46.793Z"
+  },
+  {
+    "symbol": "TORNTPOWER",
+    "name": "TORRENT POWER LTD",
+    "category_id": "in_stocks",
+    "market_cap": 61627,
+    "mcap_category": "Large Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Independent Power Producers",
+    "last_updated": "2026-08-30T17:49:46.794Z"
+  },
+  {
+    "symbol": "KDDL",
+    "name": "KDDL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 4846,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Luxury Goods",
+    "last_updated": "2026-08-30T17:49:46.810Z"
+  },
+  {
+    "symbol": "KPRMILL",
+    "name": "KPR MILL LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 38705,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Textile Manufacturing",
+    "last_updated": "2026-08-30T17:49:46.896Z"
   },
   {
     "symbol": "CCL",
-    "name": "CCL Products (India) Ltd",
+    "name": "CCL PRODUCTS (I) LTD",
     "category_id": "in_stocks",
-    "market_cap": 14997,
+    "market_cap": 15000,
     "mcap_category": "Small Cap",
-    "sector": "Consumer Staples & FMCG",
-    "industry": "Tea &amp; Coffee",
-    "last_updated": "2026-08-30T11:50:08.966Z"
+    "sector": "Diversified & Other",
+    "industry": "Packaged Foods",
+    "last_updated": "2026-08-30T17:49:47.048Z"
+  },
+  {
+    "symbol": "PREMIERENE",
+    "name": "PREMIER ENERGIES LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 45772,
+    "mcap_category": "Mid Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:49:47.070Z"
+  },
+  {
+    "symbol": "JKLAKSHMI",
+    "name": "JK LAKSHMI CEMENT LTD",
+    "category_id": "in_stocks",
+    "market_cap": 6724,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Building Materials",
+    "last_updated": "2026-08-30T17:49:47.163Z"
   },
   {
     "symbol": "SFL",
-    "name": "Sheela Foam Ltd",
+    "name": "SHEELA FOAM LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 6956,
+    "market_cap": 6989,
     "mcap_category": "Small Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Furniture, Home Furnishing",
-    "last_updated": "2026-08-30T11:50:09.888Z"
+    "sector": "Diversified & Other",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "last_updated": "2026-08-30T17:49:47.164Z"
   },
   {
-    "symbol": "WEBELSOLAR",
-    "name": "Websol Energy System Ltd",
+    "symbol": "NYKAA",
+    "name": "FSN E COMMERCE VENTURES",
     "category_id": "in_stocks",
-    "market_cap": 3380,
-    "mcap_category": "Small Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Other Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:10.264Z"
+    "market_cap": 96167,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Internet Retail",
+    "last_updated": "2026-08-30T17:49:47.512Z"
   },
   {
     "symbol": "ENRIN",
-    "name": "Siemens Energy India Ltd",
+    "name": "SIEMENS ENERGY INDIA LTD",
     "category_id": "in_stocks",
-    "market_cap": 5000,
+    "market_cap": 115561,
+    "mcap_category": "Large Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Renewable",
+    "last_updated": "2026-08-30T17:49:47.513Z"
+  },
+  {
+    "symbol": "INDIANB",
+    "name": "INDIAN BANK",
+    "category_id": "in_stocks",
+    "market_cap": 118856,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:49:47.631Z"
+  },
+  {
+    "symbol": "ITC",
+    "name": "ITC LTD",
+    "category_id": "in_stocks",
+    "market_cap": 333292,
+    "mcap_category": "Mega Cap",
+    "sector": "Diversified & Other",
+    "industry": "Tobacco",
+    "last_updated": "2026-08-30T17:49:47.639Z"
+  },
+  {
+    "symbol": "WEBELSOLAR",
+    "name": "WEBSOL ENERGY SYSTEM LTD",
+    "category_id": "in_stocks",
+    "market_cap": 3382,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:49:47.831Z"
+  },
+  {
+    "symbol": "BHARTIHEXA",
+    "name": "BHARTI HEXACOM LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 77045,
+    "mcap_category": "Large Cap",
+    "sector": "Telecommunication & Media",
+    "industry": "Telecom Services",
+    "last_updated": "2026-08-30T17:49:47.848Z"
+  },
+  {
+    "symbol": "PAYTM",
+    "name": "ONE 97 COMMUNICATIONS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 105845,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Software - Infrastructure",
+    "last_updated": "2026-08-30T17:49:47.937Z"
+  },
+  {
+    "symbol": "SPECIALITY",
+    "name": "SPECIALITY REST LTD",
+    "category_id": "in_stocks",
+    "market_cap": 682,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Restaurants",
+    "last_updated": "2026-08-30T17:49:47.942Z"
+  },
+  {
+    "symbol": "WABAG",
+    "name": "VA TECH WABAG LTD",
+    "category_id": "in_stocks",
+    "market_cap": 13027,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Heavy Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:10.577Z"
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:49:48.627Z"
+  },
+  {
+    "symbol": "ICICIGI",
+    "name": "ICICI LOMBARD GIC LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 78037,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Insurance - Diversified",
+    "last_updated": "2026-08-30T17:49:48.629Z"
+  },
+  {
+    "symbol": "JSWINFRA",
+    "name": "JSW INFRASTRUCTURE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 79179,
+    "mcap_category": "Large Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Marine Shipping",
+    "last_updated": "2026-08-30T17:49:48.630Z"
+  },
+  {
+    "symbol": "NDRAUTO",
+    "name": "NDR AUTO COMPONENTS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1713,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:49:48.700Z"
   },
   {
     "symbol": "ABCAPITAL",
-    "name": "Aditya Birla Capital Ltd",
+    "name": "ADITYA BIRLA CAPITAL LTD.",
     "category_id": "in_stocks",
     "market_cap": 111014,
     "mcap_category": "Large Cap",
     "sector": "Financial Services",
-    "industry": "Investment Company",
-    "last_updated": "2026-08-30T11:50:10.911Z"
+    "industry": "Financial Conglomerates",
+    "last_updated": "2026-08-30T17:49:48.961Z"
+  },
+  {
+    "symbol": "SEPC",
+    "name": "SEPC LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 1078,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:49:48.967Z"
+  },
+  {
+    "symbol": "HINDUNILVR",
+    "name": "HINDUSTAN UNILEVER LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 472362,
+    "mcap_category": "Mega Cap",
+    "sector": "Diversified & Other",
+    "industry": "Household & Personal Products",
+    "last_updated": "2026-08-30T17:49:49.158Z"
   },
   {
     "symbol": "DEEDEV",
-    "name": "DEE Development Engineers Ltd",
+    "name": "DEE DEVELOPMENT ENG LTD",
     "category_id": "in_stocks",
-    "market_cap": 4561,
+    "market_cap": 4597,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Industrial Products",
-    "last_updated": "2026-08-30T11:50:11.409Z"
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:49:49.334Z"
+  },
+  {
+    "symbol": "EDELWEISS",
+    "name": "EDELWEISS FIN SERV LTD",
+    "category_id": "in_stocks",
+    "market_cap": 11866,
+    "mcap_category": "Small Cap",
+    "sector": "Financial Services",
+    "industry": "Financial Conglomerates",
+    "last_updated": "2026-08-30T17:49:49.882Z"
+  },
+  {
+    "symbol": "PGEL",
+    "name": "PG ELECTROPLAST LTD",
+    "category_id": "in_stocks",
+    "market_cap": 16784,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Electronic Components",
+    "last_updated": "2026-08-30T17:49:49.883Z"
+  },
+  {
+    "symbol": "LUPIN",
+    "name": "LUPIN LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 99295,
+    "mcap_category": "Large Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:49:49.884Z"
+  },
+  {
+    "symbol": "ETERNAL",
+    "name": "ETERNAL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 301937,
+    "mcap_category": "Mega Cap",
+    "sector": "Diversified & Other",
+    "industry": "Internet Retail",
+    "last_updated": "2026-08-30T17:49:49.885Z"
+  },
+  {
+    "symbol": "UPL",
+    "name": "UPL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 48266,
+    "mcap_category": "Mid Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Agricultural Inputs",
+    "last_updated": "2026-08-30T17:49:50.140Z"
   },
   {
     "symbol": "GOOG",
     "name": "Alphabet Inc.",
     "category_id": "us_stocks",
-    "market_cap": 1850000,
+    "market_cap": 419340,
     "mcap_category": "Mega Cap",
-    "sector": "Information Technology",
+    "sector": "Telecommunication & Media",
     "industry": "Internet Content & Information",
-    "last_updated": "2026-08-30T11:50:11.616Z"
+    "last_updated": "2026-08-30T17:49:50.141Z"
+  },
+  {
+    "symbol": "SCHAEFFLER",
+    "name": "SCHAEFFLER INDIA LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 62990,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:49:50.186Z"
   },
   {
     "symbol": "SONACOMS",
-    "name": "Sona BLW Precision Forgings Ltd",
+    "name": "SONA BLW PRECISION FRGS L",
     "category_id": "in_stocks",
     "market_cap": 50847,
     "mcap_category": "Mid Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Auto Components &amp; Equipments",
-    "last_updated": "2026-08-30T11:50:12.103Z"
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:49:50.253Z"
   },
   {
-    "symbol": "ATHERENERG",
-    "name": "Ather Energy Ltd",
+    "symbol": "SONATSOFTW",
+    "name": "SONATA SOFTWARE LTD",
     "category_id": "in_stocks",
-    "market_cap": 64025,
-    "mcap_category": "Large Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "2/3 Wheelers",
-    "last_updated": "2026-08-30T11:50:12.393Z"
+    "market_cap": 8413,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:49:50.761Z"
+  },
+  {
+    "symbol": "KPITTECH",
+    "name": "KPIT TECHNOLOGIES LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 16590,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Software - Infrastructure",
+    "last_updated": "2026-08-30T17:49:50.762Z"
+  },
+  {
+    "symbol": "GMDCLTD",
+    "name": "GUJARAT MINERAL DEV CORP",
+    "category_id": "in_stocks",
+    "market_cap": 18046,
+    "mcap_category": "Small Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Thermal Coal",
+    "last_updated": "2026-08-30T17:49:50.778Z"
   },
   {
     "symbol": "RICOAUTO",
-    "name": "Rico Auto Industries Ltd",
+    "name": "RICO AUTO INDUSTRIES LTD",
     "category_id": "in_stocks",
-    "market_cap": 1751,
+    "market_cap": 1756,
     "mcap_category": "Micro Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Auto Components &amp; Equipments",
-    "last_updated": "2026-08-30T11:50:12.742Z"
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:49:50.939Z"
+  },
+  {
+    "symbol": "NTPC",
+    "name": "NTPC LTD",
+    "category_id": "in_stocks",
+    "market_cap": 320038,
+    "mcap_category": "Mega Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Regulated Electric",
+    "last_updated": "2026-08-30T17:49:51.194Z"
+  },
+  {
+    "symbol": "TATACAP",
+    "name": "TATA CAPITAL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 158548,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:49:51.243Z"
+  },
+  {
+    "symbol": "ATHERENERG",
+    "name": "ATHER ENERGY LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 64645,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Manufacturers",
+    "last_updated": "2026-08-30T17:49:51.321Z"
+  },
+  {
+    "symbol": "JYOTHYLAB",
+    "name": "JYOTHY LABS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 7568,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Household & Personal Products",
+    "last_updated": "2026-08-30T17:49:51.323Z"
+  },
+  {
+    "symbol": "GKENERGY",
+    "name": "GK ENERGY LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 2805,
+    "mcap_category": "Micro Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Renewable",
+    "last_updated": "2026-08-30T17:49:51.927Z"
+  },
+  {
+    "symbol": "VISL",
+    "name": "VEDANTA IRON AND STEEL L",
+    "category_id": "in_stocks",
+    "market_cap": 15094,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:49:51.931Z"
   },
   {
     "symbol": "AMZN",
     "name": "Amazon.com, Inc.",
     "category_id": "us_stocks",
-    "market_cap": 1950000,
+    "market_cap": 287380,
     "mcap_category": "Mega Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Internet Retail & Cloud",
-    "last_updated": "2026-08-30T11:50:12.950Z"
+    "sector": "Diversified & Other",
+    "industry": "Internet Retail",
+    "last_updated": "2026-08-30T17:49:51.933Z"
   },
   {
     "symbol": "NVDA",
     "name": "NVIDIA Corporation",
     "category_id": "us_stocks",
-    "market_cap": 2750000,
+    "market_cap": 525318,
     "mcap_category": "Mega Cap",
     "sector": "Information Technology",
     "industry": "Semiconductors",
-    "last_updated": "2026-08-30T11:50:13.004Z"
-  },
-  {
-    "symbol": "GKENERGY",
-    "name": "GK Energy Ltd",
-    "category_id": "in_stocks",
-    "market_cap": 2808,
-    "mcap_category": "Micro Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Civil Construction",
-    "last_updated": "2026-08-30T11:50:13.280Z"
-  },
-  {
-    "symbol": "SAGILITY",
-    "name": "Sagility Ltd",
-    "category_id": "in_stocks",
-    "market_cap": 21693,
-    "mcap_category": "Mid Cap",
-    "sector": "Information Technology",
-    "industry": "IT Enabled Services",
-    "last_updated": "2026-08-30T11:50:13.567Z"
+    "last_updated": "2026-08-30T17:49:51.934Z"
   },
   {
     "symbol": "SAILIFE",
-    "name": "Sai Life Sciences Ltd",
+    "name": "SAI LIFE SCIENCES LIMITED",
     "category_id": "in_stocks",
     "market_cap": 31529,
     "mcap_category": "Mid Cap",
     "sector": "Healthcare & Pharmaceuticals",
-    "industry": "Pharmaceuticals",
-    "last_updated": "2026-08-30T11:50:14.182Z"
+    "industry": "Diagnostics & Research",
+    "last_updated": "2026-08-30T17:49:52.231Z"
+  },
+  {
+    "symbol": "KPIL",
+    "name": "KALPATARU PROJECT INT LTD",
+    "category_id": "in_stocks",
+    "market_cap": 23609,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:49:52.234Z"
+  },
+  {
+    "symbol": "KALYANKJIL",
+    "name": "KALYAN JEWELLERS IND LTD",
+    "category_id": "in_stocks",
+    "market_cap": 63597,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Luxury Goods",
+    "last_updated": "2026-08-30T17:49:52.235Z"
+  },
+  {
+    "symbol": "SAGILITY",
+    "name": "SAGILITY LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 21693,
+    "mcap_category": "Mid Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Health Information Services",
+    "last_updated": "2026-08-30T17:49:52.607Z"
+  },
+  {
+    "symbol": "ACC",
+    "name": "ACC LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 24581,
+    "mcap_category": "Mid Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Building Materials",
+    "last_updated": "2026-08-30T17:49:52.930Z"
+  },
+  {
+    "symbol": "OSWALPUMPS",
+    "name": "OSWAL PUMPS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 3375,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:49:52.933Z"
+  },
+  {
+    "symbol": "IKS",
+    "name": "INVENTURUS KNOWLEDGE SO L",
+    "category_id": "in_stocks",
+    "market_cap": 29463,
+    "mcap_category": "Mid Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Health Information Services",
+    "last_updated": "2026-08-30T17:49:52.934Z"
+  },
+  {
+    "symbol": "COCHINSHIP",
+    "name": "COCHIN SHIPYARD LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 40383,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Aerospace & Defense",
+    "last_updated": "2026-08-30T17:49:53.152Z"
+  },
+  {
+    "symbol": "BECTORFOOD",
+    "name": "MRS BECTORS FOOD SPE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 7158,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Packaged Foods",
+    "last_updated": "2026-08-30T17:49:53.336Z"
+  },
+  {
+    "symbol": "KSB",
+    "name": "KSB LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 13801,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:49:53.338Z"
+  },
+  {
+    "symbol": "M&MFIN",
+    "name": "M&M FIN. SERVICES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 52268,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:49:53.446Z"
+  },
+  {
+    "symbol": "GANESHHOUC",
+    "name": "Ganesh Housing Limited",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:50:01.621Z"
+  },
+  {
+    "symbol": "RVNL",
+    "name": "RAIL VIKAS NIGAM LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 44665,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:04.875Z"
+  },
+  {
+    "symbol": "PIIND",
+    "name": "PI INDUSTRIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 36714,
+    "mcap_category": "Mid Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Agricultural Inputs",
+    "last_updated": "2026-08-30T17:50:04.879Z"
+  },
+  {
+    "symbol": "ZENSARTECH",
+    "name": "ZENSAR TECHNOLOGIES  LTD",
+    "category_id": "in_stocks",
+    "market_cap": 10694,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:50:04.889Z"
   },
   {
     "symbol": "RADICO",
-    "name": "Radico Khaitan Ltd",
+    "name": "RADICO KHAITAN LTD",
     "category_id": "in_stocks",
     "market_cap": 61699,
     "mcap_category": "Large Cap",
-    "sector": "Consumer Staples & FMCG",
-    "industry": "Breweries &amp; Distilleries",
-    "last_updated": "2026-08-30T11:50:15.093Z"
+    "sector": "Diversified & Other",
+    "industry": "Beverages - Wineries & Distilleries",
+    "last_updated": "2026-08-30T17:50:04.896Z"
+  },
+  {
+    "symbol": "MTARTECH",
+    "name": "MTAR TECHNOLOGIES LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 21532,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:05.166Z"
+  },
+  {
+    "symbol": "MARICO",
+    "name": "MARICO LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 107537,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Household & Personal Products",
+    "last_updated": "2026-08-30T17:50:05.168Z"
+  },
+  {
+    "symbol": "PIDILITIND",
+    "name": "PIDILITE INDUSTRIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 165863,
+    "mcap_category": "Large Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:50:05.169Z"
+  },
+  {
+    "symbol": "MOLDTECH",
+    "name": "MOLD-TEK TECHNOLOGIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 562,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:05.323Z"
+  },
+  {
+    "symbol": "ONGC",
+    "name": "OIL AND NATURAL GAS CORP.",
+    "category_id": "in_stocks",
+    "market_cap": 292177,
+    "mcap_category": "Mega Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Oil & Gas Integrated",
+    "last_updated": "2026-08-30T17:50:05.689Z"
   },
   {
     "symbol": "INOXINDIA",
-    "name": "Inox India Ltd",
+    "name": "INOX INDIA LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 19298,
+    "market_cap": 19224,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Other Industrial Products",
-    "last_updated": "2026-08-30T11:50:17.024Z"
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:05.690Z"
   },
   {
-    "symbol": "TRITURBINE",
-    "name": "Triveni Turbine Ltd",
+    "symbol": "PSPPROJECT",
+    "name": "PSP PROJECTS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 18448,
+    "market_cap": 3524,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Heavy Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:18.095Z"
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:05.691Z"
   },
   {
     "symbol": "NEOGEN",
-    "name": "Neogen Chemicals Ltd",
+    "name": "NEOGEN CHEMICALS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 6051,
+    "market_cap": 6003,
     "mcap_category": "Small Cap",
-    "sector": "Metals & Mining",
+    "sector": "Chemicals & Materials",
     "industry": "Specialty Chemicals",
-    "last_updated": "2026-08-30T11:50:18.733Z"
+    "last_updated": "2026-08-30T17:50:05.692Z"
+  },
+  {
+    "symbol": "TRITURBINE",
+    "name": "TRIVENI TURBINE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 18476,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:06.003Z"
+  },
+  {
+    "symbol": "SBILIFE",
+    "name": "SBI LIFE INSURANCE CO LTD",
+    "category_id": "in_stocks",
+    "market_cap": 176700,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Insurance - Life",
+    "last_updated": "2026-08-30T17:50:06.004Z"
+  },
+  {
+    "symbol": "TRANSRAILL",
+    "name": "TRANSRAIL LIGHTING LTD",
+    "category_id": "in_stocks",
+    "market_cap": 6087,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:06.005Z"
+  },
+  {
+    "symbol": "UDS",
+    "name": "UPDATER SERVICES LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 1503,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Business Services",
+    "last_updated": "2026-08-30T17:50:06.148Z"
+  },
+  {
+    "symbol": "RADIANTCMS",
+    "name": "RADIANT CASH MGMT SER LTD",
+    "category_id": "in_stocks",
+    "market_cap": 418,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Business Services",
+    "last_updated": "2026-08-30T17:50:06.502Z"
+  },
+  {
+    "symbol": "SHYAMMETL",
+    "name": "SHYAM METALICS AND ENGY L",
+    "category_id": "in_stocks",
+    "market_cap": 30738,
+    "mcap_category": "Mid Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:50:06.503Z"
   },
   {
     "symbol": "RITES",
-    "name": "Rites Ltd",
+    "name": "RITES LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 10429,
+    "market_cap": 10431,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Civil Construction",
-    "last_updated": "2026-08-30T11:50:19.531Z"
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:06.504Z"
   },
   {
-    "symbol": "LLOYDSME",
-    "name": "Lloyds Metals N Energy L",
+    "symbol": "RALLIS",
+    "name": "RALLIS INDIA LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 4067,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:19.869Z"
+    "sector": "Chemicals & Materials",
+    "industry": "Agricultural Inputs",
+    "last_updated": "2026-08-30T17:50:06.507Z"
+  },
+  {
+    "symbol": "SANGHVIMOV",
+    "name": "SANGHVI MOVERS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 3835,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Rental & Leasing Services",
+    "last_updated": "2026-08-30T17:50:06.761Z"
   },
   {
     "symbol": "SYRMA",
-    "name": "Syrma Sgs Technology Ltd",
+    "name": "SYRMA SGS TECHNOLOGY LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 28403,
+    "mcap_category": "Mid Cap",
+    "sector": "Information Technology",
+    "industry": "Electronic Components",
+    "last_updated": "2026-08-30T17:50:06.766Z"
+  },
+  {
+    "symbol": "LLOYDSME",
+    "name": "LLOYDS METALS N ENERGY L",
+    "category_id": "in_stocks",
+    "market_cap": 101266,
+    "mcap_category": "Large Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:50:06.776Z"
+  },
+  {
+    "symbol": "RHIM",
+    "name": "RHI MAGNESITA INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 7641,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:20.241Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:50:06.870Z"
+  },
+  {
+    "symbol": "RECLTD",
+    "name": "REC LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 83421,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:50:07.429Z"
   },
   {
     "symbol": "SKIPPER",
-    "name": "Skipper Ltd",
+    "name": "SKIPPER LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 6169,
+    "market_cap": 6162,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Heavy Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:20.839Z"
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:07.431Z"
+  },
+  {
+    "symbol": "LTF",
+    "name": "L&T FINANCE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 78753,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:50:07.431Z"
   },
   {
     "symbol": "SBCL",
-    "name": "Shivalik Bimetal Controls Ltd",
+    "name": "SHIVALIK BIMETAL CON. LTD",
     "category_id": "in_stocks",
-    "market_cap": 6044,
+    "market_cap": 6020,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Iron &amp; Steel Products",
-    "last_updated": "2026-08-30T11:50:26.172Z"
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:50:07.432Z"
+  },
+  {
+    "symbol": "CHOLAHLDNG",
+    "name": "CHOLAMANDALAM FIN HOL LTD",
+    "category_id": "in_stocks",
+    "market_cap": 28054,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:50:07.689Z"
+  },
+  {
+    "symbol": "UNIONBANK",
+    "name": "UNION BANK OF INDIA",
+    "category_id": "in_stocks",
+    "market_cap": 141985,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:50:07.692Z"
+  },
+  {
+    "symbol": "TATAPOWER",
+    "name": "TATA POWER CO LTD",
+    "category_id": "in_stocks",
+    "market_cap": 112428,
+    "mcap_category": "Large Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Independent Power Producers",
+    "last_updated": "2026-08-30T17:50:07.694Z"
   },
   {
     "symbol": "ZENTEC",
-    "name": "Zen Technologies Ltd",
+    "name": "ZEN TECHNOLOGIES LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 16434,
+    "market_cap": 16431,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Aerospace &amp; Defense",
-    "last_updated": "2026-08-30T11:50:26.549Z"
+    "industry": "Aerospace & Defense",
+    "last_updated": "2026-08-30T17:50:07.753Z"
   },
   {
-    "symbol": "BORORENEW",
-    "name": "Borosil Renewables Ltd",
+    "symbol": "THOMASCOOK",
+    "name": "THOMAS COOK (INDIA) LTD",
     "category_id": "in_stocks",
-    "market_cap": 7392,
+    "market_cap": 5097,
     "mcap_category": "Small Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Glass - Industrial",
-    "last_updated": "2026-08-30T11:50:26.863Z"
+    "sector": "Diversified & Other",
+    "industry": "Travel Services",
+    "last_updated": "2026-08-30T17:50:08.402Z"
+  },
+  {
+    "symbol": "TATASTEEL",
+    "name": "TATA STEEL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 232646,
+    "mcap_category": "Mega Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:50:08.403Z"
+  },
+  {
+    "symbol": "SBIN",
+    "name": "STATE BANK OF INDIA",
+    "category_id": "in_stocks",
+    "market_cap": 966907,
+    "mcap_category": "Mega Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:50:08.403Z"
+  },
+  {
+    "symbol": "SWELECTES",
+    "name": "SWELECT ENERGY SYS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 930,
+    "mcap_category": "Micro Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:50:08.404Z"
   },
   {
     "symbol": "TECHNOE",
-    "name": "Techno Electric &amp; Engineering Company Ltd",
+    "name": "TECHNO ELEC & ENG CO. LTD",
     "category_id": "in_stocks",
-    "market_cap": 11927,
+    "market_cap": 11910,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Civil Construction",
-    "last_updated": "2026-08-30T11:50:27.163Z"
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:08.672Z"
   },
   {
     "symbol": "TDPOWERSYS",
-    "name": "TD Power Systems Ltd",
+    "name": "TD POWER SYSTEMS LTD.",
     "category_id": "in_stocks",
-    "market_cap": 23519,
+    "market_cap": 23484,
     "mcap_category": "Mid Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Heavy Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:27.451Z"
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:08.673Z"
+  },
+  {
+    "symbol": "BORORENEW",
+    "name": "BOROSIL RENEWABLES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 7389,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:50:08.673Z"
+  },
+  {
+    "symbol": "COLPAL",
+    "name": "COLGATE PALMOLIVE LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 49689,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Household & Personal Products",
+    "last_updated": "2026-08-30T17:50:08.680Z"
+  },
+  {
+    "symbol": "WAAREEENER",
+    "name": "WAAREE ENERGIES LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 75940,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:50:09.005Z"
+  },
+  {
+    "symbol": "BSE",
+    "name": "BSE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 138287,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Financial Data & Stock Exchanges",
+    "last_updated": "2026-08-30T17:50:09.006Z"
+  },
+  {
+    "symbol": "VEDL",
+    "name": "VEDANTA LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 112439,
+    "mcap_category": "Large Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Other Industrial Metals & Mining",
+    "last_updated": "2026-08-30T17:50:09.030Z"
+  },
+  {
+    "symbol": "CIEINDIA",
+    "name": "CIE AUTOMOTIVE INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 14833,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:50:09.076Z"
+  },
+  {
+    "symbol": "AUBANK",
+    "name": "AU SMALL FINANCE BANK LTD",
+    "category_id": "in_stocks",
+    "market_cap": 80675,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:50:09.589Z"
+  },
+  {
+    "symbol": "ASHOKLEY",
+    "name": "ASHOK LEYLAND LTD",
+    "category_id": "in_stocks",
+    "market_cap": 103245,
+    "mcap_category": "Large Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Farm & Heavy Construction Machinery",
+    "last_updated": "2026-08-30T17:50:09.590Z"
   },
   {
     "symbol": "ZYDUSLIFE",
-    "name": "Zydus Lifesciences Ltd",
+    "name": "ZYDUS LIFESCIENCES LTD",
     "category_id": "in_stocks",
     "market_cap": 118803,
     "mcap_category": "Large Cap",
     "sector": "Healthcare & Pharmaceuticals",
-    "industry": "Pharmaceuticals",
-    "last_updated": "2026-08-30T11:50:27.834Z"
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:50:09.591Z"
   },
   {
-    "symbol": "BSE",
-    "name": "Bse Limited",
+    "symbol": "LGEINDIA",
+    "name": "LG ELECTRONICS INDIA LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
-    "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:28.145Z"
+    "market_cap": 114441,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Consumer Electronics",
+    "last_updated": "2026-08-30T17:50:09.591Z"
   },
   {
-    "symbol": "VEDL",
-    "name": "Vedanta Limited",
+    "symbol": "FIEMIND",
+    "name": "FIEM INDUSTRIES LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 5492,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:28.493Z"
-  },
-  {
-    "symbol": "WAAREEENER",
-    "name": "Waaree Energies Limited",
-    "category_id": "in_stocks",
-    "market_cap": 4500,
-    "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:28.839Z"
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:50:09.925Z"
   },
   {
     "symbol": "JASH",
-    "name": "Jash Engineering Ltd",
+    "name": "JASH ENGINEERING LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 3023,
+    "market_cap": 3013,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Industrial Products",
-    "last_updated": "2026-08-30T11:50:29.129Z"
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:09.927Z"
   },
   {
-    "symbol": "HARIOMPIPE",
-    "name": "Hariom Pipe Industries L",
+    "symbol": "ACMESOLAR",
+    "name": "ACME SOLAR HOLDINGS LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
-    "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:29.476Z"
-  },
-  {
-    "symbol": "KRN",
-    "name": "Krn Heat Exchange N Ref L",
-    "category_id": "in_stocks",
-    "market_cap": 4500,
-    "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:29.820Z"
+    "market_cap": 27690,
+    "mcap_category": "Mid Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Renewable",
+    "last_updated": "2026-08-30T17:50:09.935Z"
   },
   {
     "symbol": "IGPL",
-    "name": "I G Petrochemicals Ltd",
+    "name": "I G PETROCHEMICALS LTD",
     "category_id": "in_stocks",
-    "market_cap": 1640,
+    "market_cap": 1643,
     "mcap_category": "Micro Cap",
-    "sector": "Metals & Mining",
-    "industry": "Commodity Chemicals",
-    "last_updated": "2026-08-30T11:50:30.206Z"
+    "sector": "Chemicals & Materials",
+    "industry": "Chemicals",
+    "last_updated": "2026-08-30T17:50:09.936Z"
+  },
+  {
+    "symbol": "KRN",
+    "name": "KRN HEAT EXCHANGE N REF L",
+    "category_id": "in_stocks",
+    "market_cap": 10553,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Electronic Components",
+    "last_updated": "2026-08-30T17:50:10.211Z"
+  },
+  {
+    "symbol": "HARIOMPIPE",
+    "name": "HARIOM PIPE INDUSTRIES L",
+    "category_id": "in_stocks",
+    "market_cap": 1095,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:50:10.213Z"
+  },
+  {
+    "symbol": "VMM",
+    "name": "VISHAL MEGA MART LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 50122,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Department Stores",
+    "last_updated": "2026-08-30T17:50:10.214Z"
+  },
+  {
+    "symbol": "ENDURANCE",
+    "name": "ENDURANCE TECHNO. LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 41410,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:50:10.215Z"
+  },
+  {
+    "symbol": "HEROMOTOCO",
+    "name": "HERO MOTOCORP LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 112079,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Manufacturers",
+    "last_updated": "2026-08-30T17:50:10.870Z"
+  },
+  {
+    "symbol": "VIKRAMSOLR",
+    "name": "VIKRAM SOLAR LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 6269,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:50:10.872Z"
+  },
+  {
+    "symbol": "GLOBUSSPR",
+    "name": "GLOBUS SPIRITS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 2879,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Beverages - Wineries & Distilleries",
+    "last_updated": "2026-08-30T17:50:10.873Z"
+  },
+  {
+    "symbol": "AIAENG",
+    "name": "AIA ENGINEERING LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 39660,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:10.873Z"
   },
   {
     "symbol": "QPOWER",
-    "name": "Quality Power Elec Equp L",
+    "name": "QUALITY POWER ELEC EQUP L",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 11084,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:30.538Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:50:11.638Z"
+  },
+  {
+    "symbol": "COFORGE",
+    "name": "COFORGE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 89231,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:50:11.650Z"
   },
   {
     "symbol": "AVALON",
-    "name": "Avalon Technologies Ltd",
+    "name": "AVALON TECHNOLOGIES LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 14959,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:30.871Z"
+    "sector": "Information Technology",
+    "industry": "Electronic Components",
+    "last_updated": "2026-08-30T17:50:11.651Z"
+  },
+  {
+    "symbol": "CESC",
+    "name": "CESC LTD",
+    "category_id": "in_stocks",
+    "market_cap": 19617,
+    "mcap_category": "Small Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Regulated Electric",
+    "last_updated": "2026-08-30T17:50:11.652Z"
+  },
+  {
+    "symbol": "BHARATFORG",
+    "name": "BHARAT FORGE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 97420,
+    "mcap_category": "Large Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:50:12.141Z"
+  },
+  {
+    "symbol": "AARTIPHARM",
+    "name": "AARTI PHARMALABS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 7644,
+    "mcap_category": "Small Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:50:12.147Z"
+  },
+  {
+    "symbol": "ARVINDFASN",
+    "name": "ARVIND FASHIONS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 6018,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Apparel Retail",
+    "last_updated": "2026-08-30T17:50:12.230Z"
+  },
+  {
+    "symbol": "CAPLIPOINT",
+    "name": "CAPLIN POINT LAB LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 19184,
+    "mcap_category": "Small Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:50:12.412Z"
+  },
+  {
+    "symbol": "APARINDS",
+    "name": "APAR INDUSTRIES LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 74261,
+    "mcap_category": "Large Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:50:12.413Z"
+  },
+  {
+    "symbol": "COROMANDEL",
+    "name": "COROMANDEL INTERNTL. LTD",
+    "category_id": "in_stocks",
+    "market_cap": 56464,
+    "mcap_category": "Mid Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Agricultural Inputs",
+    "last_updated": "2026-08-30T17:50:12.413Z"
+  },
+  {
+    "symbol": "ELECON",
+    "name": "ELECON ENG. CO. LTD",
+    "category_id": "in_stocks",
+    "market_cap": 9566,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:12.600Z"
+  },
+  {
+    "symbol": "ARTEMISMED",
+    "name": "Artemis Med Service Ltd",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:50:20.709Z"
+  },
+  {
+    "symbol": "COALINDIA",
+    "name": "COAL INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 247125,
+    "mcap_category": "Mega Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Thermal Coal",
+    "last_updated": "2026-08-30T17:50:21.202Z"
+  },
+  {
+    "symbol": "CONTROLPR",
+    "name": "CONTROL PRINT LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 966,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Business Equipment & Supplies",
+    "last_updated": "2026-08-30T17:50:21.203Z"
+  },
+  {
+    "symbol": "MAPMYINDIA",
+    "name": "C.E. INFO SYSTEMS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 5312,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Software - Infrastructure",
+    "last_updated": "2026-08-30T17:50:21.204Z"
+  },
+  {
+    "symbol": "CENTUM",
+    "name": "CENTUM ELECTRONICS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 5091,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Electronic Components",
+    "last_updated": "2026-08-30T17:50:21.309Z"
   },
   {
     "symbol": "BHARATSE",
-    "name": "Bharat Seats Limited",
+    "name": "BHARAT SEATS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 4500,
-    "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:31.232Z"
-  },
-  {
-    "symbol": "SAATVIKGL",
-    "name": "Saatvik Green Energy Ltd",
-    "category_id": "in_stocks",
-    "market_cap": 5368,
-    "mcap_category": "Small Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Other Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:31.773Z"
+    "market_cap": 1415,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:50:21.455Z"
   },
   {
     "symbol": "ECLERX",
-    "name": "Eclerx Services Ltd",
+    "name": "ECLERX SERVICES LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 17899,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:32.124Z"
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:50:21.466Z"
+  },
+  {
+    "symbol": "SAATVIKGL",
+    "name": "SAATVIK GREEN ENERGY LTD",
+    "category_id": "in_stocks",
+    "market_cap": 5364,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:50:21.569Z"
+  },
+  {
+    "symbol": "CANBK",
+    "name": "CANARA BANK",
+    "category_id": "in_stocks",
+    "market_cap": 116422,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:50:21.611Z"
+  },
+  {
+    "symbol": "APOLLO",
+    "name": "APOLLO MICRO SYSTEMS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 14433,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Aerospace & Defense",
+    "last_updated": "2026-08-30T17:50:21.920Z"
+  },
+  {
+    "symbol": "INDOFARM",
+    "name": "INDO FARM EQUIPMENT LTD",
+    "category_id": "in_stocks",
+    "market_cap": 665,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Farm & Heavy Construction Machinery",
+    "last_updated": "2026-08-30T17:50:21.926Z"
   },
   {
     "symbol": "TEMBO",
-    "name": "Tembo Global Ind Ltd",
+    "name": "TEMBO GLOBAL IND LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 10991,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:32.472Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:50:21.927Z"
+  },
+  {
+    "symbol": "ISGEC",
+    "name": "ISGEC HEAVY ENG LTD",
+    "category_id": "in_stocks",
+    "market_cap": 5794,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:22.186Z"
+  },
+  {
+    "symbol": "DPABHUSHAN",
+    "name": "D. P. ABHUSHAN LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 3392,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Luxury Goods",
+    "last_updated": "2026-08-30T17:50:22.188Z"
+  },
+  {
+    "symbol": "CYIENT",
+    "name": "CYIENT LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 11569,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Conglomerates",
+    "last_updated": "2026-08-30T17:50:22.190Z"
+  },
+  {
+    "symbol": "DALMIASUG",
+    "name": "DALMIA BHARAT SUG IN LTD",
+    "category_id": "in_stocks",
+    "market_cap": 3906,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Confectioners",
+    "last_updated": "2026-08-30T17:50:22.270Z"
   },
   {
     "symbol": "GANECOS",
-    "name": "Ganesha Ecosphere Ltd",
+    "name": "GANESHA ECOSPHERE LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 2731,
+    "market_cap": 2726,
     "mcap_category": "Micro Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Other Textile Products",
-    "last_updated": "2026-08-30T11:50:33.281Z"
+    "sector": "Diversified & Other",
+    "industry": "Textile Manufacturing",
+    "last_updated": "2026-08-30T17:50:22.454Z"
+  },
+  {
+    "symbol": "RPEL",
+    "name": "RAGHAV PRODUCTIVITY ENH L",
+    "category_id": "in_stocks",
+    "market_cap": 8013,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Chemicals",
+    "last_updated": "2026-08-30T17:50:22.950Z"
   },
   {
     "symbol": "GRAVITA",
-    "name": "Gravita India Ltd",
+    "name": "GRAVITA INDIA LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 13476,
+    "market_cap": 13293,
     "mcap_category": "Small Cap",
-    "sector": "Metals & Mining",
-    "industry": "Industrial Minerals",
-    "last_updated": "2026-08-30T11:50:33.893Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Metal Fabrication",
+    "last_updated": "2026-08-30T17:50:22.954Z"
   },
   {
-    "symbol": "CARERATING",
-    "name": "Care Ratings Limited",
+    "symbol": "PARACABLES",
+    "name": "PARAMOUNT COMM LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
-    "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:34.260Z"
+    "market_cap": 2052,
+    "mcap_category": "Micro Cap",
+    "sector": "Information Technology",
+    "industry": "Communication Equipment",
+    "last_updated": "2026-08-30T17:50:22.955Z"
   },
   {
-    "symbol": "ASHAPURMIN",
-    "name": "Ashapura Minechem Ltd",
+    "symbol": "RAMCOSYS",
+    "name": "RAMCO SYSTEMS LTD.",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 2177,
+    "mcap_category": "Micro Cap",
+    "sector": "Information Technology",
+    "industry": "Software - Application",
+    "last_updated": "2026-08-30T17:50:22.955Z"
+  },
+  {
+    "symbol": "GPIL",
+    "name": "GODAWARI POW & ISP LTD",
+    "category_id": "in_stocks",
+    "market_cap": 15614,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:34.608Z"
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:50:23.294Z"
   },
   {
     "symbol": "GODFRYPHLP",
-    "name": "Godfrey Phillips India Ltd",
+    "name": "GODFREY PHILLIPS INDIA LT",
     "category_id": "in_stocks",
     "market_cap": 33126,
     "mcap_category": "Mid Cap",
-    "sector": "Consumer Staples & FMCG",
-    "industry": "Cigarettes &amp; Tobacco Products",
-    "last_updated": "2026-08-30T11:50:35.025Z"
+    "sector": "Diversified & Other",
+    "industry": "Tobacco",
+    "last_updated": "2026-08-30T17:50:23.296Z"
+  },
+  {
+    "symbol": "CARERATING",
+    "name": "CARE RATINGS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 5070,
+    "mcap_category": "Small Cap",
+    "sector": "Financial Services",
+    "industry": "Financial Data & Stock Exchanges",
+    "last_updated": "2026-08-30T17:50:23.297Z"
+  },
+  {
+    "symbol": "ASHAPURMIN",
+    "name": "ASHAPURA MINECHEM LTD",
+    "category_id": "in_stocks",
+    "market_cap": 5562,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Other Industrial Metals & Mining",
+    "last_updated": "2026-08-30T17:50:23.297Z"
   },
   {
     "symbol": "SHARDAMOTR",
-    "name": "Sharda Motor Inds Ltd",
+    "name": "SHARDA MOTOR INDS LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 5047,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:35.736Z"
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:50:24.014Z"
+  },
+  {
+    "symbol": "RAMRAT",
+    "name": "RAM RATNA WIRES LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 5472,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:50:24.015Z"
   },
   {
     "symbol": "VISHNU",
-    "name": "Vishnu Chemicals Limited",
+    "name": "VISHNU CHEMICALS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 4362,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:36.058Z"
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:50:24.015Z"
   },
   {
     "symbol": "MACPOWER",
-    "name": "Macpower CNC Machines Ltd",
+    "name": "MACPOWER CNC MACHINES LTD",
     "category_id": "in_stocks",
-    "market_cap": 2008,
+    "market_cap": 1975,
     "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Industrial Products",
-    "last_updated": "2026-08-30T11:50:36.417Z"
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:24.016Z"
   },
   {
-    "symbol": "AAPL",
-    "name": "Apple Inc.",
-    "category_id": "us_stocks",
-    "market_cap": 2900000,
-    "mcap_category": "Mega Cap",
-    "sector": "Information Technology",
-    "industry": "Consumer Electronics",
-    "last_updated": "2026-08-30T11:50:36.619Z"
+    "symbol": "AWL",
+    "name": "AWL AGRI BUSINESS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 25295,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Packaged Foods",
+    "last_updated": "2026-08-30T17:50:24.271Z"
   },
   {
-    "symbol": "TSM",
-    "name": "Taiwan Semiconductor",
-    "category_id": "us_stocks",
-    "market_cap": 850000,
-    "mcap_category": "Mega Cap",
-    "sector": "Information Technology",
-    "industry": "Semiconductors",
-    "last_updated": "2026-08-30T11:50:36.669Z"
+    "symbol": "VEDPOWER",
+    "name": "VEDANTA POWER LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 14348,
+    "mcap_category": "Small Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Independent Power Producers",
+    "last_updated": "2026-08-30T17:50:24.288Z"
+  },
+  {
+    "symbol": "EIDPARRY",
+    "name": "EID PARRY INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 14343,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Agricultural Inputs",
+    "last_updated": "2026-08-30T17:50:24.408Z"
+  },
+  {
+    "symbol": "JUBLINGREA",
+    "name": "JUBILANT INGREVIA LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 10789,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:50:24.409Z"
   },
   {
     "symbol": "AVGO",
     "name": "Broadcom Inc.",
     "category_id": "us_stocks",
-    "market_cap": 780000,
+    "market_cap": 175455,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Semiconductors",
+    "last_updated": "2026-08-30T17:50:25.023Z"
+  },
+  {
+    "symbol": "TSM",
+    "name": "Taiwan Semiconductor Manufactur",
+    "category_id": "us_stocks",
+    "market_cap": 216546,
     "mcap_category": "Mega Cap",
     "sector": "Information Technology",
     "industry": "Semiconductors",
-    "last_updated": "2026-08-30T11:50:36.801Z"
+    "last_updated": "2026-08-30T17:50:25.023Z"
+  },
+  {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "category_id": "us_stocks",
+    "market_cap": 466576,
+    "mcap_category": "Mega Cap",
+    "sector": "Information Technology",
+    "industry": "Consumer Electronics",
+    "last_updated": "2026-08-30T17:50:25.023Z"
+  },
+  {
+    "symbol": "INGERRAND",
+    "name": "INGERSOLL-RAND INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 15377,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:25.034Z"
+  },
+  {
+    "symbol": "ASIANPAINT",
+    "name": "ASIAN PAINTS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 250082,
+    "mcap_category": "Mega Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:50:25.305Z"
+  },
+  {
+    "symbol": "HDFCBANK",
+    "name": "HDFC BANK LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1110054,
+    "mcap_category": "Mega Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:50:25.306Z"
   },
   {
     "symbol": "IRFC",
-    "name": "Indian Railway Finance Corporation Ltd",
+    "name": "INDIAN RAILWAY FIN CORP L",
     "category_id": "in_stocks",
     "market_cap": 109645,
     "mcap_category": "Large Cap",
     "sector": "Financial Services",
-    "industry": "Financial Institution",
-    "last_updated": "2026-08-30T11:50:43.274Z"
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:50:25.311Z"
+  },
+  {
+    "symbol": "INDUSINDBK",
+    "name": "INDUSIND BANK LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 77447,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:50:25.313Z"
+  },
+  {
+    "symbol": "INOXWIND",
+    "name": "INOX WIND LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 12407,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:26.011Z"
   },
   {
     "symbol": "NETWEB",
-    "name": "Netweb Technologies India Ltd",
+    "name": "NETWEB TECH INDIA LTD",
     "category_id": "in_stocks",
-    "market_cap": 5000,
-    "mcap_category": "Small Cap",
+    "market_cap": 31667,
+    "mcap_category": "Mid Cap",
     "sector": "Information Technology",
-    "industry": "IT Enabled Services",
-    "last_updated": "2026-08-30T11:50:43.912Z"
+    "industry": "Computer Hardware",
+    "last_updated": "2026-08-30T17:50:26.015Z"
+  },
+  {
+    "symbol": "PERSISTENT",
+    "name": "PERSISTENT SYSTEMS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 91786,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:50:26.016Z"
+  },
+  {
+    "symbol": "LAOPALA",
+    "name": "LA OPALA RG LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 1945,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "last_updated": "2026-08-30T17:50:26.274Z"
+  },
+  {
+    "symbol": "MOL",
+    "name": "MEGHMANI ORGANICS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 1550,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Agricultural Inputs",
+    "last_updated": "2026-08-30T17:50:26.283Z"
+  },
+  {
+    "symbol": "M&M",
+    "name": "MAHINDRA & MAHINDRA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 400334,
+    "mcap_category": "Mega Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Manufacturers",
+    "last_updated": "2026-08-30T17:50:26.363Z"
   },
   {
     "symbol": "NMDC",
-    "name": "NMDC Ltd",
+    "name": "NMDC LTD.",
     "category_id": "in_stocks",
     "market_cap": 76278,
     "mcap_category": "Large Cap",
-    "sector": "Metals & Mining",
-    "industry": "Industrial Minerals",
-    "last_updated": "2026-08-30T11:50:44.207Z"
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:50:26.378Z"
+  },
+  {
+    "symbol": "JBCHEPHARM",
+    "name": "J B Chemicals And Pharma",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:50:34.568Z"
+  },
+  {
+    "symbol": "GLENMARK",
+    "name": "GLENMARK PHARMACEUTICALS",
+    "category_id": "in_stocks",
+    "market_cap": 70980,
+    "mcap_category": "Large Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:50:35.153Z"
+  },
+  {
+    "symbol": "POWERINDIA",
+    "name": "HITACHI ENERGY INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 148560,
+    "mcap_category": "Large Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:50:35.399Z"
+  },
+  {
+    "symbol": "GRWRHITECH",
+    "name": "GARWARE HI-TECH FILMS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 16820,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:50:35.400Z"
+  },
+  {
+    "symbol": "BOROSCI",
+    "name": "BOROSIL SCIENTIFIC LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1112,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Packaging & Containers",
+    "last_updated": "2026-08-30T17:50:35.415Z"
+  },
+  {
+    "symbol": "AARTIDRUGS",
+    "name": "AARTI DRUGS LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 3833,
+    "mcap_category": "Small Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:50:35.454Z"
+  },
+  {
+    "symbol": "ANGELONE",
+    "name": "ANGEL ONE LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 26862,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Capital Markets",
+    "last_updated": "2026-08-30T17:50:35.678Z"
+  },
+  {
+    "symbol": "GAIL",
+    "name": "GAIL (INDIA) LTD",
+    "category_id": "in_stocks",
+    "market_cap": 112500,
+    "mcap_category": "Large Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Regulated Gas",
+    "last_updated": "2026-08-30T17:50:35.681Z"
+  },
+  {
+    "symbol": "LIQUIDBEES",
+    "name": "Nip Ind Etf Liquid Bees",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:50:44.083Z"
+  },
+  {
+    "symbol": "ORIENTCEM",
+    "name": "ORIENT CEMENT LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 2697,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Building Materials",
+    "last_updated": "2026-08-30T17:50:44.527Z"
+  },
+  {
+    "symbol": "SHAKTIPUMP",
+    "name": "SHAKTI PUMPS (I) LTD",
+    "category_id": "in_stocks",
+    "market_cap": 6084,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:44.545Z"
+  },
+  {
+    "symbol": "SUNDARMFIN",
+    "name": "SUNDARAM FINANCE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 50508,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:50:44.563Z"
+  },
+  {
+    "symbol": "PRAJIND",
+    "name": "PRAJ INDUSTRIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 6392,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:44.565Z"
+  },
+  {
+    "symbol": "TCPLPACK",
+    "name": "TCPL PACKAGING LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 3514,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Packaging & Containers",
+    "last_updated": "2026-08-30T17:50:44.828Z"
   },
   {
     "symbol": "TARIL",
-    "name": "Transformers &amp; Rectifiers India Ltd",
+    "name": "TRANS & RECTI. LTD",
     "category_id": "in_stocks",
-    "market_cap": 9109,
+    "market_cap": 9110,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Heavy Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:44.501Z"
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:50:44.851Z"
+  },
+  {
+    "symbol": "SWSOLAR",
+    "name": "STRLNG & WIL REN ENE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 4561,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:50:44.923Z"
+  },
+  {
+    "symbol": "TATACHEM",
+    "name": "TATA CHEMICALS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 16687,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Chemicals",
+    "last_updated": "2026-08-30T17:50:45.243Z"
+  },
+  {
+    "symbol": "ASTRAL",
+    "name": "ASTRAL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 41165,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Building Products & Equipment",
+    "last_updated": "2026-08-30T17:50:45.559Z"
+  },
+  {
+    "symbol": "TECHM",
+    "name": "TECH MAHINDRA LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 145367,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:50:45.560Z"
+  },
+  {
+    "symbol": "AUROPHARMA",
+    "name": "AUROBINDO PHARMA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 94667,
+    "mcap_category": "Large Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:50:45.857Z"
+  },
+  {
+    "symbol": "POWERMECH",
+    "name": "POWER MECH PROJECTS LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 8154,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:50:45.858Z"
+  },
+  {
+    "symbol": "BSOFT",
+    "name": "BIRLASOFT LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 8413,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Information Technology Services",
+    "last_updated": "2026-08-30T17:50:45.958Z"
+  },
+  {
+    "symbol": "JAINREC",
+    "name": "JAIN RESOURCE RECYCLING L",
+    "category_id": "in_stocks",
+    "market_cap": 9935,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Other Industrial Metals & Mining",
+    "last_updated": "2026-08-30T17:50:45.978Z"
+  },
+  {
+    "symbol": "TATAMOTORS",
+    "name": "Tata Motors Pass Veh Ltd",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:50:54.128Z"
+  },
+  {
+    "symbol": "SWANENERGY",
+    "name": "Swan Energy Limited",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:50:54.130Z"
+  },
+  {
+    "symbol": "STAR",
+    "name": "STRIDES PHARMA SCI LTD",
+    "category_id": "in_stocks",
+    "market_cap": 9387,
+    "mcap_category": "Small Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Drug Manufacturers - Specialty & Generic",
+    "last_updated": "2026-08-30T17:50:54.538Z"
+  },
+  {
+    "symbol": "INTELLECT",
+    "name": "INTELLECT DESIGN ARENA",
+    "category_id": "in_stocks",
+    "market_cap": 9473,
+    "mcap_category": "Small Cap",
+    "sector": "Information Technology",
+    "industry": "Software - Application",
+    "last_updated": "2026-08-30T17:50:54.551Z"
   },
   {
     "symbol": "MUTHOOTFIN",
-    "name": "Muthoot Finance Ltd",
+    "name": "MUTHOOT FINANCE LIMITED",
     "category_id": "in_stocks",
     "market_cap": 124094,
     "mcap_category": "Large Cap",
     "sector": "Financial Services",
-    "industry": "Non Banking Financial Company (NBFC)",
-    "last_updated": "2026-08-30T11:50:44.790Z"
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:50:54.552Z"
   },
   {
     "symbol": "FCL",
-    "name": "Fineotex Chemical Ltd",
+    "name": "FINEOTEX CHEMICAL LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 5826,
+    "market_cap": 5817,
     "mcap_category": "Small Cap",
-    "sector": "Metals & Mining",
+    "sector": "Chemicals & Materials",
     "industry": "Specialty Chemicals",
-    "last_updated": "2026-08-30T11:50:45.085Z"
+    "last_updated": "2026-08-30T17:50:54.556Z"
+  },
+  {
+    "symbol": "ASIANTILES",
+    "name": "ASIAN GRANITO IND. LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 1423,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Building Products & Equipment",
+    "last_updated": "2026-08-30T17:50:54.824Z"
   },
   {
     "symbol": "ANANTRAJ",
-    "name": "Anant Raj Ltd",
+    "name": "ANANT RAJ LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 21814,
+    "market_cap": 21760,
     "mcap_category": "Mid Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Residential, Commercial Projects",
-    "last_updated": "2026-08-30T11:50:45.351Z"
+    "sector": "Infrastructure & Real Estate",
+    "industry": "Real Estate - Development",
+    "last_updated": "2026-08-30T17:50:54.831Z"
+  },
+  {
+    "symbol": "GEMAROMA",
+    "name": "GEM AROMATICS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 884,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Chemicals",
+    "last_updated": "2026-08-30T17:50:54.838Z"
+  },
+  {
+    "symbol": "CENTRALBK",
+    "name": "CENTRAL BANK OF INDIA",
+    "category_id": "in_stocks",
+    "market_cap": 27688,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:50:54.898Z"
+  },
+  {
+    "symbol": "GICRE",
+    "name": "GENERAL INS CORP OF INDIA",
+    "category_id": "in_stocks",
+    "market_cap": 62106,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Insurance - Reinsurance",
+    "last_updated": "2026-08-30T17:50:55.215Z"
+  },
+  {
+    "symbol": "DATAPATTNS",
+    "name": "DATA PATTERNS INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 25904,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Aerospace & Defense",
+    "last_updated": "2026-08-30T17:50:55.219Z"
+  },
+  {
+    "symbol": "CHALET",
+    "name": "CHALET HOTELS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Lodging",
+    "last_updated": "2026-08-30T17:50:55.226Z"
   },
   {
     "symbol": "CUMMINSIND",
-    "name": "Cummins India Ltd",
+    "name": "CUMMINS INDIA LTD",
     "category_id": "in_stocks",
     "market_cap": 143950,
     "mcap_category": "Large Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Compressors, Pumps &amp; Diesel Engines",
-    "last_updated": "2026-08-30T11:50:45.674Z"
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:55.641Z"
   },
   {
-    "symbol": "GABRIEL",
-    "name": "Gabriel India Ltd",
+    "symbol": "GVT&D",
+    "name": "GE VERNOVA T&D INDIA LTD",
     "category_id": "in_stocks",
-    "market_cap": 24238,
+    "market_cap": 111104,
+    "mcap_category": "Large Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:50:55.642Z"
+  },
+  {
+    "symbol": "GOODLUCK",
+    "name": "GOODLUCK INDIA LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 4495,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Steel",
+    "last_updated": "2026-08-30T17:50:55.643Z"
+  },
+  {
+    "symbol": "BOROLTD",
+    "name": "BOROSIL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 2870,
+    "mcap_category": "Micro Cap",
+    "sector": "Diversified & Other",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "last_updated": "2026-08-30T17:50:55.643Z"
+  },
+  {
+    "symbol": "SEQUENT",
+    "name": "Sequent Scientific Ltd.",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:51:03.961Z"
+  },
+  {
+    "symbol": "BBL",
+    "name": "BHARAT BIJLEE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 2667,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:51:04.400Z"
+  },
+  {
+    "symbol": "EXIDEIND",
+    "name": "EXIDE INDUSTRIES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 37697,
     "mcap_category": "Mid Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Auto Components &amp; Equipments",
-    "last_updated": "2026-08-30T11:50:45.937Z"
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:51:04.401Z"
   },
   {
     "symbol": "AFFLE",
-    "name": "Affle 3i Ltd",
+    "name": "AFFLE 3I LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 22831,
+    "market_cap": 22786,
     "mcap_category": "Mid Cap",
-    "sector": "Information Technology",
-    "industry": "IT Enabled Services",
-    "last_updated": "2026-08-30T11:50:46.228Z"
+    "sector": "Telecommunication & Media",
+    "industry": "Advertising Agencies",
+    "last_updated": "2026-08-30T17:51:04.434Z"
+  },
+  {
+    "symbol": "GABRIEL",
+    "name": "GABRIEL INDIA LTD",
+    "category_id": "in_stocks",
+    "market_cap": 24334,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:51:04.438Z"
   },
   {
     "symbol": "DYCL",
-    "name": "Dynamic Cables Ltd",
+    "name": "DYNAMIC CABLES LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 5000,
-    "mcap_category": "Small Cap",
+    "market_cap": 2370,
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Cables - Electricals",
-    "last_updated": "2026-08-30T11:50:46.503Z"
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:51:04.681Z"
   },
   {
     "symbol": "SANSERA",
-    "name": "Sansera Engineering Ltd",
+    "name": "SANSERA ENGINEERING LTD",
     "category_id": "in_stocks",
-    "market_cap": 24082,
+    "market_cap": 24077,
     "mcap_category": "Mid Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Auto Components &amp; Equipments",
-    "last_updated": "2026-08-30T11:50:46.820Z"
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:51:04.700Z"
+  },
+  {
+    "symbol": "CHENNPETRO",
+    "name": "CHENNAI PETROLEUM CORP LT",
+    "category_id": "in_stocks",
+    "market_cap": 20043,
+    "mcap_category": "Mid Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Oil & Gas Refining & Marketing",
+    "last_updated": "2026-08-30T17:51:04.778Z"
   },
   {
     "symbol": "RRKABEL",
-    "name": "R R Kabel Ltd",
+    "name": "R R KABEL LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 32859,
+    "market_cap": 32891,
     "mcap_category": "Mid Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Cables - Electricals",
-    "last_updated": "2026-08-30T11:50:47.157Z"
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:51:04.805Z"
   },
   {
     "symbol": "EMMVEE",
-    "name": "Emmvee Photovoltaic Power Ltd",
+    "name": "EMMVEE PHOTOVOLTAIC PWR L",
     "category_id": "in_stocks",
-    "market_cap": 22439,
+    "market_cap": 22477,
     "mcap_category": "Mid Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Other Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:47.435Z"
+    "sector": "Information Technology",
+    "industry": "Solar",
+    "last_updated": "2026-08-30T17:51:05.246Z"
+  },
+  {
+    "symbol": "KPIGREEN",
+    "name": "KPI GREEN ENERGY LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 6241,
+    "mcap_category": "Small Cap",
+    "sector": "Energy, Power & Utilities",
+    "industry": "Utilities - Renewable",
+    "last_updated": "2026-08-30T17:51:05.250Z"
   },
   {
     "symbol": "FRACTAL",
-    "name": "Fractal Analytics Ltd",
+    "name": "FRACTAL ANALYTICS LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 14519,
+    "market_cap": 14531,
     "mcap_category": "Small Cap",
     "sector": "Information Technology",
-    "industry": "Computers - Software &amp; Consulting",
-    "last_updated": "2026-08-30T11:50:47.692Z"
+    "industry": "Software - Infrastructure",
+    "last_updated": "2026-08-30T17:51:05.250Z"
+  },
+  {
+    "symbol": "JYOTICNC",
+    "name": "JYOTI CNC AUTOMATION LTD",
+    "category_id": "in_stocks",
+    "market_cap": 23502,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:51:05.251Z"
   },
   {
     "symbol": "TBOTEK",
-    "name": "TBO Tek Ltd",
+    "name": "TBO TEK LIMITED",
     "category_id": "in_stocks",
-    "market_cap": 18272,
+    "market_cap": 17982,
     "mcap_category": "Small Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Tour, Travel Related Services",
-    "last_updated": "2026-08-30T11:50:47.982Z"
+    "sector": "Diversified & Other",
+    "industry": "Travel Services",
+    "last_updated": "2026-08-30T17:51:05.874Z"
   },
   {
-    "symbol": "POONAWALLA",
-    "name": "Poonawalla Fincorp Ltd",
+    "symbol": "VOGL",
+    "name": "VEDANTA OIL AND GAS LTD",
     "category_id": "in_stocks",
-    "market_cap": 42184,
+    "market_cap": 15769,
+    "mcap_category": "Small Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Other Industrial Metals & Mining",
+    "last_updated": "2026-08-30T17:51:05.875Z"
+  },
+  {
+    "symbol": "SERVOTECH",
+    "name": "SERVOTECH REN POW SYS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1825,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:51:05.876Z"
+  },
+  {
+    "symbol": "THERMAX",
+    "name": "THERMAX LTD",
+    "category_id": "in_stocks",
+    "market_cap": 44519,
     "mcap_category": "Mid Cap",
-    "sector": "Financial Services",
-    "industry": "Non Banking Financial Company (NBFC)",
-    "last_updated": "2026-08-30T11:50:48.291Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Conglomerates",
+    "last_updated": "2026-08-30T17:51:05.877Z"
   },
   {
     "symbol": "VIKRAN",
-    "name": "Vikran Engineering Ltd",
+    "name": "VIKRAN ENGINEERING LTD",
     "category_id": "in_stocks",
-    "market_cap": 1532,
+    "market_cap": 1535,
     "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Civil Construction",
-    "last_updated": "2026-08-30T11:50:48.550Z"
-  },
-  {
-    "symbol": "JYOTISTRUC",
-    "name": "Jyoti Structures Ltd",
-    "category_id": "in_stocks",
-    "market_cap": 1210,
-    "mcap_category": "Micro Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Heavy Electrical Equipment",
-    "last_updated": "2026-08-30T11:50:48.843Z"
+    "industry": "Engineering & Construction",
+    "last_updated": "2026-08-30T17:51:06.884Z"
   },
   {
     "symbol": "MSUMI",
-    "name": "Motherson Sumi Wiring India Ltd",
+    "name": "MOTHERSON SUMI WRNG IND L",
+    "category_id": "in_stocks",
+    "market_cap": 24988,
+    "mcap_category": "Mid Cap",
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:51:06.888Z"
+  },
+  {
+    "symbol": "PRICOLLTD",
+    "name": "PRICOL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 5000,
     "mcap_category": "Small Cap",
-    "sector": "Consumer Discretionary",
-    "industry": "Auto Components &amp; Equipments",
-    "last_updated": "2026-08-30T11:50:49.151Z"
+    "sector": "Diversified & Other",
+    "industry": "Auto Parts",
+    "last_updated": "2026-08-30T17:51:06.889Z"
   },
   {
-    "symbol": "SIKA",
-    "name": "Sika Interplant Systems Ltd",
+    "symbol": "POONAWALLA",
+    "name": "POONAWALLA FINCORP LTD",
     "category_id": "in_stocks",
-    "market_cap": 2160,
-    "mcap_category": "Micro Cap",
-    "sector": "Capital Goods & Industrials",
-    "industry": "Aerospace &amp; Defense",
-    "last_updated": "2026-08-30T11:50:49.451Z"
+    "market_cap": 41853,
+    "mcap_category": "Mid Cap",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "last_updated": "2026-08-30T17:51:06.889Z"
   },
   {
     "symbol": "VAML",
-    "name": "Vedanta Aluminium Metal L",
+    "name": "VEDANTA ALUMINIUM METAL L",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 178225,
+    "mcap_category": "Large Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Aluminum",
+    "last_updated": "2026-08-30T17:51:07.146Z"
+  },
+  {
+    "symbol": "JYOTISTRUC",
+    "name": "JYOTI STRUCTURES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1219,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:51:07.149Z"
+  },
+  {
+    "symbol": "SIKA",
+    "name": "SIKA INTERPLANT SYSTEMS L",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:50.146Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Aerospace & Defense",
+    "last_updated": "2026-08-30T17:51:07.259Z"
   },
   {
     "symbol": "PLTR",
-    "name": "Palantir Technologies",
+    "name": "Palantir Technologies Inc.",
     "category_id": "us_stocks",
-    "market_cap": 150000,
-    "mcap_category": "Large Cap",
+    "market_cap": 44767,
+    "mcap_category": "Mid Cap",
     "sector": "Information Technology",
-    "industry": "Software - Application",
-    "last_updated": "2026-08-30T11:50:50.361Z"
+    "industry": "Software - Infrastructure",
+    "last_updated": "2026-08-30T17:51:07.336Z"
+  },
+  {
+    "symbol": "EIHOTEL",
+    "name": "EIH LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 18633,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Lodging",
+    "last_updated": "2026-08-30T17:51:07.664Z"
+  },
+  {
+    "symbol": "GATEWAY",
+    "name": "GATEWAY DISTRIPARKS LTD",
+    "category_id": "in_stocks",
+    "market_cap": 2668,
+    "mcap_category": "Micro Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Integrated Freight & Logistics",
+    "last_updated": "2026-08-30T17:51:07.664Z"
+  },
+  {
+    "symbol": "ASAHISONG",
+    "name": "ASAHI SONGWON COLOR LTD",
+    "category_id": "in_stocks",
+    "market_cap": 438,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Specialty Chemicals",
+    "last_updated": "2026-08-30T17:51:07.761Z"
+  },
+  {
+    "symbol": "ASTERDM",
+    "name": "ASTER DM QUALITY CARE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 65175,
+    "mcap_category": "Large Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Medical Care Facilities",
+    "last_updated": "2026-08-30T17:51:07.762Z"
+  },
+  {
+    "symbol": "BANKBARODA",
+    "name": "BANK OF BARODA",
+    "category_id": "in_stocks",
+    "market_cap": 125095,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:51:07.928Z"
   },
   {
     "symbol": "ACE",
-    "name": "Action Construction Equipment Ltd",
+    "name": "ACTION CONST EQUIP LTD",
     "category_id": "in_stocks",
-    "market_cap": 13583,
+    "market_cap": 13617,
     "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
-    "industry": "Construction Vehicles",
-    "last_updated": "2026-08-30T11:50:50.507Z"
+    "industry": "Farm & Heavy Construction Machinery",
+    "last_updated": "2026-08-30T17:51:08.021Z"
+  },
+  {
+    "symbol": "ASTEC",
+    "name": "ASTEC LIFESCIENCES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 1292,
+    "mcap_category": "Micro Cap",
+    "sector": "Chemicals & Materials",
+    "industry": "Agricultural Inputs",
+    "last_updated": "2026-08-30T17:51:08.034Z"
+  },
+  {
+    "symbol": "EMBASSY",
+    "name": "Embassy Office Parks REIT",
+    "category_id": "in_stocks",
+    "market_cap": 41395,
+    "mcap_category": "Mid Cap",
+    "sector": "Infrastructure & Real Estate",
+    "industry": "REIT - Office",
+    "last_updated": "2026-08-30T17:51:08.687Z"
+  },
+  {
+    "symbol": "CARYSIL",
+    "name": "CARYSIL LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 3178,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Furnishings, Fixtures & Appliances",
+    "last_updated": "2026-08-30T17:51:09.002Z"
   },
   {
     "symbol": "HBLENGINE",
-    "name": "Hbl Engineering Ltd",
+    "name": "HBL ENGINEERING LTD",
     "category_id": "in_stocks",
-    "market_cap": 4500,
+    "market_cap": 18695,
     "mcap_category": "Small Cap",
-    "sector": "Industrials",
-    "industry": "Industrial Equipment",
-    "last_updated": "2026-08-30T11:50:50.876Z"
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:51:09.018Z"
+  },
+  {
+    "symbol": "AVANTIFEED",
+    "name": "AVANTI FEEDS LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 11281,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Packaged Foods",
+    "last_updated": "2026-08-30T17:51:09.107Z"
+  },
+  {
+    "symbol": "BLUESTARCO",
+    "name": "BLUE STAR LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 30428,
+    "mcap_category": "Mid Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Building Products & Equipment",
+    "last_updated": "2026-08-30T17:51:09.377Z"
+  },
+  {
+    "symbol": "FINCABLES",
+    "name": "FINOLEX CABLES LTD",
+    "category_id": "in_stocks",
+    "market_cap": 19882,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:51:09.384Z"
+  },
+  {
+    "symbol": "BANKINDIA",
+    "name": "BANK OF INDIA",
+    "category_id": "in_stocks",
+    "market_cap": 65558,
+    "mcap_category": "Large Cap",
+    "sector": "Financial Services",
+    "industry": "Banks - Regional",
+    "last_updated": "2026-08-30T17:51:09.396Z"
+  },
+  {
+    "symbol": "FORTIS",
+    "name": "FORTIS HEALTHCARE LTD",
+    "category_id": "in_stocks",
+    "market_cap": 69966,
+    "mcap_category": "Large Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Medical Care Facilities",
+    "last_updated": "2026-08-30T17:51:09.532Z"
+  },
+  {
+    "symbol": "ADORWELD",
+    "name": "Ador Welding Ltd",
+    "category_id": "in_stocks",
+    "market_cap": 5000,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Diversified",
+    "last_updated": "2026-08-30T17:51:17.659Z"
+  },
+  {
+    "symbol": "MEDANTA",
+    "name": "GLOBAL HEALTH LIMITED",
+    "category_id": "in_stocks",
+    "market_cap": 39488,
+    "mcap_category": "Mid Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Medical Care Facilities",
+    "last_updated": "2026-08-30T17:51:18.296Z"
+  },
+  {
+    "symbol": "GREAVESCOT",
+    "name": "GREAVES COTTON LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 4522,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Specialty Industrial Machinery",
+    "last_updated": "2026-08-30T17:51:18.345Z"
+  },
+  {
+    "symbol": "GENUSPOWER",
+    "name": "GENUS POWER INFRASTRU LTD",
+    "category_id": "in_stocks",
+    "market_cap": 9736,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Electrical Equipment & Parts",
+    "last_updated": "2026-08-30T17:51:18.348Z"
+  },
+  {
+    "symbol": "GPPL",
+    "name": "GUJARAT PIPAVAV PORT LTD",
+    "category_id": "in_stocks",
+    "market_cap": 8159,
+    "mcap_category": "Small Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Marine Shipping",
+    "last_updated": "2026-08-30T17:51:18.349Z"
   },
   {
     "symbol": "META",
     "name": "Meta Platforms, Inc.",
     "category_id": "us_stocks",
-    "market_cap": 1450000,
-    "mcap_category": "Mega Cap",
-    "sector": "Information Technology",
+    "market_cap": 147251,
+    "mcap_category": "Large Cap",
+    "sector": "Telecommunication & Media",
     "industry": "Internet Content & Information",
-    "last_updated": "2026-08-30T11:50:51.086Z"
+    "last_updated": "2026-08-30T17:51:18.600Z"
+  },
+  {
+    "symbol": "ASML",
+    "name": "ASML Holding N.V. - New York Re",
+    "category_id": "us_stocks",
+    "market_cap": 65150,
+    "mcap_category": "Large Cap",
+    "sector": "Information Technology",
+    "industry": "Semiconductor Equipment & Materials",
+    "last_updated": "2026-08-30T17:51:18.646Z"
+  },
+  {
+    "symbol": "GOKEX",
+    "name": "GOKALDAS EXPORTS LTD.",
+    "category_id": "in_stocks",
+    "market_cap": 5649,
+    "mcap_category": "Small Cap",
+    "sector": "Diversified & Other",
+    "industry": "Apparel Manufacturing",
+    "last_updated": "2026-08-30T17:51:18.757Z"
   }
 ]

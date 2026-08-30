@@ -662,11 +662,24 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
       const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim();
       const meta = metadataMap[h.symbol] || metadataMap[cleanSym] || metadataMap[cleanSym.toUpperCase()] || {};
 
+      const finalSector = (meta.sector && meta.sector !== 'Unknown') ? meta.sector : (h.sector && h.sector !== 'Unknown' ? h.sector : 'Unknown');
+      const finalMcap = (meta.mcap_category && meta.mcap_category !== 'Unknown') ? meta.mcap_category : (meta.capitalisation && meta.capitalisation !== 'Unknown') ? meta.capitalisation : (h.market_cap && h.market_cap !== 'Unknown' ? h.market_cap : 'Unknown');
+
+      let finalName = h.name;
+      if (h.category_id === 'us_stocks' && typeof finalName === 'string') {
+        finalName = finalName.replace(/\b(Common Stock|Capital Stock|Registry Share|Registry Shares|Class A|Class B|Class C|Ordinary Shares|Ordinary Share)\b/ig, '')
+                             .replace(/,\s*Inc\.?$/i, ' Inc.')
+                             .replace(/,\s*Corp\.?$/i, ' Corp.')
+                             .replace(/[,\.\-\s]+$/, '')
+                             .trim();
+      }
+
       return {
         ...h,
+        name: finalName || h.name,
         current_price: currentPriceNum,
-        sector: meta.sector || h.sector || 'Unknown',
-        market_cap: meta.mcap_category || meta.capitalisation || h.market_cap || 'Unknown',
+        sector: finalSector,
+        market_cap: finalMcap,
         market_cap_cr: meta.market_cap || null,
         industry: meta.industry || null,
         category_name: catMap[h.category_id] ? catMap[h.category_id].name : h.category_id,
@@ -720,6 +733,10 @@ app.post('/api/holdings', authenticateToken, async (req, res) => {
       date: new Date().toISOString().split('T')[0],
       notes: `Initial purchase of ${name} (${symbol})`
     });
+    // Automatically sync metadata in background for the newly added share
+    import('../scripts/sync_asset_metadata.mjs')
+      .then(m => m.syncAssetMetadata(false))
+      .catch(e => console.error('[Background Sync Error]:', e));
 
     res.json({ success: true, id: newHolding.id });
   } catch (err) {
@@ -2601,6 +2618,13 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       await db.insert('transactions', txRecord);
       await recalculateHoldingState(holdingId);
       invalidateBenchmarkCache();
+
+      // If a new stock holding was created, sync its metadata in background
+      if (existingHoldings.length === 0 && (portfolio === 'in_stocks' || portfolio === 'us_stocks')) {
+        import('../scripts/sync_asset_metadata.mjs')
+          .then(m => m.syncAssetMetadata(false))
+          .catch(e => console.error('[Background Sync Error]:', e));
+      }
 
       return res.json({ success: true, holdingId, action: 'transaction_recorded' });
     }

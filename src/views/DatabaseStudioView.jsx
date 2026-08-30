@@ -126,7 +126,7 @@ export default function DatabaseStudioView() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/40">
+              <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40">
                 {tableData.rows.map(row => (
                   <tr key={`row-${row.id}`} className="hover:bg-slate-800/40">
                     {tableData.columns.map(col => {

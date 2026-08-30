@@ -110,7 +110,7 @@ export default function DividendsView() {
                   <th className="py-3 px-3 text-center rounded-r-xl">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/40 text-xs">
+              <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs">
                 {data.history.map((d, i) => (
                   <motion.tr 
                     key={d.id} 

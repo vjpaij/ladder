@@ -432,7 +432,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                   </tr>
                 )}
               </thead>
-              <tbody className="divide-y divide-slate-800/40 text-xs">
+              <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs">
                 {sortedHoldings.map((h, i) => {
                   const qty = Number(h.quantity) || 0;
                   const isClosed = qty === 0;
@@ -455,8 +455,8 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                       onClick={() => setSelectedHolding(h)}
                       className={`cursor-pointer transition-all ${
                         isClosed
-                          ? 'bg-slate-900/30 hover:bg-slate-800/50 border-l-2 border-l-amber-500/50'
-                          : 'hover:bg-slate-800/40 border-l-2 border-l-transparent hover:border-l-amber-500'
+                          ? 'bg-slate-900/30 hover:bg-slate-800/50'
+                          : 'hover:bg-slate-800/40'
                       }`}
                       initial={{ opacity: 0, x: -5 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -486,7 +486,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol} • {h.sector || 'Mutual Funds'}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</span>
                               {h.quote_date && (
                                 <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
                                   (h.quote_date === todayStr || h.quote_date === todayFormatted)

@@ -664,7 +664,7 @@ export default function CalendarView() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/40 text-xs font-mono">
+                <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs font-mono">
                   {sortedLogs.map((log, i) => {
                     const isPos = log.daily_pnl_inr > 0;
                     const isNeg = log.daily_pnl_inr < 0;
@@ -689,7 +689,7 @@ export default function CalendarView() {
                         }`}
                       >
                         {/* Sticky Date / Period Column */}
-                        <td className="sticky left-0 z-20 bg-slate-950/95 group-hover:bg-slate-900/95 py-2.5 px-3 font-sans border-r border-slate-800 transition-colors">
+                        <td className="sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 py-2.5 px-3 font-sans border-r border-slate-800 transition-colors">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full shrink-0 ${
                               isPos ? 'bg-emerald-400' : isNeg ? 'bg-rose-400' : 'bg-blue-400'

@@ -5,6 +5,16 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.7] - 2026-08-30
+
+### Added & Enhanced
+- **High-Speed Metadata Engine Upgrade**: Replaced slow sequential Screener web scraping with concurrent, high-throughput Yahoo Finance primary API (`yahoo-finance2`) integration in `scripts/sync_asset_metadata.mjs`. Completed full metadata sync across all 343 assets (including previously missing exited shares).
+- **Exited Shares & Automated Metadata Sync**: Modified metadata sync to fetch metadata from APIs for *all* holdings (including exited shares). Added an automated asynchronous background trigger in `POST /api/holdings` to run metadata sync immediately upon adding any new share.
+- **Data Cleaning & UX Formatting**: Fixed sector override bug where missing metadata sectors saved as 'Unknown' were overwriting valid database sectors. Cleaned US Stock names by stripping out verbose legal/registry terms (e.g., "Common Stock", "Class A", "Registry Share").
+- **UI Theme Alignment & Table Border Consistency**: Resolved black headers on light theme in Calendar View. Replaced `divide-y` with direct `[&>tr]:border-b` across all portfolio table bodies and removed left-edge vertical borders across portfolio views for a clean, borderless design.
+
+---
+
 ## [4.9.2] - 2026-08-30
 
 ### Performance Optimization

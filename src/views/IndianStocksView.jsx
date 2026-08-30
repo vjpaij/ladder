@@ -373,7 +373,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                     </tr>
                   )}
                 </thead>
-                <tbody className="divide-y divide-slate-800/40 text-xs">
+                <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs">
                   {sortedHoldings.map((h, i) => {
                     const qty = Number(h.quantity) || 0;
                     const isClosed = qty === 0;
@@ -395,8 +395,8 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                         onClick={() => setSelectedHolding(h)}
                         className={`cursor-pointer transition-all ${
                           isClosed
-                            ? 'bg-slate-900/30 hover:bg-slate-800/50 border-l-2 border-l-amber-500/50'
-                            : 'hover:bg-slate-800/40 border-l-2 border-l-transparent hover:border-l-emerald-500'
+                            ? 'bg-slate-900/30 hover:bg-slate-800/50'
+                            : 'hover:bg-slate-800/40'
                         }`}
                         initial={{ opacity: 0, x: -5 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -425,7 +425,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-slate-500 font-mono">{h.symbol} • {h.sector || 'Equity'}</div>
+                              <div className="text-[10px] text-slate-500 font-mono">{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</div>
                             </div>
                           </div>
                         </td>

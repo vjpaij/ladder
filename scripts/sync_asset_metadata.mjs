@@ -1,16 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import YahooFinance from 'yahoo-finance2';
 import { supabase } from '../server/supabaseClient.js';
 import { db, initDatabase } from '../server/db.js';
+import { normalizeSector } from './sync_mf_holdings.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_FILE = path.join(__dirname, '../data/asset_metadata.json');
 
-import { normalizeSector } from './sync_mf_holdings.mjs';
+const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
-// US Stocks Metadata Catalog with Normalized Sectors
+// Known US Stocks fallback
 const US_STOCKS_METADATA = {
   MSFT: { name: 'Microsoft Corporation', market_cap: 2650000, mcap_category: 'Mega Cap', sector: 'Information Technology', industry: 'Software - Infrastructure' },
   NVDA: { name: 'NVIDIA Corporation', market_cap: 2750000, mcap_category: 'Mega Cap', sector: 'Information Technology', industry: 'Semiconductors' },
@@ -25,86 +27,118 @@ const US_STOCKS_METADATA = {
   ANET: { name: 'Arista Networks, Inc.', market_cap: 110000, mcap_category: 'Large Cap', sector: 'Information Technology', industry: 'Computer Hardware & Networking' }
 };
 
-export async function fetchIndianStockMetadata(symbol) {
+export async function fetchStockMetadata(symbol, category_id = 'in_stocks') {
   const cleanSym = symbol.replace(/\.(NS|BO)$/i, '').trim();
-  const urls = [
-    `https://www.screener.in/company/${cleanSym}/consolidated/`,
-    `https://www.screener.in/company/${cleanSym}/`
-  ];
 
-  let html = null;
-  for (const u of urls) {
+  // 1. Try Yahoo Finance primary
+  const symbolsToTry = category_id === 'us_stocks' 
+    ? [cleanSym] 
+    : [`${cleanSym}.NS`, `${cleanSym}.BO`];
+
+  for (const sym of symbolsToTry) {
     try {
-      const res = await fetch(u, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-        redirect: 'follow',
-        signal: AbortSignal.timeout(6000)
-      });
-      if (res.ok) {
-        const text = await res.text();
-        if (text.includes('Market Cap')) {
-          html = text;
-          break;
-        }
+      const res = await yf.quoteSummary(sym, { modules: ['summaryProfile', 'price'] });
+      if (res && (res.summaryProfile?.sector || res.summaryProfile?.industry)) {
+        const rawSector = res.summaryProfile.sector || res.summaryProfile.industry;
+        const sector = normalizeSector(rawSector);
+        const industry = res.summaryProfile.industry || sector;
+        const marketCapRaw = res.price?.marketCap || 0;
+        const mcapCr = Math.round(marketCapRaw / 1e7);
+
+        let mcap_category = 'Small Cap';
+        if (mcapCr >= 200000) mcap_category = 'Mega Cap';
+        else if (mcapCr >= 60000) mcap_category = 'Large Cap';
+        else if (mcapCr >= 20000) mcap_category = 'Mid Cap';
+        else if (mcapCr >= 3000) mcap_category = 'Small Cap';
+        else if (mcapCr > 0) mcap_category = 'Micro Cap';
+
+        return {
+          symbol: cleanSym,
+          name: res.price?.shortName || res.price?.longName || cleanSym,
+          market_cap: mcapCr || 5000,
+          mcap_category,
+          sector,
+          industry
+        };
       }
-    } catch (e) {}
+    } catch (e) {
+      // try next
+    }
   }
 
-  // If direct URL failed, use Screener search API to find exact URL slug
-  if (!html) {
+  // 2. Fallback to Screener for Indian stocks
+  if (category_id === 'in_stocks') {
     try {
-      const searchRes = await fetch(`https://www.screener.in/api/company/search/?q=${encodeURIComponent(cleanSym)}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-        signal: AbortSignal.timeout(6000)
-      });
-      if (searchRes.ok) {
-        const data = await searchRes.json();
-        if (data && data.length > 0 && data[0].url) {
-          const pageRes = await fetch(`https://www.screener.in${data[0].url}`, {
+      const urls = [
+        `https://www.screener.in/company/${cleanSym}/consolidated/`,
+        `https://www.screener.in/company/${cleanSym}/`
+      ];
+
+      let html = null;
+      for (const u of urls) {
+        try {
+          const res = await fetch(u, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
             redirect: 'follow',
-            signal: AbortSignal.timeout(6000)
+            signal: AbortSignal.timeout(4000)
           });
-          if (pageRes.ok) html = await pageRes.text();
-        }
+          if (res.ok) {
+            const text = await res.text();
+            if (text.includes('Market Cap')) {
+              html = text;
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (html) {
+        const mCapMatch = html.match(/Market Cap[\s\S]*?class="number">([\d,]+)/i);
+        const mcapCr = mCapMatch ? Number(mCapMatch[1].replace(/,/g, '')) : null;
+
+        const sectorMatch = html.match(/title="Broad Sector">([^<]+)<\/a>/i) || html.match(/Sector:[\s\S]*?<a[^>]*>([^<]+)<\/a>/i);
+        const industryMatch = html.match(/title="Industry">([^<]+)<\/a>/i) || html.match(/Industry:[\s\S]*?<a[^>]*>([^<]+)<\/a>/i);
+        const nameMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+        const name = nameMatch ? nameMatch[1].trim() : cleanSym;
+
+        let sector = sectorMatch ? sectorMatch[1].trim() : null;
+        let industry = industryMatch ? industryMatch[1].trim() : null;
+        if (!sector && industry) sector = industry;
+        sector = normalizeSector(sector);
+
+        let mcap_category = 'Small Cap';
+        if (mcapCr >= 200000) mcap_category = 'Mega Cap';
+        else if (mcapCr >= 60000) mcap_category = 'Large Cap';
+        else if (mcapCr >= 20000) mcap_category = 'Mid Cap';
+        else if (mcapCr >= 3000) mcap_category = 'Small Cap';
+        else if (mcapCr) mcap_category = 'Micro Cap';
+
+        return {
+          symbol: cleanSym,
+          name,
+          market_cap: mcapCr || 5000,
+          mcap_category,
+          sector,
+          industry: industry || sector
+        };
       }
     } catch (e) {}
   }
 
-  if (!html) return null;
-
-  const mCapMatch = html.match(/Market Cap[\s\S]*?class="number">([\d,]+)/i);
-  const mcapCr = mCapMatch ? Number(mCapMatch[1].replace(/,/g, '')) : null;
-
-  const sectorMatch = html.match(/title="Broad Sector">([^<]+)<\/a>/i) || html.match(/Sector:[\s\S]*?<a[^>]*>([^<]+)<\/a>/i);
-  const industryMatch = html.match(/title="Industry">([^<]+)<\/a>/i) || html.match(/Industry:[\s\S]*?<a[^>]*>([^<]+)<\/a>/i);
-
-  const nameMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-  const name = nameMatch ? nameMatch[1].trim() : cleanSym;
-
-  let sector = sectorMatch ? sectorMatch[1].trim() : null;
-  let industry = industryMatch ? industryMatch[1].trim() : null;
-
-  if (!sector && industry) sector = industry;
-  sector = normalizeSector(sector);
-
-  let mcap_category = 'Small Cap';
-  if (mcapCr) {
-    if (mcapCr >= 200000) mcap_category = 'Mega Cap';
-    else if (mcapCr >= 60000) mcap_category = 'Large Cap';
-    else if (mcapCr >= 20000) mcap_category = 'Mid Cap';
-    else if (mcapCr >= 3000) mcap_category = 'Small Cap';
-    else mcap_category = 'Micro Cap';
+  // 3. Fallback catalogue
+  if (category_id === 'us_stocks' && US_STOCKS_METADATA[cleanSym]) {
+    const us = US_STOCKS_METADATA[cleanSym];
+    return {
+      symbol: cleanSym,
+      name: us.name,
+      market_cap: us.market_cap,
+      mcap_category: us.mcap_category,
+      sector: us.sector,
+      industry: us.industry
+    };
   }
 
-  return {
-    symbol: cleanSym,
-    name,
-    market_cap: mcapCr || 5000,
-    mcap_category,
-    sector,
-    industry: industry || sector
-  };
+  return null;
 }
 
 export async function syncAssetMetadata(forceRefreshAll = false) {
@@ -112,7 +146,6 @@ export async function syncAssetMetadata(forceRefreshAll = false) {
   await initDatabase();
 
   const holdings = await db.select('holdings');
-  const activeHoldings = holdings.filter(h => Number(h.quantity) > 0);
 
   // Read existing metadata from DB
   const { data: existingDb } = await supabase.from('asset_metadata').select('*');
@@ -124,14 +157,14 @@ export async function syncAssetMetadata(forceRefreshAll = false) {
   const results = [];
   const symbolsToSync = [];
 
-  activeHoldings.forEach(h => {
+  holdings.forEach(h => {
     if (h.category_id === 'in_stocks' || h.category_id === 'us_stocks') {
       const sym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim();
       if (!sym) return;
 
       const existing = existingMap[sym];
-      // Only skip if already has valid market_cap and sector and was updated recently
-      const isFresh = existing && existing.market_cap && existing.sector && existing.sector !== 'Unknown' && existing.last_updated && (Date.now() - new Date(existing.last_updated).getTime() < 7 * 24 * 3600 * 1000);
+      // Keep existing if already has a valid sector and market_cap
+      const isFresh = existing && existing.market_cap && existing.sector && existing.sector !== 'Unknown' && existing.sector !== 'Industrials' && existing.last_updated && (Date.now() - new Date(existing.last_updated).getTime() < 30 * 24 * 3600 * 1000);
 
       if (!forceRefreshAll && isFresh) {
         results.push(existing);
@@ -141,65 +174,52 @@ export async function syncAssetMetadata(forceRefreshAll = false) {
     }
   });
 
-  console.log(`[Metadata Sync] Need to sync ${symbolsToSync.length} assets from internet (${results.length} already up-to-date)...`);
+  // Deduplicate symbols to sync
+  const uniqueToSync = [];
+  const seen = new Set();
+  symbolsToSync.forEach(item => {
+    if (!seen.has(item.symbol)) {
+      seen.add(item.symbol);
+      uniqueToSync.push(item);
+    }
+  });
 
-  for (let i = 0; i < symbolsToSync.length; i++) {
-    const item = symbolsToSync[i];
-    const sym = item.symbol;
+  console.log(`[Metadata Sync] Need to sync ${uniqueToSync.length} assets from market sources (${results.length} already up-to-date)...`);
 
-    if (item.category_id === 'us_stocks') {
-      const usMeta = US_STOCKS_METADATA[sym] || {
-        name: item.name || sym,
-        market_cap: 100000,
-        mcap_category: 'Large Cap',
-        sector: 'Technology',
-        industry: 'Software'
-      };
-      const record = {
-        symbol: sym,
-        name: usMeta.name,
-        category_id: 'us_stocks',
-        market_cap: usMeta.market_cap,
-        mcap_category: usMeta.mcap_category,
-        sector: usMeta.sector,
-        industry: usMeta.industry,
-        last_updated: new Date().toISOString()
-      };
-      results.push(record);
-      await supabase.from('asset_metadata').upsert(record);
-    } else {
-      const meta = await fetchIndianStockMetadata(sym);
-      if (meta) {
-        const record = {
-          symbol: sym,
-          name: meta.name || item.name || sym,
-          category_id: 'in_stocks',
-          market_cap: meta.market_cap,
-          mcap_category: meta.mcap_category,
-          sector: meta.sector,
-          industry: meta.industry,
-          last_updated: new Date().toISOString()
-        };
-        results.push(record);
-        await supabase.from('asset_metadata').upsert(record);
-        console.log(`[${i + 1}/${symbolsToSync.length}] Synced ${sym}: ₹${meta.market_cap} Cr (${meta.mcap_category}) | ${meta.sector}`);
-      } else {
-        const record = {
+  // Process in concurrent batches of 8 for lightning speed
+  const BATCH_SIZE = 8;
+  for (let i = 0; i < uniqueToSync.length; i += BATCH_SIZE) {
+    const chunk = uniqueToSync.slice(i, i + BATCH_SIZE);
+    await Promise.all(chunk.map(async (item) => {
+      const sym = item.symbol;
+      let meta = await fetchStockMetadata(sym, item.category_id);
+      
+      if (!meta) {
+        meta = {
           symbol: sym,
           name: item.name || sym,
-          category_id: 'in_stocks',
-          market_cap: 4500,
+          market_cap: 5000,
           mcap_category: 'Small Cap',
-          sector: 'Industrials',
-          industry: 'Industrial Equipment',
-          last_updated: new Date().toISOString()
+          sector: 'Diversified & Other',
+          industry: 'Diversified'
         };
-        results.push(record);
-        await supabase.from('asset_metadata').upsert(record);
-        console.log(`[${i + 1}/${symbolsToSync.length}] Defaulted ${sym}: Small Cap | Industrials`);
       }
-      await new Promise(r => setTimeout(r, 150));
-    }
+
+      const record = {
+        symbol: sym,
+        name: meta.name || item.name || sym,
+        category_id: item.category_id,
+        market_cap: meta.market_cap,
+        mcap_category: meta.mcap_category,
+        sector: meta.sector,
+        industry: meta.industry,
+        last_updated: new Date().toISOString()
+      };
+
+      results.push(record);
+      await supabase.from('asset_metadata').upsert(record);
+      console.log(`Synced ${sym}: ₹${meta.market_cap} Cr (${meta.mcap_category}) | ${meta.sector}`);
+    }));
   }
 
   // Save local JSON cache

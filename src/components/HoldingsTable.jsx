@@ -107,7 +107,7 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
               <th className="py-3.5 px-4 text-center rounded-r-xl">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/40 text-xs">
+          <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs">
             
             {/* Holdings Rows */}
             {filteredHoldings.map(h => {
@@ -139,7 +139,7 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                         <div className="text-[11px] text-slate-400 flex items-center gap-2">
                           <span className="font-mono">{h.symbol}</span>
                           <span>•</span>
-                          <span>{h.sector || h.category_name}</span>
+                          <span>{h.sector && h.sector !== 'Unknown' ? h.sector : h.category_name}</span>
                         </div>
                       </div>
                     </div>
