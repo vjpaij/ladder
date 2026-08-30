@@ -5,6 +5,18 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-08-31
+
+### Added & Enhanced
+- **Multi-Colour Fading Gradient Hero Banners**: Transformed the hero value banners in Indian Equity (`IndianStocksView.jsx`), US Equity (`UsStocksView.jsx`), Mutual Funds (`MutualFundsView.jsx`), and NPS (`NpsView.jsx`) to feature vibrant multi-colour fading gradient typography matching EPF and Bank Account styling.
+- **Active Portfolio Hero Focus**: Replaced the previous dual split compartment (`COMBINED` + `ACTIVE/REDEEM`) with focused active portfolio valuations, invested cost basis, net unrealized return, and active XIRR % pills.
+- **Dedicated Consolidated Performance Report**: Integrated an institutional Consolidated Performance sub-tab in `ReportsView.jsx` (`PERFORMANCE` view) featuring:
+  - 4 Executive KPI metric cards (Active Portfolio Value, Active Cost Basis, Realized Proceeds & Profit, Lifetime Net Return & Blended XIRR).
+  - Multi-asset class comparison grid covering Indian Equity, US Equity, Mutual Funds, NPS, and Fixed Income.
+  - Comprehensive category performance ledger comparing Active vs Realized vs Lifetime metrics.
+
+---
+
 ## [5.0.0] - 2026-08-30
 
 ### Added & Enhanced

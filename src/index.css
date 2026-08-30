@@ -470,12 +470,26 @@ body {
 
 .light .reports-subcard, .warm_light .reports-subcard, .nordic_light .reports-subcard {
   background-color: #F8FAFC !important;
+  color: #0F172A !important;
 }
 .warm_light .reports-subcard {
   background-color: #F5EFEB !important;
+  color: #1C1917 !important;
 }
 .nordic_light .reports-subcard {
   background-color: #F0F4F8 !important;
+  color: #0F172A !important;
+}
+
+/* Light & Warm theme high-contrast text guarantees */
+.light .text-slate-100, .warm_light .text-slate-100, .nordic_light .text-slate-100 {
+  color: #0F172A !important;
+}
+.light .text-slate-200, .warm_light .text-slate-200, .nordic_light .text-slate-200 {
+  color: #1E293B !important;
+}
+.light .text-slate-300, .warm_light .text-slate-300, .nordic_light .text-slate-300 {
+  color: #334155 !important;
 }
 
 /* ─── Glassmorphism Cards ───────────────────────────── */

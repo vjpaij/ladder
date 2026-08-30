@@ -40,7 +40,13 @@ import {
   ChevronDown,
   Compass,
   ArrowLeft,
-  ExternalLink
+  ExternalLink,
+  CandlestickChart,
+  Globe,
+  ShieldCheck,
+  Landmark,
+  DollarSign,
+  Activity
 } from 'lucide-react';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 
@@ -546,6 +552,131 @@ export default function ReportsView({ summary, holdings }) {
       });
   }, [filteredHoldings, mfData, mcapSource]);
 
+  // Consolidated / Lifetime Asset Performance Matrix
+  const consolidatedPerformanceData = useMemo(() => {
+    if (!summary || !holdings) return { categories: [], totals: {} };
+
+    const allCatDefs = [
+      { id: 'in_stocks', label: 'Indian Equity', color: '#10B981', gradient: 'from-emerald-500 to-teal-600', icon: CandlestickChart, type: 'equity' },
+      { id: 'us_stocks', label: 'US Equity', color: '#A855F7', gradient: 'from-purple-500 to-indigo-600', icon: Globe, type: 'equity' },
+      { id: 'mutual_funds', label: 'Mutual Funds', color: '#F59E0B', gradient: 'from-amber-500 to-orange-600', icon: Layers, type: 'equity' },
+      { id: 'nps', label: 'National Pension System', color: '#06B6D4', gradient: 'from-cyan-500 to-blue-600', icon: ShieldCheck, type: 'nps' },
+      { id: 'bank', label: 'Bank Accounts', color: '#3B82F6', gradient: 'from-blue-500 to-sky-600', icon: Landmark, type: 'fixed' },
+      { id: 'epf', label: 'Employee Provident Fund', color: '#6366F1', gradient: 'from-indigo-500 to-purple-600', icon: Building2, type: 'fixed' }
+    ];
+
+    // Filter categories based on activeTab
+    const catDefs = allCatDefs.filter(cat => {
+      if (activeTab === 'CONSOLIDATED') return true;
+      if (activeTab === 'EQUITY') {
+        if (cat.id === 'in_stocks') return equityOptions.india;
+        if (cat.id === 'us_stocks') return equityOptions.us;
+        if (cat.id === 'mutual_funds') return equityOptions.mf;
+        return false;
+      }
+      if (activeTab === 'FIXED_INCOME') return cat.type === 'fixed';
+      if (activeTab === 'NPS') return cat.type === 'nps';
+      return true;
+    });
+
+    let grandActiveVal = 0;
+    let grandActiveCost = 0;
+    let grandRealizedProceeds = 0;
+    let grandRealizedCost = 0;
+    let grandRealizedPnl = 0;
+    let grandLifetimeCost = 0;
+    let grandLifetimePnl = 0;
+
+    const categories = catDefs.map(cat => {
+      const metrics = summary.categoryMetrics?.find(c => c.id === cat.id);
+      const catHoldings = holdings.filter(h => h.category_id === cat.id);
+      
+      const activeHoldings = catHoldings.filter(h => (Number(h.quantity) || 0) > 0);
+      const closedHoldings = catHoldings.filter(h => (Number(h.quantity) || 0) === 0);
+
+      const activeVal = activeHoldings.reduce((sum, h) => sum + (h.currentValueINR || 0), 0);
+      const activeCost = activeHoldings.reduce((sum, h) => sum + (h.investedValueINR || 0), 0);
+      const activePnl = activeVal - activeCost;
+      const activeRoiPct = activeCost > 0 ? (activePnl / activeCost) * 100 : 0;
+      const activeXirr = metrics?.activeXirrPct || 0;
+
+      let closedCost = 0;
+      let closedProceeds = 0;
+      let closedPnl = 0;
+
+      closedHoldings.forEach(h => {
+        const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
+        const avgBuy = Number(h.avg_buy_price) || 0;
+        const realizedPnl = Number(h.realized_pnl) || 0;
+        const txRate = h.txFxRate || 1;
+        const investedVal = soldQty > 0 ? (soldQty * avgBuy * txRate) : (Number(h.investedValueINR) || 0);
+        const redeemedVal = investedVal + realizedPnl;
+        closedCost += investedVal;
+        closedProceeds += redeemedVal;
+        closedPnl += realizedPnl;
+      });
+
+      const closedRoiPct = closedCost > 0 ? (closedPnl / closedCost) * 100 : 0;
+      const closedXirr = metrics?.closedXirrPct || 0;
+
+      const lifetimeCost = activeCost + closedCost;
+      const lifetimePnl = (metrics ? (metrics.realizedINR + metrics.unrealizedINR) : (activePnl + closedPnl));
+      const lifetimeRoiPct = lifetimeCost > 0 ? (lifetimePnl / lifetimeCost) * 100 : 0;
+      const lifetimeXirr = metrics?.xirrPct || 0;
+
+      grandActiveVal += activeVal;
+      grandActiveCost += activeCost;
+      grandRealizedProceeds += closedProceeds;
+      grandRealizedCost += closedCost;
+      grandRealizedPnl += closedPnl;
+      grandLifetimeCost += lifetimeCost;
+      grandLifetimePnl += lifetimePnl;
+
+      return {
+        ...cat,
+        activeCount: activeHoldings.length,
+        closedCount: closedHoldings.length,
+        totalCount: catHoldings.length,
+        activeVal,
+        activeCost,
+        activePnl,
+        activeRoiPct,
+        activeXirr,
+        closedProceeds,
+        closedCost,
+        closedPnl,
+        closedRoiPct,
+        closedXirr,
+        lifetimeCost,
+        lifetimePnl,
+        lifetimeRoiPct,
+        lifetimeXirr,
+        weightPct: metrics?.weightPct || (summary.totalAssets > 0 ? (activeVal / summary.totalAssets) * 100 : 0)
+      };
+    });
+
+    const grandActivePnl = grandActiveVal - grandActiveCost;
+    const grandActiveRoiPct = grandActiveCost > 0 ? (grandActivePnl / grandActiveCost) * 100 : 0;
+    const grandLifetimeRoiPct = grandLifetimeCost > 0 ? (grandLifetimePnl / grandLifetimeCost) * 100 : 0;
+
+    return {
+      categories,
+      totals: {
+        activeVal: grandActiveVal,
+        activeCost: grandActiveCost,
+        activePnl: grandActivePnl,
+        activeRoiPct: grandActiveRoiPct,
+        closedProceeds: grandRealizedProceeds,
+        closedCost: grandRealizedCost,
+        closedPnl: grandRealizedPnl,
+        lifetimeCost: grandLifetimeCost,
+        lifetimePnl: grandLifetimePnl,
+        lifetimeRoiPct: grandLifetimeRoiPct,
+        portfolioXirr: summary.xirrPct || 0
+      }
+    };
+  }, [summary, holdings, activeTab, equityOptions]);
+
   // Selected MF Scheme detail data
   const selectedMfDetails = useMemo(() => {
     if (!mfData?.schemes) return null;
@@ -832,6 +963,8 @@ export default function ReportsView({ summary, holdings }) {
                   setSelectedMarketCap(null);
                   if (tab.key === 'EQUITY') {
                     setReportType('MARKET_CAP');
+                  } else if (tab.key === 'CONSOLIDATED') {
+                    setReportType('PERFORMANCE');
                   } else {
                     setReportType('ALLOCATION');
                   }
@@ -921,6 +1054,7 @@ export default function ReportsView({ summary, holdings }) {
         {activeTab !== 'MF_COMPOSITION' && (
           <div className="flex items-center gap-2 border-b border-inherit opacity-95 pb-3 overflow-x-auto">
             {[
+              { key: 'PERFORMANCE', label: 'Consolidated Performance' },
               { key: 'ALLOCATION', label: 'Allocation' },
               ...(activeTab === 'EQUITY' ? [
                 { key: 'MARKET_CAP', label: 'Market Cap' },
@@ -1068,6 +1202,295 @@ export default function ReportsView({ summary, holdings }) {
                 Loading constituent holdings data...
               </div>
             )}
+          </div>
+        )}
+
+        {/* ─── VIEW 0: CONSOLIDATED ASSET PERFORMANCE ────────────────── */}
+        {reportType === 'PERFORMANCE' && activeTab !== 'MF_COMPOSITION' && (
+          <div className="space-y-6">
+            
+            {/* Top KPI Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              {/* Card 1: Active Portfolio Valuation */}
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                    Active Portfolio Value
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                    {formatMoney(consolidatedPerformanceData.totals.activeVal)}
+                  </div>
+                </div>
+                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
+                  <span className="opacity-70">Unrealized:</span>
+                  <span className={`font-bold ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)} ({consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.activeRoiPct.toFixed(2)}%)
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 2: Active Capital Invested */}
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                    Active Cost Basis
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
+                    {formatMoney(consolidatedPerformanceData.totals.activeCost, true)}
+                  </div>
+                </div>
+                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
+                  <span className="opacity-70">Active Allocation:</span>
+                  <span className="font-bold opacity-90">100% of Active</span>
+                </div>
+              </div>
+
+              {/* Card 3: Total Realized Proceeds */}
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                    Realized Proceeds
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black font-mono text-amber-500">
+                    {formatMoney(consolidatedPerformanceData.totals.closedProceeds, true)}
+                  </div>
+                </div>
+                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
+                  <span className="opacity-70">Realized Profit:</span>
+                  <span className={`font-bold ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {consolidatedPerformanceData.totals.closedPnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 4: Lifetime Combined Net Gain & XIRR */}
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                    Lifetime Net Return
+                  </span>
+                  <div className={`text-xl sm:text-2xl font-black font-mono ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {consolidatedPerformanceData.totals.lifetimePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
+                  </div>
+                </div>
+                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
+                  <span className="opacity-70">Annualized XIRR:</span>
+                  <span className={`font-bold ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {consolidatedPerformanceData.totals.portfolioXirr >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.portfolioXirr.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Asset Class Performance Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {consolidatedPerformanceData.categories.map((cat) => {
+                const IconComponent = cat.icon || Activity;
+                return (
+                  <div 
+                    key={cat.id} 
+                    className="reports-subcard p-5 rounded-2xl border space-y-4 relative overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-inherit opacity-95 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 rounded-xl text-white bg-gradient-to-br ${cat.gradient} shadow-md`}>
+                          <IconComponent className="w-4 h-4 stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black">{cat.label}</h4>
+                          <span className="text-[10px] font-mono opacity-60">
+                            {cat.activeCount} Active • {cat.closedCount} Closed • {cat.totalCount} Total
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black font-mono reports-pill">
+                          {cat.weightPct.toFixed(1)}% Allocation
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3-Section Breakdown Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      
+                      {/* Compartment 1: Active */}
+                      <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit">
+                        <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
+                          <span>Active</span>
+                          <span className="text-emerald-500">Live</span>
+                        </div>
+                        <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                          {formatMoney(cat.activeVal)}
+                        </div>
+                        <div className="text-[10.5px] opacity-75 flex justify-between">
+                          <span>Cost:</span>
+                          <span className="font-bold">{formatMoney(cat.activeCost, true)}</span>
+                        </div>
+                        <div className={`text-[10.5px] font-bold flex justify-between ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <span>Return:</span>
+                          <span>{cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)} ({cat.activePnl >= 0 ? '+' : ''}{cat.activeRoiPct.toFixed(1)}%)</span>
+                        </div>
+                        <div className="text-[10px] opacity-75 flex justify-between pt-1 border-t border-inherit">
+                          <span>XIRR:</span>
+                          <span className={`font-bold ${cat.activeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.activeXirr >= 0 ? '+' : ''}{cat.activeXirr.toFixed(2)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Compartment 2: Redeemed / Closed */}
+                      <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit">
+                        <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
+                          <span>Realized</span>
+                          <span className="text-amber-500">Exited</span>
+                        </div>
+                        <div className="text-sm font-black text-amber-500">
+                          {formatMoney(cat.closedProceeds, true)}
+                        </div>
+                        <div className="text-[10.5px] opacity-75 flex justify-between">
+                          <span>Cost:</span>
+                          <span className="font-bold">{formatMoney(cat.closedCost, true)}</span>
+                        </div>
+                        <div className={`text-[10.5px] font-bold flex justify-between ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <span>P&L:</span>
+                          <span>{cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)} ({cat.closedPnl >= 0 ? '+' : ''}{cat.closedRoiPct.toFixed(1)}%)</span>
+                        </div>
+                        <div className="text-[10px] opacity-75 flex justify-between pt-1 border-t border-inherit">
+                          <span>XIRR:</span>
+                          <span className={`font-bold ${cat.closedXirr >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                            {cat.closedXirr >= 0 ? '+' : ''}{cat.closedXirr.toFixed(2)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Compartment 3: Combined Lifetime */}
+                      <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit bg-slate-500/5">
+                        <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
+                          <span>Combined</span>
+                          <span className="text-purple-400">Lifetime</span>
+                        </div>
+                        <div className={`text-sm font-black ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
+                        </div>
+                        <div className="text-[10.5px] opacity-75 flex justify-between">
+                          <span>Deployed:</span>
+                          <span className="font-bold">{formatMoney(cat.lifetimeCost, true)}</span>
+                        </div>
+                        <div className={`text-[10.5px] font-bold flex justify-between ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <span>Abs Return:</span>
+                          <span>{cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%</span>
+                        </div>
+                        <div className="text-[10px] opacity-75 flex justify-between pt-1 border-t border-inherit">
+                          <span>Lifetime XIRR:</span>
+                          <span className={`font-bold ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
+                          </span>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Comprehensive Consolidated Performance Table */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-black uppercase tracking-wider opacity-75">
+                  Consolidated Category Performance Ledger
+                </span>
+                <span className="text-[11px] font-mono opacity-60">
+                  {consolidatedPerformanceData.categories.length} Asset Classes
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl reports-table-container">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="reports-table-head font-bold uppercase text-[10px]">
+                      <th className="py-3.5 pl-4">Asset Class</th>
+                      <th className="py-3.5 text-right">Active Valuation</th>
+                      <th className="py-3.5 text-right">Active Cost</th>
+                      <th className="py-3.5 text-right">Unrealized P&L</th>
+                      <th className="py-3.5 text-right">Realized P&L</th>
+                      <th className="py-3.5 text-right">Lifetime Cost</th>
+                      <th className="py-3.5 text-right">Total Net Return</th>
+                      <th className="py-3.5 text-right">Abs ROI %</th>
+                      <th className="py-3.5 text-right pr-4">Annualized XIRR</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-inherit font-mono">
+                    {consolidatedPerformanceData.categories.map((cat) => (
+                      <tr key={`table-${cat.id}`} className="reports-table-row transition-colors">
+                        <td className="py-3 pl-4 font-sans font-bold flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                          <span>{cat.label}</span>
+                        </td>
+                        <td className="py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                          {formatMoney(cat.activeVal)}
+                        </td>
+                        <td className="py-3 text-right opacity-80">
+                          {formatMoney(cat.activeCost, true)}
+                        </td>
+                        <td className={`py-3 text-right font-bold ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)}
+                        </td>
+                        <td className={`py-3 text-right font-bold ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)}
+                        </td>
+                        <td className="py-3 text-right opacity-80">
+                          {formatMoney(cat.lifetimeCost, true)}
+                        </td>
+                        <td className={`py-3 text-right font-black ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
+                        </td>
+                        <td className={`py-3 text-right font-bold ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%
+                        </td>
+                        <td className={`py-3 text-right pr-4 font-black ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="reports-table-head font-bold font-mono border-t-2 border-inherit text-slate-900 dark:text-white">
+                      <td className="py-3.5 pl-4 font-sans font-black uppercase text-[11px]">Total Portfolio</td>
+                      <td className="py-3.5 text-right font-black text-emerald-600 dark:text-emerald-400">
+                        {formatMoney(consolidatedPerformanceData.totals.activeVal)}
+                      </td>
+                      <td className="py-3.5 text-right font-bold opacity-90">
+                        {formatMoney(consolidatedPerformanceData.totals.activeCost, true)}
+                      </td>
+                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)}
+                      </td>
+                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {consolidatedPerformanceData.totals.closedPnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
+                      </td>
+                      <td className="py-3.5 text-right font-bold opacity-90">
+                        {formatMoney(consolidatedPerformanceData.totals.lifetimeCost, true)}
+                      </td>
+                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {consolidatedPerformanceData.totals.lifetimePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
+                      </td>
+                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {consolidatedPerformanceData.totals.lifetimeRoiPct >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.lifetimeRoiPct.toFixed(2)}%
+                      </td>
+                      <td className={`py-3.5 text-right pr-4 font-black ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {consolidatedPerformanceData.totals.portfolioXirr >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.portfolioXirr.toFixed(2)}%
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
           </div>
         )}
 

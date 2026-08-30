@@ -202,114 +202,49 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
               </div>
             </div>
 
-            {/* Right: Option C Split Box (Combined + Active/Redeem) & Add Stock Button */}
-            <div className="flex items-center gap-3 sm:gap-4 flex-wrap w-full xl:w-auto justify-between xl:justify-end">
-              
-              {/* Single Split Glass Card */}
-              <div className="flex items-stretch bg-slate-900/90 rounded-2xl border border-slate-800 shadow-md backdrop-blur-md overflow-hidden flex-1 sm:flex-initial">
-                
-                {/* Left Compartment: COMBINED */}
-                <div className="p-3 sm:px-4 sm:py-3 border-r border-slate-800/80 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
-                  {/* Centered Header */}
-                  <div className="flex justify-center mb-1.5">
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                      COMBINED
-                    </span>
-                  </div>
-                  
-                  {/* Cost and Return */}
-                  <div className="space-y-1 my-0.5 font-mono text-xs">
-                    <div className="text-slate-400 flex items-center justify-between gap-2">
-                      <span>Cost :</span>
-                      <strong className="text-slate-100 font-bold">{formatMoney(combinedTotals.cost, true)}</strong>
-                    </div>
-                    <div className={`flex items-center justify-between gap-2 font-bold ${combinedTotals.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      <span>Return :</span>
-                      <span>{combinedTotals.pnl >= 0 ? '+' : ''}{formatMoney(combinedTotals.pnl, true)}</span>
-                    </div>
-                  </div>
-
-                  {/* Abs & XIRR with independent profit/loss coloring */}
-                  <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
-                    <span className={combinedTotals.absPct >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                      Abs: {combinedTotals.absPct >= 0 ? '+' : ''}{combinedTotals.absPct.toFixed(2)}%
-                    </span>
-                    <span className="text-slate-600">•</span>
-                    <span className={combinedTotals.xirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                      XIRR: {combinedTotals.xirr >= 0 ? '+' : ''}{combinedTotals.xirr.toFixed(2)}%
-                    </span>
-                  </div>
+            {/* Right: Sleek Multi-Color Hero Value & Action Button */}
+            <div className="flex items-center gap-4 sm:gap-6 relative z-10 shrink-0 flex-wrap sm:flex-nowrap justify-between xl:justify-end w-full xl:w-auto">
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                  {statusFilter === 'active' ? 'Active Indian Equity Value' : 'Total Realized Proceeds'}
+                </span>
+                <div className={`text-2xl sm:text-3xl font-black font-mono bg-clip-text text-transparent ${
+                  statusFilter === 'active'
+                    ? 'bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400'
+                    : 'bg-gradient-to-r from-amber-400 via-orange-300 to-rose-400'
+                }`}>
+                  {statusFilter === 'active'
+                    ? formatMoney(totalCurrent)
+                    : formatMoney(closedBannerTotals?.totalRedeemed || 0)
+                  }
                 </div>
-
-                {/* Right Compartment: ACTIVE / REDEEM */}
-                <div className="p-3 sm:px-4 sm:py-3 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                <div className="text-[10.5px] font-bold font-mono mt-0.5 flex items-center justify-end gap-1.5 text-slate-400 flex-wrap sm:flex-nowrap">
                   {statusFilter === 'active' ? (
                     <>
-                      {/* Centered Header */}
-                      <div className="flex justify-center mb-1.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-                          ACTIVE
-                        </span>
-                      </div>
-
-                      {/* Cost and Return */}
-                      <div className="space-y-1 my-0.5 font-mono text-xs">
-                        <div className="text-slate-400 flex items-center justify-between gap-2">
-                          <span>Cost :</span>
-                          <strong className="text-slate-100 font-bold">{formatMoney(totalInvested, true)}</strong>
-                        </div>
-                        <div className={`flex items-center justify-between gap-2 font-bold ${totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          <span>Return :</span>
-                          <span>{totalGain >= 0 ? '+' : ''}{formatMoney(totalGain, true)}</span>
-                        </div>
-                      </div>
-
-                      {/* Abs & XIRR with independent profit/loss coloring */}
-                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
-                        <span className={totalGain >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          Abs: {totalGain >= 0 ? '+' : ''}{roiPct}%
-                        </span>
-                        <span className="text-slate-600">•</span>
-                        <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
-                        </span>
-                      </div>
+                      <span>Cost: <strong className="text-slate-200">{formatMoney(totalInvested, true)}</strong></span>
+                      <span className="text-slate-600">•</span>
+                      <span className={totalGain >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        {totalGain >= 0 ? '+' : ''}{formatMoney(totalGain, true)} ({totalGain >= 0 ? '+' : ''}{roiPct}%)
+                      </span>
+                      <span className="text-slate-600">•</span>
+                      <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
+                      </span>
                     </>
                   ) : (
                     <>
-                      {/* Centered Header */}
-                      <div className="flex justify-center mb-1.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                          REDEEM
-                        </span>
-                      </div>
-
-                      {/* Cost and Return */}
-                      <div className="space-y-1 my-0.5 font-mono text-xs">
-                        <div className="text-slate-400 flex items-center justify-between gap-2">
-                          <span>Cost :</span>
-                          <strong className="text-slate-100 font-bold">{formatMoney(closedBannerTotals?.totalCost || 0, true)}</strong>
-                        </div>
-                        <div className={`flex items-center justify-between gap-2 font-bold ${(closedBannerTotals?.netPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          <span>Return :</span>
-                          <span>{(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{formatMoney(closedBannerTotals?.netPnl || 0, true)}</span>
-                        </div>
-                      </div>
-
-                      {/* Abs & XIRR */}
-                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
-                        <span className={(closedBannerTotals?.netPnl || 0) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          Abs: {(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{closedBannerTotals?.netRoiPct || 0}%
-                        </span>
-                        <span className="text-slate-600">•</span>
-                        <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
-                        </span>
-                      </div>
+                      <span>Cost: <strong className="text-slate-200">{formatMoney(closedBannerTotals?.totalCost || 0, true)}</strong></span>
+                      <span className="text-slate-600">•</span>
+                      <span className={(closedBannerTotals?.netPnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        {(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{formatMoney(closedBannerTotals?.netPnl || 0, true)} ({(closedBannerTotals?.netRoiPct || 0) >= 0 ? '+' : ''}{closedBannerTotals?.netRoiPct || 0}%)
+                      </span>
+                      <span className="text-slate-600">•</span>
+                      <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
+                      </span>
                     </>
                   )}
                 </div>
-
               </div>
 
               {/* Add Stock Button */}

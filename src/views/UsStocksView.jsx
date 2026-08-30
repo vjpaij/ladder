@@ -244,117 +244,52 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
               </div>
             </div>
 
-            {/* Right: Option C Split Box (Combined + Active/Redeem) & Currency / Add US Stock */}
-            <div className="flex items-center gap-3 sm:gap-4 flex-wrap w-full xl:w-auto justify-between xl:justify-end">
-              
-              {/* Single Split Glass Card */}
-              <div className="flex items-stretch bg-slate-900/90 rounded-2xl border border-slate-800 shadow-md backdrop-blur-md overflow-hidden flex-1 sm:flex-initial">
-                
-                {/* Left Compartment: COMBINED */}
-                <div className="p-3 sm:px-4 sm:py-3 border-r border-slate-800/80 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
-                  {/* Centered Header */}
-                  <div className="flex justify-center mb-1.5">
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-500/15 text-purple-400 border border-purple-500/30">
-                      COMBINED
-                    </span>
-                  </div>
-                  
-                  {/* Cost and Return */}
-                  <div className="space-y-1 my-0.5 font-mono text-xs">
-                    <div className="text-slate-400 flex items-center justify-between gap-2">
-                      <span>Cost :</span>
-                      <strong className="text-slate-100 font-bold">{isUSD ? `$${combinedTotals.costUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(combinedTotals.costINR, true)}</strong>
-                    </div>
-                    <div className={`flex items-center justify-between gap-2 font-bold ${combinedTotals.pnlINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      <span>Return :</span>
-                      <span>{isUSD ? `${combinedTotals.pnlUSD >= 0 ? '+' : '-'}$${Math.abs(combinedTotals.pnlUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${combinedTotals.pnlINR >= 0 ? '+' : ''}${formatMoney(combinedTotals.pnlINR, true)}`}</span>
-                    </div>
-                  </div>
-
-                  {/* Abs & XIRR with independent profit/loss coloring */}
-                  <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
-                    <span className={combinedTotals.absPct >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                      Abs: {combinedTotals.absPct >= 0 ? '+' : ''}{combinedTotals.absPct.toFixed(2)}%
-                    </span>
-                    <span className="text-slate-600">•</span>
-                    <span className={combinedTotals.xirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                      XIRR: {combinedTotals.xirr >= 0 ? '+' : ''}{combinedTotals.xirr.toFixed(2)}%
-                    </span>
-                  </div>
+            {/* Right: Sleek Multi-Color Hero Value & Action Button */}
+            <div className="flex items-center gap-4 sm:gap-6 relative z-10 shrink-0 flex-wrap sm:flex-nowrap justify-between xl:justify-end w-full xl:w-auto">
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                  {statusFilter === 'active' ? 'Active US Equity Value' : 'Total Realized Proceeds'}
+                </span>
+                <div className={`text-2xl sm:text-3xl font-black font-mono bg-clip-text text-transparent ${
+                  statusFilter === 'active'
+                    ? 'bg-gradient-to-r from-purple-400 via-indigo-300 to-sky-300'
+                    : 'bg-gradient-to-r from-amber-400 via-orange-300 to-rose-400'
+                }`}>
+                  {statusFilter === 'active'
+                    ? (isUSD ? `$${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalConvertedINR))
+                    : (isUSD ? `$${(closedBannerTotals?.totalRedeemedUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(closedBannerTotals?.totalRedeemedINR || 0))
+                  }
                 </div>
-
-                {/* Right Compartment: ACTIVE / REDEEM */}
-                <div className="p-3 sm:px-4 sm:py-3 flex flex-col justify-between min-w-[200px] sm:min-w-[220px]">
+                <div className="text-[10.5px] font-bold font-mono mt-0.5 flex items-center justify-end gap-1.5 text-slate-400 flex-wrap sm:flex-nowrap">
                   {statusFilter === 'active' ? (
                     <>
-                      {/* Centered Header */}
-                      <div className="flex justify-center mb-1.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
-                          ACTIVE
-                        </span>
-                      </div>
-
-                      {/* Cost and Return */}
-                      <div className="space-y-1 my-0.5 font-mono text-xs">
-                        <div className="text-slate-400 flex items-center justify-between gap-2">
-                          <span>Cost :</span>
-                          <strong className="text-slate-100 font-bold">{isUSD ? `$${totalInvestedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalInvestedINR, true)}</strong>
-                        </div>
-                        <div className={`flex items-center justify-between gap-2 font-bold ${totalGainINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          <span>Return :</span>
-                          <span>{isUSD ? `${totalGainINR >= 0 ? '+' : '-'}$${Math.abs(totalUSD - totalInvestedUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${totalGainINR >= 0 ? '+' : ''}${formatMoney(totalGainINR, true)}`}</span>
-                        </div>
-                      </div>
-
-                      {/* Abs & XIRR with independent profit/loss coloring */}
-                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
-                        <span className={totalGainINR >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          Abs: {totalGainINR >= 0 ? '+' : ''}{roiPct}%
-                        </span>
-                        <span className="text-slate-600">•</span>
-                        <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
-                        </span>
-                      </div>
+                      <span>Cost: <strong className="text-slate-200">{isUSD ? `$${totalInvestedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(totalInvestedINR, true)}</strong></span>
+                      <span className="text-slate-600">•</span>
+                      <span className={totalGainINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        {isUSD ? `${totalGainINR >= 0 ? '+' : '-'}$${Math.abs(totalUSD - totalInvestedUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${totalGainINR >= 0 ? '+' : ''}${formatMoney(totalGainINR, true)}`} ({totalGainINR >= 0 ? '+' : ''}{roiPct}%)
+                      </span>
+                      <span className="text-slate-600">•</span>
+                      <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
+                      </span>
                     </>
                   ) : (
                     <>
-                      {/* Centered Header */}
-                      <div className="flex justify-center mb-1.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                          REDEEM
-                        </span>
-                      </div>
-
-                      {/* Cost and Return */}
-                      <div className="space-y-1 my-0.5 font-mono text-xs">
-                        <div className="text-slate-400 flex items-center justify-between gap-2">
-                          <span>Cost :</span>
-                          <strong className="text-slate-100 font-bold">{isUSD ? `$${(closedBannerTotals?.totalCostUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(closedBannerTotals?.totalCostINR || 0, true)}</strong>
-                        </div>
-                        <div className={`flex items-center justify-between gap-2 font-bold ${(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          <span>Return :</span>
-                          <span>{isUSD ? `${(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? '+' : '-'}$${Math.abs(closedBannerTotals?.totalRealizedPnlUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${(closedBannerTotals?.totalRealizedPnlINR || 0) >= 0 ? '+' : ''}${formatMoney(closedBannerTotals?.totalRealizedPnlINR || 0, true)}`}</span>
-                        </div>
-                      </div>
-
-                      {/* Abs & XIRR */}
-                      <div className="text-[10.5px] font-mono font-medium text-slate-400 flex items-center justify-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800/50">
-                        <span className={(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          Abs: {(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? '+' : ''}{closedBannerTotals?.roiPct || 0}%
-                        </span>
-                        <span className="text-slate-600">•</span>
-                        <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                          XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
-                        </span>
-                      </div>
+                      <span>Cost: <strong className="text-slate-200">{isUSD ? `$${(closedBannerTotals?.totalCostUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(closedBannerTotals?.totalCostINR || 0, true)}</strong></span>
+                      <span className="text-slate-600">•</span>
+                      <span className={(closedBannerTotals?.totalRealizedPnlINR || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        {isUSD ? `${(closedBannerTotals?.totalRealizedPnlUSD || 0) >= 0 ? '+' : '-'}$${Math.abs(closedBannerTotals?.totalRealizedPnlUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${(closedBannerTotals?.totalRealizedPnlINR || 0) >= 0 ? '+' : ''}${formatMoney(closedBannerTotals?.totalRealizedPnlINR || 0, true)}`} ({(closedBannerTotals?.roiPct || 0) >= 0 ? '+' : ''}{closedBannerTotals?.roiPct || 0}%)
+                      </span>
+                      <span className="text-slate-600">•</span>
+                      <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
+                      </span>
                     </>
                   )}
                 </div>
-
               </div>
 
-              {/* Add US Stock Button (Aligned exactly like Indian Stocks, MFs, and NPS) */}
+              {/* Add US Stock Button */}
               <motion.button
                 onClick={onOpenAddModal}
                 whileHover={{ scale: 1.03 }}
