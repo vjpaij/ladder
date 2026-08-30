@@ -639,6 +639,7 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
         day_change: Number(Number(dayChange || 0).toFixed(2)),
         day_change_pct: Number(Number(dayChangePct || 0).toFixed(2)),
         prev_price: Number(prevPrice.toFixed(2)),
+        quote_date: liveQuote?.quoteDate || (h.updated_at ? h.updated_at.split('T')[0] : null),
         currentValueOriginal: Number(currentValueOriginal.toFixed(2)),
         currentValueINR: Number(currentValueINR.toFixed(2)),
         investedValueINR: Number(investedValueINR.toFixed(2)),

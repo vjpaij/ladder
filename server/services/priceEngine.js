@@ -521,76 +521,133 @@ export async function refreshAllHoldingsPrices() {
   const fxRate = await fetchFxRate();
   let updatedCount = 0;
 
-  const npsHoldings = holdings.filter(h => h.category_id === 'nps');
-  let proteanNavMap = null;
-  if (npsHoldings.length > 0) {
-    proteanNavMap = await fetchProteanNpsNavBatch();
-  }
-
-  for (const h of holdings) {
-    let newPrice = Number(h.current_price) || 0;
-    let nseP = Number(h.nse_price) || 0;
-    let bseP = Number(h.bse_price) || 0;
-    let qDate = null;
-
-    if (h.category_id === 'in_stocks') {
-      const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
-      const nseQuote = await fetchStockQuote(`${baseSymbol}.NS`);
-      const bseQuote = await fetchStockQuote(`${baseSymbol}.BO`);
-
-      if (nseQuote && nseQuote.price > 0) {
-        nseP = nseQuote.price;
-        qDate = nseQuote.quoteDate;
-        liveQuoteCache.set(h.symbol, nseQuote);
-      }
-      if (bseQuote && bseQuote.price > 0) {
-        bseP = bseQuote.price;
-        if (!nseQuote) {
-          qDate = bseQuote.quoteDate;
-          liveQuoteCache.set(h.symbol, bseQuote);
+  // 1. Refresh US stocks in parallel
+  const usHoldings = holdings.filter(h => h.category_id === 'us_stocks');
+  await Promise.all(usHoldings.map(async (h) => {
+    try {
+      const q = await fetchStockQuote(h.symbol);
+      if (q && q.price > 0) {
+        liveQuoteCache.set(h.symbol, q);
+        if (q.price !== Number(h.current_price)) {
+          await db.update('holdings', h.id, {
+            current_price: q.price,
+            updated_at: new Date().toISOString()
+          });
+          updatedCount++;
         }
       }
-
-      if (nseP > 0 || bseP > 0) {
-        newPrice = Math.max(nseP, bseP);
-      }
-    } else if (h.category_id === 'us_stocks') {
-      const usQuote = await fetchStockQuote(h.symbol);
-      if (usQuote && usQuote.price > 0) {
-        newPrice = usQuote.price;
-        qDate = usQuote.quoteDate;
-        liveQuoteCache.set(h.symbol, usQuote);
-      }
-    } else if (h.category_id === 'mutual_funds') {
-      const mfNav = await fetchMutualFundNav(h.symbol);
-      if (mfNav && mfNav.nav > 0) {
-        newPrice = mfNav.nav;
-        qDate = mfNav.quoteDate;
-        liveQuoteCache.set(h.symbol, { price: mfNav.nav, quoteDate: qDate });
-      }
-    } else if (h.category_id === 'nps') {
-      let npsNav = null;
-      if (proteanNavMap && proteanNavMap.has(h.symbol)) {
-        npsNav = proteanNavMap.get(h.symbol);
-      } else {
-        npsNav = await fetchNpsNavFallback(h.symbol);
-      }
-      if (npsNav && npsNav.nav > 0) {
-        newPrice = npsNav.nav;
-        qDate = npsNav.quoteDate || formatCleanQuoteDate(npsNav.date);
-        liveQuoteCache.set(h.symbol, { price: npsNav.nav, quoteDate: qDate });
-      }
+    } catch (e) {
+      console.warn(`[Sync] Failed to fetch US Stock ${h.symbol}:`, e.message);
     }
+  }));
 
-    if (newPrice > 0 && newPrice !== Number(h.current_price)) {
-      await db.update('holdings', h.id, {
-        current_price: newPrice,
-        nse_price: nseP,
-        bse_price: bseP,
-        updated_at: new Date().toISOString()
-      });
-      updatedCount++;
+  // 2. Refresh Indian stocks in concurrent batches
+  const inHoldings = holdings.filter(h => h.category_id === 'in_stocks');
+  const batchSize = 15;
+  for (let i = 0; i < inHoldings.length; i += batchSize) {
+    const batch = inHoldings.slice(i, i + batchSize);
+    await Promise.all(batch.map(async (h) => {
+      try {
+        const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
+        let bestQ = await fetchStockQuote(`${baseSymbol}.NS`);
+        let nseP = bestQ?.price || 0;
+        let bseP = 0;
+
+        if (!bestQ || nseP <= 0) {
+          const bseQ = await fetchStockQuote(`${baseSymbol}.BO`);
+          if (bseQ && bseQ.price > 0) {
+            bestQ = bseQ;
+            bseP = bseQ.price;
+          }
+        }
+
+        const newPrice = nseP || bseP || bestQ?.price || 0;
+
+        if (bestQ) {
+          liveQuoteCache.set(h.symbol, {
+            price: newPrice || bestQ.price,
+            dayChange: bestQ.dayChange,
+            dayChangePct: bestQ.dayChangePct,
+            open: bestQ.open,
+            high: bestQ.high,
+            low: bestQ.low,
+            fiftyTwoWeekHigh: bestQ.fiftyTwoWeekHigh,
+            fiftyTwoWeekLow: bestQ.fiftyTwoWeekLow,
+            quoteDate: bestQ.quoteDate
+          });
+        }
+
+        if (newPrice > 0 && newPrice !== Number(h.current_price)) {
+          await db.update('holdings', h.id, {
+            current_price: newPrice,
+            nse_price: nseP,
+            bse_price: bseP,
+            updated_at: new Date().toISOString()
+          });
+          updatedCount++;
+        }
+      } catch (e) {
+        console.warn(`[Sync] Failed to fetch IN Stock ${h.symbol}:`, e.message);
+      }
+    }));
+  }
+
+  // 3. Refresh Mutual Funds in parallel
+  const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds');
+  await Promise.all(mfHoldings.map(async (h) => {
+    try {
+      const q = await fetchMutualFundNav(h.symbol);
+      if (q && q.nav > 0) {
+        liveQuoteCache.set(h.symbol, {
+          price: q.nav,
+          dayChange: q.dayChange,
+          dayChangePct: q.dayChangePct,
+          open: q.open,
+          high: q.high,
+          low: q.low,
+          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+          fiftyTwoWeekLow: q.fiftyTwoWeekLow,
+          quoteDate: q.quoteDate
+        });
+        if (q.nav !== Number(h.current_price)) {
+          await db.update('holdings', h.id, {
+            current_price: q.nav,
+            updated_at: new Date().toISOString()
+          });
+          updatedCount++;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Sync] Failed to fetch MF ${h.symbol}:`, e.message);
     }
+  }));
+
+  // 4. Refresh NPS schemes in parallel
+  const npsHoldings = holdings.filter(h => h.category_id === 'nps');
+  if (npsHoldings.length > 0) {
+    const proteanMap = await fetchProteanNpsNavBatch();
+    await Promise.all(npsHoldings.map(async (h) => {
+      try {
+        let q = proteanMap?.get(h.symbol);
+        if (!q) q = await fetchNpsNavFallback(h.symbol);
+        if (q && q.nav > 0) {
+          const qDate = q.quoteDate || formatCleanQuoteDate(q.date);
+          liveQuoteCache.set(h.symbol, {
+            price: q.nav,
+            quoteDate: qDate
+          });
+          if (q.nav !== Number(h.current_price)) {
+            await db.update('holdings', h.id, {
+              current_price: q.nav,
+              updated_at: new Date().toISOString()
+            });
+            updatedCount++;
+          }
+        }
+      } catch (e) {
+        console.warn(`[Sync] Failed to fetch NPS ${h.symbol}:`, e.message);
+      }
+    }));
   }
 
   return { updatedCount, fxRate };

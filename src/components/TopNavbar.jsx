@@ -54,6 +54,18 @@ export default function TopNavbar({
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const [isSyncSuccess, setIsSyncSuccess] = useState(false);
+  const prevIsRefreshing = useRef(isRefreshing);
+
+  useEffect(() => {
+    if (prevIsRefreshing.current && !isRefreshing) {
+      setIsSyncSuccess(true);
+      const t = setTimeout(() => setIsSyncSuccess(false), 3000);
+      return () => clearTimeout(t);
+    }
+    prevIsRefreshing.current = isRefreshing;
+  }, [isRefreshing]);
+
   const searchRef = useRef(null);
   const userMenuRef = useRef(null);
   const themeMenuRef = useRef(null);
@@ -252,13 +264,23 @@ export default function TopNavbar({
         {/* Sync Prices Button */}
         <motion.button
           onClick={onRefreshPrices}
-          disabled={isRefreshing}
+          disabled={isRefreshing || isSyncSuccess}
           whileTap={{ scale: 0.95 }}
           title="Fetch latest stock prices, mutual fund NAVs & FX rates"
-          className="group flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/60 rounded-xl text-xs font-semibold text-slate-200 shadow-sm transition-all cursor-pointer"
+          className={`group flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer ${
+            isSyncSuccess 
+              ? 'bg-emerald-900/40 hover:bg-emerald-800/50 border-emerald-500/50 text-emerald-300'
+              : 'bg-slate-900/90 hover:bg-slate-800/90 border-slate-700/60 text-slate-200'
+          }`}
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-colors ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} />
-          <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync'}</span>
+          {isSyncSuccess ? (
+            <Check className="w-3.5 h-3.5 text-emerald-400" />
+          ) : (
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-colors ${isRefreshing ? 'animate-spin text-blue-400' : ''}`} />
+          )}
+          <span className="hidden sm:inline">
+            {isSyncSuccess ? 'Synced' : isRefreshing ? 'Syncing...' : 'Sync'}
+          </span>
         </motion.button>
 
         {/* Primary Add Investment Button */}

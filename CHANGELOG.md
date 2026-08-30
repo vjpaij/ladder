@@ -5,6 +5,19 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.4] - 2026-08-30
+
+### Fixed
+- **Price Sync Concurrency and Error Handling**: Refactored `refreshAllHoldingsPrices()` in `server/services/priceEngine.js` to run US equities, Indian equities (in concurrent batches of 15), Mutual Funds, and NPS schemes in parallel via `Promise.all` with localized `try/catch` handlers. Prevents single request network timeouts from crashing the server.
+- **Quote Date Transmission**: Updated `/api/holdings` in `server/index.js` to return live `quote_date` extracted from `liveQuoteCache`, restoring the "Latest" badge indicators in Mutual Funds, NPS, and Holding Detail modal.
+- **GitHub Actions Runner Upgrade**: Updated `.github/workflows/daily_nav_sip_sync.yml` to use Node.js 24 runtime to align with the local development environment and satisfy Node 24 support.
+
+### Added
+- **Visual Sync Confirmation**: Added a 3-second temporary emerald checkmark ("Synced") state to the Sync button in `TopNavbar.jsx` to provide immediate visual feedback upon sync completion.
+- **Holding Detail Modal Quote Badge**: Standardized quote date display in `HoldingDetailModal.jsx` to use high-contrast "Today" and "As of" status pill badges matching portfolio category views.
+
+---
+
 ## [4.7.3] - 2026-08-29
 
 ### Fixed

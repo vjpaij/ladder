@@ -469,8 +469,24 @@ export default function HoldingDetailModal({ holding, onClose }) {
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                      As of {formatQuoteBadgeDate(detail?.quote?.quoteDate || holding?.quoteDate || detail?.quote?.updated || new Date())}
+                    <div className="mt-1 flex items-center justify-end">
+                      {(() => {
+                        const rawQuoteDate = detail?.quote?.quoteDate || holding?.quoteDate || detail?.quote?.updated || new Date();
+                        const formattedDate = formatQuoteBadgeDate(rawQuoteDate);
+                        const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+                        const isToday = formattedDate === todayStr || formattedDate.includes('Today');
+                        
+                        return (
+                          <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                            isToday
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                              : 'bg-amber-500/10 text-amber-400/90 border-amber-500/20'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isToday ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                            {isToday ? `Today (${formattedDate})` : `As of ${formattedDate}`}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
