@@ -8,6 +8,28 @@ import { supabase } from '../supabaseClient.js';
  * When any transaction (BUY, SELL, BONUS, SPLIT, DEPOSIT, WITHDRAWAL, EMI, CHARGE)
  * is deleted, amended, or inserted, this function brings the holding into exact mathematical parity.
  */
+async function fetchPagedTransactions(filterField, filterValue) {
+  let allTxs = [];
+  let from = 0;
+  const batchSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq(filterField, filterValue)
+      .order('date', { ascending: true })
+      .order('created_at', { ascending: true })
+      .range(from, from + batchSize - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    allTxs = allTxs.concat(data);
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  return allTxs;
+}
+
 export async function recalculateHoldingState(holdingId) {
   if (!holdingId) return null;
 
@@ -24,12 +46,7 @@ export async function recalculateHoldingState(holdingId) {
 
       // Handle Balance-based categories (Bank, EPF)
       if (categoryId === 'bank' || categoryId === 'epf') {
-        const { data: txs } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('holding_id', holdingId)
-          .order('date', { ascending: true })
-          .order('created_at', { ascending: true });
+        const txs = await fetchPagedTransactions('holding_id', holdingId);
 
         let netBalance = 0;
         let lastDate = holding.updated_at;
@@ -63,12 +80,7 @@ export async function recalculateHoldingState(holdingId) {
       }
 
       // Handle Market-based categories (Indian Equity, US Equity, Mutual Funds, NPS)
-      const { data: txs } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('holding_id', holdingId)
-        .order('date', { ascending: true })
-        .order('created_at', { ascending: true });
+      const txs = await fetchPagedTransactions('holding_id', holdingId);
 
       let runningQty = 0;
       let totalBuyQty = 0;
@@ -179,12 +191,7 @@ export async function recalculateHoldingState(holdingId) {
 
     if (liabilityRows && liabilityRows.length > 0) {
       const liability = liabilityRows[0];
-      const { data: txs } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('liability_id', holdingId)
-        .order('date', { ascending: true })
-        .order('created_at', { ascending: true });
+      const txs = await fetchPagedTransactions('liability_id', holdingId);
 
       let netDebt = 0;
 

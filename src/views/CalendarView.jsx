@@ -78,6 +78,11 @@ export default function CalendarView() {
 
   useEffect(() => {
     fetchLogs();
+    // Real-time automatic background polling every 5 seconds
+    const interval = setInterval(() => {
+      fetchLogs(true);
+    }, 5000);
+    return () => clearInterval(interval);
   }, [activeRange, customStartDate, customEndDate]);
 
   // Lock body scrolling when popup is open to prevent page shifting
@@ -92,8 +97,8 @@ export default function CalendarView() {
     };
   }, [modalLog]);
 
-  const fetchLogs = async () => {
-    setLoading(true);
+  const fetchLogs = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       let url = '/api/daily-pnl';
       const params = [];
@@ -108,14 +113,18 @@ export default function CalendarView() {
       const res = await axios.get(url);
       setLogs(res.data);
       if (res.data.length > 0) {
-        setSelectedLog(res.data[res.data.length - 1]);
+        setSelectedLog(prev => {
+          if (!prev) return res.data[res.data.length - 1];
+          const match = res.data.find(d => (d.log_date || d.date) === (prev.log_date || prev.date));
+          return match || res.data[res.data.length - 1];
+        });
       } else {
         setSelectedLog(null);
       }
     } catch (err) {
-      console.error('[Calendar] Error fetching logs:', err);
+      if (!isSilent) console.error('[Calendar] Error fetching logs:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 

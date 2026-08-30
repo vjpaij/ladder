@@ -1,5 +1,7 @@
 import express from 'express';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -7,10 +9,13 @@ import db, { initDatabase } from './db.js';
 import { supabase } from './supabaseClient.js';
 import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav, formatCleanQuoteDate, syncAllMissingNavs, syncDailyNpsNavs } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
-import { computeHoldingValueINR } from './services/portfolioCalculator.js';
+import { computeHoldingValueINR, computePortfolioValuation } from './services/portfolioCalculator.js';
 import { recalculateHoldingState } from './services/recalculator.js';
 import { processDueSips } from './services/sipEngine.js';
 import axios from 'axios';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +27,10 @@ app.use(express.json());
 // Process-level resilience against network drops & unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.warn('[Server Warning] Unhandled Promise Rejection:', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.warn('[Server Warning] Uncaught Exception:', err?.message || err);
 });
 
 process.on('uncaughtException', (err) => {
@@ -479,28 +488,36 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     });
     const xirrPct = totalPortfolioCost > 0 ? Number((totalPortfolioWeightedXirr / totalPortfolioCost).toFixed(2)) : 0;
 
-    // Latest Daily P&L (Consistent with /api/daily-pnl)
-    let latestLog = null;
+    // Dynamic Day P&L (Computed relative to yesterday's closing wealth for real-time parity)
+    let yesterdayWealth = null;
     try {
       const eodPath = './data/portfolio_eod_logs.json';
       if (fs.existsSync(eodPath)) {
         const raw = fs.readFileSync(eodPath, 'utf8');
         const parsed = JSON.parse(raw);
-        if (parsed.length > 0) {
-          const l = parsed[parsed.length - 1];
-          latestLog = { log_date: l.date, daily_pnl_inr: l.daily_pnl, pnl_percentage: l.pnl_pct };
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const prevLogs = parsed.filter(l => l.date < todayStr);
+        if (prevLogs.length > 0) {
+          const l = prevLogs[prevLogs.length - 1];
+          yesterdayWealth = l.total_wealth !== undefined ? l.total_wealth : l.wealth;
+        } else if (parsed.length > 1) {
+          const l = parsed[parsed.length - 2];
+          yesterdayWealth = l.total_wealth !== undefined ? l.total_wealth : l.wealth;
+        } else if (parsed.length === 1) {
+          const l = parsed[0];
+          yesterdayWealth = l.total_wealth !== undefined ? l.total_wealth : l.wealth;
         }
       }
     } catch (e) {
       console.warn('[EOD JSON Fetch Error]:', e.message);
     }
 
-    if (!latestLog) {
-      latestLog = { log_date: new Date().toISOString().slice(0, 10), daily_pnl_inr: 0, pnl_percentage: 0 };
+    if (yesterdayWealth === null) {
+      yesterdayWealth = netWorthINR;
     }
     
-    const dayPnlINR = latestLog && latestLog.daily_pnl_inr !== undefined ? Number(latestLog.daily_pnl_inr) : 0;
-    const dayPnlPct = latestLog && latestLog.pnl_percentage !== undefined ? Number(latestLog.pnl_percentage) : 0;
+    const dayPnlINR = Number((netWorthINR - yesterdayWealth).toFixed(2));
+    const dayPnlPct = yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0;
 
     // Asset Breakdown by Category (clean names)
     const categoryValues = {};
@@ -578,11 +595,30 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
     }
 
     // Fetch Asset Metadata to map sector and capitalisation
-    const { data: metaData } = await supabase.from('asset_metadata').select('*');
+    let metaData = null;
+    try {
+      const { data } = await supabase.from('asset_metadata').select('*');
+      metaData = data;
+    } catch (e) {}
+
+    // Fallback to local cache if DB was unreachable or empty
+    if (!metaData || metaData.length === 0) {
+      try {
+        const localPath = path.join(__dirname, '../data/asset_metadata.json');
+        if (fs.existsSync(localPath)) {
+          metaData = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+        }
+      } catch (e) {}
+    }
+
     const metadataMap = {};
     if (metaData) {
       metaData.forEach(m => {
-        metadataMap[m.symbol] = m;
+        if (m.symbol) {
+          metadataMap[m.symbol] = m;
+          metadataMap[m.symbol.toUpperCase()] = m;
+          metadataMap[m.symbol.toLowerCase()] = m;
+        }
       });
     }
 
@@ -625,13 +661,16 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
         prevPrice = currentPriceNum - Number(dayChange);
       }
 
-      const meta = metadataMap[h.symbol] || {};
+      const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim();
+      const meta = metadataMap[h.symbol] || metadataMap[cleanSym] || metadataMap[cleanSym.toUpperCase()] || {};
       
       return {
         ...h,
         current_price: currentPriceNum,
         sector: meta.sector || h.sector || 'Unknown',
-        market_cap: meta.capitalisation || h.market_cap || 'Unknown',
+        market_cap: meta.mcap_category || meta.capitalisation || h.market_cap || 'Unknown',
+        market_cap_cr: meta.market_cap || null,
+        industry: meta.industry || null,
         category_name: catMap[h.category_id] ? catMap[h.category_id].name : h.category_id,
         category_color: catMap[h.category_id] ? catMap[h.category_id].color : '#3B82F6',
         fxRate: liveRate,
@@ -801,9 +840,12 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         const nonZeroLogs = activeLogs.filter(l => l[eodKey] > 0);
         const validLogs = nonZeroLogs.length > 0 ? nonZeroLogs : activeLogs;
 
-        const currentVal = validLogs[validLogs.length - 1]?.[eodKey] || Number(holding.current_price) || 0;
-        const peakVal = Math.max(...validLogs.map(l => l[eodKey]));
-        const minVal = Math.min(...validLogs.map(l => l[eodKey]));
+        const livePrice = Number(holding.current_price);
+        const currentVal = (livePrice !== undefined && livePrice !== null && !isNaN(livePrice) && livePrice > 0) 
+          ? livePrice 
+          : (validLogs[validLogs.length - 1]?.[eodKey] || 0);
+        const peakVal = Math.max(...validLogs.map(l => l[eodKey]), currentVal);
+        const minVal = Math.min(...validLogs.map(l => l[eodKey]), currentVal);
         const startVal = validLogs[0]?.[eodKey] || 0;
         const startDate = validLogs[0]?.date || '—';
 
@@ -847,6 +889,13 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             value: currentVal,
             balance: currentVal
           });
+        } else if (timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label === today) {
+          timelineINR[timelineINR.length - 1] = {
+            label: today,
+            invested: currentVal,
+            value: currentVal,
+            balance: currentVal
+          };
         }
 
         // Generate synthetic transaction history for table rendering
@@ -1611,8 +1660,48 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       }));
     }
 
+    // Universal Live Snapshot for Today (Single Source of Truth)
+    const fxRate = await fetchFxRate();
+    const holdings = await db.select('holdings');
+    const liabilities = await db.select('liabilities');
+    const livePriceMap = {};
+    holdings.forEach(h => {
+      const liveQuote = liveQuoteCache.get(h.symbol);
+      livePriceMap[h.symbol] = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+    });
+
+    const liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // Merge or append today's live valuation
+    const existingTodayIdx = eodLogs.findIndex(l => l.date === todayStr);
+    const todayEntry = {
+      date: todayStr,
+      ...liveTodayValuation
+    };
+
+    if (existingTodayIdx >= 0) {
+      eodLogs[existingTodayIdx] = todayEntry;
+    } else {
+      eodLogs.push(todayEntry);
+    }
+
     // Sort chronologically
     eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    // Recompute daily_pnl and pnl_pct across all logs so today is accurate against yesterday
+    for (let i = 0; i < eodLogs.length; i++) {
+      const cur = eodLogs[i];
+      const prev = i > 0 ? eodLogs[i - 1] : cur;
+      const curWealth = cur.total_wealth !== undefined ? cur.total_wealth : (cur.wealth || 0);
+      const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
+      const pnl = curWealth - prevWealth;
+      const pct = prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0;
+      cur.daily_pnl = Number(pnl.toFixed(2));
+      cur.pnl_pct = Number(pct.toFixed(2));
+      cur.total_wealth = curWealth;
+      cur.wealth = curWealth;
+    }
 
     // Determine start/end date bounds based on range parameter or custom dates
     let targetStartDate = startDate;
@@ -2735,6 +2824,330 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: `Unknown portfolio type: ${portfolio}` });
   } catch (err) {
     console.error('[Add Investment Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// REPORTS & ANALYTICS ADVANCED ENGINES
+// ============================================================================
+
+app.get('/api/reports/mf-holdings', async (req, res) => {
+  try {
+    const fxRate = await fetchFxRate();
+    const holdings = await db.select('holdings');
+    const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && Number(h.quantity) > 0);
+
+    const schemeValueMap = {};
+    let totalMfValueINR = 0;
+    mfHoldings.forEach(h => {
+      const quote = liveQuoteCache.get(h.symbol);
+      const price = (quote && quote.price > 0) ? quote.price : (Number(h.current_price) || 0);
+      const valINR = computeHoldingValueINR(h, price, fxRate);
+      schemeValueMap[h.symbol] = {
+        name: h.name,
+        symbol: h.symbol,
+        units: Number(h.quantity),
+        nav: price,
+        currentValueINR: valINR
+      };
+      totalMfValueINR += valINR;
+    });
+
+    let mfPortfolios = null;
+    try {
+      const { data } = await supabase.from('mutual_fund_holdings').select('*');
+      if (data && data.length > 0) {
+        mfPortfolios = {};
+        data.forEach(row => {
+          if (!mfPortfolios[row.scheme_code]) {
+            mfPortfolios[row.scheme_code] = {
+              scheme_code: row.scheme_code,
+              scheme_name: row.scheme_name,
+              companies: []
+            };
+          }
+          mfPortfolios[row.scheme_code].companies.push({
+            company: row.company_name,
+            symbol: row.symbol,
+            allocation_pct: Number(row.allocation_pct),
+            sector: row.sector,
+            mcap_category: row.mcap_category
+          });
+        });
+      }
+    } catch (e) {}
+
+    if (!mfPortfolios) {
+      const mfFile = path.join(__dirname, '../data/mutual_fund_holdings.json');
+      if (fs.existsSync(mfFile)) {
+        mfPortfolios = JSON.parse(fs.readFileSync(mfFile, 'utf8'));
+      } else {
+        mfPortfolios = {};
+      }
+    }
+
+    const schemes = [];
+    const aggregatedCompanies = {};
+    const sectorDistribution = {};
+    const mcapDistribution = { 'Mega Cap': 0, 'Large Cap': 0, 'Mid Cap': 0, 'Small Cap': 0, 'Micro Cap': 0, 'Cash': 0 };
+
+    Object.keys(schemeValueMap).forEach(code => {
+      const scheme = schemeValueMap[code];
+      const portfolio = mfPortfolios[code] || { companies: [] };
+      const companiesWithVal = (portfolio.companies || []).map(c => {
+        const allocatedVal = Number(((c.allocation_pct / 100) * scheme.currentValueINR).toFixed(2));
+        
+        if (!aggregatedCompanies[c.company]) {
+          aggregatedCompanies[c.company] = {
+            company: c.company,
+            symbol: c.symbol,
+            sector: c.sector,
+            mcap_category: c.mcap_category,
+            totalAllocatedINR: 0,
+            schemes: []
+          };
+        }
+        aggregatedCompanies[c.company].totalAllocatedINR += allocatedVal;
+        aggregatedCompanies[c.company].schemes.push({
+          scheme_name: scheme.name,
+          scheme_code: code,
+          pct: c.allocation_pct,
+          valueINR: allocatedVal
+        });
+
+        const s = c.sector || 'Diversified';
+        sectorDistribution[s] = (sectorDistribution[s] || 0) + allocatedVal;
+
+        const mc = c.mcap_category || 'Mid Cap';
+        if (mcapDistribution[mc] !== undefined) {
+          mcapDistribution[mc] += allocatedVal;
+        } else {
+          mcapDistribution['Mid Cap'] += allocatedVal;
+        }
+
+        return {
+          ...c,
+          allocatedINR: allocatedVal
+        };
+      }).sort((a, b) => b.allocatedINR - a.allocatedINR);
+
+      schemes.push({
+        scheme_code: code,
+        scheme_name: scheme.name,
+        currentValueINR: scheme.currentValueINR,
+        companies: companiesWithVal
+      });
+    });
+
+    const companyList = Object.values(aggregatedCompanies)
+      .map(c => ({
+        ...c,
+        percentage: totalMfValueINR > 0 ? Number(((c.totalAllocatedINR / totalMfValueINR) * 100).toFixed(2)) : 0
+      }))
+      .sort((a, b) => b.totalAllocatedINR - a.totalAllocatedINR);
+
+    res.json({
+      totalMfValueINR,
+      schemes: schemes.sort((a, b) => b.currentValueINR - a.currentValueINR),
+      aggregatedCompanies: companyList,
+      sectorDistribution,
+      mcapDistribution
+    });
+  } catch (err) {
+    console.error('[MF Holdings Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/reports/growth-benchmarks', async (req, res) => {
+  try {
+    const { timeframe = '1Y', scope = 'all', startDate: customStart, endDate: customEnd } = req.query;
+
+    const eodFile = path.join(__dirname, '../data/portfolio_eod_logs.json');
+    let eodLogs = [];
+    if (fs.existsSync(eodFile)) {
+      eodLogs = JSON.parse(fs.readFileSync(eodFile, 'utf8'));
+    }
+
+    const idxFile = path.join(__dirname, '../data/index_history.json');
+    let indexHistory = {};
+    if (fs.existsSync(idxFile)) {
+      indexHistory = JSON.parse(fs.readFileSync(idxFile, 'utf8'));
+    }
+
+    if (!Array.isArray(eodLogs) || eodLogs.length === 0) {
+      return res.json({ series: [] });
+    }
+
+    // Helper to extract portfolio valuation based on requested scope
+    const getScopeValue = (log) => {
+      if (!scope || scope === 'all' || scope === 'consolidated') {
+        return Number(log.wealth || log.total_wealth || log.total_assets || 0);
+      }
+      const scopeParts = scope.toLowerCase().split(',');
+      let total = 0;
+      if (scopeParts.some(s => s.includes('india') || s.includes('indian'))) {
+        total += Number(log.indian_stocks || 0);
+      }
+      if (scopeParts.some(s => s.includes('us'))) {
+        total += Number(log.us_stocks || 0);
+      }
+      if (scopeParts.some(s => s.includes('mf') || s.includes('mutual'))) {
+        total += Number(log.mutual_funds || 0);
+      }
+      if (scopeParts.some(s => s.includes('nps'))) {
+        total += Number(log.nps || 0);
+      }
+      if (scopeParts.some(s => s.includes('epf'))) {
+        total += Number(log.epf || 0);
+      }
+      if (scopeParts.some(s => s.includes('bank'))) {
+        total += Number(log.bank || 0);
+      }
+      return total;
+    };
+
+    // Filter logs that have non-zero value for the requested scope
+    const nonZeroLogs = eodLogs.filter(l => getScopeValue(l) > 0);
+    const earliestDataDate = nonZeroLogs.length > 0 ? nonZeroLogs[0].date : eodLogs[0].date;
+
+    const now = new Date();
+    let startDate = new Date();
+    let endDate = new Date();
+
+    if (timeframe === 'CUSTOM' && customStart) {
+      startDate = new Date(customStart);
+      if (customEnd) endDate = new Date(customEnd);
+    } else if (timeframe === '1M') startDate.setMonth(now.getMonth() - 1);
+    else if (timeframe === '3M') startDate.setMonth(now.getMonth() - 3);
+    else if (timeframe === '6M') startDate.setMonth(now.getMonth() - 6);
+    else if (timeframe === '1Y') startDate.setFullYear(now.getFullYear() - 1);
+    else if (timeframe === 'ALL') startDate = new Date(earliestDataDate);
+
+    const startIso = startDate.toISOString().split('T')[0];
+    const endIso = endDate.toISOString().split('T')[0];
+
+    const filteredLogs = eodLogs.filter(log => log.date >= startIso && log.date <= endIso && getScopeValue(log) > 0);
+    if (filteredLogs.length === 0) {
+      return res.json({ series: [] });
+    }
+
+    const firstLog = filteredLogs[0];
+    const actualStartIso = firstLog.date;
+    const basePortfolio = Math.max(1, getScopeValue(firstLog));
+
+    const baseIndexPrices = {};
+    const runningIndexPrices = {};
+    const indexKeys = ['NIFTY_50', 'NIFTY_MIDCAP_150', 'NIFTY_SMALLCAP_250', 'SP_500', 'NASDAQ'];
+    
+    // Find initial base price for each index on or nearest to actualStartIso
+    indexKeys.forEach(k => {
+      const closes = indexHistory[k]?.closes || {};
+      const dates = Object.keys(closes).sort();
+      let baseP = closes[actualStartIso];
+      if (!baseP) {
+        // Find nearest preceding date
+        for (let i = dates.length - 1; i >= 0; i--) {
+          if (dates[i] <= actualStartIso) {
+            baseP = closes[dates[i]];
+            break;
+          }
+        }
+        // If not found preceding, find nearest succeeding
+        if (!baseP && dates.length > 0) {
+          for (let i = 0; i < dates.length; i++) {
+            if (dates[i] >= actualStartIso) {
+              baseP = closes[dates[i]];
+              break;
+            }
+          }
+        }
+      }
+      baseIndexPrices[k] = baseP || 1;
+      runningIndexPrices[k] = baseP || 1;
+    });
+
+    const step = Math.max(1, Math.floor(filteredLogs.length / 80));
+    const sampled = [];
+
+    for (let i = 0; i < filteredLogs.length; i += step) {
+      const log = filteredLogs[i];
+      const d = log.date;
+      const val = getScopeValue(log);
+
+      const point = {
+        date: d,
+        Portfolio: Number(val.toFixed(2)),
+        PortfolioGrowthPct: basePortfolio > 0 ? Number((((val - basePortfolio) / basePortfolio) * 100).toFixed(2)) : 0
+      };
+
+      indexKeys.forEach(k => {
+        const closes = indexHistory[k]?.closes || {};
+        if (closes[d] !== undefined && closes[d] > 0) {
+          runningIndexPrices[k] = closes[d];
+        }
+        const currentP = runningIndexPrices[k];
+        const baseP = baseIndexPrices[k];
+        const growthPct = baseP > 0 ? Number((((currentP - baseP) / baseP) * 100).toFixed(2)) : 0;
+        point[k] = currentP;
+        point[`${k}_GrowthPct`] = growthPct;
+        // Simulated index portfolio: initial capital invested in index grown at index return rate
+        point[`${k}_Normalized`] = Number((basePortfolio * (1 + growthPct / 100)).toFixed(2));
+      });
+
+      sampled.push(point);
+    }
+
+    const lastLog = filteredLogs[filteredLogs.length - 1];
+    if (sampled.length > 0 && sampled[sampled.length - 1].date !== lastLog.date) {
+      const d = lastLog.date;
+      const val = getScopeValue(lastLog);
+      const point = {
+        date: d,
+        Portfolio: Number(val.toFixed(2)),
+        PortfolioGrowthPct: basePortfolio > 0 ? Number((((val - basePortfolio) / basePortfolio) * 100).toFixed(2)) : 0
+      };
+      indexKeys.forEach(k => {
+        const closes = indexHistory[k]?.closes || {};
+        if (closes[d] !== undefined && closes[d] > 0) {
+          runningIndexPrices[k] = closes[d];
+        }
+        const currentP = runningIndexPrices[k];
+        const baseP = baseIndexPrices[k];
+        const growthPct = baseP > 0 ? Number((((currentP - baseP) / baseP) * 100).toFixed(2)) : 0;
+        point[k] = currentP;
+        point[`${k}_GrowthPct`] = growthPct;
+        point[`${k}_Normalized`] = Number((basePortfolio * (1 + growthPct / 100)).toFixed(2));
+      });
+      sampled.push(point);
+    }
+
+    res.json({
+      timeframe,
+      scope,
+      baseDate: actualStartIso,
+      basePortfolio,
+      series: sampled
+    });
+  } catch (err) {
+    console.error('[Growth Benchmarks Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/reports/sync-metadata', async (req, res) => {
+  try {
+    const { syncAssetMetadata } = await import('../scripts/sync_asset_metadata.mjs');
+    const { syncMutualFundHoldings } = await import('../scripts/sync_mf_holdings.mjs');
+    const { syncIndexHistory } = await import('../scripts/sync_index_history.mjs');
+
+    syncAssetMetadata(true).catch(e => console.error('[Background Sync Asset Error]:', e));
+    syncMutualFundHoldings().catch(e => console.error('[Background Sync MF Error]:', e));
+    syncIndexHistory().catch(e => console.error('[Background Sync Index Error]:', e));
+
+    res.json({ success: true, message: 'Metadata and benchmark index sync initiated.' });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

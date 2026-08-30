@@ -263,17 +263,6 @@ function AppInner() {
         onClose={() => setIsEditProfileOpen(false)}
       />
 
-      {/* Floating Back Button */}
-      {currentView !== 'overview' && (
-        <button
-          onClick={() => { setTargetPortfolio(null); setCurrentView('overview'); }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-[calc(50%+64px)] md:-translate-x-1/2 z-40 flex items-center gap-2 px-5 py-3 bg-slate-900/90 border border-slate-700/60 rounded-full shadow-2xl hover:bg-slate-800 text-slate-300 hover:text-white transition-all backdrop-blur-md hover:scale-105 active:scale-95 cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span className="font-bold text-sm">Back to Dashboard</span>
-        </button>
-      )}
-
     </div>
   );
 }

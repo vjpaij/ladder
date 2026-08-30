@@ -78,12 +78,13 @@ async function migrate() {
 
   console.log(`[Migration] Generated ${allTxsToInsert.length} total delta transactions across Bank, EPF, Loans & Cards.`);
 
-  // Purge any existing transactions for these holding IDs and liability IDs
+  // Purge any existing transactions for these symbols in chunks
   for (const inst of INSTRUMENTS) {
-    if (['loans', 'credit_cards'].includes(inst.cat)) {
-      await supabase.from('transactions').delete().eq('liability_id', inst.id);
-    } else {
-      await supabase.from('transactions').delete().eq('holding_id', inst.id);
+    while (true) {
+      const { data } = await supabase.from('transactions').select('id').eq('symbol', inst.symbol).limit(50);
+      if (!data || data.length === 0) break;
+      const ids = data.map(d => d.id);
+      await supabase.from('transactions').delete().in('id', ids);
     }
   }
 

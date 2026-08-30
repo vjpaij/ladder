@@ -89,7 +89,7 @@ export function computePortfolioValuation(holdings = [], liabilities = [], price
   let credits = 0;
   liabilities.forEach(l => {
     const bal = Number((Number(l.outstanding_balance) || 0).toFixed(2));
-    if (l.type === 'credit_card' || (l.name && l.name.toLowerCase().includes('credit'))) {
+    if (l.type === 'credit_card' || l.category_id === 'credit_cards' || (l.name && l.name.toLowerCase().includes('credit'))) {
       credits = Number((credits + bal).toFixed(2));
     } else {
       loan = Number((loan + bal).toFixed(2));

@@ -28,8 +28,9 @@ Ladder is an institutional-grade personal finance and investment management dash
    - In-app SIP manager (`src/components/SipManagerModal.jsx`) allowing users to schedule, edit, pause, resume, or close recurring investments.
    - Automated cloud background runner (`server/services/sipEngine.js`) executes due SIPs at the latest NAV, allocates units with 0.015% stamp duty charges, and advances the next schedule by one month.
 
-5. **Historical Time-Series & Multi-Granularity Calendar**
+5. **Historical Time-Series & Real-Time Multi-Granularity Calendar**
    - Daily, monthly, and yearly portfolio valuation history spanning 19 years (2007-2026) across 18 asset and liability columns (`data/portfolio_eod_logs.json`).
+   - Dynamic real-time single-source-of-truth engine: today's current valuation updates live from real-time price feeds with 0 delay and zero scripts needed.
    - Interactive color-coded heatmap grid and tabular view with period P&L and ROI metrics.
 
 6. **Safety, Backup & Atomic Restoration**
@@ -130,13 +131,36 @@ node scripts/sync_navs_and_sips.mjs
 ```
 
 ### 5. Automated Cloud Scheduling (GitHub Actions)
-The workflow `.github/workflows/daily_nav_sip_sync.yml` automatically runs every hour on GitHub Actions using the Node.js 24 runner environment. To enable it on a remote repository:
+- **Hourly NAV & SIP Sync** (`.github/workflows/daily_nav_sip_sync.yml`): Runs automatically every hour during NAV declaration windows (IST 21:00-00:00 and 09:00-12:00) to fetch latest AMFI/Protean NAVs and execute due SIPs.
+- **Nightly Metadata & Benchmark Sync** (`.github/workflows/nightly_metadata_sync.yml`): Runs automatically every night at 23:00 IST (17:30 UTC) to refresh stock market caps, industry sectors, mutual fund constituent holdings, and 2-year daily benchmark index history.
+
+To enable workflows on a remote repository:
 1. Go to repository **Settings** -> **Secrets and variables** -> **Actions**.
 2. Add Repository Secrets:
    - `SUPABASE_URL`: Your Supabase Project URL.
    - `SUPABASE_ANON_KEY`: Your Supabase Anon Public Key.
-3. The workflow runs hourly and can also be manually dispatched via the **Actions** tab with one click.
-4. The scheduled job uses `actions/checkout@v5` and `actions/setup-node@v5` with `node-version: '24'` to maintain compatibility with the GitHub-hosted runner deprecation timeline.
+3. Both workflows can also be manually dispatched via the **Actions** tab with one click.
+
+### 6. Synchronizing Stock Market Caps & Sectors
+Fetches live market capitalizations and broad industry sectors for all active Indian and US equity holdings, categorizing into Mega, Large, Mid, Small, and Micro Cap:
+
+```bash
+node scripts/sync_asset_metadata.mjs
+```
+
+### 7. Synchronizing Mutual Fund Constituent Holdings
+Populates underlying company holdings, weights, and allocated rupee values for all active Mutual Fund schemes into Supabase and local cache:
+
+```bash
+node scripts/sync_mf_holdings.mjs
+```
+
+### 8. Synchronizing Benchmark Indices Daily History
+Fetches 2 years of daily historical closing quotes for Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ for date-by-date trajectory tracking:
+
+```bash
+node scripts/sync_index_history.mjs
+```
 
 ---
 

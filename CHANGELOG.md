@@ -5,6 +5,91 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.5] - 2026-08-30
+
+### Fixed & Enhanced
+- **10-Year Benchmark Historical Data**: Upgraded `scripts/sync_index_history.mjs` and pulled 10 years of daily historical data across Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ.
+- **Simulated Index Opportunity Growth Engine**: Refactored `/api/reports/growth-benchmarks` in `server/index.js` to simulate what the starting invested capital would have grown to if put into the selected index over the same timeframe, eliminating flat 0% benchmark lines when viewing 'ALL' or custom ranges.
+
+---
+
+## [4.8.4] - 2026-08-30
+
+### Fixed & Enhanced
+- **Contextual Chart Switcher**: Removed the Donut/Bar Chart toggle from non-applicable views (`Mutual Fund Look-Through` and `Growth vs Indices`), displaying it only when viewing `Allocation`, `Market Cap`, and `Sectors`.
+- **Anti-Jitter Stabilization**: Disabled continuous Recharts animation loops and stabilized scope bindings, eliminating graph re-render jitter and jumping when background price feeds tick.
+- **Full Mutual Fund Portfolio Expansion**: Populated the full 30 to 45 constituent company holdings for all 16 active mutual funds (467 rows in Supabase), reducing the "Other" cash buffer to minimal 2-4% and eliminating outliers.
+
+---
+
+## [4.8.3] - 2026-08-30
+
+### Changed
+- **Pure Light Theme Surface Refactor**: Replaced muddy dark containers with clean white cards (`bg-white`), crisp slate borders (`border-slate-200`), dark charcoal text (`text-slate-900`), and dark mode selectors (`dark:bg-slate-900`), ensuring full theme adherence in Light mode.
+- **Clean Bar Chart Mode**: Replaced 3D graph with a clean Recharts Bar Chart mode (`Donut` vs `Bar Chart`) featuring non-squished tickers, clean Y-axis formatting in Lakhs, and hover tooltips.
+
+---
+
+## [4.8.2] - 2026-08-30
+
+### Changed
+- **Light Theme Contrast**: Enhanced contrast across all filter buttons, tabs, dropdowns, and cards with high-contrast text and crisp borders.
+- **Removed Serial Numbers & Layout Stabilization**: Eliminated `#1`, `#2` badges from lists and stabilized hover animations to prevent layout shifting or re-render jumping.
+- **Visible Benchmark Tracking Line**: Replaced standard `<AreaChart>` with `<ComposedChart>` from Recharts to ensure the benchmark dashed line and markers are fully visible and properly scaled.
+- **3D Isometric Animated Graph**: Replaced the third table toggle with an interactive 3D Isometric Graph with perspective projection, glowing extruded vertical bars, lighting gradients, and Framer Motion spring physics.
+- **Complete Mutual Fund Company Holdings Expansion**: Populated all constituent companies across active mutual fund schemes and grouped cash, debt, and liquid instruments under `Cash, Debt & Other`.
+- **Luxury Animated Scheme Selector**: Replaced the dull rectangle `<select>` box with a custom glassmorphism dropdown menu.
+- **Unified Standard Sector Normalization**: Integrated a comprehensive sector normalizer across Indian Equities, US Equities, and Mutual Funds, merging overlapping labels (such as Technology / IT) and ensuring mutual funds are completely decomposed into their real underlying company sectors.
+
+---
+
+## [4.8.1] - 2026-08-30
+
+### Changed
+- **Zero-Unnecessary-Text & Minimalist Polish**: Removed all verbose subtitle paragraphs, filler descriptions, and long blurbs across the Reports view and established a permanent workspace rule in `.agents/AGENTS.md`.
+- **Calendar Date Range Picker in Growth vs Indices**: Added a custom date range popover with start and end date pickers alongside preset pills (`1M`, `3M`, `6M`, `1Y`, `ALL`).
+- **Removed Floating Back Button & Added Inline Back Button**: Eliminated the intrusive floating bottom button that blocked screen content, replacing it with a clean, compact inline `← Back` button in `TopNavbar.jsx`.
+- **Dynamic Scope-Aware Growth Trajectories**: Upgraded `/api/reports/growth-benchmarks` in `server/index.js` to calculate historical trajectories specifically for the selected Equity Hub checkboxes (e.g. Indian Stocks only, US Stocks only, or Mutual Funds).
+- **Institutional Ranked Progress Bars**: Replaced squished Recharts horizontal bar charts with modern animated ranked progress bars featuring clean typography, badges, values, and zero text overlap.
+- **Theme Card Borders & Clipping Fix**: Fixed card layout, border radius, and surface tokens across light and dark modes.
+
+### Added
+- **Nightly GitHub Actions Metadata Sync**: Created `.github/workflows/nightly_metadata_sync.yml` scheduled to run automatically every night at 23:00 IST (17:30 UTC) with 1-click manual trigger support.
+
+---
+
+## [4.8.0] - 2026-08-30
+
+### Added
+- **High-Contrast Glassmorphism Chart Tooltips**: Replaced Recharts default tooltip with the executive dashboard glassmorphism popover across all charts in `ReportsView.jsx`, displaying bold typography, color status pills, formatted currency in INR/USD, and 2-decimal percentage readouts.
+- **Full Allocation Accounting with 'Other' Bucket**: Grouped individual holdings beyond Top 10 into an aggregate `Other (X assets)` slice so the pie chart and legends always represent 100% of the portfolio.
+- **Live Internet Market Cap Classification Engine**: Created `asset_metadata` Supabase table and automated sync script (`scripts/sync_asset_metadata.mjs`) categorizing all stocks from internet data into Mega Cap (>₹2L Cr), Large Cap (₹60k-₹2L Cr), Mid Cap (₹20k-₹60k Cr), Small Cap (₹3k-₹20k Cr), and Micro Cap (<₹3k Cr).
+- **Mutual Fund Look-Through & Underlying Companies**: Created `mutual_fund_holdings` Supabase table and sync script (`scripts/sync_mf_holdings.mjs`) mapping underlying company holdings, weights, and allocated rupee values across all active schemes, with scheme-by-scheme and cross-fund aggregated explorer views.
+- **Interactive Sector Breakdown with Drill-Down**: Categorized all direct equities and fund holdings by industry sector. Clicking any sector reveals all constituent companies, their sources, market cap tiers, and allocated amounts.
+- **Real-Time Date-by-Date Growth vs. Indices**: Integrated daily historical index series for Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ (`scripts/sync_index_history.mjs`), with interactive timeframe selector (1M, 3M, 6M, 1Y, ALL) and dynamic alpha outperformance calculation.
+- **Dynamic Chart Style Switcher**: Added visual toggles between Donut/Pie Chart, Ranked Bar Chart, and Detailed List with Framer Motion animations.
+- **On-Demand Refresh Metadata**: Added a refresh button triggering live re-synchronization of market caps, sectors, and benchmark indices.
+
+---
+
+## [4.7.7] - 2026-08-30
+
+### Fixed
+- **Bank Ledger Deduplication & Recalculator Query Pagination**: Diagnosed and resolved the +₹8.59L jump on Aug 30. Traced to duplicate delta transactions in Supabase and the Supabase default 1,000-row query truncation in `server/services/recalculator.js` when recalculating HDFC Savings Account from 6,896 transactions. Implemented chunked paginated transaction queries in `recalculator.js`, cleanly purged duplicate records, and re-executed `scripts/migrate_balance_history_to_transactions.mjs`, reconciling HDFC Savings to exact ₹10,619.89.
+- **Weekend Valuation Parity & Settlement**: Reconciled Friday closing quotes in `data/historical_prices.json` (OIL @ ₹482.85, settled Friday NPS NAVs) and re-synchronized all 6,913 daily EOD logs via `scripts/rebuild_portfolio_eod.mjs`. Verified that Saturday (Aug 29) and Sunday (Aug 30) report exact ₹0.00 daily change (0.00%) with 0 changes and exact ₹18,708,675.57 Net Worth across all views.
+
+---
+
+## [4.7.6] - 2026-08-30
+
+### Architectural
+- **Universal Real-Time Single Source of Truth Valuation**: Resolved architectural data synchronization discrepancy between Dashboard Net Worth and Calendar current day value. Refactored `/api/daily-pnl` in `server/index.js` to inject a real-time portfolio snapshot for the current date using the centralized `computePortfolioValuation` engine with live price feeds (`liveQuoteCache`), identical to `/api/summary`.
+- **Dynamic Day P&L Engine**: Updated `/api/summary` to compute `dayPnlINR` and `dayPnlPct` dynamically relative to yesterday's closing wealth from the historical log.
+- **Dynamic EOD Detail Timelines**: Updated `/api/holding/:holdingId/detail` for Bank, EPF, and Debt instruments to dynamically reflect live database balances on today's timeline.
+- **Continuous Calendar Polling**: Added 5-second background live polling in `CalendarView.jsx` ensuring that the calendar heatmap and table update live alongside the dashboard without requiring manual script runs.
+
+---
+
 ## [4.7.5] - 2026-08-30
 
 ### Performance
