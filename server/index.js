@@ -491,22 +491,25 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
 
     // Dynamic Day P&L (Computed relative to yesterday's closing wealth for real-time parity)
     let yesterdayWealth = null;
+    const todayStr = new Date().toISOString().slice(0, 10);
     try {
-      const eodPath = './data/portfolio_eod_logs.json';
-      if (fs.existsSync(eodPath)) {
-        const raw = fs.readFileSync(eodPath, 'utf8');
-        const parsed = JSON.parse(raw);
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const prevLogs = parsed.filter(l => l.date < todayStr);
-        if (prevLogs.length > 0) {
-          const l = prevLogs[prevLogs.length - 1];
-          yesterdayWealth = l.total_wealth !== undefined ? l.total_wealth : l.wealth;
-        } else if (parsed.length > 1) {
-          const l = parsed[parsed.length - 2];
-          yesterdayWealth = l.total_wealth !== undefined ? l.total_wealth : l.wealth;
-        } else if (parsed.length === 1) {
-          const l = parsed[0];
-          yesterdayWealth = l.total_wealth !== undefined ? l.total_wealth : l.wealth;
+      const { data: previousEod } = await supabase
+        .from('pnl_history')
+        .select('net_worth_inr')
+        .lt('log_date', todayStr)
+        .order('log_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      yesterdayWealth = previousEod?.net_worth_inr ?? null;
+
+      if (yesterdayWealth === null) {
+        const eodPath = './data/portfolio_eod_logs.json';
+        if (fs.existsSync(eodPath)) {
+          const raw = fs.readFileSync(eodPath, 'utf8');
+          const parsed = JSON.parse(raw);
+          const previousLogs = parsed.filter(l => l.date < todayStr);
+          const previousLog = previousLogs[previousLogs.length - 1];
+          yesterdayWealth = previousLog?.total_wealth ?? previousLog?.wealth ?? null;
         }
       }
     } catch (e) {
