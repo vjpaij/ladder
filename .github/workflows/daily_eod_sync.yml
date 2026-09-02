@@ -1,6 +1,12 @@
 name: Daily Portfolio EOD Sync
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/daily_eod_sync.yml'
+      - 'scripts/load_historical_prices.mjs'
+      - 'scripts/rebuild_portfolio_eod.mjs'
   schedule:
     # Run after both Indian and US market activity has settled (23:45 UTC).
     - cron: '45 23 * * *'
