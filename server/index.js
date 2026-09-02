@@ -1665,15 +1665,37 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       eodLogs = JSON.parse(raw);
     }
 
-    if (eodLogs.length === 0) {
-      const dbLogs = await db.select('pnl_history');
-      eodLogs = dbLogs.map(l => ({
-        date: l.log_date,
-        wealth: l.net_worth_inr,
-        daily_pnl: l.daily_pnl_inr,
-        pnl_pct: l.pnl_percentage
-      }));
-    }
+    // The scheduled EOD worker persists its output in Supabase. Merge those
+    // rows with the checked-in historical cache so cloud-run updates survive.
+    const dbLogs = await db.select('pnl_history');
+    const dbLogsByDate = new Map(dbLogs.map(l => [l.log_date, {
+      date: l.log_date,
+      total_assets: l.total_assets_inr,
+      debt: l.total_liabilities_inr,
+      wealth: l.net_worth_inr,
+      total_wealth: l.net_worth_inr,
+      daily_pnl: l.daily_pnl_inr,
+      pnl_pct: l.pnl_percentage,
+      ...(l.breakdown || {}),
+      hdfc: l.hdfc,
+      indusind: l.indusind,
+      idfc: l.idfc,
+      rbl: l.rbl,
+      sbi: l.sbi,
+      federal: l.federal,
+      savings: l.savings,
+      mutual_funds: l.mutual_funds,
+      indian_stocks: l.indian_stocks,
+      us_stocks: l.us_stocks,
+      nps: l.nps,
+      epf: l.epf,
+      loan: l.loan,
+      credits: l.credits
+    }]));
+    eodLogs = [
+      ...eodLogs.filter(l => !dbLogsByDate.has(l.date)),
+      ...dbLogsByDate.values()
+    ];
 
     // Universal Live Snapshot for Today (Single Source of Truth)
     const fxRate = await fetchFxRate();

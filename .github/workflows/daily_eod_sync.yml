@@ -1,0 +1,28 @@
+name: Daily Portfolio EOD Sync
+
+on:
+  schedule:
+    # Run after both Indian and US market activity has settled (23:45 UTC).
+    - cron: '45 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync-eod:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Install Dependencies
+        run: npm ci --omit=dev
+
+      - name: Rebuild and Persist Daily EOD Logs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/rebuild_portfolio_eod.mjs

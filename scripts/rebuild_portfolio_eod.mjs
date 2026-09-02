@@ -143,7 +143,7 @@ async function rebuildEod() {
 
   // Determine current system date
   const todayStr = new Date().toISOString().slice(0, 10);
-  const targetEndDate = todayStr > '2026-08-29' ? todayStr : '2026-08-29';
+  const targetEndDate = todayStr;
 
   let curDate = new Date(`${lastExcelLog.date}T00:00:00Z`);
   const endDate = new Date(`${targetEndDate}T00:00:00Z`);
