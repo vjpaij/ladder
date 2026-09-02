@@ -1667,8 +1667,18 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
 
     // The scheduled EOD worker persists its output in Supabase. Merge those
     // rows with the checked-in historical cache so cloud-run updates survive.
-    const dbLogs = await db.select('pnl_history');
-    const dbLogsByDate = new Map(dbLogs.map(l => [l.log_date, {
+    const latestLocalDate = eodLogs.reduce((latest, log) => (
+      log.date > latest ? log.date : latest
+    ), '0000-00-00');
+    const { data: dbLogs, error: dbLogsError } = await supabase
+      .from('pnl_history')
+      .select('*')
+      .gte('log_date', latestLocalDate)
+      .order('log_date', { ascending: true });
+    if (dbLogsError) {
+      console.warn('[EOD Supabase Fetch Warning]:', dbLogsError.message);
+    }
+    const dbLogsByDate = new Map((dbLogs || []).map(l => [l.log_date, {
       date: l.log_date,
       total_assets: l.total_assets_inr,
       debt: l.total_liabilities_inr,
