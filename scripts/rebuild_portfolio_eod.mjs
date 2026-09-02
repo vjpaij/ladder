@@ -113,6 +113,45 @@ async function rebuildEod() {
     console.log(`Loaded ${baseLogs.length} existing base records up to 2026-08-07 from ${EOD_FILE}.`);
   }
 
+  const { data: persistedLogs, error: persistedLogsError } = await supabase
+    .from('pnl_history')
+    .select('*')
+    .order('log_date', { ascending: false })
+    .limit(1000);
+  if (persistedLogsError) {
+    console.warn('[Supabase EOD Baseline Warning]:', persistedLogsError.message);
+  }
+  if (persistedLogs && persistedLogs.length > 0) {
+    const persistedByDate = new Map(persistedLogs.map(log => [log.log_date, {
+      date: log.log_date,
+      total_assets: log.total_assets_inr,
+      debt: log.total_liabilities_inr,
+      wealth: log.net_worth_inr,
+      total_wealth: log.net_worth_inr,
+      daily_pnl: log.daily_pnl_inr,
+      pnl_pct: log.pnl_percentage,
+      ...(log.breakdown || {}),
+      hdfc: log.hdfc,
+      indusind: log.indusind,
+      idfc: log.idfc,
+      rbl: log.rbl,
+      sbi: log.sbi,
+      federal: log.federal,
+      savings: log.savings,
+      mutual_funds: log.mutual_funds,
+      indian_stocks: log.indian_stocks,
+      us_stocks: log.us_stocks,
+      nps: log.nps,
+      epf: log.epf,
+      loan: log.loan,
+      credits: log.credits
+    }]));
+    baseLogs = [
+      ...baseLogs.filter(log => !persistedByDate.has(log.date)),
+      ...persistedByDate.values()
+    ];
+  }
+
   baseLogs.sort((a, b) => a.date.localeCompare(b.date));
   console.log(`Loaded ${baseLogs.length} base logs from Excel. Latest Excel Date: ${baseLogs[baseLogs.length - 1]?.date}`);
 
