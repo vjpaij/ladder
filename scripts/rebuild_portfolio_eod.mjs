@@ -4,6 +4,7 @@ import xlsx from 'xlsx';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
+import { fetchNpsHistoricalNav } from '../server/services/priceEngine.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -126,6 +127,12 @@ async function rebuildEod() {
   const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && (Number(h.quantity) || 0) > 0);
   const npsHoldings = holdings.filter(h => h.category_id === 'nps' && (Number(h.quantity) || 0) > 0);
 
+  const npsHistoricalPrices = {};
+  await Promise.all(npsHoldings.map(async (holding) => {
+    const prices = await fetchNpsHistoricalNav(holding.symbol);
+    if (prices) npsHistoricalPrices[holding.symbol] = prices;
+  }));
+
   const lastExcelLog = baseLogs[baseLogs.length - 1] || {
     date: '2026-08-07',
     hdfc: 10619.89,
@@ -200,7 +207,9 @@ async function rebuildEod() {
     } else {
       const priceMap = {};
       holdings.forEach(h => {
-        const prices = historicalPrices[h.symbol] || {};
+        const prices = h.category_id === 'nps'
+          ? Object.fromEntries(npsHistoricalPrices[h.symbol] || [])
+          : (historicalPrices[h.symbol] || {});
         let p = prices[dateStr];
         if (p === undefined) {
           const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
