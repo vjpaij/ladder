@@ -11,9 +11,17 @@ const DATA_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
 // Delay helper for rate limiting
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-async function fetchYahooFinanceHistorical(symbol, startDate) {
+function nextDate(dateStr) {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+async function fetchYahooFinanceHistorical(symbol, startDate, endDate = null) {
   try {
-    const results = await yahooFinance.chart(symbol, { period1: startDate, interval: '1d' });
+    const options = { period1: startDate, interval: '1d' };
+    if (endDate) options.period2 = endDate;
+    const results = await yahooFinance.chart(symbol, options);
     const prices = {};
     if (results && results.quotes) {
       results.quotes.forEach(q => {
@@ -135,13 +143,23 @@ async function run() {
   }
 
   const FX_FILE = path.join(process.cwd(), 'data', 'historical_fx_rates.json');
-  console.log('Fetching historical daily USD/INR FX rates...');
-  const fxPrices = await fetchYahooFinanceHistorical('INR=X', '2010-01-01');
+  const today = new Date().toISOString().split('T')[0];
+  const existingFx = fs.existsSync(FX_FILE)
+    ? JSON.parse(fs.readFileSync(FX_FILE, 'utf-8'))
+    : {};
+  const latestFxDate = Object.keys(existingFx).sort().at(-1);
+  const fxStartDate = latestFxDate
+    ? nextDate(latestFxDate)
+    : '2010-01-01';
+  const fxPrices = latestFxDate && latestFxDate >= today
+    ? {}
+    : await fetchYahooFinanceHistorical('INR=X', fxStartDate);
   if (Object.keys(fxPrices).length > 0) {
-    fs.writeFileSync(FX_FILE, JSON.stringify(fxPrices, null, 2));
-    console.log(`Saved ${Object.keys(fxPrices).length} daily FX records.`);
+    const mergedFx = { ...existingFx, ...fxPrices };
+    fs.writeFileSync(FX_FILE, JSON.stringify(mergedFx, null, 2));
+    console.log(`Saved ${Object.keys(fxPrices).length} missing FX records.`);
   } else {
-    console.log('Warning: Failed to fetch FX rates.');
+    console.log('FX history is already current or unavailable.');
   }
 
   // Find earliest transaction date for each holding
@@ -164,11 +182,20 @@ async function run() {
     const holding = targets[i];
     let symbol = holding.symbol;
     
-    console.log(`[${i+1}/${targets.length}] Fetching data for ${symbol}...`);
+    const existingPrices = historicalData[holding.symbol] || {};
+    const latestPriceDate = Object.keys(existingPrices).sort().at(-1);
+    const startDate = latestPriceDate
+      ? nextDate(latestPriceDate)
+      : (earliestDates[holding.id] || '2010-01-01');
+
+    if (latestPriceDate && latestPriceDate >= today) {
+      console.log(`[${i+1}/${targets.length}] ${symbol} is current through ${latestPriceDate}.`);
+      continue;
+    }
+
+    console.log(`[${i+1}/${targets.length}] Fetching missing data for ${symbol} from ${startDate}...`);
 
     let prices = {};
-    // Determine start date (fallback to 2010-01-01 if no transactions)
-    let startDate = earliestDates[holding.id] || '2010-01-01';
     
     if (holding.category_id === 'mutual_funds') {
       // mfapi returns max history, start date is ignored by the API
@@ -190,16 +217,11 @@ async function run() {
       }
       
       prices = await fetchYahooFinanceHistorical(fetchSymbol, startDate);
-      await delay(1000); // 1s delay to avoid Yahoo rate limits
-
-      // Staleness Detection & Fallback logic
-      if (Object.keys(prices).length > 0) {
-        prices = await checkStalenessAndPatch(fetchSymbol, prices, startDate, isIndianStock);
-      }
+      await delay(250);
     }
 
     if (Object.keys(prices).length > 0) {
-      historicalData[holding.symbol] = prices; // Store by original symbol
+      historicalData[holding.symbol] = { ...existingPrices, ...prices };
       console.log(` -> Fetched ${Object.keys(prices).length} daily records.`);
     } else {
       console.log(` -> No data found.`);
