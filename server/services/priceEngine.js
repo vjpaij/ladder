@@ -244,19 +244,18 @@ export async function fetchProteanNpsNavBatch() {
       }
     }
 
-    // Asynchronously upsert to nps_daily_navs in database
+    // Persist the batch before the worker exits so the next dashboard request can use it.
     if (dbRows.length > 0) {
-      (async () => {
-        try {
-          const batchSize = 100;
-          for (let i = 0; i < dbRows.length; i += batchSize) {
-            const chunk = dbRows.slice(i, i + batchSize);
-            await supabase.from('nps_daily_navs').upsert(chunk, { onConflict: 'scheme_code,nav_date' });
-          }
-        } catch (e) {
-          console.warn('[NPS DB Upsert Warning]:', e.message);
+      try {
+        const batchSize = 100;
+        for (let i = 0; i < dbRows.length; i += batchSize) {
+          const chunk = dbRows.slice(i, i + batchSize);
+          const { error } = await supabase.from('nps_daily_navs').upsert(chunk, { onConflict: 'scheme_code,nav_date' });
+          if (error) throw error;
         }
-      })();
+      } catch (e) {
+        console.warn('[NPS DB Upsert Warning]:', e.message);
+      }
     }
 
     proteanBatchCache = { navMap, cachedAt: Date.now() };
@@ -301,6 +300,15 @@ export async function syncAllMissingNavs() {
           const q = await fetchMutualFundNav(h.symbol);
           if (q) {
             liveQuoteCache.set(h.symbol, q);
+            const mfDateParts = String(q.date || '').split('-');
+            const quoteDate = mfDateParts.length === 3
+              ? `${mfDateParts[2]}-${mfDateParts[1]}-${mfDateParts[0]}`
+              : q.date || null;
+            await db.update('holdings', h.id, {
+              current_price: q.nav,
+              quote_date: quoteDate,
+              updated_at: new Date().toISOString()
+            });
             results.mfUpdated++;
           }
         } catch (e) {}
@@ -309,12 +317,17 @@ export async function syncAllMissingNavs() {
           let item = navMap?.get(h.symbol);
           if (!item) {
             const fallback = await fetchNpsNavFallback(h.symbol);
-            if (fallback) item = { nav: fallback.nav, quoteDate: fallback.quoteDate };
+            if (fallback) item = { nav: fallback.nav, date: fallback.date, quoteDate: fallback.quoteDate };
           }
           if (item) {
             liveQuoteCache.set(h.symbol, {
               price: item.nav,
               quoteDate: item.quoteDate
+            });
+            await db.update('holdings', h.id, {
+              current_price: item.nav,
+              quote_date: item.date || null,
+              updated_at: new Date().toISOString()
             });
           }
         } catch (e) {}

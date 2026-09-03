@@ -3,9 +3,10 @@ name: Hourly NAV & SIP Cloud Sync
 on:
   schedule:
     # Runs hourly during NAV declaration windows only (IST 21:00-00:00 and 09:00-12:00)
-    # UTC 15:30, 16:30, 17:30, 18:30 = IST 21:00, 22:00, 23:00, 00:00
-    # UTC 03:30, 04:30, 05:30, 06:30 = IST 09:00, 10:00, 11:00, 12:00
-    - cron: '30 3,4,5,6,15,16,17,18 * * *'
+    # Use a non-round minute to reduce GitHub Actions queue delays.
+    # UTC 15:37, 16:37, 17:37, 18:37 = IST 21:07, 22:07, 23:07, 00:07
+    # UTC 03:37, 04:37, 05:37, 06:37 = IST 09:07, 10:07, 11:07, 12:07
+    - cron: '37 3,4,5,6,15,16,17,18 * * *'
   workflow_dispatch: # Allows manual 1-click trigger from GitHub UI
 
 jobs:

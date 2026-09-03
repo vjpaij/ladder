@@ -482,8 +482,19 @@ export default function CalendarView() {
             </div>
           ) : viewMode === 'grid' ? (
             /* ================= GRID HEATMAP VIEW ================= */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[500px] overflow-y-auto p-2 pr-1 pb-1 custom-scrollbar">
-              {sortedLogs.map((log, i) => {
+            <div className="space-y-2">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleSort('date')}
+                  aria-label={`Switch to ${sortDirection === 'asc' ? 'newest first' : 'oldest first'}`}
+                  className="p-1.5 rounded-lg border border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-colors"
+                  title={`Switch to ${sortDirection === 'asc' ? 'newest first' : 'oldest first'}`}
+                >
+                  {sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[500px] overflow-y-auto p-2 pr-1 pb-1 custom-scrollbar">
+                {sortedLogs.map((log, i) => {
                 const isPos = log.daily_pnl_inr > 0;
                 const isNeg = log.daily_pnl_inr < 0;
                 const isSelected = selectedLog && (selectedLog.period_key === log.period_key || selectedLog.log_date === log.log_date);
@@ -491,6 +502,7 @@ export default function CalendarView() {
                 const d = new Date(log.log_date + 'T00:00:00');
                 const dayNum = String(d.getDate()).padStart(2, '0');
                 const monthShort = d.toLocaleString('en-US', { month: 'short' });
+                const weekdayShort = d.toLocaleString('en-US', { weekday: 'short' }).toUpperCase();
                 const yearShort = String(d.getFullYear()).slice(-2);
                 const fullYear = String(d.getFullYear());
 
@@ -535,6 +547,7 @@ export default function CalendarView() {
                         <div className="flex items-baseline gap-1">
                           <span className="text-base sm:text-lg font-black text-slate-100 font-mono leading-none">{dayNum}</span>
                           <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider font-sans">{monthShort} '{yearShort}</span>
+                          <span className="text-[8px] font-extrabold uppercase text-emerald-400 tracking-wider font-sans">{weekdayShort}</span>
                         </div>
                       ) : granularity === 'monthly' ? (
                         <div className="flex items-baseline gap-1">
@@ -566,7 +579,8 @@ export default function CalendarView() {
                     </div>
                   </motion.div>
                 );
-              })}
+                })}
+              </div>
             </div>
           ) : (
             /* ================= SPREADSHEET TABLE VIEW (Exact portfolio.xlsx layout) ================= */
