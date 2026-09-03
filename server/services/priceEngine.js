@@ -300,13 +300,8 @@ export async function syncAllMissingNavs() {
           const q = await fetchMutualFundNav(h.symbol);
           if (q) {
             liveQuoteCache.set(h.symbol, q);
-            const mfDateParts = String(q.date || '').split('-');
-            const quoteDate = mfDateParts.length === 3
-              ? `${mfDateParts[2]}-${mfDateParts[1]}-${mfDateParts[0]}`
-              : q.date || null;
             await db.update('holdings', h.id, {
               current_price: q.nav,
-              quote_date: quoteDate,
               updated_at: new Date().toISOString()
             });
             results.mfUpdated++;
@@ -326,7 +321,6 @@ export async function syncAllMissingNavs() {
             });
             await db.update('holdings', h.id, {
               current_price: item.nav,
-              quote_date: item.date || null,
               updated_at: new Date().toISOString()
             });
           }
