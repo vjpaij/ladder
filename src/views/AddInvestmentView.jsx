@@ -437,13 +437,18 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
 
   const getTxTypeColor = (type) => {
     switch (type) {
-      case 'BUY': case 'TAKE': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
-      case 'SELL': case 'PAY': return 'text-rose-400 bg-rose-500/10 border-rose-500/30';
-      case 'BONUS': case 'DIVIDEND': return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
-      case 'SPLIT': return 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30';
-      default: return 'text-slate-400 bg-slate-500/10 border-slate-500/30';
+      case 'BUY': case 'CREDIT': case 'CONTRIBUTION': case 'BILL_PAYMENT': return 'transaction-type-option transaction-type-buy';
+      case 'SELL': case 'WITHDRAWAL': case 'DEBIT': case 'EMI_PAYMENT': case 'CHARGE': return 'transaction-type-option transaction-type-sell';
+      case 'BONUS': case 'BORROW': return 'transaction-type-option transaction-type-bonus';
+      case 'DIVIDEND': return 'transaction-type-option transaction-type-dividend';
+      case 'SPLIT': return 'transaction-type-option transaction-type-split';
+      default: return 'transaction-type-option transaction-type-neutral';
     }
   };
+
+  const getTransactionActionClass = (type, isActive) => (
+    `${getTxTypeColor(type)}${isActive ? ' is-active' : ''}`
+  );
 
   // Render portfolio-specific form
   const renderForm = () => {
@@ -507,11 +512,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                   onClick={() => updateField('type', type)}
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
-                    isActive
-                      ? getTxTypeColor(type) + ' shadow-lg'
-                      : 'text-slate-500 bg-slate-900/50 border-slate-800 hover:border-slate-600'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${getTransactionActionClass(type, isActive)}`}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   {type}
@@ -1081,13 +1082,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                   key={t}
                   type="button"
                   onClick={() => updateField('type', t)}
-                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
-                    active
-                      ? isPositive
-                        ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-sm'
-                        : 'bg-rose-500/15 border-rose-500/50 text-rose-400 shadow-sm'
-                      : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${getTransactionActionClass(t, active)}`}
                 >
                   {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                   <span>{isEpf ? (t === 'CONTRIBUTION' ? 'Deposit / Contribution' : 'Withdrawal / Transfer') : (t === 'CREDIT' ? 'Deposit / Earn (Credit)' : 'Spend / Withdraw (Debit)')}</span>
@@ -1229,11 +1224,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             <button
               type="button"
               onClick={() => updateField('type', 'EMI_PAYMENT')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
-                currentType === 'EMI_PAYMENT'
-                  ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
-              }`}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${getTransactionActionClass('EMI_PAYMENT', currentType === 'EMI_PAYMENT')}`}
             >
               <TrendingDown className="w-3.5 h-3.5" />
               <span>EMI Payment / Prepayment (Reduces Debt)</span>
@@ -1241,11 +1232,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             <button
               type="button"
               onClick={() => updateField('type', 'BORROW')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
-                currentType === 'BORROW'
-                  ? 'bg-rose-500/15 border-rose-500/50 text-rose-400 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
-              }`}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${getTransactionActionClass('BORROW', currentType === 'BORROW')}`}
             >
               <TrendingUp className="w-3.5 h-3.5" />
               <span>New Loan / Disbursement (Increases Debt)</span>
@@ -1377,11 +1364,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             <button
               type="button"
               onClick={() => updateField('type', 'CHARGE')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
-                currentType === 'CHARGE'
-                  ? 'bg-rose-500/15 border-rose-500/50 text-rose-400 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
-              }`}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${getTransactionActionClass('CHARGE', currentType === 'CHARGE')}`}
             >
               <TrendingUp className="w-3.5 h-3.5" />
               <span>Card Expense / Purchase (Charge)</span>
@@ -1389,11 +1372,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             <button
               type="button"
               onClick={() => updateField('type', 'BILL_PAYMENT')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${
-                currentType === 'BILL_PAYMENT'
-                  ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
-              }`}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${getTransactionActionClass('BILL_PAYMENT', currentType === 'BILL_PAYMENT')}`}
             >
               <TrendingDown className="w-3.5 h-3.5" />
               <span>Bill Payment / Refund (Reduces Debt)</span>

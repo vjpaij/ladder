@@ -11,6 +11,11 @@
   --accent-emerald: #10B981;
   --accent-crimson: #EF4444;
   --accent-indigo: #6366F1;
+  --tx-buy: #34D399;
+  --tx-sell: #FB7185;
+  --tx-bonus: #B45309;
+  --tx-dividend: #F59E0B;
+  --tx-split: #A855F7;
 }
 
 .midnight {
@@ -24,6 +29,11 @@
   --accent-emerald: #38BDF8;
   --accent-crimson: #F43F5E;
   --accent-indigo: #818CF8;
+  --tx-buy: #67E8F9;
+  --tx-sell: #FDA4AF;
+  --tx-bonus: #D97706;
+  --tx-dividend: #FBBF24;
+  --tx-split: #C084FC;
 }
 
 .sunset {
@@ -37,6 +47,11 @@
   --accent-emerald: #F59E0B;
   --accent-crimson: #E11D48;
   --accent-indigo: #EC4899;
+  --tx-buy: #6EE7B7;
+  --tx-sell: #FDA4AF;
+  --tx-bonus: #D97706;
+  --tx-dividend: #FBBF24;
+  --tx-split: #C084FC;
 }
 
 .light {
@@ -50,6 +65,11 @@
   --accent-emerald: #059669;
   --accent-crimson: #DC2626;
   --accent-indigo: #2563EB;
+  --tx-buy: #047857;
+  --tx-sell: #BE123C;
+  --tx-bonus: #92400E;
+  --tx-dividend: #B45309;
+  --tx-split: #7E22CE;
 }
 
 .warm_light {
@@ -63,6 +83,11 @@
   --accent-emerald: #D97706;
   --accent-crimson: #DC2626;
   --accent-indigo: #EA580C;
+  --tx-buy: #047857;
+  --tx-sell: #BE123C;
+  --tx-bonus: #92400E;
+  --tx-dividend: #B45309;
+  --tx-split: #7E22CE;
 }
 
 .nordic_light {
@@ -76,6 +101,11 @@
   --accent-emerald: #0284C7;
   --accent-crimson: #DC2626;
   --accent-indigo: #0284C7;
+  --tx-buy: #0369A1;
+  --tx-sell: #BE123C;
+  --tx-bonus: #92400E;
+  --tx-dividend: #B45309;
+  --tx-split: #7E22CE;
 }
 
 body {
@@ -85,6 +115,32 @@ body {
   overflow-x: hidden;
   min-height: 100vh;
 }
+
+/* Transaction actions stay distinct and readable on every theme. */
+.transaction-type-option {
+  background: color-mix(in srgb, var(--tx-color) 9%, transparent);
+  border-color: color-mix(in srgb, var(--tx-color) 30%, transparent);
+  color: var(--tx-color);
+}
+
+.transaction-type-option:hover {
+  background: color-mix(in srgb, var(--tx-color) 15%, transparent);
+  border-color: var(--tx-color);
+  color: var(--tx-color);
+}
+
+.transaction-type-option.is-active {
+  background: color-mix(in srgb, var(--tx-color) 18%, transparent);
+  border-color: var(--tx-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tx-color) 30%, transparent), 0 8px 20px color-mix(in srgb, var(--tx-color) 16%, transparent);
+}
+
+.transaction-type-buy { --tx-color: var(--tx-buy); }
+.transaction-type-sell { --tx-color: var(--tx-sell); }
+.transaction-type-bonus { --tx-color: var(--tx-bonus); }
+.transaction-type-dividend { --tx-color: var(--tx-dividend); }
+.transaction-type-split { --tx-color: var(--tx-split); }
+.transaction-type-neutral { --tx-color: var(--text-secondary); }
 
 /* ─── Active Navigation Highlight (Per-Theme Dynamic) ──── */
 /* Default / Obsidian Dark */
