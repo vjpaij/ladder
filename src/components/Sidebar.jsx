@@ -11,7 +11,7 @@ import {
   CreditCard, 
   Coins, 
   Shield,
-  Briefcase,
+  Building2,
   ChevronLeft,
   ChevronRight,
   PieChart,
@@ -46,7 +46,7 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
         { id: 'mutual_funds', label: 'Mutual Funds', icon: LineChart },
         { id: 'nps', label: 'NPS', icon: Shield },
         { id: 'bank', label: 'Bank Accounts', icon: Landmark },
-        { id: 'epf', label: 'EPF', icon: Briefcase },
+        { id: 'epf', label: 'EPF', icon: Building2 },
       ]
     },
     {

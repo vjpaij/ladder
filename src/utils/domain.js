@@ -17,6 +17,14 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
     return urls;
   }
 
+  // Employee Provident Fund (EPF)
+  if (category === 'epf') {
+    urls.push('https://www.epfindia.gov.in/site_docs/images/epfo_logo.png');
+    urls.push('https://upload.wikimedia.org/wikipedia/en/thumb/e/ef/Employees%27_Provident_Fund_Organisation_Logo.svg/1200px-Employees%27_Provident_Fund_Organisation_Logo.svg.png');
+    pushLogos(urls, 'epfindia.gov.in');
+    return urls;
+  }
+
   // Mutual Funds & NPS
   if (category === 'mutual_funds' || category === 'nps') {
     if (n.includes('hdfc')) pushLogos(urls, `hdfcfund.com`);

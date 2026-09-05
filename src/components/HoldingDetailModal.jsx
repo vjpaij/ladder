@@ -304,9 +304,11 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
   const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
-  const hasActualChart = holding?.category_id !== 'bank';
+  const hasActualChart = holding?.category_id !== 'bank' && holding?.category_id !== 'epf';
   const displayHoldingName = holding?.category_id === 'bank'
     ? holding.name.replace(/\s*\(SBI\)/gi, '').trim()
+    : holding?.category_id === 'epf'
+    ? 'Employee Provident Fund'
     : holding?.name;
 
   useEffect(() => {
@@ -344,12 +346,14 @@ export default function HoldingDetailModal({ holding, onClose }) {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-white font-black text-[15px] leading-tight">{displayHoldingName}</h2>
-                    <span
-                      className="text-[9px] font-black px-2 py-0.5 rounded-full border"
-                      style={{ background: `${accentColor}20`, borderColor: `${accentColor}40`, color: accentColor }}
-                    >
-                      {holding.symbol}
-                    </span>
+                    {holding.category_id !== 'epf' && (
+                      <span
+                        className="text-[9px] font-black px-2 py-0.5 rounded-full border"
+                        style={{ background: `${accentColor}20`, borderColor: `${accentColor}40`, color: accentColor }}
+                      >
+                        {holding.symbol}
+                      </span>
+                    )}
                     {holding.exchange && (
                       <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
                         {holding.exchange}
@@ -357,12 +361,10 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    {holding.category_id !== 'bank' && <span className="text-[10px] text-slate-500">
+                    {holding.category_id !== 'bank' && holding.category_id !== 'epf' && <span className="text-[10px] text-slate-500">
                       {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                         : holding.category_id === 'us_stocks' ? 'US Equity'
                         : holding.category_id === 'nps' ? 'NPS Scheme'
-                        : holding.category_id === 'bank' ? 'Bank Account'
-                        : holding.category_id === 'epf' ? 'Employee Provident Fund'
                         : holding.category_id === 'loans' ? 'Housing Loan'
                         : holding.category_id === 'credit_cards' ? 'Credit Card Balance'
                         : 'Indian Equity'}

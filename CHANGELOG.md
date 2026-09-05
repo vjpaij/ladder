@@ -5,6 +5,35 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.3] - 2026-09-05
+
+### Refactored & Enhanced
+- **EPF Logo Customization**: Standardized the EPF icon across the sidebar to use the `Building2` icon, aligning it visually with the EPF page hero header.
+- **EPFO Detail Logo**: Implemented automatic fetching of the official EPFO logo from Wikimedia Commons in `domain.js`, eliminating the basic `EP` text fallback in the `HoldingDetailModal.jsx` header.
+
+---
+
+## [5.3.2] - 2026-09-05
+
+### Refactored
+- **EPF Holding Detail Minimalist UI**: Removed redundant `EPF` bold header, `EPF-RETIREMENT` badge, and `Employee Provident Fund` subtitle from the `HoldingDetailModal.jsx` for EPF assets. The header now cleanly displays 'Employee Provident Fund'.
+- **EPF Actual Chart Removal**: Disabled the 'Actual Chart' tab for EPF assets in `HoldingDetailModal.jsx` as it is redundant for non-market EOD tracking assets.
+
+---
+
+## [5.3.1] - 2026-09-05
+
+### Refactored & Enhanced
+- **EPF View Minimalist De-Cluttering**: Removed static filler elements from [EpfView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/EpfView.jsx) including the static interest rate pill badge (`FY 2025-26: 8.25% p.a.`) and descriptive tagline.
+- **Removed Timeline Button & Simplified View Action**: Removed redundant `Inspect Timeline` button from the hero banner and simplified the action button on the member account card to a clean `View` button.
+- **Removed Static Statement Rows**: Completely eliminated redundant static screenshot row 2 and row 3 (~50% corpus share assumptions, static compounding frequency text).
+- **Dynamic Live Metric Cards**: Integrated live performance cards driven by verified holding detail and transaction records:
+  - **1-Year Growth**: Dynamic 12-month delta and percentage (`+₹7.04L (+18.05%)`).
+  - **Est. Annual Yield**: Dynamic annualized return calculation (`+₹3.80L` at `8.25% p.a.`).
+  - **Last Credit**: Verified latest contribution transaction date and amount (`+₹62,508.00` on `12-06-2026`).
+
+---
+
 ## [5.3.0] - 2026-09-05
 
 ### Added & Enhanced
