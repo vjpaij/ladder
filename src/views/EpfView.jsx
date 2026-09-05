@@ -29,17 +29,17 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
 
   // Find EPF holding
   const epfHolding = holdings.find(h => h.category_id === 'epf' || h.symbol === 'EPF-RETIREMENT') || {
-    id: '00000000-0000-0000-0000-000000000007',
+    id: '',
     name: 'Employees Provident Fund (EPF)',
     symbol: 'EPF-RETIREMENT',
     category_id: 'epf',
-    quantity: 1,
-    current_price: 4606949,
-    avg_buy_price: 100911,
+    quantity: 0,
+    current_price: 0,
+    avg_buy_price: 0,
     currency: 'INR'
   };
 
-  const currentVal = Number(epfHolding.current_price) || 4606949;
+  const currentVal = Number(epfHolding.current_price) || 0;
   const annualInterestRate = 8.25;
   const estAnnualInterest = (currentVal * annualInterestRate) / 100;
 
@@ -61,8 +61,8 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
   }, [epfHolding.id]);
 
   const metrics = detailData?.metricsINR || detailData?.metrics || {};
-  const oneYearDelta = metrics.oneYearDelta !== undefined ? metrics.oneYearDelta : 704445;
-  const oneYearPct = metrics.oneYearPct !== undefined ? metrics.oneYearPct : '18.05';
+  const oneYearDelta = metrics.oneYearDelta !== undefined ? metrics.oneYearDelta : 0;
+  const oneYearPct = metrics.oneYearPct !== undefined ? metrics.oneYearPct : 0;
   
   // Find latest credit transaction
   const latestTx = detailData?.transactions && detailData.transactions.length > 0 
@@ -158,10 +158,10 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
               <Calendar className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="text-xl font-black font-mono text-slate-100 mb-1">
-              {latestTx?.total_amount ? `+${fmtINR(latestTx.total_amount)}` : '+₹62,508.00'}
+              {latestTx?.total_amount ? `+${fmtINR(latestTx.total_amount)}` : '—'}
             </div>
             <div className="text-[10px] text-slate-400 font-mono font-semibold">
-              {formatDate(latestTx?.date || '2026-06-12')}
+              {formatDate(latestTx?.date)}
             </div>
           </div>
         </AnimatedCard>

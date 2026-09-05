@@ -5,6 +5,31 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.5] - 2026-09-05
+
+### Refactored & Enhanced
+- **Liabilities Dynamic Modal Headers**: Updated the `HoldingDetailModal.jsx` to dynamically inject the exact lender name (e.g. `State Bank of India (SBI)` and `ICICI Bank`) into the modal title directly from the liabilities table instead of falling back to a generic category name. This also resolves the `HoldingLogo` logic allowing it to fetch and render the exact bank logos.
+- **Liabilities Subtitle Cleanup**: Simplified the subtitle descriptions in the detail modal, replacing `Housing Loan` with `Home Loan` and `Credit Card Balance` with `Credit Card` to create a cleaner, minimalist layout.
+- **Actual Chart Removal**: Removed the irrelevant `Actual Chart` toggle tab completely from the detail modal when inspecting Liability and Credit Card records, enforcing a focused view strictly on the balance tracker ledger.
+
+---
+
+## [5.3.4] - 2026-09-05
+
+### Refactored & Enhanced
+- **Liabilities View Minimalist De-Cluttering**:
+  - Removed redundant `2 Active Obligations` count text from the hero header.
+  - Removed `Monthly EMI` from both the hero summary and individual liability card layouts.
+  - Removed `(SBI Bank)` from the loan title across the database and UI, displaying clean `Housing Loan`.
+  - Removed `8.5% p.a.` and `Due 5th` from Housing Loan card, and removed `0.0% APR` and `Due 15th` from Credit Card.
+- **Active & Closed Obligations Navigation**:
+  - Implemented `Active Obligations` vs `Closed Obligations` segmented filter toggle matching `BankView`.
+- **Liability Close & Reopen Controls**:
+  - Added dedicated `Close Account / Card` and `Reopen Account / Card` action buttons.
+  - Added interactive themed modal confirmation supporting balance settlement to `₹0.00` on closure and custom balance re-entry on reopen via `PUT /api/liabilities/:id`.
+
+---
+
 ## [5.3.3] - 2026-09-05
 
 ### Refactored & Enhanced

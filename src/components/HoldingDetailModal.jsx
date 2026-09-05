@@ -304,7 +304,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
   const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
-  const hasActualChart = holding?.category_id !== 'bank' && holding?.category_id !== 'epf';
+  const hasActualChart = !['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
   const displayHoldingName = holding?.category_id === 'bank'
     ? holding.name.replace(/\s*\(SBI\)/gi, '').trim()
     : holding?.category_id === 'epf'
@@ -365,8 +365,8 @@ export default function HoldingDetailModal({ holding, onClose }) {
                       {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                         : holding.category_id === 'us_stocks' ? 'US Equity'
                         : holding.category_id === 'nps' ? 'NPS Scheme'
-                        : holding.category_id === 'loans' ? 'Housing Loan'
-                        : holding.category_id === 'credit_cards' ? 'Credit Card Balance'
+                        : holding.category_id === 'loans' ? 'Home Loan'
+                        : holding.category_id === 'credit_cards' ? 'Credit Card'
                         : 'Indian Equity'}
                       </span>}
                     {!isEodAsset && (Number(holding.quantity) || 0) > 0 && (

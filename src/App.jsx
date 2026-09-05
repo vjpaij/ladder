@@ -177,6 +177,32 @@ function AppInner() {
     }
   };
 
+  const handleCloseLiability = async (liability, reopen = false, reopenBalance = 0) => {
+    if (reopen) {
+      try {
+        await axios.put(`/api/liabilities/${liability.id}`, {
+          ...liability,
+          outstanding_balance: Number(reopenBalance)
+        });
+        await fetchDashboardData();
+        setToast({ type: 'success', message: `${liability.name} reopened.` });
+      } catch (err) {
+        setToast({ type: 'error', message: `Could not reopen ${liability.name}: ${err.message}` });
+      }
+      return;
+    }
+    try {
+      await axios.put(`/api/liabilities/${liability.id}`, {
+        ...liability,
+        outstanding_balance: 0
+      });
+      await fetchDashboardData();
+      setToast({ type: 'success', message: `${liability.name} closed.` });
+    } catch (err) {
+      setToast({ type: 'error', message: `Could not close ${liability.name}: ${err.message}` });
+    }
+  };
+
   const renderView = () => {
     switch (currentView) {
       case 'overview':
@@ -196,7 +222,7 @@ function AppInner() {
       case 'epf':
         return <EpfView key="epf" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('epf'); setCurrentView('add_investment'); }} />;
       case 'liabilities':
-        return <LiabilitiesView key="liabilities" liabilities={liabilities} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('loans'); setCurrentView('add_investment'); }} />;
+        return <LiabilitiesView key="liabilities" liabilities={liabilities} onSelectHolding={(h) => setSelectedHoldingModal(h)} onCloseLiability={handleCloseLiability} onOpenAddModal={() => { setTargetPortfolio('loans'); setCurrentView('add_investment'); }} />;
       case 'dividends':
         return <DividendsView key="dividends" />;
       case 'reports':

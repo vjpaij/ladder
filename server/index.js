@@ -858,8 +858,8 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         const nonZeroLogs = activeLogs.filter(l => l[eodKey] > 0);
         const validLogs = nonZeroLogs.length > 0 ? nonZeroLogs : activeLogs;
 
-        const livePrice = Number(holding.current_price);
-        const currentVal = (livePrice !== undefined && livePrice !== null && !isNaN(livePrice) && livePrice > 0)
+        const livePrice = holding.current_price !== undefined && holding.current_price !== null ? Number(holding.current_price) : NaN;
+        const currentVal = !isNaN(livePrice)
           ? livePrice
           : (validLogs[validLogs.length - 1]?.[eodKey] || 0);
         const peakVal = Math.max(...validLogs.map(l => l[eodKey]), currentVal);
@@ -1602,6 +1602,38 @@ app.post('/api/liabilities', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/liabilities/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, lender, outstanding_balance, interest_rate, monthly_emi, due_day, category_id, total_principal } = req.body;
+    
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (lender !== undefined) updates.lender = lender;
+    if (outstanding_balance !== undefined) updates.outstanding_balance = Number(outstanding_balance);
+    if (interest_rate !== undefined) updates.interest_rate = Number(interest_rate);
+    if (monthly_emi !== undefined) updates.monthly_emi = Number(monthly_emi);
+    if (due_day !== undefined) updates.due_day = Number(due_day);
+    if (category_id !== undefined) updates.category_id = category_id;
+    if (total_principal !== undefined) updates.total_principal = Number(total_principal);
+
+    await db.update('liabilities', id, updates);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/liabilities/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.delete('liabilities', id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
