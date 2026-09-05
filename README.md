@@ -136,6 +136,7 @@ node scripts/sync_navs_and_sips.mjs
 
 ### 5. Automated Cloud Scheduling (GitHub Actions)
 - **Hourly NAV & SIP Sync** (`.github/workflows/daily_nav_sip_sync.yml`): Runs automatically every hour during NAV declaration windows (IST 21:00-00:00 and 09:00-12:00) to fetch latest AMFI/Protean NAVs and execute due SIPs.
+- **Daily Portfolio EOD Sync** (`.github/workflows/daily_eod_sync.yml`): Runs automatically every night at 23:45 UTC (05:15 IST) to refresh market quotes, recompute EOD valuations, and persist daily logs to Supabase `pnl_history`.
 - **Nightly Metadata & Benchmark Sync** (`.github/workflows/nightly_metadata_sync.yml`): Runs automatically every night at 23:00 IST (17:30 UTC) to refresh stock market caps, industry sectors, mutual fund constituent holdings, and 2-year daily benchmark index history.
 
 To enable workflows on a remote repository:
@@ -143,7 +144,7 @@ To enable workflows on a remote repository:
 2. Add Repository Secrets:
    - `SUPABASE_URL`: Your Supabase Project URL.
    - `SUPABASE_ANON_KEY`: Your Supabase Anon Public Key.
-3. Both workflows can also be manually dispatched via the **Actions** tab with one click.
+3. All workflows can also be manually dispatched via the **Actions** tab with one click.
 
 ### 6. Synchronizing Stock Market Caps & Sectors
 Fetches live market capitalizations and broad industry sectors for all active Indian and US equity holdings, categorizing into Mega, Large, Mid, Small, and Micro Cap:

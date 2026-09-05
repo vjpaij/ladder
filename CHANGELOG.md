@@ -5,6 +5,39 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.0] - 2026-09-05
+
+### Added & Enhanced
+- **Holding Detail Actual Chart Event Indicators**: Restored interactive event indicator dots (`ActualEventDot`) with contextual visual markers and rich tooltips on the Actual Chart in `HoldingDetailModal.jsx`.
+- **Holding Detail Chart Tooltip & Axis Precision**: Standardized Y-axis tick formatting across Tracker Chart and Actual Chart using `formatAxisValue` and explicit two-decimal precision (`minimumFractionDigits: 2`). Correctly hid the Actual Chart tab for bank accounts where price history is not applicable.
+- **Account Close & Reopen Controls**: Enhanced bank account controls in `BankView.jsx` and `App.jsx` with an active/closed filter toggle, clean bank name labels, and a theme-matching confirmation modal for closing accounts or reopening them with an initial balance.
+- **Theme-Aware Transaction & Action Styles**: Aligned transaction type buttons, pills, and corporate action markers across `AddInvestmentView.jsx` and `src/index.css` to use semantic theme tokens (`transaction-type-option`, `--tx-buy`, `--tx-sell`, `--tx-bonus`, `--tx-dividend`, `--tx-split`).
+- **Calendar Table Trend Colors**: Enhanced period-over-period gain/loss color indicators in `CalendarView.jsx` table view with high-contrast text and border styling across dark and light themes.
+- **Header & Table Badge De-Cluttering**: Removed redundant status badges (`ACTIVE`, `EXITED`, `REDEEMED`) from individual rows in `IndianStocksView.jsx`, `UsStocksView.jsx`, `MutualFundsView.jsx`, `NpsView.jsx`, and `HoldingsTable.jsx`, letting numeric balances and table tabs convey status cleanly.
+
+---
+
+## [5.2.1] - 2026-09-03
+
+### Fixed & Enhanced
+- **Holdings NAV Persistence Schema Alignment**: Removed unsupported `quote_date` field from mutual fund and NPS holding update payloads in `server/services/priceEngine.js`, ensuring updates are cleanly accepted by Supabase without schema rejection errors.
+- **Synchronous NPS Batch Persistence**: Awaited NPS daily NAV upserts in `fetchProteanNpsNavBatch` before worker termination, preventing race conditions during cloud scheduled syncs.
+- **Calendar Heatmap Day & Sort Controls**: Added weekday badge (`MON`, `TUE`, etc.) to daily cards and an interactive ascending/descending sort toggle button in `CalendarView.jsx` grid view.
+- **Workflow Schedule Optimization**: Adjusted GitHub Actions cron trigger minute in `daily_nav_sip_sync.yml` to reduce public runner queue latency.
+
+---
+
+## [5.2.0] - 2026-09-02
+
+### Added & Fixed
+- **Daily Automated Portfolio EOD Sync Workflow**: Added `.github/workflows/daily_eod_sync.yml` scheduled nightly at 23:45 UTC (05:15 IST) to refresh market quotes via `scripts/load_historical_prices.mjs` and rebuild/persist daily EOD logs to Supabase `pnl_history`.
+- **Cloud EOD Log Merging & Parity**: Refactored `/api/daily-pnl` in `server/index.js` to query Supabase `pnl_history` for records newer than the local JSON cache, seamlessly combining cloud-generated EOD logs with local baseline data.
+- **Historical Market Data Integration for NPS**: Enhanced `scripts/rebuild_portfolio_eod.mjs` to fetch and apply historical NPS NAVs via `fetchNpsHistoricalNav`, preventing flat or synthetic valuations during EOD rebuilds.
+- **Incremental Historical Market Data Loader**: Updated `scripts/load_historical_prices.mjs` with `--incremental` support to only fetch quotes for missing trading days.
+- **Dynamic Dashboard Day P&L Baseline**: Updated `/api/summary` to compute current day P&L strictly against the verified prior trading session closing net worth from historical logs.
+
+---
+
 ## [5.1.0] - 2026-08-31
 
 ### Added & Enhanced
