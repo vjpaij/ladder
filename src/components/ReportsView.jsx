@@ -1234,15 +1234,15 @@ export default function ReportsView({ summary, holdings }) {
               <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
-                    Active Cost Basis
+                    Open Cost Basis
                   </span>
                   <div className="text-xl sm:text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
                     {formatMoney(consolidatedPerformanceData.totals.activeCost, true)}
                   </div>
                 </div>
                 <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
-                  <span className="opacity-70">Active Allocation:</span>
-                  <span className="font-bold opacity-90">100% of Active</span>
+                  <span className="opacity-70">Open Allocation:</span>
+                  <span className="font-bold opacity-90">100% of Open</span>
                 </div>
               </div>
 
@@ -1320,7 +1320,7 @@ export default function ReportsView({ summary, holdings }) {
                       {/* Compartment 1: Active */}
                       <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit">
                         <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
-                          <span>Active</span>
+                          <span>Open</span>
                           <span className="text-emerald-500">Live</span>
                         </div>
                         <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
@@ -1346,7 +1346,7 @@ export default function ReportsView({ summary, holdings }) {
                       <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit">
                         <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
                           <span>Realized</span>
-                          <span className="text-amber-500">Exited</span>
+                          <span className="text-amber-500">Closed</span>
                         </div>
                         <div className="text-sm font-black text-amber-500">
                           {formatMoney(cat.closedProceeds, true)}

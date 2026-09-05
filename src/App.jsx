@@ -153,6 +153,30 @@ function AppInner() {
     }
   };
 
+  const handleCloseBankAccount = async (holding, reopen = false, reopenBalance = 0) => {
+    if (reopen) {
+      try {
+        await axios.put(`/api/holdings/${holding.id}`, { ...holding, quantity: 1, current_price: reopenBalance });
+        await fetchDashboardData();
+        setToast({ type: 'success', message: `${holding.name} reopened.` });
+      } catch (err) {
+        setToast({ type: 'error', message: `Could not reopen ${holding.name}: ${err.message}` });
+      }
+      return;
+    }
+    try {
+      await axios.put(`/api/holdings/${holding.id}`, {
+        ...holding,
+        quantity: 0,
+        current_price: 0
+      });
+      await fetchDashboardData();
+      setToast({ type: 'success', message: `${holding.name} closed.` });
+    } catch (err) {
+      setToast({ type: 'error', message: `Could not close ${holding.name}: ${err.message}` });
+    }
+  };
+
   const renderView = () => {
     switch (currentView) {
       case 'overview':
@@ -168,7 +192,7 @@ function AppInner() {
       case 'nps':
         return <NpsView key="nps" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onRefresh={fetchDashboardData} onOpenAddModal={() => { setTargetPortfolio('nps'); setCurrentView('add_investment'); }} />;
       case 'bank':
-        return <BankView key="bank" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('bank'); setCurrentView('add_investment'); }} />;
+        return <BankView key="bank" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onCloseHolding={handleCloseBankAccount} onOpenAddModal={() => { setTargetPortfolio('bank'); setCurrentView('add_investment'); }} />;
       case 'epf':
         return <EpfView key="epf" holdings={holdings} onSelectHolding={(h) => setSelectedHoldingModal(h)} onOpenAddModal={() => { setTargetPortfolio('epf'); setCurrentView('add_investment'); }} />;
       case 'liabilities':

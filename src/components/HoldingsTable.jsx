@@ -129,11 +129,6 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                       <div>
                         <div className="font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
                           <span className={h.quantity <= 0 ? 'text-slate-400 font-medium' : 'text-slate-100'}>{h.name}</span>
-                          {h.quantity <= 0 ? (
-                            <span className="text-[8.5px] px-1.5 py-0.2 bg-slate-800 text-slate-400 border border-slate-700 rounded font-bold uppercase">EXITED</span>
-                          ) : (
-                            <span className="text-[8.5px] px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded font-extrabold uppercase">ACTIVE</span>
-                          )}
                           {isUS && <span className="text-[10px] px-1.5 py-0.2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded font-mono">USD</span>}
                         </div>
                         <div className="text-[11px] text-slate-400 flex items-center gap-2">

@@ -55,7 +55,7 @@ export default function FixedIncomeView({ holdings, onDeleteHolding, onEditHoldi
                   {h.category_name}
                 </span>
                 <span className="text-[10px] text-emerald-400 font-bold font-mono">
-                  {h.category_id === 'epf' ? '8.25% p.a.' : (h.category_id === 'bank' ? '7.25% p.a.' : 'Active')}
+                  {h.category_id === 'epf' ? '8.25% p.a.' : (h.category_id === 'bank' ? '7.25% p.a.' : 'Open')}
                 </span>
               </div>
               <h3 className="text-sm font-bold text-white mb-0.5">{h.name}</h3>

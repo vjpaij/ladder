@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ComposedChart, Line, Scatter
+  ResponsiveContainer, Legend, ComposedChart, Line
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
@@ -86,61 +86,36 @@ function ChartTooltip({ active, payload, label, isUSD }) {
 function ActualChartTooltip({ active, payload, label, isUSD, timelineData }) {
   if (!active || !payload?.length) return null;
   const fmt = isUSD ? fmtUSD : fmtINR;
-  const p = payload[0].payload;
-  
-  let displayEvents = p.events;
+  const point = payload[0].payload;
+  let events = point.events;
   let eventDate = label;
-  
-  // Magnetic Event Tooltip: if no event exactly on hovered day, check +/- 4 days
-  if (!displayEvents && timelineData) {
-    const currentIndex = timelineData.findIndex(d => d.label === label);
-    if (currentIndex !== -1) {
-      let minDistance = 5;
-      for (let i = Math.max(0, currentIndex - 4); i <= Math.min(timelineData.length - 1, currentIndex + 4); i++) {
-        if (timelineData[i].events) {
-          const dist = Math.abs(i - currentIndex);
-          if (dist < minDistance) {
-            minDistance = dist;
-            displayEvents = timelineData[i].events;
-            eventDate = timelineData[i].label;
-          }
-        }
+  const currentIndex = timelineData?.findIndex(d => d.label === label) ?? -1;
+  if (!events && currentIndex >= 0) {
+    let nearest = 5;
+    for (let i = Math.max(0, currentIndex - 4); i <= Math.min(timelineData.length - 1, currentIndex + 4); i++) {
+      if (timelineData[i].events && Math.abs(i - currentIndex) < nearest) {
+        nearest = Math.abs(i - currentIndex);
+        events = timelineData[i].events;
+        eventDate = timelineData[i].label;
       }
     }
   }
-  
   return (
-    <div className="bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-2xl z-50">
+    <div className="bg-slate-900/95 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-2xl">
       <div className="text-slate-400 mb-1.5 font-mono">{formatDateDDMMYYYY(label)}</div>
-      <div className="flex items-center gap-2 py-0.5 mb-1.5 border-b border-slate-800 pb-1.5">
-        <span className="w-2 h-2 rounded-full inline-block bg-emerald-400" />
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-1.5">
+        <span className="w-2 h-2 rounded-full bg-sky-400" />
         <span className="text-slate-300">Price:</span>
-        <span className="font-black text-white">{fmt(p.price)}</span>
+        <span className="font-black text-white">{fmt(point.price)}</span>
       </div>
-      {displayEvents && displayEvents.length > 0 && (
+      {events?.length > 0 && (
         <div className="mt-1.5 pt-1.5 border-t border-slate-800/80">
-          {eventDate !== label && (
-             <div className="text-[9px] font-bold text-slate-500 mb-1 tracking-wider">EVENT ON {formatDateDDMMYYYY(eventDate)}</div>
-          )}
-          {displayEvents.map((ev, i) => (
-            <div key={i} className="flex flex-col gap-0.5 py-1 text-[10px]">
-              <div className="flex items-center gap-2 font-bold">
-                <span className={`px-1.5 py-0.5 rounded text-[9px] border ${
-                  ev.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                  ev.type === 'SELL' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
-                  ev.type === 'DIVIDEND' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
-                  ev.type === 'SPLIT' ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' :
-                  'bg-amber-900/30 text-amber-300 border-amber-700/50'
-                }`}>
-                  {ev.type}
-                </span>
-                {ev.qty > 0 && <span className="text-slate-300">{ev.qty} units</span>}
-              </div>
-              {ev.amountINR > 0 && (
-                <div className="text-slate-400 pl-1 font-mono mt-0.5">
-                  Amount: <span className="text-white">{isUSD ? fmtUSD(ev.amountUSD) : fmtINR(ev.amountINR)}</span>
-                </div>
-              )}
+          {eventDate !== label && <div className="text-[9px] font-bold text-slate-500 mb-1">EVENT ON {formatDateDDMMYYYY(eventDate)}</div>}
+          {events.map((event, index) => (
+            <div key={index} className="flex items-center gap-2 py-1 text-[10px] font-bold">
+              <span className={`px-1.5 py-0.5 rounded border ${event.type === 'BUY' ? 'text-emerald-400 border-emerald-500/30' : event.type === 'SELL' ? 'text-rose-400 border-rose-500/30' : event.type === 'DIVIDEND' ? 'text-amber-400 border-amber-500/30' : 'text-cyan-400 border-cyan-500/30'}`}>{event.type}</span>
+              {event.qty > 0 && <span className="text-slate-300">{event.qty} units</span>}
+              {event.amountINR > 0 && <span className="text-slate-400">{isUSD ? fmtUSD(event.amountUSD) : fmtINR(event.amountINR)}</span>}
             </div>
           ))}
         </div>
@@ -149,27 +124,20 @@ function ActualChartTooltip({ active, payload, label, isUSD, timelineData }) {
   );
 }
 
-const CustomizedEventDot = (props) => {
-  const { cx, cy, payload } = props;
-  if (!payload.events || payload.events.length === 0) return null;
-  const ev = payload.events[0];
-  const color = ev.type === 'BUY' ? '#10b981' :
-                ev.type === 'SELL' ? '#f43f5e' :
-                ev.type === 'DIVIDEND' ? '#f59e0b' :
-                ev.type === 'SPLIT' ? '#a855f7' : '#b45309';
-                
-  let titleText = `${formatDateDDMMYYYY(payload.label)}\n`;
-  payload.events.forEach(e => {
-    titleText += `${e.type}: ${e.qty > 0 ? e.qty + ' units' : ''} ${e.amountINR > 0 ? '₹' + e.amountINR : ''}\n`;
-  });
-                
-  return (
-    <g style={{ cursor: 'pointer' }}>
-      <circle cx={cx} cy={cy} r={10} fill="transparent" title={titleText.trim()} />
-      <circle cx={cx} cy={cy} r={5} stroke="#1e293b" strokeWidth={1.5} fill={color} style={{ filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.5))' }} />
-    </g>
-  );
+const ActualEventDot = ({ cx, cy, payload }) => {
+  if (!payload.events?.length) return null;
+  const type = payload.events[0].type;
+  const color = type === 'BUY' ? '#10b981' : type === 'SELL' ? '#f43f5e' : type === 'DIVIDEND' ? '#f59e0b' : '#06b6d4';
+  return <g><circle cx={cx} cy={cy} r={9} fill="transparent" /><circle cx={cx} cy={cy} r={5} fill={color} stroke="#1e293b" strokeWidth={1.5} /></g>;
 };
+
+function formatAxisValue(value, isUSD) {
+  const n = Number(value) || 0;
+  if (isUSD) return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (Math.abs(n) >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
+  if (Math.abs(n) >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`;
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 export default function HoldingDetailModal({ holding, onClose }) {
   const { currency, theme, fxRate } = useThemeAuth();
@@ -179,7 +147,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const [error, setError] = useState(null);
   const [txSort, setTxSort] = useState({ field: 'date', dir: 'asc' });
 
-  const [activeTab, setActiveTab] = useState('tracker'); // 'tracker' | 'actual'
+  const [activeTab, setActiveTab] = useState('tracker');
   const [chartRange, setChartRange] = useState('ALL');
   const [customStartDate, setCustomStartDate] = useState('2023-01-01');
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -257,14 +225,6 @@ export default function HoldingDetailModal({ holding, onClose }) {
       : <ChevronDown className="w-3 h-3 text-emerald-400 inline ml-0.5" />;
   };
 
-  const sortedTxs = detail?.transactions ? [...detail.transactions].sort((a, b) => {
-    let av = a[txSort.field] ?? '', bv = b[txSort.field] ?? '';
-    if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
-    if (av < bv) return txSort.dir === 'asc' ? -1 : 1;
-    if (av > bv) return txSort.dir === 'asc' ? 1 : -1;
-    return 0;
-  }) : [];
-
   const accentColor = holding?.category_id === 'us_stocks' ? '#a855f7'
     : holding?.category_id === 'mutual_funds' ? '#f59e0b'
     : holding?.category_id === 'nps' ? '#06b6d4'
@@ -310,26 +270,48 @@ export default function HoldingDetailModal({ holding, onClose }) {
     return activeTimeline.filter(t => t.label >= startStr && t.label <= endStr);
   }, [activeTimeline, chartRange, customStartDate, customEndDate]);
 
+  const filteredTransactions = React.useMemo(() => {
+    if (!detail?.transactions) return [];
+    if (chartRange === 'ALL') return detail.transactions;
+    const start = filteredTimeline[0]?.label;
+    const end = filteredTimeline[filteredTimeline.length - 1]?.label;
+    if (!start || !end) return [];
+    return detail.transactions.filter(tx => {
+      const date = (tx.date || '').split('T')[0];
+      return date >= start && date <= end;
+    });
+  }, [detail?.transactions, chartRange, filteredTimeline]);
+
+  const sortedTxs = [...filteredTransactions].sort((a, b) => {
+    let av = a[txSort.field] ?? '', bv = b[txSort.field] ?? '';
+    if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+    if (av < bv) return txSort.dir === 'asc' ? -1 : 1;
+    if (av > bv) return txSort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   const chartMinMax = React.useMemo(() => {
     if (!filteredTimeline || filteredTimeline.length === 0) return [0, 'auto'];
-    if (activeTab === 'tracker') {
-      const vals = filteredTimeline.flatMap(d => [d.invested, d.value]);
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
-      const pad = (max - min) * 0.05;
-      return [Math.max(0, min - pad), max + pad];
-    } else {
-      const vals = filteredTimeline.map(d => d.price).filter(v => v !== undefined);
-      if (vals.length === 0) return [0, 'auto'];
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
-      const pad = (max - min) * 0.05;
-      return [Math.max(0, min - pad), max + pad];
-    }
+    const vals = activeTab === 'tracker'
+      ? filteredTimeline.flatMap(d => [d.invested, d.value])
+      : filteredTimeline.map(d => d.price).filter(v => v !== undefined);
+    if (vals.length === 0) return [0, 'auto'];
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const pad = (max - min) * 0.05;
+    return [Math.max(0, min - pad), max + pad];
   }, [filteredTimeline, activeTab]);
 
   const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
+  const hasActualChart = holding?.category_id !== 'bank';
+  const displayHoldingName = holding?.category_id === 'bank'
+    ? holding.name.replace(/\s*\(SBI\)/gi, '').trim()
+    : holding?.name;
+
+  useEffect(() => {
+    if (!hasActualChart) setActiveTab('tracker');
+  }, [hasActualChart, holding?.id]);
 
   const modalContent = (
     <AnimatePresence>
@@ -361,7 +343,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                 <HoldingLogo holding={holding} accentColor={accentColor} />
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-white font-black text-[15px] leading-tight">{holding.name}</h2>
+                    <h2 className="text-white font-black text-[15px] leading-tight">{displayHoldingName}</h2>
                     <span
                       className="text-[9px] font-black px-2 py-0.5 rounded-full border"
                       style={{ background: `${accentColor}20`, borderColor: `${accentColor}40`, color: accentColor }}
@@ -375,14 +357,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      (Number(holding.quantity) || 0) > 0
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : 'bg-slate-800 text-slate-500'
-                    }`}>
-                      {(Number(holding.quantity) || 0) > 0 ? 'ACTIVE' : 'REDEEMED'}
-                    </span>
-                    <span className="text-[10px] text-slate-500">
+                    {holding.category_id !== 'bank' && <span className="text-[10px] text-slate-500">
                       {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                         : holding.category_id === 'us_stocks' ? 'US Equity'
                         : holding.category_id === 'nps' ? 'NPS Scheme'
@@ -391,7 +366,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                         : holding.category_id === 'loans' ? 'Housing Loan'
                         : holding.category_id === 'credit_cards' ? 'Credit Card Balance'
                         : 'Indian Equity'}
-                    </span>
+                      </span>}
                     {!isEodAsset && (Number(holding.quantity) || 0) > 0 && (
                       <span className="text-[10px] text-slate-500 font-mono">
                         {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })} units
@@ -456,7 +431,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                         {isDisplayUSD 
                           ? fmtUSD(quotePriceVal) 
                           : isFundOrNps 
-                          ? `₹${Number(quotePriceVal).toFixed(4)}` 
+                          ? `₹${Number(quotePriceVal).toFixed(2)}` 
                           : fmtINR(quotePriceVal * (isUSStock && !isDisplayUSD ? fxRate : 1))}
                       </span>
                       {dayChangeVal !== undefined && (
@@ -616,8 +591,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                           icon={TrendingUp} 
                           positive={(m.oneYearDelta || 0) >= 0} 
                         />
-                        <MetricCard label="Inception Date" value={m.startDate || '2007-09-27'} icon={Calendar} color="text-indigo-400" />
-                        <MetricCard label="Tracking Status" value="Daily EOD" icon={Activity} color="text-cyan-400" />
+                        <MetricCard label="Inception Date" value={formatTxDate(m.startDate || '2007-09-27')} icon={Calendar} color="text-indigo-400" />
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2.5">
@@ -749,20 +723,18 @@ export default function HoldingDetailModal({ holding, onClose }) {
                         <div className="flex items-center gap-1 p-1 bg-slate-900/60 border border-slate-800 rounded-xl">
                           <button
                             onClick={() => setActiveTab('tracker')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                              activeTab === 'tracker' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${activeTab === 'tracker' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
                           >
                             Tracker Chart
                           </button>
-                          <button
-                            onClick={() => setActiveTab('actual')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                              activeTab === 'actual' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                            }`}
-                          >
-                            Actual Chart
-                          </button>
+                          {hasActualChart && (
+                            <button
+                              onClick={() => setActiveTab('actual')}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${activeTab === 'actual' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                              Actual Chart
+                            </button>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1.5 relative">
@@ -836,7 +808,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                               </defs>
                               <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
                               <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
-                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${(v / 1000).toFixed(0)}K` : Math.abs(v) >= 1e5 ? `₹${(v / 1e5).toFixed(1)}L` : `₹${(v / 1000).toFixed(0)}K`} width={55} domain={chartMinMax} />
+                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatAxisValue(v, isDisplayUSD)} width={85} domain={chartMinMax} />
                               <Tooltip content={<ChartTooltip isUSD={isDisplayUSD} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
                               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={val => <span style={{ color: isLight ? '#475569' : '#94a3b8' }}>{val}</span>} />
                               <Area type="linear" dataKey="invested" name="Cost Basis" stroke="#6366f1" strokeWidth={2} fill="url(#hdmGradInv)" dot={false} activeDot={{ r: 4, fill: '#6366f1', stroke: '#1e293b' }} />
@@ -846,9 +818,9 @@ export default function HoldingDetailModal({ holding, onClose }) {
                             <ComposedChart data={filteredTimeline} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
                               <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
-                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${v.toFixed(2)}` : `₹${v.toFixed(2)}`} width={55} domain={chartMinMax} />
+                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${Number(v).toFixed(2)}` : `₹${Number(v).toFixed(2)}`} width={65} domain={chartMinMax} />
                               <Tooltip content={<ActualChartTooltip isUSD={isDisplayUSD} timelineData={filteredTimeline} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                              <Line type="linear" dataKey="price" name="Asset Price" stroke={chartLineColor} strokeWidth={2.5} dot={<CustomizedEventDot />} activeDot={{ r: 5, fill: chartLineColor, stroke: '#ffffff', strokeWidth: 2 }} />
+                              <Line type="linear" dataKey="price" name="Asset Price" stroke={chartLineColor} strokeWidth={2.5} dot={<ActualEventDot />} activeDot={{ r: 5, fill: chartLineColor, stroke: '#ffffff', strokeWidth: 2 }} />
                             </ComposedChart>
                           )}
                         </ResponsiveContainer>
@@ -921,17 +893,17 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                   >
                                     <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{formatTxDate(tx.date)}</td>
                                     <td className="py-2.5 px-4 text-right font-mono font-black text-white">
-                                      ₹{eodBalance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                      ₹{eodBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </td>
                                     <td className={`py-2.5 px-4 text-right font-mono font-bold ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
                                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${
                                         isPos ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'
                                       }`}>
-                                        {isPos ? '↑ +' : '↓ -'}₹{changeVal.toLocaleString('en-IN')}
+                                        {isPos ? '↑ +' : '↓ -'}₹{changeVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                     </td>
                                     <td className="py-2.5 px-4 text-slate-500 italic text-[10px]">
-                                      {tx.notes || `EOD Balance: ₹${eodBalance.toLocaleString('en-IN')}`}
+                                      {tx.notes || `EOD Balance: ₹${eodBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                     </td>
                                   </motion.tr>
                                 );
@@ -980,7 +952,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                               } else if (isBonus && (!tx.price || Number(tx.price) === 0)) {
                                 priceDisplay = isUSStock ? '$0.00' : '₹0.00';
                               } else if (Number(tx.price) > 0) {
-                                priceDisplay = `${isUSStock ? '$' : '₹'}${Number(tx.price).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                                priceDisplay = `${isUSStock ? '$' : '₹'}${Number(tx.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                               }
 
                               let amountDisplay = '—';

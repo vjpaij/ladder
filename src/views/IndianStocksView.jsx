@@ -405,15 +405,6 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                 <span className="font-bold text-[12px] transition-colors block text-slate-100 hover:text-emerald-400">
                                   {h.name}
                                 </span>
-                                {isClosed ? (
-                                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                                    EXITED
-                                  </span>
-                                ) : (
-                                  <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
-                                    ACTIVE
-                                  </span>
-                                )}
                               </div>
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span className="text-[10px] text-slate-500 font-mono">{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</span>
