@@ -56,6 +56,24 @@ const CATEGORY_META = {
   credits: { label: 'Credit Cards', color: '#f43f5e' }
 };
 
+function getTableValue(log, field) {
+  if (field === 'total_assets') return Number(log.total_assets_inr ?? log.total_assets ?? 0);
+  if (field === 'debt') return Number(log.debt ?? log.liabilities_inr ?? 0);
+  if (field === 'net_worth') return Number(log.net_worth_inr ?? log.wealth ?? 0);
+  if (field === 'daily_pnl') return Number(log.daily_pnl_inr ?? 0);
+  if (field === 'pct') return Number(log.pnl_percentage ?? 0);
+  return Number(log[field] ?? 0);
+}
+
+function getTableTrendClass(log, field, previousLog) {
+  if (!previousLog) return 'bg-sky-500/[0.10] ring-1 ring-inset ring-sky-400/[0.18]';
+  const value = getTableValue(log, field);
+  const previousValue = getTableValue(previousLog, field);
+  if (value > previousValue) return 'bg-emerald-500/[0.10] ring-1 ring-inset ring-emerald-400/[0.18]';
+  if (value < previousValue) return 'bg-rose-500/[0.12] ring-1 ring-inset ring-rose-400/[0.22]';
+  return 'bg-sky-500/[0.10] ring-1 ring-inset ring-sky-400/[0.18]';
+}
+
 export default function CalendarView() {
   const { formatMoney } = useThemeAuth();
   const [logs, setLogs] = useState([]);
@@ -257,6 +275,14 @@ export default function CalendarView() {
       return 0;
     });
   }, [displayLogs, sortField, sortDirection]);
+
+  const previousLogs = useMemo(() => {
+    const chronologicalLogs = [...displayLogs].sort((a, b) => (a.log_date || '').localeCompare(b.log_date || ''));
+    return new Map(chronologicalLogs.map((log, index) => [
+      log.period_key || log.log_date,
+      chronologicalLogs[index - 1]
+    ]));
+  }, [displayLogs]);
 
   // Metrics summary (Win rate formatted to 2 decimal places precision)
   const totalRangePnl = useMemo(() => displayLogs.reduce((sum, item) => sum + (item.daily_pnl_inr || 0), 0), [displayLogs]);
@@ -684,6 +710,7 @@ export default function CalendarView() {
                     const isNeg = log.daily_pnl_inr < 0;
                     const dateInfo = formatDetailedDate(log.log_date);
                     const isSelected = selectedLog && (selectedLog.period_key === log.period_key || selectedLog.log_date === log.log_date);
+                    const previousLog = previousLogs.get(log.period_key || log.log_date);
 
                     return (
                       <motion.tr
@@ -720,65 +747,65 @@ export default function CalendarView() {
                         </td>
 
                         {/* Bank Accounts */}
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'hdfc', previousLog)}`}>
                           {formatMoney(log.hdfc || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'indusind', previousLog)}`}>
                           {formatMoney(log.indusind || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'idfc', previousLog)}`}>
                           {formatMoney(log.idfc || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'rbl', previousLog)}`}>
                           {formatMoney(log.rbl || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'sbi', previousLog)}`}>
                           {formatMoney(log.sbi || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-blue-400 border-r border-slate-800">
+                        <td className={`py-2.5 px-3 text-right font-bold text-blue-400 border-r border-slate-800 ${getTableTrendClass(log, 'savings', previousLog)}`}>
                           {formatMoney(log.savings || 0)}
                         </td>
 
                         {/* Investments */}
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'mutual_funds', previousLog)}`}>
                           {formatMoney(log.mutual_funds || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'indian_stocks', previousLog)}`}>
                           {formatMoney(log.indian_stocks || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'us_stocks', previousLog)}`}>
                           {formatMoney(log.us_stocks || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'nps', previousLog)}`}>
                           {formatMoney(log.nps || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300 border-r border-slate-800">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 border-r border-slate-800 ${getTableTrendClass(log, 'epf', previousLog)}`}>
                           {formatMoney(log.epf || 0)}
                         </td>
 
                         {/* Total Assets */}
-                        <td className="py-2.5 px-3 text-right font-black text-emerald-400 border-r border-slate-800">
+                        <td className={`py-2.5 px-3 text-right font-black text-emerald-400 border-r border-slate-800 ${getTableTrendClass(log, 'total_assets', previousLog)}`}>
                           {formatMoney(log.total_assets_inr || log.total_assets || 0)}
                         </td>
 
                         {/* Liabilities */}
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'loan', previousLog)}`}>
                           {formatMoney(log.loan || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-300">
+                        <td className={`py-2.5 px-3 text-right text-slate-300 ${getTableTrendClass(log, 'credits', previousLog)}`}>
                           {formatMoney(log.credits || 0)}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-rose-400 border-r border-slate-800">
+                        <td className={`py-2.5 px-3 text-right font-bold text-rose-400 border-r border-slate-800 ${getTableTrendClass(log, 'debt', previousLog)}`}>
                           {formatMoney(log.debt || log.liabilities_inr || 0)}
                         </td>
 
                         {/* Net Wealth */}
-                        <td className="py-2.5 px-3 text-right font-black text-white text-[12px]">
+                        <td className={`py-2.5 px-3 text-right font-black text-white text-[12px] ${getTableTrendClass(log, 'net_worth', previousLog)}`}>
                           {formatMoney(log.net_worth_inr || log.wealth || 0)}
                         </td>
 
                         {/* Period P&L */}
-                        <td className="py-2.5 px-3 text-right font-bold">
+                        <td className={`py-2.5 px-3 text-right font-bold ${getTableTrendClass(log, 'daily_pnl', previousLog)}`}>
                           <span className={`inline-block px-1.5 py-0.5 rounded ${
                             isPos
                               ? 'text-emerald-400 bg-emerald-500/10'
@@ -791,7 +818,7 @@ export default function CalendarView() {
                         </td>
 
                         {/* % Change */}
-                        <td className="py-2.5 px-3 text-right font-bold text-[11px]">
+                        <td className={`py-2.5 px-3 text-right font-bold text-[11px] ${getTableTrendClass(log, 'pct', previousLog)}`}>
                           <span className={isPos ? 'text-emerald-400' : isNeg ? 'text-rose-400' : 'text-slate-400'}>
                             {isPos ? '+' : ''}{Number(log.pnl_percentage || 0).toFixed(2)}%
                           </span>
