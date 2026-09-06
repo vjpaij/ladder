@@ -232,6 +232,19 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
     setMfNavInfo(null);
   }, [selectedPortfolio, fxRate]);
 
+  // Auto-sync historical FX rate for US equity when date changes
+  useEffect(() => {
+    if (selectedPortfolio === 'us_stocks' && formData.date) {
+      axios.get(`/api/fx-rate?date=${formData.date}`)
+        .then(res => {
+          if (res.data?.rate) {
+            setFormData(prev => ({ ...prev, fxRate: res.data.rate }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedPortfolio, formData.date]);
+
   // Load NPS schemes, existing accounts, holdings, and liabilities on mount
   useEffect(() => {
     const init = async () => {

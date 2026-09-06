@@ -224,7 +224,7 @@ function AppInner() {
       case 'liabilities':
         return <LiabilitiesView key="liabilities" liabilities={liabilities} onSelectHolding={(h) => setSelectedHoldingModal(h)} onCloseLiability={handleCloseLiability} onOpenAddModal={() => { setTargetPortfolio('loans'); setCurrentView('add_investment'); }} />;
       case 'dividends':
-        return <DividendsView key="dividends" />;
+        return <DividendsView key="dividends" holdings={holdings} onRefresh={fetchDashboardData} />;
       case 'reports':
         return <ReportsView key="reports" summary={summary} holdings={holdings} />;
       case 'database':

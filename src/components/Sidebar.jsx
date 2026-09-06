@@ -10,7 +10,7 @@ import {
   Landmark, 
   CreditCard, 
   Coins, 
-  Shield,
+  ShieldCheck,
   Building2,
   ChevronLeft,
   ChevronRight,
@@ -44,7 +44,7 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
         { id: 'indian_stocks', label: 'Indian Equity', icon: CandlestickChart },
         { id: 'us_stocks', label: 'US Equity', icon: Globe },
         { id: 'mutual_funds', label: 'Mutual Funds', icon: LineChart },
-        { id: 'nps', label: 'NPS', icon: Shield },
+        { id: 'nps', label: 'NPS', icon: ShieldCheck },
         { id: 'bank', label: 'Bank Accounts', icon: Landmark },
         { id: 'epf', label: 'EPF', icon: Building2 },
       ]

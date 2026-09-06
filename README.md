@@ -49,6 +49,15 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments) that immediately recalculate future amortization schedules and interest savings.
    - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
 
+9. **Dividends Ledger Hub & Multi-Market Filtering**
+   - Tracks cash dividend distributions across Indian Equities (₹) and US Equities ($).
+   - Dynamic currency toggle synchronization: displays primary values in INR with USD secondary in INR mode, and flips to primary USD with INR secondary in USD mode.
+   - Dedicated `Add Entry` modal matching equity dividend transaction styling with live stock autocomplete and real-time USD/INR preview.
+   - Integrated `HoldingLogo` and sanitized stock names eliminating legal and share-class clutter.
+   - Granular market filters (`All`, `Indian Equity`, `US Equity`), instant search, and multi-column sorting (Stock Name, Market, Payout, INR Credited, Date).
+   - Dedicated Scheme Dividend Report Modal (`AssetDividendDetailModal.jsx`): Clicking any scheme opens a full dividend performance report with scheme KPIs (Total Received, Distributions Count, Average Payout, Latest Payout, Yield on Cost), Recharts Annual Breakdown Bar Chart, Cumulative Growth Area Chart, and Itemized Distribution Ledger table.
+   - Historical USD/INR Exchange Rate Auto-Sync: When selecting past dates in US Equity (`AddInvestmentView.jsx`) or Dividends (`AddDividendModal.jsx`), the backend `/api/fx-rate?date=YYYY-MM-DD` queries the verified daily exchange rate archive (4,340 daily records) and dynamically populates the exact historical rate for that session.
+
 ---
 
 ## Tech Stack

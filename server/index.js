@@ -563,7 +563,21 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
 
 app.get('/api/fx-rate', async (req, res) => {
   try {
+    const { date } = req.query;
     const liveRate = await fetchFxRate();
+    if (date) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (date >= todayStr) {
+        return res.json({ rate: liveRate, date, isHistorical: false, timestamp: Date.now() });
+      }
+      const histRate = getHistoricalFxRate(date);
+      return res.json({ 
+        rate: Number(Number(histRate || liveRate).toFixed(2)), 
+        date, 
+        isHistorical: true, 
+        timestamp: Date.now() 
+      });
+    }
     res.json({ rate: liveRate, timestamp: Date.now() });
   } catch (err) {
     res.json({ rate: 87.25, timestamp: Date.now() });
@@ -1702,7 +1716,16 @@ app.get('/api/dividends', authenticateToken, async (req, res) => {
     let totalUSConvertedINR = 0;
 
     const history = divs.map(d => {
-      const asset = hMap[d.holding_id] || {};
+      const asset = hMap[d.holding_id] || holdings.find(h => h.symbol === d.symbol) || {};
+      const categoryId = asset.category_id || (d.currency === 'USD' ? 'us_stocks' : 'in_stocks');
+      let assetName = asset.name || d.name || 'Stock';
+      if (typeof assetName === 'string') {
+        assetName = assetName.replace(/\b(Common Stock|Capital Stock|Registry Share|Registry Shares|Class A|Class B|Class C|Ordinary Shares|Ordinary Share)\b/ig, '')
+                             .replace(/,\s*Inc\.?$/i, ' Inc.')
+                             .replace(/,\s*Corp\.?$/i, ' Corp.')
+                             .replace(/[,\.\-\s]+$/, '')
+                             .trim();
+      }
       const amountOriginal = Number(d.amount_original) || 0;
       const amountInr = Number(d.amount_inr) || 0;
 
@@ -1715,11 +1738,14 @@ app.get('/api/dividends', authenticateToken, async (req, res) => {
 
       return {
         ...d,
-        symbol: asset.symbol || 'ASSET',
-        asset_name: asset.name || 'Stock',
+        holding_id: d.holding_id || asset.id,
+        category_id: categoryId,
+        symbol: asset.symbol || d.symbol || 'ASSET',
+        asset_name: assetName,
+        raw_date: d.payment_date,
         payment_date: formatDateDDMMYYYY(d.payment_date)
       };
-    }).sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || ''));
+    }).sort((a, b) => (b.raw_date || '').localeCompare(a.raw_date || ''));
 
     res.json({
       totalDividendsINR: Number((totalIndiaINR + totalUSConvertedINR).toFixed(2)),
