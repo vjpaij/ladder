@@ -997,15 +997,15 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
 
       if (eodLogs.length > 0) {
         const activeLogs = eodLogs.filter(l => l[eodKey] !== undefined && l[eodKey] !== null);
-        const nonZeroLogs = activeLogs.filter(l => l[eodKey] > 0);
-        const validLogs = nonZeroLogs.length > 0 ? nonZeroLogs : activeLogs;
+        const firstNonZeroIdx = activeLogs.findIndex(l => l[eodKey] > 0);
+        const validLogs = firstNonZeroIdx >= 0 ? activeLogs.slice(firstNonZeroIdx) : (activeLogs.length > 0 ? activeLogs : [{ date: today, [eodKey]: 0 }]);
 
         const livePrice = holding.current_price !== undefined && holding.current_price !== null ? Number(holding.current_price) : NaN;
         const currentVal = !isNaN(livePrice)
           ? livePrice
           : (validLogs[validLogs.length - 1]?.[eodKey] || 0);
-        const peakVal = Math.max(...validLogs.map(l => l[eodKey]), currentVal);
-        const minVal = Math.min(...validLogs.map(l => l[eodKey]), currentVal);
+        const peakVal = Math.max(...validLogs.map(l => l[eodKey] || 0), currentVal);
+        const minVal = Math.min(...validLogs.map(l => l[eodKey] || 0), currentVal);
         const startVal = validLogs[0]?.[eodKey] || 0;
         const startDate = validLogs[0]?.date || '—';
 
@@ -1023,7 +1023,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         const timelineINR = [];
         for (let i = 0; i < validLogs.length; i += step) {
           const item = validLogs[i];
-          const val = Number(item[eodKey].toFixed(2));
+          const val = Number((item[eodKey] || 0).toFixed(2));
           timelineINR.push({
             label: item.date,
             invested: val,
@@ -1033,8 +1033,8 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
         }
         // Ensure last record and today are included
         const lastLog = validLogs[validLogs.length - 1];
-        if (timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label !== lastLog.date) {
-          const lastVal = Number(lastLog[eodKey].toFixed(2));
+        if (timelineINR.length > 0 && lastLog && timelineINR[timelineINR.length - 1].label !== lastLog.date) {
+          const lastVal = Number((lastLog[eodKey] || 0).toFixed(2));
           timelineINR.push({
             label: lastLog.date,
             invested: lastVal,
@@ -1058,27 +1058,39 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
           };
         }
 
-        // Generate synthetic transaction history for table rendering
-        const txs = [];
-        let prevVal = 0;
-        const txStep = Math.max(1, Math.floor(validLogs.length / 60)); // ~60 ledger entries
-        for (let i = 0; i < validLogs.length; i += txStep) {
-          const l = validLogs[i];
-          const val = l[eodKey];
-          const diff = val - prevVal;
-          txs.push({
-            id: `eod_${l.date}_${i}`,
-            holding_id: holding.id,
-            symbol: holding.symbol || 'EOD',
-            name: holding.name,
-            type: diff >= 0 ? 'BUY' : 'SELL',
-            quantity: 1,
-            price: val,
-            total_amount: Math.abs(diff),
-            date: l.date,
-            notes: `EOD Balance: ₹${val.toLocaleString('en-IN')}`
-          });
-          prevVal = val;
+        // Fetch real transaction history from database for this holding / liability
+        let txs = [];
+        const { data: realTxs } = await supabase
+          .from('transactions')
+          .select('*')
+          .or(`holding_id.eq.${holding.id},liability_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
+          .order('date', { ascending: false });
+        
+        if (realTxs && realTxs.length > 0) {
+          txs = realTxs;
+        } else {
+          // Fallback to synthetic transaction history if no DB transactions exist
+          let prevVal = 0;
+          const txStep = Math.max(1, Math.floor(validLogs.length / 60)); // ~60 ledger entries
+          for (let i = 0; i < validLogs.length; i += txStep) {
+            const l = validLogs[i];
+            const val = l[eodKey] || 0;
+            const diff = val - prevVal;
+            txs.push({
+              id: `eod_${l.date}_${i}`,
+              holding_id: holding.id,
+              symbol: holding.symbol || 'EOD',
+              name: holding.name,
+              type: diff >= 0 ? 'BUY' : 'SELL',
+              quantity: 1,
+              price: val,
+              total_amount: Math.abs(diff),
+              date: l.date,
+              notes: `EOD Balance: ₹${val.toLocaleString('en-IN')}`
+            });
+            prevVal = val;
+          }
+          txs = txs.reverse();
         }
 
         return res.json({
@@ -1088,7 +1100,7 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             avg_buy_price: startVal
           },
           fxRate: 1.0,
-          transactions: txs.reverse(),
+          transactions: txs,
           dividends: [],
           timelineUSD: timelineINR,
           timelineINR,

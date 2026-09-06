@@ -405,7 +405,27 @@ async function run() {
 
       const { error: divErr } = await supabase.from("dividends").insert(divInserts);
       if (divErr) console.error(`  Error inserting dividends for ${ticker}:`, divErr.message);
-      else console.log(`[${idx+1}/${uniqueTickers.length}] ${ticker}: Ingested ${processedTxs.length} orders & ${divInserts.length} dividends.`);
+
+      // Also insert into transactions table for unified ledger
+      const divTxs = divInserts.map(d => ({
+        holding_id: holding.id,
+        user_id: null,
+        symbol: ticker,
+        name: stockName,
+        type: "DIVIDEND",
+        quantity: 0,
+        price: 0,
+        total_amount: d.amount_original,
+        currency: "USD",
+        fx_rate: d.fx_rate,
+        charges: 0,
+        net_amount: d.amount_original,
+        date: d.payment_date,
+        notes: `Dividend $${d.amount_original.toFixed(2)} | FX: ₹${d.fx_rate.toFixed(2)}/$`
+      }));
+      const { error: divTxErr } = await supabase.from("transactions").insert(divTxs);
+      if (divTxErr) console.error(`  Error inserting dividend transactions for ${ticker}:`, divTxErr.message);
+      else console.log(`[${idx+1}/${uniqueTickers.length}] ${ticker}: Ingested ${processedTxs.length} orders & ${divInserts.length} dividends (synced to transactions table).`);
     } else {
       console.log(`[${idx+1}/${uniqueTickers.length}] ${ticker}: Ingested ${processedTxs.length} orders (0 dividends).`);
     }

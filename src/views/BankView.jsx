@@ -28,7 +28,7 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
   // Filter bank holdings
   const allBankHoldings = holdings.filter(h => h.category_id === 'bank');
   const bankHoldings = allBankHoldings.filter(h => {
-    const isClosed = h.status === 'closed' || Number(h.current_price) <= 0;
+    const isClosed = h.status === 'closed' || h.status === 'REDEEMED' || Number(h.current_price) <= 0;
     return accountFilter === 'closed' ? isClosed : !isClosed;
   });
   

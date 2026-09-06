@@ -55,13 +55,23 @@ function MetricCard({ label, value, sub, color = 'text-white', icon: Icon, posit
 
 function TxBadge({ type }) {
   const cfg = {
-    BUY:      { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'BUY' },
-    SELL:     { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'SELL' },
-    DIVIDEND: { cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30',       label: 'DIV' },
-    SPLIT:    { cls: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',     label: 'SPLIT' },
-    BONUS:    { cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',          label: 'BONUS' },
+    BUY:          { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'BUY' },
+    SELL:         { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'SELL' },
+    DIVIDEND:     { cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30',       label: 'DIV' },
+    SPLIT:        { cls: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',     label: 'SPLIT' },
+    BONUS:        { cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',          label: 'BONUS' },
+    CREDIT:       { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'DEPOSIT' },
+    DEPOSIT:      { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'DEPOSIT' },
+    DEBIT:        { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'WITHDRAW' },
+    WITHDRAWAL:   { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'WITHDRAW' },
+    CONTRIBUTION: { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'CONTRIB' },
+    INTEREST:     { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'INTEREST' },
+    BORROW:       { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'BORROW' },
+    EMI_PAYMENT:  { cls: 'bg-sky-500/15 text-sky-400 border-sky-500/30',              label: 'EMI' },
+    CHARGE:       { cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30',       label: 'CHARGE' },
+    PAYMENT:      { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'PAYMENT' },
   };
-  const c = cfg[type] || cfg.BUY;
+  const c = cfg[type?.toUpperCase()] || { cls: 'bg-slate-500/15 text-slate-400 border-slate-500/30', label: type || 'TX' };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black border ${c.cls}`}>
       {c.label}
@@ -148,12 +158,13 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [txSort, setTxSort] = useState({ field: 'date', dir: 'asc' });
+  const [txSort, setTxSort] = useState({ field: 'date', dir: 'desc' });
   const [txSearch, setTxSearch] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState('ALL');
 
   const [activeTab, setActiveTab] = useState('tracker');
   const isLoan = holding?.category_id === 'loans';
+  const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
   const [loanViewTab, setLoanViewTab] = useState(holding?.initialTab || 'history');
   const [chartRange, setChartRange] = useState('ALL');
   const [customStartDate, setCustomStartDate] = useState('2023-01-01');
@@ -201,10 +212,10 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
     setEditingTxId(tx.id);
     setEditForm({
       date: (tx.date || '').split('T')[0],
-      type: tx.type || 'BUY',
-      quantity: tx.quantity ?? '',
-      price: tx.price ?? '',
-      total_amount: tx.total_amount ?? '',
+      type: tx.type || (isEodAsset ? 'CREDIT' : 'BUY'),
+      quantity: tx.quantity ?? (isEodAsset ? 1 : ''),
+      price: tx.price ?? tx.total_amount ?? '',
+      total_amount: tx.total_amount ?? tx.price ?? '',
       charges: tx.charges ?? '',
       fx_rate: tx.fx_rate ?? '',
       notes: tx.notes ?? ''
@@ -219,16 +230,17 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const saveEditTx = async (txId) => {
     setTxActionLoading(txId);
     try {
-      const updates = {};
-      if (editForm.date) updates.date = editForm.date;
-      if (editForm.type) updates.type = editForm.type;
+      const amountVal = Number(editForm.total_amount) || Number(editForm.price) || 0;
+      const qtyVal = Number(editForm.quantity) || (isEodAsset ? 1 : 0);
+      const priceVal = isEodAsset ? amountVal : (Number(editForm.price) || (qtyVal > 0 ? amountVal / qtyVal : 0));
       const payload = {
         date: editForm.date,
         type: editForm.type,
-        quantity: Number(editForm.quantity) || 0,
-        price: Number(editForm.price) || 0,
-        total_amount: Number(editForm.total_amount) || (Number(editForm.quantity) * Number(editForm.price)),
+        quantity: qtyVal,
+        price: priceVal,
+        total_amount: amountVal,
         charges: Number(editForm.charges) || 0,
+        fx_rate: editForm.fx_rate ? Number(editForm.fx_rate) : null,
         notes: editForm.notes || ''
       };
       await axios.put(`/api/transactions/${txId}`, payload);
@@ -349,8 +361,62 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
     return activeTimeline.filter(t => t.label >= startStr && t.label <= endStr);
   }, [activeTimeline, chartRange, customStartDate, customEndDate]);
 
-  const filteredTransactions = React.useMemo(() => {
-    if (!detail?.transactions) return [];
+  const availableTxTypes = React.useMemo(() => {
+    if (!detail?.transactions || detail.transactions.length === 0) return ['ALL'];
+    const types = Array.from(new Set(detail.transactions.map(t => (t.type || '').toUpperCase()).filter(Boolean)));
+    return ['ALL', ...types];
+  }, [detail?.transactions]);
+
+  const processedTransactions = React.useMemo(() => {
+    if (!detail?.transactions || detail.transactions.length === 0) return [];
+
+    if (isEodAsset) {
+      // Sort chronologically (oldest to newest) to compute exact running balance
+      const chronological = [...detail.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+      let runningBal = 0;
+      const computed = chronological.map(tx => {
+        const type = (tx.type || 'BUY').toUpperCase();
+        const amt = Number(tx.total_amount) || Number(tx.price) || 0;
+        
+        let isInflow = false;
+        if (holding?.category_id === 'loans' || holding?.category_id === 'credit_cards') {
+          // Liabilities: Borrow/Charge increases debt; EMI payments decrease debt
+          if (['BORROW', 'CHARGE', 'BUY', 'DEBIT'].includes(type)) {
+            runningBal += amt;
+            isInflow = false;
+          } else {
+            runningBal -= amt;
+            isInflow = true;
+          }
+        } else {
+          // Assets (Bank, EPF, etc.): Deposit/Credit/Contribution/Interest increases balance; Withdrawal/Debit decreases balance
+          if (['CREDIT', 'DEPOSIT', 'CONTRIBUTION', 'INTEREST', 'BUY'].includes(type)) {
+            runningBal += amt;
+            isInflow = true;
+          } else {
+            runningBal -= amt;
+            isInflow = false;
+          }
+        }
+
+        return {
+          ...tx,
+          runningBalance: Math.max(0, runningBal),
+          isInflow,
+          netTxAmount: amt
+        };
+      });
+
+      if (chartRange === 'ALL') return computed;
+      const start = filteredTimeline[0]?.label;
+      const end = filteredTimeline[filteredTimeline.length - 1]?.label;
+      if (!start || !end) return computed;
+      return computed.filter(tx => {
+        const date = (tx.date || '').split('T')[0];
+        return date >= start && date <= end;
+      });
+    }
+
     if (chartRange === 'ALL') return detail.transactions;
     const start = filteredTimeline[0]?.label;
     const end = filteredTimeline[filteredTimeline.length - 1]?.label;
@@ -359,10 +425,10 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       const date = (tx.date || '').split('T')[0];
       return date >= start && date <= end;
     });
-  }, [detail?.transactions, chartRange, filteredTimeline]);
+  }, [detail?.transactions, isEodAsset, chartRange, filteredTimeline, holding?.category_id]);
 
   const sortedTxs = React.useMemo(() => {
-    let list = [...filteredTransactions];
+    let list = [...processedTransactions];
     if (txTypeFilter !== 'ALL') {
       list = list.filter(tx => (tx.type || '').toUpperCase() === txTypeFilter);
     }
@@ -373,7 +439,9 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
         (tx.type || '').toLowerCase().includes(q) ||
         (tx.notes || '').toLowerCase().includes(q) ||
         String(tx.price || '').includes(q) ||
-        String(tx.total_amount || '').includes(q)
+        String(tx.total_amount || '').includes(q) ||
+        String(tx.netTxAmount || '').includes(q) ||
+        String(tx.runningBalance || '').includes(q)
       );
     }
     return list.sort((a, b) => {
@@ -383,7 +451,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       if (av > bv) return txSort.dir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [filteredTransactions, txSort, txSearch, txTypeFilter]);
+  }, [processedTransactions, txSort, txSearch, txTypeFilter]);
 
   const chartMinMax = React.useMemo(() => {
     if (!filteredTimeline || filteredTimeline.length === 0) return [0, 'auto'];
@@ -398,7 +466,6 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   }, [filteredTimeline, activeTab]);
 
   const isFundOrNps = holding?.category_id === 'nps' || holding?.category_id === 'mutual_funds';
-  const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
   const hasActualChart = !['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
   const displayHoldingName = holding?.category_id === 'bank'
     ? (holding.name || '').replace(/\s*\(SBI\)/gi, '').trim()
@@ -471,7 +538,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                     )}
                     {isEodAsset && (
                       <span className="text-[10px] text-slate-400 font-mono font-bold">
-                        Current Balance: {formatMoney(m.currentValue || holding.current_price)}
+                        Current Balance: {formatMoney(m.currentValue ?? holding.current_price ?? 0)}
                       </span>
                     )}
                   </div>
@@ -962,13 +1029,13 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
                         <Calendar className="w-3.5 h-3.5" />
-                        {isEodAsset ? `Daily Balance History (${sortedTxs.length} records)` : `Transaction Ledger (${sortedTxs.length} records)`}
+                        Transaction Ledger ({sortedTxs.length} {sortedTxs.length === 1 ? 'record' : 'records'})
                       </p>
 
                       <div className="flex flex-wrap items-center gap-2">
-                        {!isEodAsset && (
-                          <div className="flex items-center gap-1 p-0.5 bg-slate-900/80 border border-slate-800 rounded-xl text-[10px] font-bold">
-                            {['ALL', 'BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT'].map(type => (
+                        {availableTxTypes.length > 1 && (
+                          <div className="flex flex-wrap items-center gap-1 p-0.5 bg-slate-900/80 border border-slate-800 rounded-xl text-[10px] font-bold">
+                            {availableTxTypes.map(type => (
                               <button
                                 key={type}
                                 onClick={() => setTxTypeFilter(type)}
@@ -1015,13 +1082,15 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
 
                               {isEodAsset ? (
                                 <>
-                                  <th onClick={() => handleTxSort('price')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                                    EOD Balance (₹) <SortIcon field="price" />
+                                  <th className="py-3 px-4">Type</th>
+                                  <th onClick={() => handleTxSort('netTxAmount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                                    Amount (₹) <SortIcon field="netTxAmount" />
                                   </th>
-                                  <th onClick={() => handleTxSort('total_amount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                                    Daily Change <SortIcon field="total_amount" />
+                                  <th onClick={() => handleTxSort('runningBalance')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                                    Running Balance (₹) <SortIcon field="runningBalance" />
                                   </th>
                                   <th className="py-3 px-4 text-left">Notes</th>
+                                  <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
                                 </>
                               ) : (
                                 <>
@@ -1050,9 +1119,75 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                           <tbody className="divide-y divide-slate-800/40">
                             {sortedTxs.map((tx, i) => {
                               if (isEodAsset) {
-                                const eodBalance = Number(tx.price) || 0;
-                                const isPos = tx.type === 'BUY';
-                                const changeVal = Number(tx.total_amount) || 0;
+                                if (editingTxId === tx.id) {
+                                  return (
+                                    <tr key={tx.id || i} className="bg-slate-800/80 border-y border-blue-500/40">
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="date"
+                                          value={editForm.date || ''}
+                                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <select
+                                          value={editForm.type || 'CREDIT'}
+                                          onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))}
+                                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                                        >
+                                          {['CREDIT', 'DEBIT', 'CONTRIBUTION', 'INTEREST', 'BORROW', 'EMI_PAYMENT'].map(t => (
+                                            <option key={t} value={t}>{t}</option>
+                                          ))}
+                                        </select>
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          value={editForm.total_amount}
+                                          onChange={(e) => setEditForm(prev => ({ ...prev, total_amount: e.target.value, price: e.target.value }))}
+                                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-right font-mono text-slate-500">
+                                        —
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <input
+                                          type="text"
+                                          value={editForm.notes || ''}
+                                          onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                                          placeholder="Notes"
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-center whitespace-nowrap">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            onClick={() => saveEditTx(tx.id)}
+                                            disabled={txActionLoading === tx.id}
+                                            className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors"
+                                            title="Save"
+                                          >
+                                            <Save className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={cancelEditTx}
+                                            className="p-1 hover:bg-slate-700/60 text-slate-400 rounded-lg transition-colors"
+                                            title="Cancel"
+                                          >
+                                            <XCircle className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+
+                                const isPos = tx.isInflow;
+                                const changeVal = Number(tx.netTxAmount || tx.total_amount || 0);
+                                const balance = Number(tx.runningBalance || 0);
 
                                 return (
                                   <motion.tr
@@ -1063,8 +1198,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                                     transition={{ delay: Math.min(i * 0.015, 0.4) }}
                                   >
                                     <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{formatTxDate(tx.date)}</td>
-                                    <td className="py-2.5 px-4 text-right font-mono font-black text-white">
-                                      ₹{eodBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    <td className="py-2.5 px-4 whitespace-nowrap">
+                                      <TxBadge type={tx.type} />
                                     </td>
                                     <td className={`py-2.5 px-4 text-right font-mono font-bold ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
                                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${
@@ -1073,8 +1208,30 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                                         {isPos ? '↑ +' : '↓ -'}₹{changeVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                     </td>
-                                    <td className="py-2.5 px-4 text-slate-500 italic text-[10px]">
-                                      {tx.notes || `EOD Balance: ₹${eodBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                    <td className="py-2.5 px-4 text-right font-mono font-black text-white">
+                                      ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-slate-400 text-xs">
+                                      {tx.notes || (isPos ? 'Deposit / Inflow' : 'Withdrawal / Outflow')}
+                                    </td>
+                                    <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); startEditTx(tx); }}
+                                          className="p-1 hover:bg-slate-700/60 text-slate-500 hover:text-blue-400 rounded-lg transition-colors"
+                                          title="Edit Transaction"
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); deleteTx(tx); }}
+                                          disabled={txActionLoading === tx.id}
+                                          className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg transition-colors disabled:opacity-50"
+                                          title="Delete Transaction"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
                                     </td>
                                   </motion.tr>
                                 );
@@ -1292,7 +1449,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                             })}
                             {sortedTxs.length === 0 && (
                               <tr>
-                                <td colSpan={isEodAsset ? 4 : (isUSStock ? 9 : 8)} className="py-8 text-center text-slate-600">
+                                <td colSpan={isEodAsset ? 6 : (isUSStock ? 9 : 8)} className="py-8 text-center text-slate-600">
                                   No records found
                                 </td>
                               </tr>

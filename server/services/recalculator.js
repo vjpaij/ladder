@@ -69,14 +69,17 @@ export async function recalculateHoldingState(holdingId) {
 
         netBalance = Math.max(0, netBalance);
 
+        const status = netBalance > 0.01 ? 'ACTIVE' : 'REDEEMED';
+
         await db.update('holdings', holdingId, {
           current_price: parseFloat(netBalance.toFixed(2)),
           avg_buy_price: parseFloat(netBalance.toFixed(2)),
           quantity: 1,
+          status: status,
           updated_at: new Date().toISOString()
         });
 
-        return { holdingId, type: 'balance', currentBalance: netBalance };
+        return { holdingId, type: 'balance', currentBalance: netBalance, status };
       }
 
       // Handle Market-based categories (Indian Equity, US Equity, Mutual Funds, NPS)
@@ -96,37 +99,21 @@ export async function recalculateHoldingState(holdingId) {
         const charges = Number(tx.charges) || 0;
         totalCharges += charges;
 
-        if (type === 'BUY') {
+        if (type === 'BUY' || type === 'INVESTMENT' || type === 'INVESTMENT (SIP)') {
           runningQty += qty;
           totalBuyQty += qty;
           openLots.push({ qty, price, charges, rem: qty });
         } else if (type === 'BONUS') {
-          // Bonus issues credit shares at ₹0 cost, diluting cost basis
-          runningQty += qty;
-          totalBuyQty += qty;
-          openLots.push({ qty, price: 0, charges: 0, rem: qty });
+          // If bonus has a positive quantity, add to runningQty at 0 cost
+          if (qty > 0) {
+            runningQty += qty;
+            totalBuyQty += qty;
+            openLots.push({ qty, price: 0, charges: 0, rem: qty });
+          }
         } else if (type === 'SPLIT') {
-          // Extract split ratio from notes (e.g. "Stock split 1:10")
-          let ratio = 1;
-          const match = (tx.notes || '').match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
-          if (match) {
-            const oldR = parseFloat(match[1]);
-            const newR = parseFloat(match[2]);
-            if (oldR > 0) ratio = newR / oldR;
-          } else if (tx.quantity > 0 && runningQty > 0) {
-            ratio = (runningQty + tx.quantity) / runningQty;
-          }
-
-          if (ratio > 0 && ratio !== 1) {
-            runningQty = runningQty * ratio;
-            totalBuyQty = totalBuyQty * ratio;
-            for (const lot of openLots) {
-              lot.rem = lot.rem * ratio;
-              lot.qty = lot.qty * ratio;
-              lot.price = lot.price / ratio;
-            }
-          }
-        } else if (type === 'SELL' || type === 'REDEEM') {
+          // SPLIT transactions in DB have quantity = 0 as preceding BUY records are already post-split
+          // No action needed during replay
+        } else if (type === 'SELL' || type === 'REDEEM' || type === 'REDEMPTION') {
           totalSellQty += qty;
           let remToSell = qty;
           let costOfSoldLots = 0;
@@ -147,6 +134,11 @@ export async function recalculateHoldingState(holdingId) {
           totalRealizedPnl += pnl;
           runningQty = Math.max(0, runningQty - qty);
         }
+      }
+
+      // Epsilon clamp for fractional liquidation rounding (e.g. mutual funds)
+      if (Math.abs(runningQty) < 0.005) {
+        runningQty = 0;
       }
 
       // Compute weighted average cost basis of remaining open lots

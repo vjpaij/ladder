@@ -5,6 +5,35 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.12.0] - 2026-09-06
+
+### Reconciled & Hardened
+- **360-Degree Raw Source Reconciliations & Master Database Parity**:
+  - **Exhaustive Raw Data Audit**: Cross-audited all 33 Mutual Funds, 12 US Stocks, 331 Indian Stocks, 6 Bank Accounts, 1 EPF, and 2 Liabilities against raw source spreadsheets (`portfolio.xlsx`, `Ind_Stocks.csv`, `Ind_Mfs.csv`, `Book2.xlsx`, `NPS/*.csv`, `charges.xlsx`).
+  - **NPS Scheme Deduplication**: Consolidated duplicate 0-quantity rows for `SM003007` (LIC Scheme G Direct), `SM008002` (HDFC Scheme C Direct), and `SM002003` (UTI Scheme E Direct), re-linking all 104 historical transactions to the active master records.
+  - **CLEDUCATE Sell Quantity Correction**: Fixed 2025-10-29 sell transaction from 649 to 585 shares per `Ind_Stocks.csv`, bringing remaining holding quantity to exact 97 shares.
+  - **Missing Exited Stock Ingestion**: Ingested `VIYASH` (Viyash Scientific Limited) with 3 historical transactions (status: `REDEEMED`, 0 qty).
+  - **Bank & EOD Asset Ledger Refactor**: Re-titled section to `Transaction Ledger` in `HoldingDetailModal.jsx`, added chronological running balance accumulator, replaced incorrect `tx.price` with exact running balance, and added color-coded `TxBadge` support (`CREDIT`, `DEPOSIT`, `DEBIT`, `WITHDRAWAL`, `CONTRIBUTION`, `INTEREST`, `BORROW`, `EMI_PAYMENT`, `CHARGE`, `PAYMENT`).
+  - **False Negative Badge Fix**: Corrected transaction badge direction indicator in `HoldingDetailModal.jsx` by checking `tx.isInflow` rather than `tx.type === 'BUY'`.
+  - **Zero Balance Display Precision**: Hardened `HoldingDetailModal.jsx` with strict nullish coalescing (`??`) for zero-value bank accounts and liabilities.
+  - **Integrity Validation**: Obtained 100% PASS across the complete automated financial integrity and mathematical invariance test suite (`scripts/verify_financial_integrity.mjs`).
+
+---
+
+## [5.11.0] - 2026-09-06
+
+### Fixed & Reconciled
+- **Comprehensive Database & Ledger Discrepancy Reconciliation**:
+  - **Federal Bank 0/103 Sync Resolution**: Diagnosed and resolved issue where Federal Bank displayed a non-zero balance of ₹103 in the detail modal and timeline chart. Updated `/api/holding/:holdingId/detail` in `server/index.js` to preserve zero closing entries and display real Supabase database transactions (`CREDIT` and `DEBIT` delta ledger ending with -₹103 on 09-11-2025).
+  - **Bank & EPF Holding Status Alignment**: Corrected statuses in `holdings` table so active bank accounts (HDFC, IndusInd, IDFC, SBI, RBL) and EPF with positive balances are marked `ACTIVE`, while zero-balance closed accounts (Federal Bank) are marked `REDEEMED`.
+  - **US Stock Dividends Integration in Unified Transactions Table**: Inserted all 73 US stock dividends into the Supabase `transactions` table with `type: 'DIVIDEND'`, `currency: 'USD'`, exact transaction-date FX rates, and dollar amounts, ensuring 100% parity across `dividends` and `transactions` tables.
+  - **Mutual Funds Fractional Epsilon Rounding**: Clamped residual fractional units on full scheme redemptions (e.g. Quant Multi Cap +0.0001, Franklin US Opp -0.003, ABSL Digital -0.005, Mirae Asset -0.0028) to zero and set their status to `REDEEMED`.
+  - **FixedIncomeView Upgrades**: Added status filter tabs (`Active`, `Closed`, `All`) with live badge counts and distinct visual styling for closed/liquidated accounts.
+  - **Recalculator Engine Protection**: Enhanced `server/services/recalculator.js` to prevent double split/bonus scaling and properly maintain status for balance and market holdings.
+  - **Financial Invariance Audit**: Validated 100% pass across all financial data integrity assertions (`scripts/verify_financial_integrity.mjs`).
+
+---
+
 ## [5.10.0] - 2026-09-06
 
 ### Fixed & Enhanced
