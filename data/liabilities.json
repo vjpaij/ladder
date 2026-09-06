@@ -3,7 +3,7 @@
     "id": 1,
     "user_id": 1,
     "category_id": "loans",
-    "name": "Primary Home Loan",
+    "name": "Primary Housing Loan",
     "lender": "HDFC Bank",
     "total_principal": 5000000,
     "outstanding_balance": 3420000,

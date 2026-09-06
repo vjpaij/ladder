@@ -13,6 +13,7 @@ import { computeHoldingValueINR, computePortfolioValuation } from './services/po
 import { recalculateHoldingState } from './services/recalculator.js';
 import { processDueSips } from './services/sipEngine.js';
 import { computeGrowthBenchmarks, invalidateBenchmarkCache } from './services/benchmarkEngine.js';
+import { getLoanAmortizationData, addLoanAmortizationEntry, updateLoanAmortizationEntry, deleteLoanAmortizationEntry } from './services/loanEngine.js';
 import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -983,7 +984,8 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
             oneYearDelta,
             oneYearPct,
             startDate
-          }
+          },
+          amortization: holding.category_id === 'loans' ? await getLoanAmortizationData(holding.id) : null
         });
       }
     }
@@ -1633,6 +1635,52 @@ app.delete('/api/liabilities/:id', authenticateToken, async (req, res) => {
     await db.delete('liabilities', id);
     res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// Loan Amortization API
+// -------------------------------------------------------------
+app.get('/api/loan/amortization', async (req, res) => {
+  try {
+    const liabilityId = req.query.liabilityId || '00000000-0000-0000-0000-000000000010';
+    const data = await getLoanAmortizationData(liabilityId);
+    res.json(data);
+  } catch (err) {
+    console.error('[API Error - /api/loan/amortization]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loan/amortization/entry', async (req, res) => {
+  try {
+    const result = await addLoanAmortizationEntry(req.body);
+    res.json({ success: true, entry: result });
+  } catch (err) {
+    console.error('[API Error - /api/loan/amortization/entry]:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/loan/amortization/entry/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await updateLoanAmortizationEntry(id, req.body);
+    res.json({ success: true, entry: result });
+  } catch (err) {
+    console.error('[API Error - update loan entry]:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/loan/amortization/entry/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await deleteLoanAmortizationEntry(id);
+    res.json(result);
+  } catch (err) {
+    console.error('[API Error - delete loan entry]:', err);
     res.status(500).json({ error: err.message });
   }
 });

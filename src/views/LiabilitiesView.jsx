@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  CreditCard, Plus, ChevronRight, LockKeyhole
+  CreditCard, Plus, ChevronRight, LockKeyhole, Calendar
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
@@ -89,9 +89,11 @@ export default function LiabilitiesView({ liabilities, onSelectHolding, onOpenAd
           const isLoan = l.category_id === 'loans';
           const symbol = isLoan ? 'LOAN' : 'CREDITS';
           const isClosed = Number(l.outstanding_balance) <= 0;
+          const cleanName = cleanLiabilityName(l.name).replace(/\s*\(SBI\)/gi, '').trim();
+          const cleanLender = (l.lender || '').replace(/\s*\(SBI\)/gi, '').trim();
           const syntheticHolding = {
             id: l.id,
-            name: l.lender || cleanLiabilityName(l.name),
+            name: cleanLender || cleanName,
             symbol: symbol,
             category_id: l.category_id,
             current_price: l.outstanding_balance
@@ -119,9 +121,9 @@ export default function LiabilitiesView({ liabilities, onSelectHolding, onOpenAd
                   </div>
 
                   <h3 className="text-lg font-bold text-white group-hover:text-rose-300 transition-colors">
-                    {cleanLiabilityName(l.name)}
+                    {cleanName}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Lender: {l.lender}</p>
+                  {cleanLender && <p className="text-xs text-slate-500 mt-0.5">Lender: {cleanLender}</p>}
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-slate-800">

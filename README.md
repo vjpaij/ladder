@@ -41,6 +41,14 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Paginated backup tool (`scripts/dump_db_snapshot.mjs`) exporting full database state and EOD logs past Supabase row limits.
    - Dependency-ordered restoration tool (`scripts/restore_db_snapshot.mjs`) with SHA256 checksum verification and dry-run safety simulation.
 
+8. **Dynamic Housing Loan Amortization & Prepayment Engine**
+   - Ingests verified historical loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest) from Excel into Supabase `loan_amortization`.
+   - Dynamic projection engine (`server/services/loanEngine.js`) calculating monthly principal and interest splits right up to loan payoff date.
+   - Interactive Recharts visualization with Balance Payoff Trajectory area chart, Annual Breakdown bar chart, and Prepayment What-If simulator.
+   - Differentiates contractual EMI (₹52,653.00) from active monthly installment payments (₹60,000.00) with quick inline installment editing.
+   - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments) that immediately recalculate future amortization schedules and interest savings.
+   - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
+
 ---
 
 ## Tech Stack

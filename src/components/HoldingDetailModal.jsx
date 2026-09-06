@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
+import LoanAmortizationSection from './LoanAmortizationSection';
 import { CalendarDays } from 'lucide-react';
 import formatDateDDMMYYYY, { formatQuoteBadgeDate } from '../utils/dateFormatter';
 
@@ -140,7 +141,7 @@ function formatAxisValue(value, isUSD) {
 }
 
 export default function HoldingDetailModal({ holding, onClose }) {
-  const { currency, theme, fxRate } = useThemeAuth();
+  const { currency, theme, fxRate, formatMoney } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -148,6 +149,8 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const [txSort, setTxSort] = useState({ field: 'date', dir: 'asc' });
 
   const [activeTab, setActiveTab] = useState('tracker');
+  const isLoan = holding?.category_id === 'loans';
+  const [loanViewTab, setLoanViewTab] = useState(holding?.initialTab || 'history');
   const [chartRange, setChartRange] = useState('ALL');
   const [customStartDate, setCustomStartDate] = useState('2023-01-01');
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -306,10 +309,10 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
   const hasActualChart = !['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
   const displayHoldingName = holding?.category_id === 'bank'
-    ? holding.name.replace(/\s*\(SBI\)/gi, '').trim()
+    ? (holding.name || '').replace(/\s*\(SBI\)/gi, '').trim()
     : holding?.category_id === 'epf'
     ? 'Employee Provident Fund'
-    : holding?.name;
+    : (holding?.name || '').replace(/\s*\(SBI\)/gi, '').trim();
 
   useEffect(() => {
     if (!hasActualChart) setActiveTab('tracker');
@@ -365,7 +368,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                       {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                         : holding.category_id === 'us_stocks' ? 'US Equity'
                         : holding.category_id === 'nps' ? 'NPS Scheme'
-                        : holding.category_id === 'loans' ? 'Home Loan'
+                        : holding.category_id === 'loans' ? 'Housing Loan'
                         : holding.category_id === 'credit_cards' ? 'Credit Card'
                         : 'Indian Equity'}
                       </span>}
@@ -376,7 +379,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                     )}
                     {isEodAsset && (
                       <span className="text-[10px] text-slate-400 font-mono font-bold">
-                        Current Balance: {fmt(m.currentValue || holding.current_price)}
+                        Current Balance: {formatMoney(m.currentValue || holding.current_price)}
                       </span>
                     )}
                   </div>
@@ -498,7 +501,39 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
               {!loading && !error && detail && (
                 <>
-                  {/* ---- Market Stats Snapshot (Open, High, Low, Prev Close, 52W Range) ---- */}
+                  {/* ---- Loan Specific Sub-Tabs (Daily Balance History vs Amortization) ---- */}
+                  {isLoan && (
+                    <div className="flex items-center justify-between gap-4 pb-1 border-b border-slate-800/80">
+                      <div className="flex items-center gap-1 p-1 bg-slate-900/80 border border-slate-800 rounded-xl">
+                        <button
+                          onClick={() => setLoanViewTab('history')}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                            loanViewTab === 'history'
+                              ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <span>Daily Balance History</span>
+                        </button>
+                        <button
+                          onClick={() => setLoanViewTab('amortization')}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                            loanViewTab === 'amortization'
+                              ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <span>Amortization Schedule & Chart</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isLoan && loanViewTab === 'amortization' ? (
+                    <LoanAmortizationSection liabilityId={holding.id} />
+                  ) : (
+                    <>
+                      {/* ---- Market Stats Snapshot (Open, High, Low, Prev Close, 52W Range) ---- */}
                   {!isEodAsset && (
                     <motion.div 
                       initial={{ opacity: 0, y: -6 }}
@@ -1068,6 +1103,8 @@ export default function HoldingDetailModal({ holding, onClose }) {
                       </div>
                     </div>
                   </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

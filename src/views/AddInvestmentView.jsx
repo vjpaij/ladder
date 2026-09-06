@@ -1316,7 +1316,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             type="text"
             value={formData.notes || ''}
             onChange={(e) => updateField('notes', e.target.value)}
-            placeholder="e.g. Monthly Home Loan EMI, Part Prepayment"
+            placeholder="e.g. Monthly Housing Loan EMI, Part Prepayment"
             className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
           />
         </div>

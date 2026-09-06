@@ -5,6 +5,44 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.4.2] - 2026-09-06
+
+### Refined & Enhanced
+- **Housing Loan Detail Modal Sub-Tab Ordering & Delete Modal Standardization**:
+  - **Sub-Tab Positioning & Icon Cleanup**: Positioned `Daily Balance History` as the primary left button and `Amortization Schedule & Chart` on the right in `HoldingDetailModal.jsx`. Removed the calendar icon from the amortization tab for a clean minimalist fintech aesthetic.
+  - **Themed Delete Confirmation Modal**: Replaced native `window.confirm` with the project's standard themed modal popup (`.modal-surface`, backdrop blur, animated transitions, and explicit cancel/delete actions) in `LoanAmortizationSection.jsx`.
+  - **Terminology Standardization**: Replaced remaining instances of `Home Loan` with `Housing Loan` across `AddInvestmentView.jsx`, `data/liabilities.json`, and project documentation.
+  - **Lender Sanitization**: Ensured `State Bank of India` is stored and rendered cleanly without `(SBI)` across database rows, liability cards, and modal drill-down headers.
+
+---
+
+## [5.4.1] - 2026-09-06
+
+### Refined & Enhanced
+- **Housing Loan Amortization Refinements**:
+  - **Lender Name Cleanliness**: Stripped all `(SBI)` and `SBI` abbreviations across `LiabilitiesView` cards and `HoldingDetailModal` headers, cleanly showing `State Bank of India`.
+  - **Single Entry Point**: Removed the separate `Amortization Schedule` button on the Housing Loan card since the `View` button navigates directly to the detail modal.
+  - **Modal Subtitle Standardization**: Renamed `Home Loan` to `Housing Loan` in `HoldingDetailModal`.
+  - **Actual EMI vs. Monthly Payment Differentiation**: Contractual EMI of ₹52,653.00 and actual monthly installment of ₹60,000.00 are now displayed in distinct KPI tiles (`Actual EMI` and `Monthly Payment`). Added quick inline edit for monthly payment and added `Update Monthly Installment / Payment` option in `Add Entry`.
+  - **Full Amount Currency Formatting**: Replaced all abbreviated amounts (`44.64L`, `44.97L`) with exact rupee precision (e.g. `₹44,64,447.00`, `₹69,98,345.00`, `₹44,96,758.00`) across all metrics, charts, simulators, and tables.
+  - **Full Action Controls**: Added both `Edit` (pencil) and `Delete` (trash) action buttons for every entry in the Amortization Schedule table with real-time recalculation of future payoff trajectories.
+  - **Modal Fix**: Destructured `formatMoney` from `useThemeAuth()` in `HoldingDetailModal.jsx` to eliminate the `ReferenceError: formatMoney is not defined` crash when inspecting loan assets.
+
+---
+
+## [5.4.0] - 2026-09-06
+
+### Added & Enhanced
+- **Housing Loan Dynamic Amortization Calendar & Chart**:
+  - Ingested 153 verified historical loan records from `Investment.xlsx` (`Loan Amortization`) into Supabase `loan_amortization` table and `data/loan_amortization.json` (Sanctioned: ₹69.98L, EMI paid: ₹51.65L, Prepayments: ₹11.38L, Interest paid: ₹37.69L, Current Balance: ₹44.64L).
+  - Built `server/services/loanEngine.js` with dynamic projection engine calculating future monthly amortization schedules up to payoff date (Dec 2034) with exact daily interest and regular ₹60k EMI.
+  - Added REST API endpoints: `GET /api/loan/amortization`, `POST /api/loan/amortization/entry`, `DELETE /api/loan/amortization/entry/:id`, and attached dynamic amortization data to `/api/holding/:id/detail` for loans.
+  - Created `src/components/LoanAmortizationSection.jsx` featuring 6 executive KPI tiles, Recharts Balance Payoff Trajectory area chart, Annual Breakdown principal vs interest bar chart, Prepayment What-If Simulator slider, and full Amortization Calendar Table with Settled vs Projected filters.
+  - Added interactive `Amortization Schedule` button to Housing Loan card in `LiabilitiesView.jsx` and integrated sub-tab navigation (`Amortization Schedule & Chart` vs `Daily Balance History`) in `HoldingDetailModal.jsx`.
+  - Built dynamic `Add Loan Entry` modal allowing instant entry of prepayments, disbursements, EMIs, or interest rate adjustments with instant dynamic schedule recalculation.
+
+---
+
 ## [5.3.5] - 2026-09-05
 
 ### Refactored & Enhanced
