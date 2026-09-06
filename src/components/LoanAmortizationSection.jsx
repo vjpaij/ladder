@@ -4,7 +4,7 @@ import {
   Calendar, TrendingDown, DollarSign, Plus, Trash2, Edit3, 
   Sparkles, CheckCircle2, Clock, ChevronDown, ChevronUp,
   Percent, ArrowUpRight, ArrowDownRight, Layers, HelpCircle,
-  Wallet, ShieldAlert, X
+  Wallet, ShieldAlert, X, Search, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import {
   ResponsiveContainer, ComposedChart, Area, Line, Bar,
@@ -72,6 +72,24 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
   const [simExtraEmi, setSimExtraEmi] = useState(0);
   const [simLumpSum, setSimLumpSum] = useState(0);
 
+  // Table Search and Sort State
+  const [scheduleSearch, setScheduleSearch] = useState('');
+  const [scheduleSort, setScheduleSort] = useState({ field: 'date', direction: 'asc' });
+
+  const handleScheduleSort = (field) => {
+    setScheduleSort(prev => ({
+      field,
+      direction: prev.field === field ? (prev.direction === 'asc' ? 'desc' : 'asc') : 'asc'
+    }));
+  };
+
+  const renderScheduleSortIcon = (field) => {
+    if (scheduleSort.field !== field) return <ArrowUpDown className="w-3 h-3 opacity-40 inline ml-1" />;
+    return scheduleSort.direction === 'asc' 
+      ? <ArrowUp className="w-3 h-3 text-rose-400 inline ml-1" /> 
+      : <ArrowDown className="w-3 h-3 text-rose-400 inline ml-1" />;
+  };
+
   // Delete Confirmation Modal State
   const [deleteConfirmEntry, setDeleteConfirmEntry] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -118,13 +136,45 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
 
   // Filtered rows for Amortization Calendar Table
   const filteredEntries = useMemo(() => {
-    return allEntries.filter(e => {
+    let list = allEntries.filter(e => {
       if (viewFilter === 'settled' && !e.is_settled) return false;
       if (viewFilter === 'projected' && e.is_settled) return false;
       if (selectedYear !== 'ALL' && e.date && !e.date.startsWith(selectedYear)) return false;
       return true;
     });
-  }, [allEntries, viewFilter, selectedYear]);
+
+    if (scheduleSearch.trim()) {
+      const q = scheduleSearch.toLowerCase().trim();
+      list = list.filter(e => 
+        (e.date || '').toLowerCase().includes(q) ||
+        (e.entry_type || '').toLowerCase().includes(q) ||
+        (e.notes || '').toLowerCase().includes(q) ||
+        String(e.closing_balance || '').includes(q) ||
+        String(e.emi_amount || '').includes(q) ||
+        String(e.bulk_payment || '').includes(q)
+      );
+    }
+
+    if (scheduleSort.field) {
+      list.sort((a, b) => {
+        let valA = a[scheduleSort.field];
+        let valB = b[scheduleSort.field];
+        if (scheduleSort.field === 'date') {
+          valA = a.date || '';
+          valB = b.date || '';
+          return scheduleSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        if (typeof valA === 'string') {
+          return scheduleSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+        return scheduleSort.direction === 'asc' ? valA - valB : valB - valA;
+      });
+    }
+
+    return list;
+  }, [allEntries, viewFilter, selectedYear, scheduleSearch, scheduleSort]);
 
   // Chart Data preparation
   const chartData = useMemo(() => {
@@ -651,18 +701,39 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase text-slate-500">Year Filter:</span>
-            <select
-              value={selectedYear}
-              onChange={e => setSelectedYear(e.target.value)}
-              className="bg-slate-900 border border-slate-700/80 text-white rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none cursor-pointer"
-            >
-              <option value="ALL">All Years</option>
-              {availableYears.map(yr => (
-                <option key={yr} value={yr}>{yr}</option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative w-full sm:w-52">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search schedule..."
+                value={scheduleSearch}
+                onChange={(e) => setScheduleSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-rose-500/50"
+              />
+              {scheduleSearch && (
+                <button
+                  onClick={() => setScheduleSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Year:</span>
+              <select
+                value={selectedYear}
+                onChange={e => setSelectedYear(e.target.value)}
+                className="bg-slate-900 border border-slate-700/80 text-white rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none cursor-pointer"
+              >
+                <option value="ALL">All Years</option>
+                {availableYears.map(yr => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -672,15 +743,33 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
             <table className="w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 z-20 bg-slate-900/95 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none backdrop-blur-md">
                 <tr>
-                  <th className="py-3 px-3.5">Date</th>
-                  <th className="py-3 px-3">Type</th>
-                  <th className="py-3 px-3 text-right">Opening Balance</th>
-                  <th className="py-3 px-3 text-right">Monthly Payment</th>
-                  <th className="py-3 px-3 text-right">Bulk Payment</th>
-                  <th className="py-3 px-3 text-right">Interest</th>
-                  <th className="py-3 px-3 text-right">Principal</th>
-                  <th className="py-3 px-3 text-right">Closing Balance</th>
-                  <th className="py-3 px-2 text-center">Rate</th>
+                  <th onClick={() => handleScheduleSort('date')} className="py-3 px-3.5 cursor-pointer hover:text-white">
+                    Date {renderScheduleSortIcon('date')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('entry_type')} className="py-3 px-3 cursor-pointer hover:text-white">
+                    Type {renderScheduleSortIcon('entry_type')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('opening_balance')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Opening Balance {renderScheduleSortIcon('opening_balance')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('emi_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Monthly Payment {renderScheduleSortIcon('emi_amount')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('bulk_payment')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Bulk Payment {renderScheduleSortIcon('bulk_payment')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('interest_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Interest {renderScheduleSortIcon('interest_amount')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('principal_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Principal {renderScheduleSortIcon('principal_amount')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('closing_balance')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    Closing Balance {renderScheduleSortIcon('closing_balance')}
+                  </th>
+                  <th onClick={() => handleScheduleSort('interest_rate')} className="py-3 px-2 text-center cursor-pointer hover:text-white">
+                    Rate {renderScheduleSortIcon('interest_rate')}
+                  </th>
                   <th className="py-3 px-3 text-center">Status</th>
                   <th className="py-3 px-3 text-center">Actions</th>
                 </tr>

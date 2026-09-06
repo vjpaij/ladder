@@ -5,6 +5,33 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.0] - 2026-09-06
+
+### Added & Enhanced
+- **Universal Border Completion & Project-Wide Table Sort and Filter**:
+  - **Universal Border Completion**: Diagnosed and resolved cut-off/clipped borders on Ranked Progress list cards and cards in scroll containers caused by outset rings rendering beyond overflow boundaries. Added `.reports-subcard.is-selected` with explicit theme-adaptive inset borders and box-shadow in `index.css`, converted card selection rings to `ring-2 ring-inset` across `ReportsView.jsx`, `CalendarView.jsx`, and `CalendarHeatmap.jsx`, and added container padding (`p-1.5 custom-scrollbar`) to ensure complete, unclipped borders on all sides across all themes.
+  - **Project-Wide Table Search & Column Sorting**: Implemented real-time search filtering and clickable column sorting across all tabular displays in the application:
+    - `ReportsView.jsx` Consolidated Category Performance Ledger (Search + Sort by Asset Class, Active Val, Active Cost, Unrealized P&L, Realized P&L, Lifetime Cost, Net Return, Abs ROI %, Annualized XIRR).
+    - `ReportsView.jsx` Mutual Fund Look-Through Constituent Holdings (Search + Sort by Company, Sector, Cap Tier, Fund Weight %, Allocated Value).
+    - `ReportsView.jsx` Market Cap Drill-Down (Search + Sort by Stock, Source, Contribution %, Allocated Value).
+    - `ReportsView.jsx` Sector Drill-Down (Search + Sort by Company, Source, Cap Tier, Allocated Value).
+    - `ReportsView.jsx` Company Mutual Fund Breakdown Modal (Search + Sort by Scheme, Fund Weight %, Allocated Value, Share of Holding %).
+    - `OverviewView.jsx` Asset Class Performance table (Search filter bar).
+    - `HoldingDetailModal.jsx` Transaction Ledger (Search filter bar + transaction type filter pills).
+    - `AssetDividendDetailModal.jsx` Itemized Distribution Ledger (Search filter bar + Sort by Date, Original Payout, FX Rate, INR Credited, Cumulative Total).
+    - `LoanAmortizationSection.jsx` Schedule table (Search filter bar + Sort by Date, Type, Opening Balance, EMI, Bulk Payment, Interest, Principal, Closing Balance, Rate).
+    - `HoldingsTable.jsx`, `DatabaseViewer.jsx`, and `DividendsHub.jsx` reinforced with search and column sorting.
+
+---
+
+## [5.5.5] - 2026-09-06
+
+### Refined
+- **Reports Asset Class Performance Pill Cleanup**:
+  - Removed redundant and confusing `0.0% Allocation` badge from the header of Asset Class Performance cards in `ReportsView.jsx`. Allocation weights are already comprehensively analyzed in the dedicated Allocation Donut and Bar charts with full look-through.
+
+---
+
 ## [5.4.2] - 2026-09-06
 
 ### Refined & Enhanced

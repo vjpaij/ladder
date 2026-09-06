@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Database, Table, Edit3, Check, RefreshCw, Layers, ShieldCheck, Tag } from 'lucide-react';
+import { Database, Table, Edit3, Check, RefreshCw, Layers, ShieldCheck, Tag, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 export default function DatabaseViewer() {
   const [tables, setTables] = useState([]);
@@ -8,6 +8,8 @@ export default function DatabaseViewer() {
   const [tableData, setTableData] = useState({ columns: [], rows: [] });
   const [editingCell, setEditingCell] = useState(null); // { id, column, value }
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [sortState, setSortState] = useState({ field: null, direction: 'asc' });
 
   useEffect(() => {
     fetchTables();
@@ -53,6 +55,21 @@ export default function DatabaseViewer() {
       alert('Error updating database table: ' + err.message);
     }
   };
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const rows = tableData.rows.filter(row => !query || tableData.columns.some(column => String(row[column.name] ?? '').toLowerCase().includes(query)));
+    if (!sortState.field) return rows;
+    return [...rows].sort((a, b) => {
+      const left = String(a[sortState.field] ?? '').toLowerCase();
+      const right = String(b[sortState.field] ?? '').toLowerCase();
+      if (left < right) return sortState.direction === 'asc' ? -1 : 1;
+      if (left > right) return sortState.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [tableData, search, sortState]);
+
+  const handleSort = (field) => setSortState(previous => ({ field, direction: previous.field === field && previous.direction === 'asc' ? 'desc' : 'asc' }));
 
   return (
     <div className="space-y-6 mb-8">
@@ -110,21 +127,27 @@ export default function DatabaseViewer() {
           <span className="text-[11px] text-slate-400">Click cell icon to edit record inline</span>
         </div>
 
+        <div className="relative w-full md:w-72 mb-4">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter rows..." className="w-full pl-9 pr-3 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500/50" aria-label="Filter database rows" />
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse font-mono text-xs">
             <thead>
               <tr className="border-b border-slate-800 text-[11px] uppercase text-slate-400 bg-slate-900/60">
                 {tableData.columns.map(col => (
-                  <th key={col.name} className={`py-3 px-3 ${col.name === 'symbol' || col.name === 'name' ? 'text-emerald-400 font-extrabold' : ''}`}>
+                  <th key={col.name} onClick={() => handleSort(col.name)} className={`py-3 px-3 cursor-pointer hover:text-white ${col.name === 'symbol' || col.name === 'name' ? 'text-emerald-400 font-extrabold' : ''}`}>
                     <div>{col.name}</div>
                     <div className="text-[9px] text-slate-500 lowercase">({col.type})</div>
+                    {sortState.field === col.name ? (sortState.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-400 inline" /> : <ArrowDown className="w-3 h-3 text-emerald-400 inline" />) : <ArrowUpDown className="w-3 h-3 text-slate-600 inline" />}
                   </th>
                 ))}
                 <th className="py-3 px-3 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/40">
-              {tableData.rows.map(row => (
+              {visibleRows.map(row => (
                 <tr key={`row-${row.id}`} className="hover:bg-slate-800/30 transition-colors">
                   {tableData.columns.map(col => {
                     const isEditing = editingCell && editingCell.id === row.id && editingCell.column === col.name;

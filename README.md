@@ -36,6 +36,9 @@ Ladder is an institutional-grade personal finance and investment management dash
 6. **High-Performance Growth Benchmark & Reports Suite**
    - Dedicated service (`server/services/benchmarkEngine.js`) calculating true money-weighted performance vs Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ with binary search index lookups.
    - Comprehensive Reports Hub with Asset Allocation, Market Cap look-through, Sector drill-downs, and a dedicated **Consolidated Performance** view analyzing Active vs Realized vs Lifetime returns across all portfolio categories.
+   - High-density, clutter-free metric box architecture across all asset classes with vertical label-metric hierarchy, zero-overflow secondary grids, and clean tabular alignment.
+   - Universal Border Integrity & Complete Box Containment: Replaced outset rings with inset borders and container scrollbar padding, eliminating border-clipping artifacts across all themes and viewports.
+   - Project-Wide Tabular Search & Sorting: Comprehensive real-time search filtering and clickable column sorting implemented across every tabular ledger in the application (Consolidated Category Performance, MF Look-Through Constituents, Market Cap drill-down, Sector drill-down, Scheme breakdown modal, Overview performance, Transaction ledgers, Dividend distribution ledgers, and Amortization schedules).
 
 7. **Safety, Backup & Atomic Restoration**
    - Paginated backup tool (`scripts/dump_db_snapshot.mjs`) exporting full database state and EOD logs past Supabase row limits.

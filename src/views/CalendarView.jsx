@@ -541,19 +541,19 @@ export default function CalendarView() {
                   textColor = 'text-emerald-400';
                   badgeDot = 'bg-emerald-400';
                   cardStyle = isSelected
-                    ? 'ring-2 ring-emerald-400 border-emerald-400 bg-emerald-500/20 shadow-xl shadow-emerald-500/20'
+                    ? 'ring-2 ring-inset ring-emerald-400 border-emerald-400 bg-emerald-500/20 shadow-xl shadow-emerald-500/20'
                     : 'bg-emerald-500/8 border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-500/18';
                 } else if (isNeg) {
                   textColor = 'text-rose-400';
                   badgeDot = 'bg-rose-400';
                   cardStyle = isSelected
-                    ? 'ring-2 ring-rose-400 border-rose-400 bg-rose-500/20 shadow-xl shadow-rose-500/20'
+                    ? 'ring-2 ring-inset ring-rose-400 border-rose-400 bg-rose-500/20 shadow-xl shadow-rose-500/20'
                     : 'bg-rose-500/8 border-rose-500/30 hover:border-rose-400 hover:bg-rose-500/18';
                 } else {
                   textColor = 'text-blue-400';
                   badgeDot = 'bg-blue-400';
                   cardStyle = isSelected
-                    ? 'ring-2 ring-blue-400 border-blue-400 bg-blue-500/20 shadow-xl shadow-blue-500/20'
+                    ? 'ring-2 ring-inset ring-blue-400 border-blue-400 bg-blue-500/20 shadow-xl shadow-blue-500/20'
                     : 'bg-blue-500/8 border-blue-500/30 hover:border-blue-400 hover:bg-blue-500/18';
                 }
 

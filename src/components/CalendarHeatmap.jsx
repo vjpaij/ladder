@@ -127,7 +127,7 @@ export default function CalendarHeatmap() {
                 key={log.log_date}
                 onClick={() => setSelectedLog(log)}
                 className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                  isSelected ? 'ring-2 ring-emerald-500 scale-[1.03] shadow-lg' : ''
+                  isSelected ? 'ring-2 ring-inset ring-emerald-500 scale-[1.03] shadow-lg' : ''
                 } ${
                   isPos
                     ? 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20'

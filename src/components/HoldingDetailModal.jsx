@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, TrendingUp, TrendingDown, DollarSign, BarChart2, ArrowDownCircle,
-  ArrowUpCircle, Gift, Percent, Calendar, ChevronDown, ChevronUp, Activity, Globe
+  ArrowUpCircle, Gift, Percent, Calendar, ChevronDown, ChevronUp, Activity, Globe, Search
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -147,6 +147,8 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [txSort, setTxSort] = useState({ field: 'date', dir: 'asc' });
+  const [txSearch, setTxSearch] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState('ALL');
 
   const [activeTab, setActiveTab] = useState('tracker');
   const isLoan = holding?.category_id === 'loans';
@@ -285,13 +287,29 @@ export default function HoldingDetailModal({ holding, onClose }) {
     });
   }, [detail?.transactions, chartRange, filteredTimeline]);
 
-  const sortedTxs = [...filteredTransactions].sort((a, b) => {
-    let av = a[txSort.field] ?? '', bv = b[txSort.field] ?? '';
-    if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
-    if (av < bv) return txSort.dir === 'asc' ? -1 : 1;
-    if (av > bv) return txSort.dir === 'asc' ? 1 : -1;
-    return 0;
-  });
+  const sortedTxs = React.useMemo(() => {
+    let list = [...filteredTransactions];
+    if (txTypeFilter !== 'ALL') {
+      list = list.filter(tx => (tx.type || '').toUpperCase() === txTypeFilter);
+    }
+    if (txSearch.trim()) {
+      const q = txSearch.toLowerCase().trim();
+      list = list.filter(tx => 
+        (tx.date || '').toLowerCase().includes(q) ||
+        (tx.type || '').toLowerCase().includes(q) ||
+        (tx.notes || '').toLowerCase().includes(q) ||
+        String(tx.price || '').includes(q) ||
+        String(tx.total_amount || '').includes(q)
+      );
+    }
+    return list.sort((a, b) => {
+      let av = a[txSort.field] ?? '', bv = b[txSort.field] ?? '';
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (av < bv) return txSort.dir === 'asc' ? -1 : 1;
+      if (av > bv) return txSort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredTransactions, txSort, txSearch, txTypeFilter]);
 
   const chartMinMax = React.useMemo(() => {
     if (!filteredTimeline || filteredTimeline.length === 0) return [0, 'auto'];
@@ -866,11 +884,52 @@ export default function HoldingDetailModal({ holding, onClose }) {
                   )}
 
                   {/* ---- Transaction / EOD Ledger ---- */}
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {isEodAsset ? `Daily Balance History (${sortedTxs.length} records)` : `Transaction Ledger (${sortedTxs.length} records)`}
-                    </p>
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {isEodAsset ? `Daily Balance History (${sortedTxs.length} records)` : `Transaction Ledger (${sortedTxs.length} records)`}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {!isEodAsset && (
+                          <div className="flex items-center gap-1 p-0.5 bg-slate-900/80 border border-slate-800 rounded-xl text-[10px] font-bold">
+                            {['ALL', 'BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT'].map(type => (
+                              <button
+                                key={type}
+                                onClick={() => setTxTypeFilter(type)}
+                                className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
+                                  txTypeFilter === type
+                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                    : 'text-slate-500 hover:text-slate-300'
+                                }`}
+                              >
+                                {type}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="relative w-full sm:w-52">
+                          <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Filter records..."
+                            value={txSearch}
+                            onChange={(e) => setTxSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
+                          />
+                          {txSearch && (
+                            <button
+                              onClick={() => setTxSearch('')}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse text-xs">

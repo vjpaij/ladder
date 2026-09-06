@@ -46,7 +46,10 @@ import {
   ShieldCheck,
   Landmark,
   DollarSign,
-  Activity
+  Activity,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 
@@ -182,6 +185,38 @@ export default function ReportsView({ summary, holdings }) {
 
   // Active hover/selection state for Pie
   const [activePieIndex, setActivePieIndex] = useState(null);
+
+  // Search and Sort states for all tabular formats
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categorySort, setCategorySort] = useState({ field: null, direction: 'desc' });
+
+  const [mfCompanySearch, setMfCompanySearch] = useState('');
+  const [mfCompanySort, setMfCompanySort] = useState({ field: 'allocatedINR', direction: 'desc' });
+
+  const [mcapCompanySearch, setMcapCompanySearch] = useState('');
+  const [mcapCompanySort, setMcapCompanySort] = useState({ field: 'allocatedINR', direction: 'desc' });
+
+  const [sectorCompanySearch, setSectorCompanySearch] = useState('');
+  const [sectorCompanySort, setSectorCompanySort] = useState({ field: 'allocatedINR', direction: 'desc' });
+
+  const [companyModalSearch, setCompanyModalSearch] = useState('');
+  const [companyModalSort, setCompanyModalSort] = useState({ field: 'allocatedINR', direction: 'desc' });
+
+  const handleSortClick = (setSort, field) => {
+    setSort(prev => {
+      if (prev.field === field) {
+        return { field, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { field, direction: 'desc' };
+    });
+  };
+
+  const renderSortIcon = (currentSort, field) => {
+    if (currentSort.field !== field) return <ArrowUpDown className="w-3 h-3 opacity-35 inline ml-1 shrink-0" />;
+    return currentSort.direction === 'asc' 
+      ? <ArrowUp className="w-3 h-3 text-emerald-500 inline ml-1 shrink-0" /> 
+      : <ArrowDown className="w-3 h-3 text-emerald-500 inline ml-1 shrink-0" />;
+  };
 
   // Close MF dropdown on outside click
   useEffect(() => {
@@ -844,7 +879,7 @@ export default function ReportsView({ summary, holdings }) {
                 if (onHoverIndex) onHoverIndex(isSelected ? null : index);
               }}
               className={`group relative overflow-hidden p-3 rounded-2xl border transition-all duration-150 cursor-pointer reports-subcard ${
-                isSelected ? 'ring-2 ring-emerald-500' : ''
+                isSelected ? 'is-selected ring-2 ring-inset ring-emerald-500' : ''
               }`}
             >
               {/* Subtle Progress Fill Bar */}
@@ -1153,49 +1188,147 @@ export default function ReportsView({ summary, holdings }) {
             </div>
 
             {selectedMfDetails && selectedMfDetails.companies?.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl reports-table-container">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="reports-table-head font-bold uppercase text-[10px]">
-                      <th className="py-3 pl-4">Company</th>
-                      <th className="py-3">Sector</th>
-                      <th className="py-3">Cap Tier</th>
-                      <th className="py-3 text-right">Fund Weight</th>
-                      <th className="py-3 text-right pr-4">Allocated Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-inherit font-mono">
-                    {selectedMfDetails.companies.map((c, i) => (
-                      <tr 
-                        key={`${c.company || c.name}-${i}`} 
-                        onClick={() => setCompanyDetailTarget(c)}
-                        className="reports-table-row transition-colors cursor-pointer group"
+              <div className="space-y-3">
+                {/* Search & Filter Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-1">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-3.5 h-3.5 opacity-50 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search companies, symbols, sectors..."
+                      value={mfCompanySearch}
+                      onChange={(e) => setMfCompanySearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                    />
+                    {mfCompanySearch && (
+                      <button 
+                        onClick={() => setMfCompanySearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 p-0.5"
                       >
-                        <td className="py-3 pl-4">
-                          <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                            <span>{c.company || c.name}</span>
-                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
-                          </div>
-                          {c.symbol && c.symbol !== 'OTHER' && (
-                            <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>
-                          )}
-                        </td>
-                        <td className="py-3 opacity-80 font-sans font-medium">{normalizeSector(c.sector)}</td>
-                        <td className="py-3">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
-                            {c.mcap_category || 'Mid Cap'}
-                          </span>
-                        </td>
-                        <td className="py-3 text-right opacity-80 font-bold">
-                          {c.allocation_pct ? `${c.allocation_pct}%` : `${c.percentage}%`}
-                        </td>
-                        <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
-                          {formatMoney(c.allocatedINR || c.totalAllocatedINR || 0)}
-                        </td>
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-mono opacity-60">
+                    {(() => {
+                      let count = selectedMfDetails.companies.length;
+                      if (mfCompanySearch.trim()) {
+                        const q = mfCompanySearch.toLowerCase().trim();
+                        count = selectedMfDetails.companies.filter(c =>
+                          (c.company || c.name || '').toLowerCase().includes(q) ||
+                          (c.symbol || '').toLowerCase().includes(q) ||
+                          (c.sector || '').toLowerCase().includes(q) ||
+                          (c.mcap_category || '').toLowerCase().includes(q)
+                        ).length;
+                      }
+                      return `${count} of ${selectedMfDetails.companies.length} Holdings`;
+                    })()}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl reports-table-container">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
+                        <th 
+                          onClick={() => handleSortClick(setMfCompanySort, 'company')} 
+                          className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                        >
+                          Company {renderSortIcon(mfCompanySort, 'company')}
+                        </th>
+                        <th 
+                          onClick={() => handleSortClick(setMfCompanySort, 'sector')} 
+                          className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                        >
+                          Sector {renderSortIcon(mfCompanySort, 'sector')}
+                        </th>
+                        <th 
+                          onClick={() => handleSortClick(setMfCompanySort, 'mcap_category')} 
+                          className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                        >
+                          Cap Tier {renderSortIcon(mfCompanySort, 'mcap_category')}
+                        </th>
+                        <th 
+                          onClick={() => handleSortClick(setMfCompanySort, 'allocation_pct')} 
+                          className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        >
+                          Fund Weight {renderSortIcon(mfCompanySort, 'allocation_pct')}
+                        </th>
+                        <th 
+                          onClick={() => handleSortClick(setMfCompanySort, 'allocatedINR')} 
+                          className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                        >
+                          Allocated Value {renderSortIcon(mfCompanySort, 'allocatedINR')}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-inherit font-mono">
+                      {(() => {
+                        let list = [...selectedMfDetails.companies];
+                        if (mfCompanySearch.trim()) {
+                          const q = mfCompanySearch.toLowerCase().trim();
+                          list = list.filter(c =>
+                            (c.company || c.name || '').toLowerCase().includes(q) ||
+                            (c.symbol || '').toLowerCase().includes(q) ||
+                            (c.sector || '').toLowerCase().includes(q) ||
+                            (c.mcap_category || '').toLowerCase().includes(q)
+                          );
+                        }
+                        if (mfCompanySort.field) {
+                          list.sort((a, b) => {
+                            let valA = a[mfCompanySort.field];
+                            let valB = b[mfCompanySort.field];
+                            if (mfCompanySort.field === 'allocatedINR') {
+                              valA = a.allocatedINR || a.totalAllocatedINR || 0;
+                              valB = b.allocatedINR || b.totalAllocatedINR || 0;
+                            } else if (mfCompanySort.field === 'allocation_pct') {
+                              valA = Number(a.allocation_pct || a.percentage) || 0;
+                              valB = Number(b.allocation_pct || b.percentage) || 0;
+                            } else if (mfCompanySort.field === 'company') {
+                              valA = (a.company || a.name || '').toLowerCase();
+                              valB = (b.company || b.name || '').toLowerCase();
+                              return mfCompanySort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                            } else if (typeof valA === 'string') {
+                              return mfCompanySort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                            }
+                            valA = Number(valA) || 0;
+                            valB = Number(valB) || 0;
+                            return mfCompanySort.direction === 'asc' ? valA - valB : valB - valA;
+                          });
+                        }
+                        return list.map((c, i) => (
+                          <tr 
+                            key={`${c.company || c.name}-${i}`} 
+                            onClick={() => setCompanyDetailTarget(c)}
+                            className="reports-table-row transition-colors cursor-pointer group"
+                          >
+                            <td className="py-3 pl-4">
+                              <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                                <span>{c.company || c.name}</span>
+                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                              </div>
+                              {c.symbol && c.symbol !== 'OTHER' && (
+                                <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>
+                              )}
+                            </td>
+                            <td className="py-3 opacity-80 font-sans font-medium">{normalizeSector(c.sector)}</td>
+                            <td className="py-3">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
+                                {c.mcap_category || 'Mid Cap'}
+                              </span>
+                            </td>
+                            <td className="py-3 text-right opacity-80 font-bold">
+                              {c.allocation_pct ? `${c.allocation_pct}%` : `${c.percentage}%`}
+                            </td>
+                            <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
+                              {formatMoney(c.allocatedINR || c.totalAllocatedINR || 0)}
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
               <div className="p-8 text-center text-xs opacity-60">
@@ -1213,79 +1346,82 @@ export default function ReportsView({ summary, holdings }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
               {/* Card 1: Active Portfolio Valuation */}
-              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between space-y-3">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block">
                     Active Portfolio Value
                   </span>
-                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                  <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 truncate">
                     {formatMoney(consolidatedPerformanceData.totals.activeVal)}
                   </div>
                 </div>
-                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
-                  <span className="opacity-70">Unrealized:</span>
-                  <span className={`font-bold ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)} ({consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.activeRoiPct.toFixed(2)}%)
-                  </span>
+                <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono">
+                  <div className="text-[9.5px] uppercase tracking-wider opacity-60">Unrealized P&L</div>
+                  <div className={`font-bold mt-0.5 truncate ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)}
+                    <span className="text-[10px] font-medium ml-1">
+                      ({consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.activeRoiPct.toFixed(2)}%)
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* Card 2: Active Capital Invested */}
-              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between space-y-3">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block">
                     Open Cost Basis
                   </span>
-                  <div className="text-xl sm:text-2xl font-black font-mono text-blue-600 dark:text-blue-400">
+                  <div className="text-xl sm:text-2xl font-black font-mono text-blue-600 dark:text-blue-400 mt-1 truncate">
                     {formatMoney(consolidatedPerformanceData.totals.activeCost, true)}
                   </div>
                 </div>
-                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
-                  <span className="opacity-70">Open Allocation:</span>
-                  <span className="font-bold opacity-90">100% of Open</span>
+                <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono">
+                  <div className="text-[9.5px] uppercase tracking-wider opacity-60">Allocation</div>
+                  <div className="font-bold opacity-90 mt-0.5 truncate">100% of Active Assets</div>
                 </div>
               </div>
 
               {/* Card 3: Total Realized Proceeds */}
-              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between space-y-3">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block">
                     Realized Proceeds
                   </span>
-                  <div className="text-xl sm:text-2xl font-black font-mono text-amber-500">
+                  <div className="text-xl sm:text-2xl font-black font-mono text-amber-500 mt-1 truncate">
                     {formatMoney(consolidatedPerformanceData.totals.closedProceeds, true)}
                   </div>
                 </div>
-                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
-                  <span className="opacity-70">Realized Profit:</span>
-                  <span className={`font-bold ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono">
+                  <div className="text-[9.5px] uppercase tracking-wider opacity-60">Realized Profit</div>
+                  <div className={`font-bold mt-0.5 truncate ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                     {consolidatedPerformanceData.totals.closedPnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
-                  </span>
+                  </div>
                 </div>
               </div>
 
               {/* Card 4: Lifetime Combined Net Gain & XIRR */}
-              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between">
+              <div className="reports-subcard p-4 rounded-2xl border relative overflow-hidden flex flex-col justify-between space-y-3">
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block">
                     Lifetime Net Return
                   </span>
-                  <div className={`text-xl sm:text-2xl font-black font-mono ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  <div className={`text-xl sm:text-2xl font-black font-mono mt-1 truncate ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                     {consolidatedPerformanceData.totals.lifetimePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
                   </div>
                 </div>
-                <div className="pt-2 mt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
-                  <span className="opacity-70">Annualized XIRR:</span>
-                  <span className={`font-bold ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {consolidatedPerformanceData.totals.portfolioXirr >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.portfolioXirr.toFixed(2)}%
-                  </span>
+                <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono">
+                  <div className="text-[9.5px] uppercase tracking-wider opacity-60">Annualized Return</div>
+                  <div className={`font-bold mt-0.5 truncate ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    XIRR: {consolidatedPerformanceData.totals.portfolioXirr >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.portfolioXirr.toFixed(2)}%
+                  </div>
                 </div>
               </div>
 
             </div>
 
             {/* Asset Class Performance Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-5">
               {consolidatedPerformanceData.categories.map((cat) => {
                 const IconComponent = cat.icon || Activity;
                 return (
@@ -1307,35 +1443,50 @@ export default function ReportsView({ summary, holdings }) {
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black font-mono reports-pill">
-                          {cat.weightPct.toFixed(1)}% Allocation
-                        </span>
-                      </div>
+                      {/* Right empty container or clean actions */}
                     </div>
 
                     {/* 3-Section Breakdown Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       
                       {/* Compartment 1: Active */}
-                      <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit">
+                      <div className="p-4 rounded-xl reports-card flex flex-col justify-between border border-inherit space-y-3">
+                        {/* Header Tag */}
                         <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
-                          <span>Open</span>
-                          <span className="text-emerald-500">Live</span>
+                          <span>Open Positions</span>
+                          <span className="text-emerald-500 font-extrabold px-1.5 py-0.5 rounded bg-emerald-500/10">Live</span>
                         </div>
-                        <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                          {formatMoney(cat.activeVal)}
+                        
+                        {/* Primary Stat Block */}
+                        <div>
+                          <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Current Value
+                          </div>
+                          <div className="text-lg sm:text-xl font-black font-mono text-emerald-600 dark:text-emerald-400 leading-tight mt-1 whitespace-nowrap">
+                            {formatMoney(cat.activeVal)}
+                          </div>
                         </div>
-                        <div className="text-[10.5px] opacity-75 flex justify-between">
-                          <span>Cost:</span>
-                          <span className="font-bold">{formatMoney(cat.activeCost, true)}</span>
+
+                        {/* Secondary Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-inherit/60 text-xs font-mono">
+                          <div>
+                            <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Cost Basis</div>
+                            <div className="font-bold whitespace-nowrap mt-1">{formatMoney(cat.activeCost, true)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Return</div>
+                            <div className={`font-bold whitespace-nowrap mt-1 ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)}
+                            </div>
+                            <div className={`text-[10px] font-bold ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              ({cat.activePnl >= 0 ? '+' : ''}{cat.activeRoiPct.toFixed(1)}%)
+                            </div>
+                          </div>
                         </div>
-                        <div className={`text-[10.5px] font-bold flex justify-between ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          <span>Return:</span>
-                          <span>{cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)} ({cat.activePnl >= 0 ? '+' : ''}{cat.activeRoiPct.toFixed(1)}%)</span>
-                        </div>
-                        <div className="text-[10px] opacity-75 flex justify-between pt-1 border-t border-inherit">
-                          <span>XIRR:</span>
+
+                        {/* Bottom Metric Footer */}
+                        <div className="pt-2.5 border-t border-inherit/60 flex items-center justify-between text-xs font-mono">
+                          <span className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Annualized XIRR</span>
                           <span className={`font-bold ${cat.activeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {cat.activeXirr >= 0 ? '+' : ''}{cat.activeXirr.toFixed(2)}%
                           </span>
@@ -1343,24 +1494,43 @@ export default function ReportsView({ summary, holdings }) {
                       </div>
 
                       {/* Compartment 2: Redeemed / Closed */}
-                      <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit">
+                      <div className="p-4 rounded-xl reports-card flex flex-col justify-between border border-inherit space-y-3">
+                        {/* Header Tag */}
                         <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
-                          <span>Realized</span>
-                          <span className="text-amber-500">Closed</span>
+                          <span>Redeemed Positions</span>
+                          <span className="text-amber-500 font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10">Closed</span>
                         </div>
-                        <div className="text-sm font-black text-amber-500">
-                          {formatMoney(cat.closedProceeds, true)}
+
+                        {/* Primary Stat Block */}
+                        <div>
+                          <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Total Proceeds
+                          </div>
+                          <div className="text-lg sm:text-xl font-black font-mono text-amber-500 leading-tight mt-1 whitespace-nowrap">
+                            {formatMoney(cat.closedProceeds, true)}
+                          </div>
                         </div>
-                        <div className="text-[10.5px] opacity-75 flex justify-between">
-                          <span>Cost:</span>
-                          <span className="font-bold">{formatMoney(cat.closedCost, true)}</span>
+
+                        {/* Secondary Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-inherit/60 text-xs font-mono">
+                          <div>
+                            <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Cost Basis</div>
+                            <div className="font-bold whitespace-nowrap mt-1">{formatMoney(cat.closedCost, true)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Realized P&L</div>
+                            <div className={`font-bold whitespace-nowrap mt-1 ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)}
+                            </div>
+                            <div className={`text-[10px] font-bold ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              ({cat.closedPnl >= 0 ? '+' : ''}{cat.closedRoiPct.toFixed(1)}%)
+                            </div>
+                          </div>
                         </div>
-                        <div className={`text-[10.5px] font-bold flex justify-between ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          <span>P&L:</span>
-                          <span>{cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)} ({cat.closedPnl >= 0 ? '+' : ''}{cat.closedRoiPct.toFixed(1)}%)</span>
-                        </div>
-                        <div className="text-[10px] opacity-75 flex justify-between pt-1 border-t border-inherit">
-                          <span>XIRR:</span>
+
+                        {/* Bottom Metric Footer */}
+                        <div className="pt-2.5 border-t border-inherit/60 flex items-center justify-between text-xs font-mono">
+                          <span className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Realized XIRR</span>
                           <span className={`font-bold ${cat.closedXirr >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
                             {cat.closedXirr >= 0 ? '+' : ''}{cat.closedXirr.toFixed(2)}%
                           </span>
@@ -1368,24 +1538,40 @@ export default function ReportsView({ summary, holdings }) {
                       </div>
 
                       {/* Compartment 3: Combined Lifetime */}
-                      <div className="p-3 rounded-xl reports-card space-y-1 font-mono text-xs border border-inherit bg-slate-500/5">
+                      <div className="p-4 rounded-xl reports-card flex flex-col justify-between border border-inherit bg-slate-500/5 space-y-3">
+                        {/* Header Tag */}
                         <div className="flex justify-between items-center text-[10px] font-sans font-bold uppercase tracking-wider opacity-60">
-                          <span>Combined</span>
-                          <span className="text-purple-400">Lifetime</span>
+                          <span>Consolidated Total</span>
+                          <span className="text-purple-400 font-extrabold px-1.5 py-0.5 rounded bg-purple-500/10">Lifetime</span>
                         </div>
-                        <div className={`text-sm font-black ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
+
+                        {/* Primary Stat Block */}
+                        <div>
+                          <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                            Net Gain / P&L
+                          </div>
+                          <div className={`text-lg sm:text-xl font-black font-mono leading-tight mt-1 whitespace-nowrap ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
+                          </div>
                         </div>
-                        <div className="text-[10.5px] opacity-75 flex justify-between">
-                          <span>Deployed:</span>
-                          <span className="font-bold">{formatMoney(cat.lifetimeCost, true)}</span>
+
+                        {/* Secondary Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-inherit/60 text-xs font-mono">
+                          <div>
+                            <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Capital Deployed</div>
+                            <div className="font-bold whitespace-nowrap mt-1">{formatMoney(cat.lifetimeCost, true)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Abs Return</div>
+                            <div className={`font-bold whitespace-nowrap mt-1 ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%
+                            </div>
+                          </div>
                         </div>
-                        <div className={`text-[10.5px] font-bold flex justify-between ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          <span>Abs Return:</span>
-                          <span>{cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%</span>
-                        </div>
-                        <div className="text-[10px] opacity-75 flex justify-between pt-1 border-t border-inherit">
-                          <span>Lifetime XIRR:</span>
+
+                        {/* Bottom Metric Footer */}
+                        <div className="pt-2.5 border-t border-inherit/60 flex items-center justify-between text-xs font-mono">
+                          <span className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Lifetime XIRR</span>
                           <span className={`font-bold ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
                           </span>
@@ -1400,63 +1586,158 @@ export default function ReportsView({ summary, holdings }) {
 
             {/* Comprehensive Consolidated Performance Table */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-black uppercase tracking-wider opacity-75">
-                  Consolidated Category Performance Ledger
-                </span>
-                <span className="text-[11px] font-mono opacity-60">
-                  {consolidatedPerformanceData.categories.length} Asset Classes
-                </span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-1">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider opacity-75">
+                    Consolidated Category Performance Ledger
+                  </span>
+                  <span className="text-[11px] font-mono opacity-60 ml-2">
+                    {(() => {
+                      let count = consolidatedPerformanceData.categories.length;
+                      if (categorySearch.trim()) {
+                        const q = categorySearch.toLowerCase().trim();
+                        count = consolidatedPerformanceData.categories.filter(c => c.label.toLowerCase().includes(q)).length;
+                      }
+                      return `${count} of ${consolidatedPerformanceData.categories.length} Asset Classes`;
+                    })()}
+                  </span>
+                </div>
+
+                {/* Search / Filter Input */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 opacity-50 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Filter asset classes..."
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                  />
+                  {categorySearch && (
+                    <button 
+                      onClick={() => setCategorySearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="overflow-x-auto rounded-2xl reports-table-container">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="reports-table-head font-bold uppercase text-[10px]">
-                      <th className="py-3.5 pl-4">Asset Class</th>
-                      <th className="py-3.5 text-right">Active Valuation</th>
-                      <th className="py-3.5 text-right">Active Cost</th>
-                      <th className="py-3.5 text-right">Unrealized P&L</th>
-                      <th className="py-3.5 text-right">Realized P&L</th>
-                      <th className="py-3.5 text-right">Lifetime Cost</th>
-                      <th className="py-3.5 text-right">Total Net Return</th>
-                      <th className="py-3.5 text-right">Abs ROI %</th>
-                      <th className="py-3.5 text-right pr-4">Annualized XIRR</th>
+                    <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'label')} 
+                        className="py-3.5 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Asset Class {renderSortIcon(categorySort, 'label')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'activeVal')} 
+                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Active Valuation {renderSortIcon(categorySort, 'activeVal')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'activeCost')} 
+                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Active Cost {renderSortIcon(categorySort, 'activeCost')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'activePnl')} 
+                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Unrealized P&L {renderSortIcon(categorySort, 'activePnl')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'closedPnl')} 
+                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Realized P&L {renderSortIcon(categorySort, 'closedPnl')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'lifetimeCost')} 
+                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Lifetime Cost {renderSortIcon(categorySort, 'lifetimeCost')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'lifetimePnl')} 
+                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Total Net Return {renderSortIcon(categorySort, 'lifetimePnl')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'lifetimeRoiPct')} 
+                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Abs ROI % {renderSortIcon(categorySort, 'lifetimeRoiPct')}
+                      </th>
+                      <th 
+                        onClick={() => handleSortClick(setCategorySort, 'lifetimeXirr')} 
+                        className="py-3.5 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                      >
+                        Annualized XIRR {renderSortIcon(categorySort, 'lifetimeXirr')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-inherit font-mono">
-                    {consolidatedPerformanceData.categories.map((cat) => (
-                      <tr key={`table-${cat.id}`} className="reports-table-row transition-colors">
-                        <td className="py-3 pl-4 font-sans font-bold flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                          <span>{cat.label}</span>
-                        </td>
-                        <td className="py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                          {formatMoney(cat.activeVal)}
-                        </td>
-                        <td className="py-3 text-right opacity-80">
-                          {formatMoney(cat.activeCost, true)}
-                        </td>
-                        <td className={`py-3 text-right font-bold ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)}
-                        </td>
-                        <td className={`py-3 text-right font-bold ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)}
-                        </td>
-                        <td className="py-3 text-right opacity-80">
-                          {formatMoney(cat.lifetimeCost, true)}
-                        </td>
-                        <td className={`py-3 text-right font-black ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
-                        </td>
-                        <td className={`py-3 text-right font-bold ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%
-                        </td>
-                        <td className={`py-3 text-right pr-4 font-black ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
-                        </td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      let list = [...consolidatedPerformanceData.categories];
+                      if (categorySearch.trim()) {
+                        const q = categorySearch.toLowerCase().trim();
+                        list = list.filter(cat => cat.label.toLowerCase().includes(q));
+                      }
+                      if (categorySort.field) {
+                        list.sort((a, b) => {
+                          let valA = a[categorySort.field];
+                          let valB = b[categorySort.field];
+                          if (typeof valA === 'string') {
+                            return categorySort.direction === 'asc' 
+                              ? valA.localeCompare(valB) 
+                              : valB.localeCompare(valA);
+                          }
+                          valA = Number(valA) || 0;
+                          valB = Number(valB) || 0;
+                          return categorySort.direction === 'asc' ? valA - valB : valB - valA;
+                        });
+                      }
+                      return list.map((cat) => (
+                        <tr key={`table-${cat.id}`} className="reports-table-row transition-colors">
+                          <td className="py-3 pl-4 font-sans font-bold flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                            <span>{cat.label}</span>
+                          </td>
+                          <td className="py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatMoney(cat.activeVal)}
+                          </td>
+                          <td className="py-3 text-right opacity-80">
+                            {formatMoney(cat.activeCost, true)}
+                          </td>
+                          <td className={`py-3 text-right font-bold ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)}
+                          </td>
+                          <td className={`py-3 text-right font-bold ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)}
+                          </td>
+                          <td className="py-3 text-right opacity-80">
+                            {formatMoney(cat.lifetimeCost, true)}
+                          </td>
+                          <td className={`py-3 text-right font-black ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
+                          </td>
+                          <td className={`py-3 text-right font-bold ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%
+                          </td>
+                          <td className={`py-3 text-right pr-4 font-black ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
+                          </td>
+                        </tr>
+                      ));
+                    })()}
                   </tbody>
                   <tfoot>
                     <tr className="reports-table-head font-bold font-mono border-t-2 border-inherit text-slate-900 dark:text-white">
@@ -1538,7 +1819,7 @@ export default function ReportsView({ summary, holdings }) {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="lg:col-span-5 max-h-[380px] overflow-y-auto pr-1">
+                <div className="lg:col-span-5 max-h-[380px] overflow-y-auto p-1.5 custom-scrollbar">
                   <RankedBarList 
                     items={allocationData} 
                     activeIndex={activePieIndex} 
@@ -1569,46 +1850,127 @@ export default function ReportsView({ summary, holdings }) {
                   </h4>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl reports-table-container">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="reports-table-head font-bold uppercase text-[10px]">
-                        <th className="py-3 pl-4">Stock / Asset</th>
-                        <th className="py-3">Portfolio Source</th>
-                        <th className="py-3 text-right">Contribution</th>
-                        <th className="py-3 text-right pr-4">Allocated Value</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-inherit font-mono">
-                      {selectedMarketCap.companies?.map((c, idx) => {
-                        const contribPct = selectedMarketCap.value > 0 
-                          ? Number(((c.allocatedINR / selectedMarketCap.value) * 100).toFixed(2)) 
-                          : 0;
-                        return (
-                          <tr 
-                            key={`${c.name}-${idx}`} 
-                            onClick={() => setCompanyDetailTarget(c)}
-                            className="reports-table-row transition-colors cursor-pointer group"
+                <div className="space-y-3">
+                  {/* Search bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="relative w-full sm:w-72">
+                      <Search className="w-3.5 h-3.5 opacity-50 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search companies, symbols..."
+                        value={mcapCompanySearch}
+                        onChange={(e) => setMcapCompanySearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                      />
+                      {mcapCompanySearch && (
+                        <button 
+                          onClick={() => setMcapCompanySearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-[11px] font-mono opacity-60">
+                      {(() => {
+                        let count = selectedMarketCap.companies?.length || 0;
+                        if (mcapCompanySearch.trim()) {
+                          const q = mcapCompanySearch.toLowerCase().trim();
+                          count = selectedMarketCap.companies?.filter(c => 
+                            (c.name || '').toLowerCase().includes(q) ||
+                            (c.symbol || '').toLowerCase().includes(q) ||
+                            (c.source || '').toLowerCase().includes(q)
+                          ).length || 0;
+                        }
+                        return `${count} of ${selectedMarketCap.companies?.length || 0} Assets`;
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-2xl reports-table-container">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
+                          <th 
+                            onClick={() => handleSortClick(setMcapCompanySort, 'name')} 
+                            className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
                           >
-                            <td className="py-3 pl-4">
-                              <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                                <span>{c.name}</span>
-                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
-                              </div>
-                              {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
-                            </td>
-                            <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
-                            <td className="py-3 text-right opacity-80 font-bold">
-                              {contribPct}%
-                            </td>
-                            <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
-                              {formatMoney(c.allocatedINR)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            Stock / Asset {renderSortIcon(mcapCompanySort, 'name')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setMcapCompanySort, 'source')} 
+                            className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Portfolio Source {renderSortIcon(mcapCompanySort, 'source')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setMcapCompanySort, 'allocatedINR')} 
+                            className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Contribution {renderSortIcon(mcapCompanySort, 'allocatedINR')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setMcapCompanySort, 'allocatedINR')} 
+                            className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Allocated Value {renderSortIcon(mcapCompanySort, 'allocatedINR')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-inherit font-mono">
+                        {(() => {
+                          let list = [...(selectedMarketCap.companies || [])];
+                          if (mcapCompanySearch.trim()) {
+                            const q = mcapCompanySearch.toLowerCase().trim();
+                            list = list.filter(c =>
+                              (c.name || '').toLowerCase().includes(q) ||
+                              (c.symbol || '').toLowerCase().includes(q) ||
+                              (c.source || '').toLowerCase().includes(q)
+                            );
+                          }
+                          if (mcapCompanySort.field) {
+                            list.sort((a, b) => {
+                              let valA = a[mcapCompanySort.field];
+                              let valB = b[mcapCompanySort.field];
+                              if (typeof valA === 'string') {
+                                return mcapCompanySort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                              }
+                              valA = Number(valA) || 0;
+                              valB = Number(valB) || 0;
+                              return mcapCompanySort.direction === 'asc' ? valA - valB : valB - valA;
+                            });
+                          }
+                          return list.map((c, idx) => {
+                            const contribPct = selectedMarketCap.value > 0 
+                              ? Number(((c.allocatedINR / selectedMarketCap.value) * 100).toFixed(2)) 
+                              : 0;
+                            return (
+                              <tr 
+                                key={`${c.name}-${idx}`} 
+                                onClick={() => setCompanyDetailTarget(c)}
+                                className="reports-table-row transition-colors cursor-pointer group"
+                              >
+                                <td className="py-3 pl-4">
+                                  <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                                    <span>{c.name}</span>
+                                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                  </div>
+                                  {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
+                                </td>
+                                <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
+                                <td className="py-3 text-right opacity-80 font-bold">
+                                  {contribPct}%
+                                </td>
+                                <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
+                                  {formatMoney(c.allocatedINR)}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1668,7 +2030,7 @@ export default function ReportsView({ summary, holdings }) {
                       </ResponsiveContainer>
                     </div>
 
-                    <div className="lg:col-span-5 max-h-[380px] overflow-y-auto pr-1">
+                    <div className="lg:col-span-5 max-h-[380px] overflow-y-auto p-1.5 custom-scrollbar">
                       <RankedBarList 
                         items={marketCapData} 
                         onItemClick={(item) => setSelectedMarketCap(item)}
@@ -1700,41 +2062,124 @@ export default function ReportsView({ summary, holdings }) {
                   </h4>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl reports-table-container">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="reports-table-head font-bold uppercase text-[10px]">
-                        <th className="py-3 pl-4">Company</th>
-                        <th className="py-3">Portfolio Source</th>
-                        <th className="py-3">Cap Tier</th>
-                        <th className="py-3 text-right pr-4">Allocated Value</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-inherit font-mono">
-                      {selectedSector.companies.map((c, idx) => (
-                        <tr 
-                          key={`${c.name}-${idx}`} 
-                          onClick={() => setCompanyDetailTarget(c)}
-                          className="reports-table-row transition-colors cursor-pointer group"
+                <div className="space-y-3">
+                  {/* Search bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="relative w-full sm:w-72">
+                      <Search className="w-3.5 h-3.5 opacity-50 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search companies, symbols, sectors..."
+                        value={sectorCompanySearch}
+                        onChange={(e) => setSectorCompanySearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                      />
+                      {sectorCompanySearch && (
+                        <button 
+                          onClick={() => setSectorCompanySearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 p-0.5"
                         >
-                          <td className="py-3 pl-4">
-                            <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                              <span>{c.name}</span>
-                              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
-                            </div>
-                            {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
-                          </td>
-                          <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
-                          <td className="py-3">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
-                              {c.mcap_category}
-                            </span>
-                          </td>
-                          <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">{formatMoney(c.allocatedINR)}</td>
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="text-[11px] font-mono opacity-60">
+                      {(() => {
+                        let count = selectedSector.companies?.length || 0;
+                        if (sectorCompanySearch.trim()) {
+                          const q = sectorCompanySearch.toLowerCase().trim();
+                          count = selectedSector.companies?.filter(c =>
+                            (c.name || '').toLowerCase().includes(q) ||
+                            (c.symbol || '').toLowerCase().includes(q) ||
+                            (c.source || '').toLowerCase().includes(q) ||
+                            (c.mcap_category || '').toLowerCase().includes(q)
+                          ).length || 0;
+                        }
+                        return `${count} of ${selectedSector.companies?.length || 0} Companies`;
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-2xl reports-table-container">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
+                          <th 
+                            onClick={() => handleSortClick(setSectorCompanySort, 'name')} 
+                            className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Company {renderSortIcon(sectorCompanySort, 'name')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setSectorCompanySort, 'source')} 
+                            className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Portfolio Source {renderSortIcon(sectorCompanySort, 'source')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setSectorCompanySort, 'mcap_category')} 
+                            className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Cap Tier {renderSortIcon(sectorCompanySort, 'mcap_category')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setSectorCompanySort, 'allocatedINR')} 
+                            className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Allocated Value {renderSortIcon(sectorCompanySort, 'allocatedINR')}
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-inherit font-mono">
+                        {(() => {
+                          let list = [...(selectedSector.companies || [])];
+                          if (sectorCompanySearch.trim()) {
+                            const q = sectorCompanySearch.toLowerCase().trim();
+                            list = list.filter(c =>
+                              (c.name || '').toLowerCase().includes(q) ||
+                              (c.symbol || '').toLowerCase().includes(q) ||
+                              (c.source || '').toLowerCase().includes(q) ||
+                              (c.mcap_category || '').toLowerCase().includes(q)
+                            );
+                          }
+                          if (sectorCompanySort.field) {
+                            list.sort((a, b) => {
+                              let valA = a[sectorCompanySort.field];
+                              let valB = b[sectorCompanySort.field];
+                              if (typeof valA === 'string') {
+                                return sectorCompanySort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                              }
+                              valA = Number(valA) || 0;
+                              valB = Number(valB) || 0;
+                              return sectorCompanySort.direction === 'asc' ? valA - valB : valB - valA;
+                            });
+                          }
+                          return list.map((c, idx) => (
+                            <tr 
+                              key={`${c.name}-${idx}`} 
+                              onClick={() => setCompanyDetailTarget(c)}
+                              className="reports-table-row transition-colors cursor-pointer group"
+                            >
+                              <td className="py-3 pl-4">
+                                <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                                  <span>{c.name}</span>
+                                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                </div>
+                                {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
+                              </td>
+                              <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
+                              <td className="py-3">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
+                                  {c.mcap_category}
+                                </span>
+                              </td>
+                              <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">{formatMoney(c.allocatedINR)}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1771,7 +2216,7 @@ export default function ReportsView({ summary, holdings }) {
                       </ResponsiveContainer>
                     </div>
 
-                    <div className="lg:col-span-5 max-h-[380px] overflow-y-auto pr-1">
+                    <div className="lg:col-span-5 max-h-[380px] overflow-y-auto p-1.5 custom-scrollbar">
                       <RankedBarList 
                         items={sectorData} 
                         onItemClick={(item) => setSelectedSector(item)} 
@@ -2055,39 +2500,104 @@ export default function ReportsView({ summary, holdings }) {
               </div>
 
               {/* Mutual Funds Scheme Breakdown Table */}
-              <div className="space-y-2.5">
-                <p className="text-xs font-black uppercase tracking-wider opacity-80">
-                  Mutual Fund Schemes Breakdown ({companyMfBreakdown.schemes.length})
-                </p>
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <p className="text-xs font-black uppercase tracking-wider opacity-80">
+                    Mutual Fund Schemes Breakdown ({companyMfBreakdown.schemes.length})
+                  </p>
+
+                  {companyMfBreakdown.schemes.length > 0 && (
+                    <div className="relative w-full sm:w-64">
+                      <Search className="w-3.5 h-3.5 opacity-50 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Filter schemes..."
+                        value={companyModalSearch}
+                        onChange={(e) => setCompanyModalSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                      />
+                      {companyModalSearch && (
+                        <button 
+                          onClick={() => setCompanyModalSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {companyMfBreakdown.schemes.length > 0 ? (
                   <div className="overflow-x-auto rounded-2xl reports-table-container">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="reports-table-head font-bold uppercase text-[10px]">
-                          <th className="py-3 pl-4">Mutual Fund Scheme</th>
-                          <th className="py-3 text-right">Fund Weight</th>
-                          <th className="py-3 text-right">Allocated Value</th>
-                          <th className="py-3 text-right pr-4">Share of Holding</th>
+                        <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
+                          <th 
+                            onClick={() => handleSortClick(setCompanyModalSort, 'scheme_name')} 
+                            className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Mutual Fund Scheme {renderSortIcon(companyModalSort, 'scheme_name')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setCompanyModalSort, 'fund_weight_pct')} 
+                            className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Fund Weight {renderSortIcon(companyModalSort, 'fund_weight_pct')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setCompanyModalSort, 'allocatedINR')} 
+                            className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Allocated Value {renderSortIcon(companyModalSort, 'allocatedINR')}
+                          </th>
+                          <th 
+                            onClick={() => handleSortClick(setCompanyModalSort, 'shareOfStockPct')} 
+                            className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          >
+                            Share of Holding {renderSortIcon(companyModalSort, 'shareOfStockPct')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-inherit font-mono">
-                        {companyMfBreakdown.schemes.map((s, idx) => (
-                          <tr key={`${s.scheme_code}-${idx}`} className="reports-table-row transition-colors">
-                            <td className="py-3 pl-4 font-sans font-bold">
-                              {s.scheme_name}
-                            </td>
-                            <td className="py-3 text-right opacity-80 font-bold">
-                              {s.fund_weight_pct}%
-                            </td>
-                            <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">
-                              {formatMoney(s.allocatedINR)}
-                            </td>
-                            <td className="py-3 text-right pr-4 text-purple-600 dark:text-purple-400 font-black">
-                              {s.shareOfStockPct}%
-                            </td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          let list = [...companyMfBreakdown.schemes];
+                          if (companyModalSearch.trim()) {
+                            const q = companyModalSearch.toLowerCase().trim();
+                            list = list.filter(s =>
+                              (s.scheme_name || '').toLowerCase().includes(q) ||
+                              (s.scheme_code || '').toString().includes(q)
+                            );
+                          }
+                          if (companyModalSort.field) {
+                            list.sort((a, b) => {
+                              let valA = a[companyModalSort.field];
+                              let valB = b[companyModalSort.field];
+                              if (typeof valA === 'string') {
+                                return companyModalSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                              }
+                              valA = Number(valA) || 0;
+                              valB = Number(valB) || 0;
+                              return companyModalSort.direction === 'asc' ? valA - valB : valB - valA;
+                            });
+                          }
+                          return list.map((s, idx) => (
+                            <tr key={`${s.scheme_code}-${idx}`} className="reports-table-row transition-colors">
+                              <td className="py-3 pl-4 font-sans font-bold">
+                                {s.scheme_name}
+                              </td>
+                              <td className="py-3 text-right opacity-80 font-bold">
+                                {s.fund_weight_pct}%
+                              </td>
+                              <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                                {formatMoney(s.allocatedINR)}
+                              </td>
+                              <td className="py-3 text-right pr-4 text-purple-600 dark:text-purple-400 font-black">
+                                {s.shareOfStockPct}%
+                              </td>
+                            </tr>
+                          ));
+                        })()}
                       </tbody>
                     </table>
                   </div>

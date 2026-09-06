@@ -12,7 +12,9 @@ import {
   ArrowUp,
   ArrowDown,
   CalendarDays,
-  Donut
+  Donut,
+  Search,
+  X
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -38,6 +40,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
   const [returnMetric, setReturnMetric] = useState('xirr'); // 'xirr' | 'absolute'
   const [sortColumn, setSortColumn] = useState('currentINR');
   const [sortDirection, setSortDirection] = useState('desc');
+  const [perfSearch, setPerfSearch] = useState('');
   const [netWorthRange, setNetWorthRange] = useState('ALL');
   const isDayPositive = summary?.dayPnlINR >= 0;
   const isGainPositive = summary?.totalGainINR >= 0;
@@ -68,13 +71,18 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
 
   const sortedMetrics = useMemo(() => {
     if (!summary?.categoryMetrics) return [];
-    return [...summary.categoryMetrics].sort((a, b) => {
+    let list = [...summary.categoryMetrics];
+    if (perfSearch.trim()) {
+      const q = perfSearch.toLowerCase().trim();
+      list = list.filter(cat => cat.name.toLowerCase().includes(q));
+    }
+    return list.sort((a, b) => {
       let aVal = a[sortColumn];
       let bVal = b[sortColumn];
       if (typeof aVal === 'string') return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
     });
-  }, [summary?.categoryMetrics, sortColumn, sortDirection]);
+  }, [summary?.categoryMetrics, sortColumn, sortDirection, perfSearch]);
 
   const SortHeader = ({ column, label, align = 'right' }) => {
     const isActive = sortColumn === column;
@@ -397,10 +405,30 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
       {/* Performance Table — directly below hero */}
       <AnimatedItem delay={0.1}>
         <div className="glass-card p-5 rounded-3xl border border-slate-800">
-          <h3 className="text-sm font-bold text-white mb-5 flex items-center gap-2">
-            <BarChart2 className="w-4 h-4 text-emerald-400" />
-            Performance
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 text-emerald-400" />
+              Performance
+            </h3>
+            <div className="relative w-full sm:w-60">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Filter asset classes..."
+                value={perfSearch}
+                onChange={(e) => setPerfSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
+              />
+              {perfSearch && (
+                <button
+                  onClick={() => setPerfSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>

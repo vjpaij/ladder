@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Coins, Calendar, TrendingUp, BarChart2, DollarSign, 
-  Globe, Percent, Plus, ArrowUpRight, Clock
+  Globe, Percent, Plus, ArrowUpRight, Clock, Search, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { 
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, 
@@ -24,6 +24,8 @@ export default function AssetDividendDetailModal({
   const { theme, fxRate, currency: globalCurrency } = useThemeAuth();
   const [chartTab, setChartTab] = useState('annual'); // 'annual' | 'cumulative'
   const [localCurrency, setLocalCurrency] = useState('DEFAULT'); // 'DEFAULT' | 'INR' | 'USD'
+  const [divSearch, setDivSearch] = useState('');
+  const [divSort, setDivSort] = useState({ field: 'raw_date', direction: 'desc' });
 
   if (!isOpen || !asset) return null;
 
@@ -141,6 +143,48 @@ export default function AssetDividendDetailModal({
     });
     return chrono.reverse();
   }, [schemeDividends]);
+
+  const handleDivSort = (field) => {
+    setDivSort(prev => ({
+      field,
+      direction: prev.field === field ? (prev.direction === 'asc' ? 'desc' : 'asc') : 'desc'
+    }));
+  };
+
+  const renderDivSortIcon = (field) => {
+    if (divSort.field !== field) return <ArrowUpDown className="w-3 h-3 opacity-40 inline ml-1" />;
+    return divSort.direction === 'asc' 
+      ? <ArrowUp className="w-3 h-3 text-emerald-400 inline ml-1" /> 
+      : <ArrowDown className="w-3 h-3 text-emerald-400 inline ml-1" />;
+  };
+
+  const sortedFilteredLedgerRows = useMemo(() => {
+    let list = [...ledgerRows];
+    if (divSearch.trim()) {
+      const q = divSearch.toLowerCase().trim();
+      list = list.filter(row => 
+        (row.payment_date || row.raw_date || '').toLowerCase().includes(q) ||
+        String(row.amount_original || '').includes(q) ||
+        String(row.amount_inr || '').includes(q) ||
+        String(row.fx_rate || '').includes(q)
+      );
+    }
+    if (divSort.field) {
+      list.sort((a, b) => {
+        let valA = a[divSort.field];
+        let valB = b[divSort.field];
+        if (divSort.field === 'raw_date' || divSort.field === 'payment_date') {
+          valA = a.raw_date || a.payment_date || '';
+          valB = b.raw_date || b.payment_date || '';
+          return divSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+        return divSort.direction === 'asc' ? valA - valB : valB - valA;
+      });
+    }
+    return list;
+  }, [ledgerRows, divSearch, divSort]);
 
   const cleanName = asset.clean_name || asset.asset_name || asset.name || asset.symbol;
 
@@ -477,29 +521,62 @@ export default function AssetDividendDetailModal({
             </div>
 
             {/* Payout History Ledger Table */}
-            <div className="glass-card rounded-2xl border border-slate-800/80 overflow-hidden">
-              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Itemized Distribution Ledger
-                </span>
-                <span className="text-[11px] font-mono text-slate-500">
-                  {ledgerRows.length} {ledgerRows.length === 1 ? 'Record' : 'Records'}
-                </span>
+            <div className="glass-card rounded-2xl border border-slate-800/80 overflow-hidden space-y-2">
+              <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Itemized Distribution Ledger
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    ({sortedFilteredLedgerRows.length} of {ledgerRows.length} {ledgerRows.length === 1 ? 'Record' : 'Records'})
+                  </span>
+                </div>
+
+                <div className="relative w-full sm:w-56">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Filter distributions..."
+                    value={divSearch}
+                    onChange={(e) => setDivSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
+                  />
+                  {divSearch && (
+                    <button
+                      onClick={() => setDivSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                      <th className="py-2.5 px-3">Date</th>
-                      <th className="py-2.5 px-3 text-right">Original Payout</th>
-                      {isUS && <th className="py-2.5 px-3 text-right">FX Rate</th>}
-                      <th className="py-2.5 px-3 text-right">INR Credited</th>
-                      <th className="py-2.5 px-3 text-right">Cumulative Total</th>
+                      <th onClick={() => handleDivSort('raw_date')} className="py-2.5 px-3 cursor-pointer hover:text-white">
+                        Date {renderDivSortIcon('raw_date')}
+                      </th>
+                      <th onClick={() => handleDivSort('amount_original')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white">
+                        Original Payout {renderDivSortIcon('amount_original')}
+                      </th>
+                      {isUS && (
+                        <th onClick={() => handleDivSort('fx_rate')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white">
+                          FX Rate {renderDivSortIcon('fx_rate')}
+                        </th>
+                      )}
+                      <th onClick={() => handleDivSort('amount_inr')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white">
+                        INR Credited {renderDivSortIcon('amount_inr')}
+                      </th>
+                      <th onClick={() => handleDivSort(isDisplayUSD ? 'cumOriginal' : 'cumINR')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white">
+                        Cumulative Total {renderDivSortIcon(isDisplayUSD ? 'cumOriginal' : 'cumINR')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs font-mono">
-                    {ledgerRows.map((row, i) => (
+                    {sortedFilteredLedgerRows.map((row, i) => (
                       <tr key={row.id || `${row.symbol}-${i}`} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-2.5 px-3 text-slate-300 font-medium">
                           {formatDateDDMMYYYY(row.payment_date || row.raw_date)}
