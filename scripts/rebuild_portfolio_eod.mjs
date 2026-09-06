@@ -50,7 +50,7 @@ async function rebuildEod() {
   initDatabase();
   console.log('Rebuilding portfolio EOD logs from portfolio.xlsx and Supabase holdings...');
 
-  // 1. Read base historical rows from Excel up to 2026-08-07, or fallback to JSON for prior history
+  // 1. Read base historical rows from Excel up to 2026-08-07, or fallback to JSON / Supabase for prior history
   let baseLogs = [];
   if (fs.existsSync(EXCEL_FILE)) {
     const wb = xlsx.readFile(EXCEL_FILE);
@@ -61,7 +61,7 @@ async function rebuildEod() {
       for (const [k, v] of Object.entries(row)) cleaned[k.trim()] = v;
       if (cleaned.DATE === 'MAX') continue;
       const d = parseExcelDate(cleaned.DATE);
-      if (!d || d === 'undefined') continue;
+      if (!d || d === 'undefined' || d > '2026-08-07') continue;
       
       const hdfc = Number(cleaned.HDFC) || 0;
       const indusind = Number(cleaned.INDUSIND) || 0;
@@ -111,49 +111,42 @@ async function rebuildEod() {
     const all = JSON.parse(raw);
     baseLogs = all.filter(l => l.date <= '2026-08-07');
     console.log(`Loaded ${baseLogs.length} existing base records up to 2026-08-07 from ${EOD_FILE}.`);
-  }
-
-  const { data: persistedLogs, error: persistedLogsError } = await supabase
-    .from('pnl_history')
-    .select('*')
-    .order('log_date', { ascending: false })
-    .limit(1000);
-  if (persistedLogsError) {
-    console.warn('[Supabase EOD Baseline Warning]:', persistedLogsError.message);
-  }
-  if (persistedLogs && persistedLogs.length > 0) {
-    const persistedByDate = new Map(persistedLogs.map(log => [log.log_date, {
-      date: log.log_date,
-      total_assets: log.total_assets_inr,
-      debt: log.total_liabilities_inr,
-      wealth: log.net_worth_inr,
-      total_wealth: log.net_worth_inr,
-      daily_pnl: log.daily_pnl_inr,
-      pnl_pct: log.pnl_percentage,
-      ...(log.breakdown || {}),
-      hdfc: log.hdfc,
-      indusind: log.indusind,
-      idfc: log.idfc,
-      rbl: log.rbl,
-      sbi: log.sbi,
-      federal: log.federal,
-      savings: log.savings,
-      mutual_funds: log.mutual_funds,
-      indian_stocks: log.indian_stocks,
-      us_stocks: log.us_stocks,
-      nps: log.nps,
-      epf: log.epf,
-      loan: log.loan,
-      credits: log.credits
-    }]));
-    baseLogs = [
-      ...baseLogs.filter(log => !persistedByDate.has(log.date)),
-      ...persistedByDate.values()
-    ];
+  } else {
+    const { data: persistedLogs } = await supabase
+      .from('pnl_history')
+      .select('*')
+      .lte('log_date', '2026-08-07')
+      .order('log_date', { ascending: true });
+    if (persistedLogs && persistedLogs.length > 0) {
+      baseLogs = persistedLogs.map(log => ({
+        date: log.log_date,
+        total_assets: log.total_assets_inr,
+        debt: log.total_liabilities_inr,
+        wealth: log.net_worth_inr,
+        total_wealth: log.net_worth_inr,
+        daily_pnl: log.daily_pnl_inr,
+        pnl_pct: log.pnl_percentage,
+        ...(log.breakdown || {}),
+        hdfc: log.hdfc,
+        indusind: log.indusind,
+        idfc: log.idfc,
+        rbl: log.rbl,
+        sbi: log.sbi,
+        federal: log.federal,
+        savings: log.savings,
+        mutual_funds: log.mutual_funds,
+        indian_stocks: log.indian_stocks,
+        us_stocks: log.us_stocks,
+        nps: log.nps,
+        epf: log.epf,
+        loan: log.loan,
+        credits: log.credits
+      }));
+    }
   }
 
   baseLogs.sort((a, b) => a.date.localeCompare(b.date));
-  console.log(`Loaded ${baseLogs.length} base logs from Excel. Latest Excel Date: ${baseLogs[baseLogs.length - 1]?.date}`);
+  console.log(`Loaded ${baseLogs.length} base logs up to Excel baseline. Baseline Date: ${baseLogs[baseLogs.length - 1]?.date}`);
 
   let historicalPrices = {};
   if (fs.existsSync(HISTORICAL_FILE)) {
@@ -246,9 +239,19 @@ async function rebuildEod() {
     } else {
       const priceMap = {};
       holdings.forEach(h => {
-        const prices = h.category_id === 'nps'
-          ? Object.fromEntries(npsHistoricalPrices[h.symbol] || [])
-          : (historicalPrices[h.symbol] || {});
+        let prices = {};
+        if (h.category_id === 'nps') {
+          if (npsHistoricalPrices[h.symbol] instanceof Map) {
+            prices = Object.fromEntries(npsHistoricalPrices[h.symbol]);
+          } else if (npsHistoricalPrices[h.symbol] && typeof npsHistoricalPrices[h.symbol] === 'object') {
+            prices = npsHistoricalPrices[h.symbol];
+          } else if (historicalPrices[h.symbol]) {
+            prices = historicalPrices[h.symbol];
+          }
+        } else {
+          prices = historicalPrices[h.symbol] || {};
+        }
+
         let p = prices[dateStr];
         if (p === undefined) {
           const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
@@ -301,9 +304,9 @@ async function rebuildEod() {
   fs.writeFileSync(EOD_FILE, JSON.stringify(baseLogs, null, 2), 'utf-8');
   console.log(`Saved ${baseLogs.length} total EOD logs to ${EOD_FILE}. Inception: ${baseLogs[0]?.date}, Latest: ${baseLogs[baseLogs.length - 1]?.date}`);
 
-  // Upsert the recent 60 daily records directly to Supabase pnl_history
+  // Upsert the recent 90 daily records directly to Supabase pnl_history
   try {
-    const recentLogs = baseLogs.slice(-60);
+    const recentLogs = baseLogs.slice(-90);
     const dbRecords = recentLogs.map(l => {
       const breakdown = {
         savings: Number((l.savings || 0).toFixed(2)),

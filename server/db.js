@@ -10,30 +10,51 @@ export function initDatabase() {
   console.log('[Database] Connected to Supabase Cloud PostgreSQL engine.');
 }
 
-// Supabase Async Database Interface
+// Supabase Async Database Interface with Mandatory Pagination Guard
 export const db = {
   select: async (tableName) => {
     const sTable = getSupabaseTableName(tableName);
-    const { data, error } = await supabase.from(sTable).select('*');
-    if (error) {
-      console.error(`[DB Select Error - ${sTable}]:`, error.message);
-      return [];
+    let allRows = [];
+    let from = 0;
+    const batchSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from(sTable)
+        .select('*')
+        .range(from, from + batchSize - 1);
+      if (error) {
+        console.error(`[DB Select Error - ${sTable}]:`, error.message);
+        return allRows.length > 0 ? allRows : [];
+      }
+      if (!data || data.length === 0) break;
+      allRows.push(...data);
+      if (data.length < batchSize) break;
+      from += batchSize;
     }
-    return data || [];
+    return allRows;
   },
 
   selectWhere: async (tableName, matchObj) => {
     const sTable = getSupabaseTableName(tableName);
-    let query = supabase.from(sTable).select('*');
-    if (matchObj && typeof matchObj === 'object') {
-      query = query.match(matchObj);
+    let allRows = [];
+    let from = 0;
+    const batchSize = 1000;
+    while (true) {
+      let query = supabase.from(sTable).select('*').range(from, from + batchSize - 1);
+      if (matchObj && typeof matchObj === 'object') {
+        query = query.match(matchObj);
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.error(`[DB SelectWhere Error - ${sTable}]:`, error.message);
+        return allRows.length > 0 ? allRows : [];
+      }
+      if (!data || data.length === 0) break;
+      allRows.push(...data);
+      if (data.length < batchSize) break;
+      from += batchSize;
     }
-    const { data, error } = await query;
-    if (error) {
-      console.error(`[DB SelectWhere Error - ${sTable}]:`, error.message);
-      return [];
-    }
-    return data || [];
+    return allRows;
   },
 
   insert: async (tableName, row) => {

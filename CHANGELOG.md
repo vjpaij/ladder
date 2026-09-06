@@ -5,6 +5,19 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.10.0] - 2026-09-06
+
+### Fixed & Enhanced
+- **Multi-Asset Historical Auto-Tracking Engine Repair & Zero-Data-Gap Continuous Synchronization**:
+  - **Root Cause Resolution**: Diagnosed and resolved issue where Mutual Funds and NPS schemes were untracked / frozen on 2nd September and subsequent dates due to (1) exclusion of NPS schemes in `scripts/load_historical_prices.mjs`, (2) baseline locking bug in `scripts/rebuild_portfolio_eod.mjs` that skipped re-evaluating existing database records upon late NAV publication, and (3) 1,000-row query truncation in `server/db.js`.
+  - **NPS Historical Ingestion**: Added `fetchNpsHistorical` from `npsnav.in` across price synchronization scripts and integrated NPS alongside Mutual Funds, Indian stocks, US stocks, and USD/INR exchange rates.
+  - **Post-Baseline Dynamic Re-evaluation**: Rebuilt `scripts/rebuild_portfolio_eod.mjs` to dynamically re-evaluate all dates from the historical baseline (`2026-08-08` through current date) using verified settled closing quotes and NAVs, eliminating permanent stale fallbacks.
+  - **Supabase Database Pagination Guard**: Upgraded `server/db.js` (`select` and `selectWhere`) with automatic range pagination loops across 100% of rows (all 11,205 transactions, 397 holdings, and liabilities).
+  - **Historical Parity Backfill**: Rebuilt all 6,920 daily logs, backfilled settled NAVs for 2nd, 3rd, 4th, 5th, and 6th September across Mutual Funds and NPS schemes, and synchronized with Supabase `pnl_history` and `data/portfolio_eod_logs.json`.
+  - **Integrity Validation**: Obtained 100% PASS across the complete automated financial integrity and mathematical invariance test suite (`scripts/verify_financial_integrity.mjs`).
+
+---
+
 ## [5.9.1] - 2026-09-06
 
 ### Added & Enhanced

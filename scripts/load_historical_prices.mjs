@@ -59,6 +59,27 @@ async function fetchMutualFundHistorical(schemeCode) {
   }
 }
 
+async function fetchNpsHistorical(schemeCode) {
+  try {
+    const res = await axios.get(`https://npsnav.in/api/historical/${schemeCode}`, { timeout: 10000 });
+    const prices = {};
+    if (res.data && Array.isArray(res.data.data)) {
+      res.data.data.forEach(item => {
+        if (!item.date || item.nav == null) return;
+        const parts = item.date.split('-');
+        if (parts.length === 3) {
+          const dStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          prices[dStr] = parseFloat(item.nav);
+        }
+      });
+    }
+    return prices;
+  } catch (error) {
+    console.error(`[NPSNAV] Failed to fetch historical for ${schemeCode}:`, error.message);
+    return {};
+  }
+}
+
 async function getLatestPriceAndDate(prices) {
   const dates = Object.keys(prices).sort();
   if (dates.length === 0) return { price: null, date: null };
@@ -92,7 +113,6 @@ async function checkStalenessAndPatch(symbol, prices, startDate, isIndianStock) 
   const isStale = diffPct > 0.01;
 
   if (!isStale) {
-    // console.log(`  [Staleness Check] ${symbol}: Historical (${latestHistDate}: ${latestHistPrice.toFixed(2)}) matches live (${livePrice.toFixed(2)}) within 1%.`);
     return prices;
   }
 
@@ -173,7 +193,7 @@ async function run() {
   });
 
   const holdings = await db.select('holdings');
-  const targetCategories = ['in_stocks', 'us_stocks', 'mutual_funds'];
+  const targetCategories = ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'];
   const targets = holdings.filter(h => targetCategories.includes(h.category_id));
 
   console.log(`Found ${targets.length} target holdings for historical data ingestion.`);
@@ -188,7 +208,7 @@ async function run() {
       ? nextDate(latestPriceDate)
       : (earliestDates[holding.id] || '2010-01-01');
 
-    if (latestPriceDate && latestPriceDate >= today) {
+    if (latestPriceDate && latestPriceDate >= today && holding.category_id !== 'mutual_funds' && holding.category_id !== 'nps') {
       console.log(`[${i+1}/${targets.length}] ${symbol} is current through ${latestPriceDate}.`);
       continue;
     }
@@ -200,6 +220,9 @@ async function run() {
     if (holding.category_id === 'mutual_funds') {
       // mfapi returns max history, start date is ignored by the API
       prices = await fetchMutualFundHistorical(symbol);
+    } else if (holding.category_id === 'nps') {
+      // npsnav returns full history
+      prices = await fetchNpsHistorical(symbol);
     } else {
       // Fallbacks for known renamed/delisted Indian stocks on Yahoo
       const symbolMap = {
