@@ -134,7 +134,7 @@ function normalizeSector(raw) {
   return 'Diversified & Other';
 }
 
-export default function ReportsView({ summary, holdings }) {
+export default function ReportsView({ summary, holdings, registerBackHandler }) {
   const { formatMoney, isUSD } = useThemeAuth();
   
   // Master Tab states: CONSOLIDATED, EQUITY, MF_COMPOSITION, FIXED_INCOME, NPS
@@ -169,6 +169,31 @@ export default function ReportsView({ summary, holdings }) {
 
   // Company Mutual Fund Breakdown Modal
   const [companyDetailTarget, setCompanyDetailTarget] = useState(null);
+
+  // Register drilldown step-back handler with the global back button in App.jsx
+  useEffect(() => {
+    if (!registerBackHandler) return;
+    registerBackHandler(() => {
+      if (companyDetailTarget) {
+        setCompanyDetailTarget(null);
+        return true;
+      }
+      if (selectedMarketCap) {
+        setSelectedMarketCap(null);
+        return true;
+      }
+      if (selectedSector) {
+        setSelectedSector(null);
+        return true;
+      }
+      if (selectedMfScheme !== 'ALL') {
+        setSelectedMfScheme('ALL');
+        return true;
+      }
+      return false; // let global back proceed to overview
+    });
+    return () => registerBackHandler(null);
+  }, [registerBackHandler, companyDetailTarget, selectedMarketCap, selectedSector, selectedMfScheme]);
 
   // Benchmark Growth settings & Date Picker
   const [benchmark, setBenchmark] = useState('NIFTY_50');
@@ -237,6 +262,7 @@ export default function ReportsView({ summary, holdings }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
 
   // Load MF underlying company data
   useEffect(() => {
@@ -392,6 +418,26 @@ export default function ReportsView({ summary, holdings }) {
     ];
   }, [summary.assetAllocation, filteredHoldings, activeTab]);
 
+  // Set of US tickers and holdings
+  const usHoldingSymbols = useMemo(() => {
+    const set = new Set(['GOOG', 'GOOGL', 'AMZN', 'MSFT', 'META', 'AAPL', 'NVDA', 'TSM', 'AVGO', 'CRM', 'PLTR', 'ANET', 'ASML', 'TSLA', 'NFLX', 'BRK.B', 'BRK.A', 'V', 'MA', 'ADBE', 'COST']);
+    if (holdings && Array.isArray(holdings)) {
+      holdings.filter(h => h.category_id === 'us_stocks' || h.currency === 'USD').forEach(h => {
+        if (h.symbol) set.add(String(h.symbol).toUpperCase().trim());
+      });
+    }
+    return set;
+  }, [holdings]);
+
+  const isUsCompany = (c) => {
+    if (!c) return false;
+    if (c.category_id === 'us_stocks' || c.currency === 'USD') return true;
+    const sym = String(c.symbol || '').toUpperCase().trim();
+    if (sym && usHoldingSymbols.has(sym)) return true;
+    const n = String(c.company || c.name || '').toLowerCase();
+    return n.includes('alphabet') || n.includes('amazon') || n.includes('microsoft') || n.includes('meta platforms') || n.includes('apple inc') || n.includes('nvidia') || n.includes('taiwan semi') || n.includes('tesla') || n.includes('netflix') || n.includes('berkshire');
+  };
+
   // Sector Data with Full Look-Through & Aggregated Unique Companies
   const sectorData = useMemo(() => {
     const map = {};
@@ -402,6 +448,10 @@ export default function ReportsView({ summary, holdings }) {
         const mfScheme = mfData?.schemes?.find(s => s.scheme_code === h.symbol);
         if (mfScheme && mfScheme.companies && mfScheme.companies.length > 0) {
           mfScheme.companies.forEach(c => {
+            const isUs = isUsCompany(c);
+            if (isUs && !equityOptions.us) return;
+            if (!isUs && !equityOptions.india) return;
+
             const sec = normalizeSector(c.sector);
             if (!map[sec]) map[sec] = 0;
             if (!companyMap[sec]) companyMap[sec] = {};
@@ -422,6 +472,7 @@ export default function ReportsView({ summary, holdings }) {
             companyMap[sec][compKey].allocatedINR += c.allocatedINR || 0;
           });
         } else {
+          if (!equityOptions.india) return;
           const sec = 'Cash, Debt & Other';
           if (!map[sec]) map[sec] = 0;
           if (!companyMap[sec]) companyMap[sec] = {};
@@ -480,7 +531,7 @@ export default function ReportsView({ summary, holdings }) {
         companies: compList
       };
     }).sort((a, b) => b.value - a.value);
-  }, [filteredHoldings, mfData]);
+  }, [filteredHoldings, mfData, equityOptions.india, equityOptions.us, usHoldingSymbols]);
 
   // Market Cap Data: Mega, Large, Mid, Small, Micro, Cash with Aggregated Unique Companies
   const marketCapData = useMemo(() => {
@@ -510,6 +561,10 @@ export default function ReportsView({ summary, holdings }) {
         const mfScheme = mfData?.schemes?.find(s => s.scheme_code === h.symbol);
         if (mfScheme && mfScheme.companies && mfScheme.companies.length > 0) {
           mfScheme.companies.forEach(c => {
+            const isUs = isUsCompany(c);
+            if (isUs && !equityOptions.us) return;
+            if (!isUs && !equityOptions.india) return;
+
             const capTier = c.mcap_category || 'Mid Cap';
             const targetTier = buckets[capTier] !== undefined ? capTier : 'Mid Cap';
             buckets[targetTier] += c.allocatedINR || 0;
@@ -529,6 +584,7 @@ export default function ReportsView({ summary, holdings }) {
             constituentDict[targetTier][compKey].allocatedINR += c.allocatedINR || 0;
           });
         } else {
+          if (!equityOptions.india) return;
           buckets['Mid Cap'] += h.currentValueINR || 0;
           const compKey = (h.name || h.symbol).trim();
           if (!constituentDict['Mid Cap'][compKey]) {
@@ -585,7 +641,21 @@ export default function ReportsView({ summary, holdings }) {
           companies: compList
         };
       });
-  }, [filteredHoldings, mfData, mcapSource]);
+  }, [filteredHoldings, mfData, mcapSource, equityOptions.india, equityOptions.us, usHoldingSymbols]);
+
+  // Dynamically resolve active selected market cap bucket from latest reactive marketCapData
+  const currentSelectedMarketCap = useMemo(() => {
+    if (!selectedMarketCap) return null;
+    const tierName = typeof selectedMarketCap === 'string' ? selectedMarketCap : (selectedMarketCap.name || selectedMarketCap.capTier);
+    return marketCapData.find(m => (m.name || m.capTier) === tierName) || null;
+  }, [selectedMarketCap, marketCapData]);
+
+  // Dynamically resolve active selected sector from latest reactive sectorData
+  const currentSelectedSector = useMemo(() => {
+    if (!selectedSector) return null;
+    const secName = typeof selectedSector === 'string' ? selectedSector : (selectedSector.sector || selectedSector.name);
+    return sectorData.find(s => (s.sector || s.name) === secName) || null;
+  }, [selectedSector, sectorData]);
 
   // Consolidated / Lifetime Asset Performance Matrix
   const consolidatedPerformanceData = useMemo(() => {
@@ -878,6 +948,12 @@ export default function ReportsView({ summary, holdings }) {
                 if (onItemClick) onItemClick(item);
                 if (onHoverIndex) onHoverIndex(isSelected ? null : index);
               }}
+              onMouseEnter={() => {
+                if (onHoverIndex) onHoverIndex(index);
+              }}
+              onMouseLeave={() => {
+                if (onHoverIndex) onHoverIndex(null);
+              }}
               className={`group relative overflow-hidden p-3 rounded-2xl border transition-all duration-150 cursor-pointer reports-subcard ${
                 isSelected ? 'is-selected ring-2 ring-inset ring-emerald-500' : ''
               }`}
@@ -1054,7 +1130,7 @@ export default function ReportsView({ summary, holdings }) {
         ) : <div />}
 
         {/* Global Chart Style Switcher (Shown ONLY for Allocation, Market Cap, and Sector) */}
-        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) && activeTab !== 'MF_COMPOSITION' && !selectedSector && !selectedMarketCap ? (
+        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) && activeTab !== 'MF_COMPOSITION' && !currentSelectedSector && !currentSelectedMarketCap ? (
           <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl shadow-sm">
             <button
               onClick={() => setChartStyle('PIE')}
@@ -1840,13 +1916,13 @@ export default function ReportsView({ summary, holdings }) {
         {/* ─── VIEW 2: MARKET CAPITALIZATION & DRILL-DOWN ─────────────── */}
         {reportType === 'MARKET_CAP' && activeTab === 'EQUITY' && (
           <div className="space-y-4">
-            {selectedMarketCap ? (
+            {currentSelectedMarketCap ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-inherit opacity-95 pb-3">
                   <h4 className="text-sm font-black flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selectedMarketCap.color }}></span>
-                    <span>{selectedMarketCap.name || selectedMarketCap.capTier}</span>
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">({formatMoney(selectedMarketCap.value)} • {selectedMarketCap.percentage}%)</span>
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: currentSelectedMarketCap.color }}></span>
+                    <span>{currentSelectedMarketCap.name || currentSelectedMarketCap.capTier}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">({formatMoney(currentSelectedMarketCap.value)} • {currentSelectedMarketCap.percentage}%)</span>
                   </h4>
                 </div>
 
@@ -1873,16 +1949,16 @@ export default function ReportsView({ summary, holdings }) {
                     </div>
                     <div className="text-[11px] font-mono opacity-60">
                       {(() => {
-                        let count = selectedMarketCap.companies?.length || 0;
+                        let count = currentSelectedMarketCap.companies?.length || 0;
                         if (mcapCompanySearch.trim()) {
                           const q = mcapCompanySearch.toLowerCase().trim();
-                          count = selectedMarketCap.companies?.filter(c => 
+                          count = currentSelectedMarketCap.companies?.filter(c => 
                             (c.name || '').toLowerCase().includes(q) ||
                             (c.symbol || '').toLowerCase().includes(q) ||
                             (c.source || '').toLowerCase().includes(q)
                           ).length || 0;
                         }
-                        return `${count} of ${selectedMarketCap.companies?.length || 0} Assets`;
+                        return `${count} of ${currentSelectedMarketCap.companies?.length || 0} Assets`;
                       })()}
                     </div>
                   </div>
@@ -1919,7 +1995,7 @@ export default function ReportsView({ summary, holdings }) {
                       </thead>
                       <tbody className="divide-y divide-inherit font-mono">
                         {(() => {
-                          let list = [...(selectedMarketCap.companies || [])];
+                          let list = [...(currentSelectedMarketCap.companies || [])];
                           if (mcapCompanySearch.trim()) {
                             const q = mcapCompanySearch.toLowerCase().trim();
                             list = list.filter(c =>
@@ -1941,8 +2017,8 @@ export default function ReportsView({ summary, holdings }) {
                             });
                           }
                           return list.map((c, idx) => {
-                            const contribPct = selectedMarketCap.value > 0 
-                              ? Number(((c.allocatedINR / selectedMarketCap.value) * 100).toFixed(2)) 
+                            const contribPct = currentSelectedMarketCap.value > 0 
+                              ? Number(((c.allocatedINR / currentSelectedMarketCap.value) * 100).toFixed(2)) 
                               : 0;
                             return (
                               <tr 
@@ -2015,12 +2091,22 @@ export default function ReportsView({ summary, holdings }) {
                             onClick={(entry) => setSelectedMarketCap(entry)}
                           >
                             {marketCapData.map((entry, index) => {
+                              const isSelected = activePieIndex === index;
                               const color = entry.color;
                               return (
                                 <Cell 
                                   key={`mcap-cell-${index}`} 
                                   fill={color}
-                                  style={{ cursor: 'pointer' }}
+                                  stroke={isSelected ? '#FFFFFF' : 'none'}
+                                  strokeWidth={isSelected ? 2 : 0}
+                                  style={{
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                    filter: isSelected ? `drop-shadow(0px 0px 8px ${color})` : 'none',
+                                    transform: isSelected ? 'scale(1.06)' : 'scale(1)',
+                                    transformOrigin: 'center center',
+                                    transition: 'all 0.2s ease-out'
+                                  }}
                                 />
                               );
                             })}
@@ -2034,6 +2120,8 @@ export default function ReportsView({ summary, holdings }) {
                       <RankedBarList 
                         items={marketCapData} 
                         onItemClick={(item) => setSelectedMarketCap(item)}
+                        activeIndex={activePieIndex}
+                        onHoverIndex={setActivePieIndex}
                       />
                     </div>
                   </div>
@@ -2053,12 +2141,13 @@ export default function ReportsView({ summary, holdings }) {
         {/* ─── VIEW 3: SECTOR DISTRIBUTION & DRILL-DOWN ──────────────── */}
         {reportType === 'SECTOR' && activeTab === 'EQUITY' && (
           <div className="space-y-4">
-            {selectedSector ? (
+            {currentSelectedSector ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-inherit opacity-95 pb-3">
                   <h4 className="text-sm font-black flex items-center gap-2">
-                    <span>{selectedSector.sector}</span>
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">({formatMoney(selectedSector.value)} • {selectedSector.percentage}%)</span>
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: currentSelectedSector.color }}></span>
+                    <span>{currentSelectedSector.sector}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono">({formatMoney(currentSelectedSector.value)} • {currentSelectedSector.percentage}%)</span>
                   </h4>
                 </div>
 
@@ -2085,17 +2174,17 @@ export default function ReportsView({ summary, holdings }) {
                     </div>
                     <div className="text-[11px] font-mono opacity-60">
                       {(() => {
-                        let count = selectedSector.companies?.length || 0;
+                        let count = currentSelectedSector.companies?.length || 0;
                         if (sectorCompanySearch.trim()) {
                           const q = sectorCompanySearch.toLowerCase().trim();
-                          count = selectedSector.companies?.filter(c =>
+                          count = currentSelectedSector.companies?.filter(c =>
                             (c.name || '').toLowerCase().includes(q) ||
                             (c.symbol || '').toLowerCase().includes(q) ||
                             (c.source || '').toLowerCase().includes(q) ||
                             (c.mcap_category || '').toLowerCase().includes(q)
                           ).length || 0;
                         }
-                        return `${count} of ${selectedSector.companies?.length || 0} Companies`;
+                        return `${count} of ${currentSelectedSector.companies?.length || 0} Companies`;
                       })()}
                     </div>
                   </div>
@@ -2132,7 +2221,7 @@ export default function ReportsView({ summary, holdings }) {
                       </thead>
                       <tbody className="divide-y divide-inherit font-mono">
                         {(() => {
-                          let list = [...(selectedSector.companies || [])];
+                          let list = [...(currentSelectedSector.companies || [])];
                           if (sectorCompanySearch.trim()) {
                             const q = sectorCompanySearch.toLowerCase().trim();
                             list = list.filter(c =>
@@ -2201,12 +2290,22 @@ export default function ReportsView({ summary, holdings }) {
                             onClick={(entry) => setSelectedSector(entry)}
                           >
                             {sectorData.map((entry, index) => {
+                              const isSelected = activePieIndex === index;
                               const color = entry.color;
                               return (
                                 <Cell 
                                   key={`sec-cell-${index}`} 
                                   fill={color}
-                                  style={{ cursor: 'pointer' }}
+                                  stroke={isSelected ? '#FFFFFF' : 'none'}
+                                  strokeWidth={isSelected ? 2 : 0}
+                                  style={{
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                    filter: isSelected ? `drop-shadow(0px 0px 8px ${color})` : 'none',
+                                    transform: isSelected ? 'scale(1.06)' : 'scale(1)',
+                                    transformOrigin: 'center center',
+                                    transition: 'all 0.2s ease-out'
+                                  }}
                                 />
                               );
                             })}
@@ -2220,6 +2319,8 @@ export default function ReportsView({ summary, holdings }) {
                       <RankedBarList 
                         items={sectorData} 
                         onItemClick={(item) => setSelectedSector(item)} 
+                        activeIndex={activePieIndex}
+                        onHoverIndex={setActivePieIndex}
                       />
                     </div>
                   </div>
@@ -2422,24 +2523,6 @@ export default function ReportsView({ summary, holdings }) {
 
       </div>
 
-      {/* ─── FLOATING BOTTOM-RIGHT TRANSPARENT BACK BUTTON (NO TEXT, ONLY ARROW) ─── */}
-      <AnimatePresence>
-        {(selectedSector || selectedMarketCap) && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0, y: 15 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0, opacity: 0, y: 15 }}
-            onClick={() => {
-              setSelectedSector(null);
-              setSelectedMarketCap(null);
-            }}
-            className="fixed bottom-8 right-8 z-50 w-11 h-11 rounded-full bg-slate-900/30 hover:bg-slate-900/60 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 backdrop-blur-md border border-slate-400/20 dark:border-slate-600/30 text-slate-800 dark:text-white shadow-xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center group"
-            title="Back"
-          >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
-          </motion.button>
-        )}
-      </AnimatePresence>
 
       {/* ─── COMPANY MUTUAL FUND BREAKDOWN MODAL ───────────────────── */}
       <AnimatePresence>

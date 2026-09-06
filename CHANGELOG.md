@@ -5,6 +5,51 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.9.1] - 2026-09-06
+
+### Added & Enhanced
+- **Interactive USD/INR Forex Tracker & History Hub**:
+  - Added backend endpoint `/api/fx-history` serving complete 16-year daily USD/INR time-series data with timeframe range filtering (`1M`, `3M`, `6M`, `1Y`, `3Y`, `5Y`, `ALL`, `CUSTOM`).
+  - Created `FxRateModal.jsx` featuring high/low/average/period return KPI cards, interactive Recharts AreaChart with custom tooltip, and a searchable, sortable date-wise exchange rate ledger (`DD-MM-YYYY`).
+  - Connected the live USD/INR dollar rate pill in `TopNavbar.jsx` with click action, hover glow, and instant modal launch.
+- **Hierarchical Drilldown Step-Back Navigation in Reports**:
+  - Connected `ReportsView.jsx` drilldown states (`companyDetailTarget`, `selectedMarketCap`, `selectedSector`, `selectedMfScheme`) to a registered step-back handler in `App.jsx`.
+  - Clicking the global floating back button now gracefully steps back to the previous chart/category level within Reports rather than unexpectedly exiting to the Dashboard.
+- **Fixed Transaction Deletion State Bug**: Resolved `ReferenceError: deleteConfirmTx is not defined` in `HoldingDetailModal.jsx` by explicitly declaring deletion states in the component root.
+
+---
+
+## [5.9.0] - 2026-09-06
+
+### Added & Enhanced
+- **Dynamic Scope Filtering In Reports Drilldown**: Updated `marketCapData` and `sectorData` computation hooks to include `equityOptions.india`, `equityOptions.us`, and dynamic `usHoldingSymbols` lookups. Unchecking `Indian Stock` immediately removes all Indian companies (both direct equity and Indian holdings within mutual funds) in real-time from active drilldown views.
+- **Unified Navigation & Back Button Deduplication**: Removed redundant inline back buttons beside category headers (Mega Cap / Sectors) and eliminated the duplicate floating bottom-right back button in `ReportsView.jsx`, preserving the single global floating back button in `App.jsx`.
+- **Standard Themed Delete Confirmation Modals**: Replaced native browser `window.confirm` dialogs with custom theme-matched confirmation modals (`modal-surface`, glassmorphism backdrop, red trash icon, dark/light mode responsive) for both whole-position deletion in `App.jsx` and transaction deletion in `HoldingDetailModal.jsx`.
+
+---
+
+## [5.8.0] - 2026-09-06
+
+### Added & Enhanced
+- **Reports View Right-Hand Hover Pie Slice Highlighting**: Added `onMouseEnter` / `onMouseLeave` handlers across `RankedBarList` items and synced with `<Cell>` glow/expansion styling across Market Cap, Sector, and Asset Allocation pie charts.
+- **Dynamic Drilldown In-Place Refresh**: Eliminated full-page resets when unchecking equity scope checkboxes (`Indian Stocks`, `US Stocks`, `Mutual Funds`). Active drilldowns (`Mega Cap`, `Large Cap`, `Sector`, etc.) now dynamically resolve the latest reactive bucket and update company lists and totals on the fly right on the same page. Added integrated back navigation buttons.
+- **Portfolio Table Action Cleanup**: Removed the Edit (pencil) button from the Actions column in all portfolio tables (`IndianStocksView.jsx`, `UsStocksView.jsx`, `MutualFundsView.jsx`, `NpsView.jsx`, `FixedIncomeView.jsx`, `HoldingsTable.jsx`) so edits can only be made at the individual transaction level.
+- **Cascade Deletion & Instant Transaction Sync**: Fixed backend holding deletion to cascade delete child transactions, dividends, and SIPs first. Updated `HoldingDetailModal.jsx` to immediately refresh modal transaction state and trigger parent dashboard updates upon transaction deletion.
+
+---
+
+## [5.7.0] - 2026-09-06
+
+### Added & Enhanced
+- **Overview Table Pie Chart Sync, Reports Drilldown Reset, Dashboard Spacing, and Transaction Ledger Actions**:
+  - **Overview Performance Table Pie Chart Sync**: Hovering over any asset class row in the Dashboard Performance table immediately highlights and pops out the corresponding slice in the 3D Asset Allocation donut chart via synchronized `activePieIndex` state.
+  - **Reports View Filter Reset**: Toggling equity category checkboxes (Indian Stocks, US Stocks, Mutual Funds) in `ReportsView.jsx` automatically resets drilldowns back to the primary overview level, preventing stale cross-asset records from lingering.
+  - **Dashboard Layout Spacing**: Corrected the `.gradient-border > *:not([class*="absolute"])` CSS rule to prevent absolute positioned glow orbs from entering the document flow, removing the excessive top gap in the Net Worth Hero card.
+  - **Reinforced Position Deletion Confirmation**: Added explicit two-step double confirmation prompts across portfolio views before deleting full holdings and associated records.
+  - **Per-Transaction Edit and Delete**: Added dedicated Edit and Delete actions beside the Notes column in `HoldingDetailModal.jsx` transaction ledger. Edit enables inline modifications of date, type, quantity, price, amount, charges, and FX rate; Delete triggers double confirmation and invokes the centralized FIFO recalculation engine with instant parent view refresh.
+
+---
+
 ## [5.6.0] - 2026-09-06
 
 ### Added & Enhanced

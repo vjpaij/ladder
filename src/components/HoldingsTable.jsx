@@ -250,13 +250,6 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                   <td className="py-4 px-4 text-center">
                     <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button
-                        onClick={() => onEditHolding(h)}
-                        className="p-1.5 hover:bg-slate-700/60 text-slate-400 hover:text-slate-200 rounded-lg transition-colors"
-                        title="Edit position"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
                         onClick={() => onDeleteHolding(h.id)}
                         className="p-1.5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-lg transition-colors"
                         title="Delete position"

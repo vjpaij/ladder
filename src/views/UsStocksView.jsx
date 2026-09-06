@@ -367,53 +367,53 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
               <thead>
                 {statusFilter === 'closed' ? (
                   <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
                       Stock Name {getSortIcon('name')}
                     </th>
-                    <th onClick={() => handleSort('sell_qty')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('sell_qty')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Shares Sold {getSortIcon('sell_qty')}
                     </th>
-                    <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Avg Buy {getSortIcon('avg_buy_price')}
                     </th>
-                    <th onClick={() => handleSort('avg_sell_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('avg_sell_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Avg Sell {getSortIcon('avg_sell_price')}
                     </th>
-                    <th onClick={() => handleSort('investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Invested Value {getSortIcon('investedValueINR')}
                     </th>
-                    <th onClick={() => handleSort('redeemedValue')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('redeemedValue')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Redeemed Value {getSortIcon('redeemedValue')}
                     </th>
-                    <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Realized P&amp;L {getSortIcon('realized_pnl')}
                     </th>
-                    <th className="py-3 px-3 text-center rounded-r-xl">Actions</th>
+                    <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">Actions</th>
                   </tr>
                 ) : (
                   <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
                       Stock Name {getSortIcon('name')}
                     </th>
-                    <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Shares {getSortIcon('quantity')}
                     </th>
-                    <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Avg Buy {getSortIcon('avg_buy_price')}
                     </th>
-                    <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Price {getSortIcon('current_price')}
                     </th>
-                    <th onClick={() => handleSort('investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('investedValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Invested Value {getSortIcon('investedValueINR')}
                     </th>
-                    <th onClick={() => handleSort('currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Value {getSortIcon('currentValueINR')}
                     </th>
-                    <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       P&amp;L {getSortIcon('gainINR')}
                     </th>
-                    <th className="py-3 px-3 text-center rounded-r-xl">Actions</th>
+                    <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">Actions</th>
                   </tr>
                 )}
               </thead>
@@ -493,22 +493,22 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
 
                       {statusFilter === 'closed' ? (
                         <>
-                          <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold">
+                          <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold whitespace-nowrap">
                             {soldQty.toFixed(4)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-300">
+                          <td className="py-3 px-3 text-right font-mono text-slate-300 whitespace-nowrap">
                             {isUSD ? `$${avgBuyUSD.toFixed(2)}` : formatMoney(avgBuyUSD * txRate, true)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-purple-400 font-bold">
+                          <td className="py-3 px-3 text-right font-mono text-purple-400 font-bold whitespace-nowrap">
                             {isUSD ? `$${avgSellUSD.toFixed(2)}` : formatMoney(avgSellINR, true)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold">
+                          <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold whitespace-nowrap">
                             {isUSD ? `$${investedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(investedINR, true)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-100 font-black">
+                          <td className="py-3 px-3 text-right font-mono text-slate-100 font-black whitespace-nowrap">
                             {isUSD ? `$${redeemedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(redeemedINR, true)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono">
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                             <div className={isRealizedPos ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
                               {isUSD ? `${isRealizedPos ? '+' : ''}$${Math.abs(realizedPnlUSD).toFixed(2)}` : `${isRealizedPos ? '+' : ''}${formatMoney(realizedPnlINR, true)}`}
                             </div>
@@ -519,7 +519,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                         </>
                       ) : (
                         <>
-                          <td className="py-3 px-3 text-right font-mono">
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                             {qty > 0 ? (
                               <span className="text-slate-200 font-bold">{qty.toFixed(4)}</span>
                             ) : (
@@ -545,13 +545,13 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-100">
+                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-100 whitespace-nowrap">
                             {isUSD ? `$${usdInvested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(h.investedValueINR, true)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono font-black text-slate-100">
+                          <td className="py-3 px-3 text-right font-mono font-black text-slate-100 whitespace-nowrap">
                             {isUSD ? `$${usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(inrVal, true)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono">
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                             <div className={isGainPos ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
                               {isUSD ? (
                                 `${isGainPos ? '+' : ''}$${Math.abs(usdGain).toFixed(2)}`
@@ -566,15 +566,10 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                         </>
                       )}
 
-                      <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={(e) => { e.stopPropagation(); onEditHolding(h); }} className="p-1 hover:bg-slate-700/60 text-slate-500 hover:text-slate-200 rounded-lg" title="Edit Position">
-                            <Edit3 className="w-3 h-3" />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); onDeleteHolding(h.id); }} className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg" title="Delete Position">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <button onClick={(e) => { e.stopPropagation(); onDeleteHolding(h.id); }} className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg" title="Delete Position">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </td>
                     </motion.tr>
                   );
@@ -595,7 +590,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
     </AnimatedPage>
 
       {selectedHolding && (
-        <HoldingDetailModal holding={selectedHolding} onClose={closeDetail} />
+        <HoldingDetailModal holding={selectedHolding} onClose={closeDetail} onRefresh={onRefresh} />
       )}
     </>
   );

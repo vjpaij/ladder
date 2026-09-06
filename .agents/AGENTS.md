@@ -47,6 +47,10 @@
    - **NO DESCRIPTIVE PARAGRAPHS OR SUBTITLES**: Never add explanatory subtitles, filler paragraphs, or descriptive blurbs under headers, cards, or metrics (e.g. 'Institutional-grade asset allocation...', 'Categorized via internet data...', 'Track date-by-date performance...').
    - Keep headers, cards, tables, and views ultra-clean, minimal, and elegant. Let data, metrics, charts, and clean titles speak for themselves without verbose statements or clutter.
 
+7. **MANDATORY THEME-MATCHED POPUP, MODAL & DIALOG ARCHITECTURE**:
+   - **UNIFIED DESIGN SYSTEM PARITY**: Every modal, dialog, and popup in the project MUST use the exact project theme tokens: `modal-surface reports-card` for the outer container, `border border-inherit`, `reports-subcard` for internal cards/forms, `text-inherit` or `--text-primary` for typography, and React `createPortal(..., document.body)` for true viewport centering and scroll isolation.
+   - **ZERO HARDCODED GREY OVERLAYS & SILLY BUTTON CLUTTER**: Never use hardcoded dark grey slabs (`bg-slate-900`, `bg-slate-800`), saturated solid blocks, or redundant cancel buttons (e.g. displaying "+ Cancel" in headers beside "X"). Keep header controls minimal (clean title icon, primary action trigger if applicable, and standard "X" close button). Form actions (Save/Cancel) must live strictly within the form action footer.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:

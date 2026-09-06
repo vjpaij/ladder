@@ -13,6 +13,14 @@ import { recalculateHoldingState } from './recalculator.js';
  */
 export async function processDueSips() {
   const today = new Date().toISOString().split('T')[0];
+  const dayOfWeek = new Date().getDay(); // 0 = Sunday, 6 = Saturday
+
+  // If today is a weekend, defer execution until the next open market day (Monday)
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    console.log(`[SIP Engine] Today (${today}) is a weekend session. Execution will automatically process on the next open market business day.`);
+    return { processedCount: 0, processedSips: [], skippedSips: [], reason: 'Weekend deferral' };
+  }
+
   console.log(`[SIP Engine] Checking for due SIPs as of ${today}...`);
 
   const { data: dueSips, error } = await supabase
@@ -51,10 +59,10 @@ export async function processDueSips() {
       const quote = await fetchMutualFundNav(sip.symbol);
       const nav = quote?.price;
 
-      // Safety: do NOT execute with a fabricated fallback NAV
+      // Safety: do NOT execute if fresh market NAV is unavailable
       if (!nav || nav <= 0) {
-        console.warn(`[SIP Engine] Skipping SIP for ${sip.name}: could not fetch valid NAV (got ${nav}).`);
-        skippedSips.push({ sipId: sip.id, name: sip.name, reason: 'NAV unavailable' });
+        console.warn(`[SIP Engine] Skipping SIP for ${sip.name}: could not fetch valid NAV (got ${nav}). Will retry on next market session.`);
+        skippedSips.push({ sipId: sip.id, name: sip.name, reason: 'NAV unavailable or market closed' });
         continue;
       }
 
@@ -72,7 +80,7 @@ export async function processDueSips() {
         total_amount: totalAmount,
         charges: charges,
         currency: 'INR',
-        date: sip.next_run_date,
+        date: today,
         symbol: sip.symbol,
         name: sip.name,
         notes: `Automated Recurring SIP Execution: Rs.${totalAmount.toLocaleString()} @ NAV Rs.${nav.toFixed(4)}`
@@ -81,9 +89,20 @@ export async function processDueSips() {
       // 2. Recompute holding position accurately
       await recalculateHoldingState(sip.holding_id);
 
-      // 3. Compute next run date (add 1 month)
+      // 3. Compute next run date based on frequency (Weekly, Fortnightly, Monthly, Quarterly)
       const currentNext = new Date(sip.next_run_date);
-      currentNext.setMonth(currentNext.getMonth() + 1);
+      const freq = (sip.frequency || 'MONTHLY').toUpperCase();
+
+      if (freq === 'WEEKLY') {
+        currentNext.setDate(currentNext.getDate() + 7);
+      } else if (freq === 'FORTNIGHTLY') {
+        currentNext.setDate(currentNext.getDate() + 14);
+      } else if (freq === 'QUARTERLY') {
+        currentNext.setMonth(currentNext.getMonth() + 3);
+      } else {
+        currentNext.setMonth(currentNext.getMonth() + 1);
+      }
+
       const newNextRunDate = currentNext.toISOString().split('T')[0];
 
       // 4. Check if next run date exceeds end_date -- auto-close if so

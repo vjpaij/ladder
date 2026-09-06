@@ -5,23 +5,24 @@ import {
   RefreshCw, 
   DollarSign, 
   IndianRupee, 
-  X,
-  User,
-  Settings,
-  ArrowUpDown,
-  LogOut,
-  ShieldCheck,
-  Palette,
-  Check,
-  ChevronDown,
-  Camera,
-  Trash2,
-  Clock,
-  PlusCircle,
-  Edit3,
-  ArrowLeft
+  X, 
+  User, 
+  Settings, 
+  ArrowUpDown, 
+  LogOut, 
+  ShieldCheck, 
+  Palette, 
+  Check, 
+  ChevronDown, 
+  Camera, 
+  Trash2, 
+  Clock, 
+  PlusCircle, 
+  Edit3, 
+  ArrowLeft 
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import FxRateModal from './FxRateModal';
 
 export default function TopNavbar({ 
   currentView,
@@ -52,6 +53,7 @@ export default function TopNavbar({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [isFxModalOpen, setIsFxModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [isSyncSuccess, setIsSyncSuccess] = useState(false);
@@ -253,12 +255,13 @@ export default function TopNavbar({
 
         {/* Live Real-time USD/INR Forex Ticker Pill */}
         <div 
-          title="Real-time USD/INR live forex exchange rate (auto-updating)"
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border border-slate-700/60 rounded-xl text-xs font-mono select-none"
+          onClick={() => setIsFxModalOpen(true)}
+          title="Click to view interactive USD/INR historical chart and exchange rate ledger"
+          className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-850 border border-slate-700/60 hover:border-emerald-500/50 rounded-xl text-xs font-mono select-none cursor-pointer transition-all group shadow-sm"
         >
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-500/50 shrink-0" />
-          <span className="text-[10px] font-extrabold text-slate-400">USD/INR</span>
-          <span className="font-extrabold text-emerald-400 text-xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-500/50 shrink-0 group-hover:scale-125 transition-transform" />
+          <span className="text-[10px] font-extrabold text-slate-400 group-hover:text-slate-200 transition-colors">USD/INR</span>
+          <span className="font-extrabold text-emerald-400 text-xs group-hover:underline">
             ₹{(Number(summary?.fxRate || fxRate || 87.25)).toFixed(2)}
           </span>
         </div>
@@ -489,6 +492,12 @@ export default function TopNavbar({
         </div>
 
       </div>
+
+      {/* USD/INR Interactive Forex History Modal */}
+      <FxRateModal 
+        isOpen={isFxModalOpen} 
+        onClose={() => setIsFxModalOpen(false)} 
+      />
     </header>
   );
 }

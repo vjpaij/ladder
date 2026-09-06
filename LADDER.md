@@ -78,6 +78,17 @@
   - `AnimatedCounter.jsx`: Smooth ease-out cubic odometer counting numbers for big financial values.
   - `.gradient-border`: CSS animated gradient mask border for highlighted cards.
 
+### Mandatory Modal, Popup & Dialog Architecture
+- **Theme Matching Standard**: Every modal, dialog, and popup across the entire application MUST adhere strictly to the project's glassmorphic design system:
+  - Outer container: `modal-surface reports-card` with `border border-inherit` and dynamic backdrop blur.
+  - Sub-cards & form drawers: `reports-subcard` with `--border-subtle` and `--text-primary`.
+  - Viewport Centering & Isolation: Modals must be mounted using React `createPortal(..., document.body)` to avoid parent transform clipping and guarantee true viewport centering.
+- **Strict Anti-Clutter & Minimalist Header Standard**:
+  - Never render hardcoded dark grey slabs (`bg-slate-900`, `bg-slate-800`) or opaque, saturated solid blocks.
+  - Never place redundant "+ Cancel" buttons in modal headers alongside the standard "X" close button.
+  - Modal headers must contain only the primary title/icon, optional primary action toggle button (e.g. "+ Add SIP"), and the "X" close button.
+  - Form action buttons (Cancel / Save / Submit) must strictly reside in the form drawer's action footer.
+
 ---
 
 ## Repository Directory Structure
@@ -362,13 +373,29 @@ To ensure existing functionality is never broken when new features, refactors, o
 ## Instructions for Future Changes
 
 1. **Before Editing**: Always read `LADDER.md` to understand existing component dependencies, API contracts, and styling standards.
-2. **After Editing**: Update both `README.md` and the **Change Log & Maintenance History** table above in `LADDER.md` with the new version, date, concise description of changes, and author/agent.
+2. **After Editing**: Update both `README.md` and the **Change Log & Maintenance History** table in `LADDER.md` with the new version, date, concise description of changes, and author/agent.
 3. **Delete Operations**: Always require explicit user confirmation (`window.confirm`) displaying the asset or schedule name before deleting any record.
 4. **Git Workflow**: Commit changes locally with **short but precise** commit messages (`feat: ...`, `fix: ...`, `release: ...`) and push to `origin main`.
 
+---
 
+## Change Log & Maintenance History
 
-
-
-
+| Version | Date | Description | Author/Agent |
+| :--- | :--- | :--- | :--- |
+| `v1.3.0` | 06-09-2026 | Standardized project-wide modal & popup architecture rule (Rule 7 in .agents/AGENTS.md & LADDER.md): enforced glassmorphic surface token inheritance, eliminated redundant header buttons (+ Cancel next to X), and unified form actions strictly within bottom drawers. | Antigravity AI |
+| `v1.2.9` | 06-09-2026 | Mutual Funds SIPs engine upgrade: multi-frequency schedules (Weekly, Fortnightly, Monthly, Quarterly), Start Date calendar picker, End Date calendar picker, open SIP termination, and automatic 0.015% stamp duty transaction charge calculation in database ledger. | Antigravity AI |
+| `v1.2.8` | 06-09-2026 | Enhanced FxRateModal with React createPortal directly into document.body, eliminating header CSS transform clipping and guaranteeing perfect vertical and horizontal viewport centering across all screen sizes. | Antigravity AI |
+| `v1.2.7` | 06-09-2026 | Added interactive USD/INR Forex Tracker (`FxRateModal.jsx` and `/api/fx-history`) with 16-year daily time-series, range selection, KPI statistics, and searchable/sortable historical date ledger launched directly from the TopNavbar dollar badge; implemented hierarchical drilldown step-back navigation in ReportsView via registered back handler in App.jsx; fixed transaction deletion state bug in HoldingDetailModal.jsx. | Antigravity AI |
+| `v1.2.6` | 06-09-2026 | Fixed dynamic scope filtering in ReportsView to instantly refresh active drilldown tables upon checkbox toggles; removed inline back buttons and duplicate floating back button in favor of unified global navigation; implemented standard glassmorphic theme-matched delete confirmation modals with red badges and dark/light adaptive styling for both whole-position and per-transaction deletions. | Antigravity AI |
+| `v1.2.5` | 06-09-2026 | Enhanced ReportsView right-hand card hover to dynamically highlight and pop out pie chart slices across Market Cap and Sectors; enabled dynamic drilldown refreshing within the active drilldown view when unchecking equity scopes; removed Edit icon from portfolio Actions column; fixed holding and transaction deletion cascading in backend with immediate modal and dashboard sync. | Antigravity AI |
+| `v1.2.4` | 06-09-2026 | Added pie chart popout on Performance table hover in OverviewView, automatic drilldown reset when equity filter checkboxes change in ReportsView, fixed hero card top spacing issue, reinforced double-confirmation on position deletions across portfolio views, and implemented per-transaction Edit/Delete actions in HoldingDetailModal ledger with full recalculated sync. | Antigravity AI |
+| `v1.2.6` | 06-09-2026 | Mutual Funds SIP modal redesign: simplified title to SIPs, removed cloud background badges, theme-matched surface and inputs, and renamed all recurring buttons to Add SIP / SIPs. | Antigravity AI |
+| `v1.2.5` | 06-09-2026 | Portfolio tables numerical formatting and alignment overhaul: unified whitespace-nowrap, replaced unicode arrows with vector ArrowUp/ArrowDown, and fixed sort arrow wrapping across Mutual Funds, Indian Stocks, US Stocks, and NPS. | Antigravity AI |
+| `v1.2.4` | 06-09-2026 | USD/INR Forex modal polish: removed redundant subtitles, fixed theme text contrast for Period High/Low, custom date inputs, and ledger dates. | Antigravity AI |
+| `v1.2.3` | 06-09-2026 | Enhanced numerical table formatting, fixed text clipping and alignment across all asset tables. | Antigravity AI |
+| `v1.2.2` | 06-09-2026 | Housing Loan Amortization dashboard and prepayments engine integration with live database sync. | Antigravity AI |
+| `v1.2.1` | 30-08-2026 | Dividend ledger enhancements, multi-market filters, and benchmark growth lookups. | Antigravity AI |
+| `v1.2.0` | 29-08-2026 | 19-Year Calendar Heatmap and portfolio valuation delta engine integration. | Antigravity AI |
+| `v1.0.0` | 28-08-2026 | Initial release of Ladder Institutional Finance & Investment Dashboard. | Antigravity AI |
 

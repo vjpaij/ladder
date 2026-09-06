@@ -715,7 +715,7 @@ body {
   pointer-events: none;
   z-index: 2;
 }
-.gradient-border > * {
+.gradient-border > *:not([class*="absolute"]) {
   position: relative;
   z-index: 3;
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { ThemeAuthProvider } from './context/ThemeAuthContext';
 import { useThemeAuth } from './context/ThemeAuthContext';
 import Sidebar from './components/Sidebar';
@@ -42,10 +42,22 @@ function AppInner() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [targetPortfolio, setTargetPortfolio] = useState(null);
   const [selectedHoldingModal, setSelectedHoldingModal] = useState(null);
+  const [deleteConfirmHolding, setDeleteConfirmHolding] = useState(null);
+  const [isDeletingHolding, setIsDeletingHolding] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date().toLocaleTimeString());
   const [toast, setToast] = useState(null);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const reportsBackHandlerRef = React.useRef(null);
+
+  const handleGlobalBack = () => {
+    if (currentView === 'reports' && reportsBackHandlerRef.current) {
+      const handled = reportsBackHandlerRef.current();
+      if (handled) return;
+    }
+    setTargetPortfolio(null);
+    setCurrentView('overview');
+  };
 
   useEffect(() => {
     fetchDashboardData();
@@ -122,17 +134,25 @@ function AppInner() {
     }
   };
 
-  const handleDeleteHolding = async (id) => {
+  const handleDeleteHolding = (id) => {
     const holding = holdings.find(h => h.id === id);
-    const label = holding ? (holding.name || holding.symbol) : 'this position';
-    if (window.confirm(`Are you sure you want to delete "${label}"?\n\nThis will permanently remove this position and all its transactions from your portfolio. This action cannot be undone.`)) {
-      try {
-        await axios.delete(`/api/holdings/${id}`);
-        await fetchDashboardData();
-        setToast({ type: 'success', message: `Position "${label}" removed from portfolio.` });
-      } catch (err) {
-        alert('Error deleting holding: ' + err.message);
-      }
+    if (!holding) return;
+    setDeleteConfirmHolding(holding);
+  };
+
+  const handleConfirmDeleteHolding = async () => {
+    if (!deleteConfirmHolding) return;
+    setIsDeletingHolding(true);
+    const label = deleteConfirmHolding.name || deleteConfirmHolding.symbol;
+    try {
+      await axios.delete(`/api/holdings/${deleteConfirmHolding.id}`);
+      setDeleteConfirmHolding(null);
+      await fetchDashboardData();
+      setToast({ type: 'success', message: `Position "${label}" removed from portfolio.` });
+    } catch (err) {
+      alert('Error deleting holding: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsDeletingHolding(false);
     }
   };
 
@@ -226,7 +246,7 @@ function AppInner() {
       case 'dividends':
         return <DividendsView key="dividends" holdings={holdings} onRefresh={fetchDashboardData} />;
       case 'reports':
-        return <ReportsView key="reports" summary={summary} holdings={holdings} />;
+        return <ReportsView key="reports" summary={summary} holdings={holdings} registerBackHandler={(fn) => { reportsBackHandlerRef.current = fn; }} />;
       case 'database':
         return <DatabaseStudioView key="database" />;
       case 'excel_tools':
@@ -314,9 +334,9 @@ function AppInner() {
             initial={{ scale: 0, opacity: 0, y: 15 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0, opacity: 0, y: 15 }}
-            onClick={() => { setTargetPortfolio(null); setCurrentView('overview'); }}
+            onClick={handleGlobalBack}
             className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-slate-900/30 hover:bg-slate-900/60 dark:bg-slate-800/40 dark:hover:bg-slate-700/60 backdrop-blur-md border border-slate-400/20 dark:border-slate-600/30 text-slate-800 dark:text-white shadow-xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center group"
-            title="Back to Dashboard"
+            title="Back"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
           </motion.button>
@@ -328,6 +348,62 @@ function AppInner() {
         isOpen={isEditProfileOpen}
         onClose={() => setIsEditProfileOpen(false)}
       />
+
+      {/* Standard Themed Position Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmHolding && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+            onClick={() => !isDeletingHolding && setDeleteConfirmHolding(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="modal-surface w-full max-w-sm rounded-2xl border border-slate-700/80 p-5 shadow-2xl space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Delete Position</h3>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono">Portfolio Scheme</span>
+                </div>
+              </div>
+
+              <div className="text-xs space-y-1.5 leading-relaxed text-slate-700 dark:text-slate-300">
+                <p>
+                  Are you sure you want to delete <span className="font-bold text-rose-500">{deleteConfirmHolding.name || deleteConfirmHolding.symbol}</span>?
+                </p>
+                <p className="text-[11px] text-slate-500 pt-1">
+                  This will permanently remove this position and all its transactions from your portfolio. This action cannot be undone.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  disabled={isDeletingHolding}
+                  onClick={() => setDeleteConfirmHolding(null)}
+                  className="rounded-xl border border-slate-300 dark:border-slate-700 px-3.5 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingHolding}
+                  onClick={handleConfirmDeleteHolding}
+                  className="rounded-xl px-4 py-1.5 text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-500/25 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isDeletingHolding ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

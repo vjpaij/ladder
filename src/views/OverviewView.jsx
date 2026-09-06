@@ -463,11 +463,15 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                     return map[catId] || 'overview';
                   };
 
+                  const pieIndex = allocationData.findIndex(a => a.name === cat.name);
+
                   return (
                     <tr 
                       key={cat.id} 
                       className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors cursor-pointer"
                       onClick={() => onNavigate(getRouteForCategory(cat.id))}
+                      onMouseEnter={() => { if (pieIndex >= 0) setActivePieIndex(pieIndex); }}
+                      onMouseLeave={() => setActivePieIndex(null)}
                     >
                       <td className="py-4 px-4 flex items-center gap-2.5">
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }}></div>

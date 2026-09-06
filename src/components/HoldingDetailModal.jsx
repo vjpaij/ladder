@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
 import {
   X, TrendingUp, TrendingDown, DollarSign, BarChart2, ArrowDownCircle,
-  ArrowUpCircle, Gift, Percent, Calendar, ChevronDown, ChevronUp, Activity, Globe, Search
+  ArrowUpCircle, Gift, Percent, Calendar, ChevronDown, ChevronUp, Activity, Globe, Search,
+  Edit3, Trash2, Save, XCircle
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -140,7 +142,7 @@ function formatAxisValue(value, isUSD) {
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function HoldingDetailModal({ holding, onClose }) {
+export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const { currency, theme, fxRate, formatMoney } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   const [detail, setDetail] = useState(null);
@@ -158,6 +160,110 @@ export default function HoldingDetailModal({ holding, onClose }) {
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
 
+  // Transaction Edit/Delete state
+  const [editingTxId, setEditingTxId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [txActionLoading, setTxActionLoading] = useState(null);
+  const [deleteConfirmTx, setDeleteConfirmTx] = useState(null);
+  const [isDeletingTx, setIsDeletingTx] = useState(false);
+
+  const fetchDetail = React.useCallback(async (isInitial = false) => {
+    if (!holding?.id) return;
+    if (isInitial) {
+      setLoading(true);
+      setError(null);
+      setDetail(null);
+    }
+    try {
+      const r = await fetch(`/api/holding/${encodeURIComponent(holding.id)}/detail`);
+      const contentType = r.headers.get('content-type') || '';
+      const text = await r.text();
+      let data;
+      if (contentType.includes('application/json')) {
+        try { data = JSON.parse(text); } catch (e) { /* ignore */ }
+      }
+      if (!r.ok) {
+        throw new Error(data?.error || `Server error (${r.status})`);
+      }
+      if (data) {
+        setDetail(data);
+        if (isInitial) setLoading(false);
+      }
+    } catch (err) {
+      if (isInitial) {
+        setError(err.message);
+        setLoading(false);
+      }
+    }
+  }, [holding?.id]);
+
+  const startEditTx = (tx) => {
+    setEditingTxId(tx.id);
+    setEditForm({
+      date: (tx.date || '').split('T')[0],
+      type: tx.type || 'BUY',
+      quantity: tx.quantity ?? '',
+      price: tx.price ?? '',
+      total_amount: tx.total_amount ?? '',
+      charges: tx.charges ?? '',
+      fx_rate: tx.fx_rate ?? '',
+      notes: tx.notes ?? ''
+    });
+  };
+
+  const cancelEditTx = () => {
+    setEditingTxId(null);
+    setEditForm({});
+  };
+
+  const saveEditTx = async (txId) => {
+    setTxActionLoading(txId);
+    try {
+      const updates = {};
+      if (editForm.date) updates.date = editForm.date;
+      if (editForm.type) updates.type = editForm.type;
+      const payload = {
+        date: editForm.date,
+        type: editForm.type,
+        quantity: Number(editForm.quantity) || 0,
+        price: Number(editForm.price) || 0,
+        total_amount: Number(editForm.total_amount) || (Number(editForm.quantity) * Number(editForm.price)),
+        charges: Number(editForm.charges) || 0,
+        notes: editForm.notes || ''
+      };
+      await axios.put(`/api/transactions/${txId}`, payload);
+      setEditingTxId(null);
+      setEditForm({});
+      await fetchDetail(false);
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      alert('Error updating transaction: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setTxActionLoading(null);
+    }
+  };
+
+  const deleteTx = (tx) => {
+    setDeleteConfirmTx(tx);
+  };
+
+  const handleConfirmDeleteTx = async () => {
+    if (!deleteConfirmTx) return;
+    setIsDeletingTx(true);
+    setTxActionLoading(deleteConfirmTx.id);
+    try {
+      await axios.delete(`/api/transactions/${deleteConfirmTx.id}`);
+      setDeleteConfirmTx(null);
+      await fetchDetail(false);
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      alert('Error deleting transaction: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsDeletingTx(false);
+      setTxActionLoading(null);
+    }
+  };
+
   const isUSStock = holding?.category_id === 'us_stocks' || holding?.currency === 'USD';
   const [displayCurrency, setDisplayCurrency] = useState(isUSStock ? currency : 'INR');
 
@@ -170,45 +276,13 @@ export default function HoldingDetailModal({ holding, onClose }) {
 
   useEffect(() => {
     if (!holding?.id) return;
-    let isMounted = true;
-
-    const fetchDetail = async (isInitial = false) => {
-      if (isInitial) {
-        setLoading(true);
-        setError(null);
-        setDetail(null);
-      }
-      try {
-        const r = await fetch(`/api/holding/${encodeURIComponent(holding.id)}/detail`);
-        const contentType = r.headers.get('content-type') || '';
-        const text = await r.text();
-        let data;
-        if (contentType.includes('application/json')) {
-          try { data = JSON.parse(text); } catch (e) { /* ignore */ }
-        }
-        if (!r.ok) {
-          throw new Error(data?.error || `Server error (${r.status})`);
-        }
-        if (isMounted && data) {
-          setDetail(data);
-          if (isInitial) setLoading(false);
-        }
-      } catch (err) {
-        if (isMounted && isInitial) {
-          setError(err.message);
-          setLoading(false);
-        }
-      }
-    };
-
     fetchDetail(true);
-    const pollTimer = setInterval(() => fetchDetail(false), 2000);
+    const pollTimer = setInterval(() => fetchDetail(false), 3000);
 
     return () => {
-      isMounted = false;
       clearInterval(pollTimer);
     };
-  }, [holding?.id]);
+  }, [holding?.id, fetchDetail]);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
@@ -968,6 +1042,7 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                     </th>
                                   )}
                                   <th className="py-3 px-4 text-left">Notes</th>
+                                  <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
                                 </>
                               )}
                             </tr>
@@ -1117,6 +1192,52 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                 );
                               }
 
+                              // Inline Edit Mode
+                              if (editingTxId === tx.id) {
+                                return (
+                                  <tr key={tx.id || i} className="bg-blue-950/20 border-y border-blue-500/30">
+                                    <td className="py-2 px-3">
+                                      <input type="date" value={editForm.date || ''} onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500" />
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <select value={editForm.type || 'BUY'} onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                                        {['BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT'].map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <input type="number" step="any" value={editForm.quantity} onChange={(e) => setEditForm(prev => ({ ...prev, quantity: e.target.value }))} className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" />
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <input type="number" step="any" value={editForm.price} onChange={(e) => setEditForm(prev => ({ ...prev, price: e.target.value }))} className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" />
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <input type="number" step="any" value={editForm.total_amount} onChange={(e) => setEditForm(prev => ({ ...prev, total_amount: e.target.value }))} className="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" />
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <input type="number" step="any" value={editForm.charges || ''} onChange={(e) => setEditForm(prev => ({ ...prev, charges: e.target.value }))} className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" placeholder="0" />
+                                    </td>
+                                    {isUSStock && (
+                                      <td className="py-2 px-3">
+                                        <input type="number" step="any" value={editForm.fx_rate || ''} onChange={(e) => setEditForm(prev => ({ ...prev, fx_rate: e.target.value }))} className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-purple-300 font-mono text-right focus:outline-none focus:border-purple-500" placeholder="₹" />
+                                      </td>
+                                    )}
+                                    <td className="py-2 px-3">
+                                      <input type="text" value={editForm.notes || ''} onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500" placeholder="Notes" />
+                                    </td>
+                                    <td className="py-2 px-3 text-center">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button onClick={() => saveEditTx(tx.id)} disabled={txActionLoading === tx.id} className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors" title="Save">
+                                          <Save className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button onClick={cancelEditTx} className="p-1 hover:bg-slate-700/60 text-slate-400 rounded-lg transition-colors" title="Cancel">
+                                          <XCircle className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
                               return (
                                 <motion.tr
                                   key={tx.id || i}
@@ -1147,12 +1268,31 @@ export default function HoldingDetailModal({ holding, onClose }) {
                                   <td className="py-2.5 px-4 text-slate-400 text-[11px]">
                                     {tx.notes || ''}
                                   </td>
+                                  <td className="py-2.5 px-4 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); startEditTx(tx); }} 
+                                        className="p-1 hover:bg-slate-700/60 text-slate-500 hover:text-blue-400 rounded-lg transition-colors" 
+                                        title="Edit Transaction"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); deleteTx(tx); }} 
+                                        disabled={txActionLoading === tx.id}
+                                        className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg transition-colors disabled:opacity-50" 
+                                        title="Delete Transaction"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </td>
                                 </motion.tr>
                               );
                             })}
                             {sortedTxs.length === 0 && (
                               <tr>
-                                <td colSpan={isEodAsset ? 4 : (isUSStock ? 8 : 7)} className="py-8 text-center text-slate-600">
+                                <td colSpan={isEodAsset ? 4 : (isUSStock ? 9 : 8)} className="py-8 text-center text-slate-600">
                                   No records found
                                 </td>
                               </tr>
@@ -1168,6 +1308,67 @@ export default function HoldingDetailModal({ holding, onClose }) {
               )}
             </div>
           </motion.div>
+
+          {/* Standard Themed Transaction Delete Confirmation Modal */}
+          <AnimatePresence>
+            {deleteConfirmTx && (
+              <div 
+                className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm"
+                onClick={() => !isDeletingTx && setDeleteConfirmTx(null)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="modal-surface w-full max-w-sm rounded-2xl border border-slate-700/80 p-5 shadow-2xl space-y-4"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shrink-0">
+                      <Trash2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white">Delete Transaction</h3>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono">Irreversible Action</span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs space-y-1.5 leading-relaxed text-slate-700 dark:text-slate-300">
+                    <p>
+                      Are you sure you want to delete this <span className="font-bold font-mono text-rose-500">{deleteConfirmTx.type || 'BUY'}</span> transaction on <span className="font-mono font-bold">{formatTxDate(deleteConfirmTx.date)}</span>?
+                    </p>
+                    {Number(deleteConfirmTx.total_amount) > 0 && (
+                      <p className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                        Amount: {isUSStock ? '$' : '₹'}{Number(deleteConfirmTx.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-slate-500 pt-1">
+                      This will permanently remove this transaction and recalculate the position.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      disabled={isDeletingTx}
+                      onClick={() => setDeleteConfirmTx(null)}
+                      className="rounded-xl border border-slate-300 dark:border-slate-700 px-3.5 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeletingTx}
+                      onClick={handleConfirmDeleteTx}
+                      className="rounded-xl px-4 py-1.5 text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-500/25 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isDeletingTx ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </>
       )}
     </AnimatePresence>

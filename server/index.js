@@ -584,6 +584,123 @@ app.get('/api/fx-rate', async (req, res) => {
   }
 });
 
+// Real-time & Historical USD/INR Forex Series Endpoint
+app.get('/api/fx-history', async (req, res) => {
+  try {
+    const { timeframe = '1Y', startDate, endDate } = req.query;
+    const liveRate = await fetchFxRate();
+    const today = new Date().toISOString().split('T')[0];
+
+    // Merge cached historical rates with today's live rate
+    const fxMap = { ...historicalFxRatesCache };
+    fxMap[today] = Number(liveRate.toFixed(4));
+
+    const sortedDates = Object.keys(fxMap).sort();
+    if (sortedDates.length === 0) {
+      return res.json({ currentRate: liveRate, today, series: [], table: [], stats: {} });
+    }
+
+    // Determine start date based on timeframe
+    let filterStart = '2010-01-01';
+    const now = new Date();
+
+    if (timeframe === '1M') {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 1);
+      filterStart = d.toISOString().split('T')[0];
+    } else if (timeframe === '3M') {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 3);
+      filterStart = d.toISOString().split('T')[0];
+    } else if (timeframe === '6M') {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 6);
+      filterStart = d.toISOString().split('T')[0];
+    } else if (timeframe === '1Y') {
+      const d = new Date(now);
+      d.setFullYear(d.getFullYear() - 1);
+      filterStart = d.toISOString().split('T')[0];
+    } else if (timeframe === '3Y') {
+      const d = new Date(now);
+      d.setFullYear(d.getFullYear() - 3);
+      filterStart = d.toISOString().split('T')[0];
+    } else if (timeframe === '5Y') {
+      const d = new Date(now);
+      d.setFullYear(d.getFullYear() - 5);
+      filterStart = d.toISOString().split('T')[0];
+    } else if (timeframe === 'CUSTOM' && startDate) {
+      filterStart = startDate;
+    }
+
+    let filterEnd = (timeframe === 'CUSTOM' && endDate) ? endDate : today;
+
+    const filteredDates = sortedDates.filter(d => d >= filterStart && d <= filterEnd);
+    
+    // Compute itemized daily points with change
+    let prevRate = null;
+    const series = [];
+    let high = -Infinity;
+    let highDate = null;
+    let low = Infinity;
+    let lowDate = null;
+    let sumRate = 0;
+
+    filteredDates.forEach(date => {
+      const rate = Number(Number(fxMap[date]).toFixed(2));
+      const change = prevRate !== null ? Number((rate - prevRate).toFixed(2)) : 0;
+      const changePct = (prevRate !== null && prevRate > 0) ? Number(((change / prevRate) * 100).toFixed(2)) : 0;
+
+      if (rate > high) {
+        high = rate;
+        highDate = date;
+      }
+      if (rate < low) {
+        low = rate;
+        lowDate = date;
+      }
+      sumRate += rate;
+
+      series.push({
+        date,
+        rate,
+        change,
+        changePct
+      });
+      prevRate = rate;
+    });
+
+    const count = series.length;
+    const avg = count > 0 ? Number((sumRate / count).toFixed(2)) : liveRate;
+    const firstRate = count > 0 ? series[0].rate : liveRate;
+    const lastRate = count > 0 ? series[count - 1].rate : liveRate;
+    const periodChange = Number((lastRate - firstRate).toFixed(2));
+    const periodChangePct = firstRate > 0 ? Number(((periodChange / firstRate) * 100).toFixed(2)) : 0;
+
+    const table = [...series].reverse();
+
+    res.json({
+      currentRate: Number(liveRate.toFixed(2)),
+      today,
+      timeframe,
+      series,
+      table,
+      stats: {
+        high: high !== -Infinity ? high : Number(liveRate.toFixed(2)),
+        highDate,
+        low: low !== Infinity ? low : Number(liveRate.toFixed(2)),
+        lowDate,
+        avg,
+        periodChange,
+        periodChangePct,
+        totalRecords: count
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching FX history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // Holdings CRUD API
 // -------------------------------------------------------------
@@ -786,9 +903,19 @@ app.put('/api/holdings/:id', authenticateToken, async (req, res) => {
 app.delete('/api/holdings/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    await db.delete('holdings', id);
-    res.json({ success: true });
+    // 1. Delete associated transactions
+    await supabase.from('transactions').delete().eq('holding_id', id);
+    // 2. Delete associated dividends
+    await supabase.from('dividends').delete().eq('holding_id', id);
+    // 3. Delete associated recurring sips
+    await supabase.from('sips').delete().eq('holding_id', id);
+    // 4. Delete the holding record itself
+    const { error: holdErr } = await supabase.from('holdings').delete().eq('id', id);
+    if (holdErr) throw new Error(holdErr.message);
+
+    res.json({ success: true, message: 'Holding and all associated records deleted successfully.' });
   } catch (err) {
+    console.error('[Delete Holding Error]:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -1646,9 +1773,13 @@ app.put('/api/liabilities/:id', authenticateToken, async (req, res) => {
 app.delete('/api/liabilities/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    await db.delete('liabilities', id);
-    res.json({ success: true });
+    await supabase.from('transactions').delete().eq('liability_id', id);
+    await supabase.from('loan_amortization').delete().eq('liability_id', id);
+    const { error: liabErr } = await supabase.from('liabilities').delete().eq('id', id);
+    if (liabErr) throw new Error(liabErr.message);
+    res.json({ success: true, message: 'Liability and associated records deleted successfully.' });
   } catch (err) {
+    console.error('[Delete Liability Error]:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2321,18 +2452,24 @@ app.get('/api/sips', authenticateToken, async (req, res) => {
 // Create new SIP
 app.post('/api/sips', authenticateToken, async (req, res) => {
   try {
-    const { holding_id, symbol, name, amount, day_of_month, frequency, start_date } = req.body;
+    const { holding_id, symbol, name, amount, day_of_month, frequency, start_date, end_date } = req.body;
     if (!symbol || !name || !amount) {
       return res.status(400).json({ error: 'Symbol, name and amount are required' });
     }
 
+    const freq = (frequency || 'MONTHLY').toUpperCase();
     const dom = Math.min(28, Math.max(1, parseInt(day_of_month) || 1));
-    const today = new Date();
-    let nextDate = start_date ? new Date(start_date) : new Date(today.getFullYear(), today.getMonth(), dom);
-    if (nextDate < today) {
-      nextDate = new Date(today.getFullYear(), today.getMonth() + 1, dom);
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    let nextRunStr = start_date || todayStr;
+    if (!start_date) {
+      const today = new Date();
+      let nextDate = new Date(today.getFullYear(), today.getMonth(), dom);
+      if (nextDate < today) {
+        nextDate = new Date(today.getFullYear(), today.getMonth() + 1, dom);
+      }
+      nextRunStr = nextDate.toISOString().split('T')[0];
     }
-    const nextRunStr = nextDate.toISOString().split('T')[0];
 
     const { data: inserted, error } = await supabase
       .from('sips')
@@ -2341,8 +2478,10 @@ app.post('/api/sips', authenticateToken, async (req, res) => {
         symbol,
         name,
         amount: Number(amount),
-        frequency: frequency || 'MONTHLY',
+        frequency: freq,
         day_of_month: dom,
+        start_date: start_date || nextRunStr,
+        end_date: end_date || null,
         next_run_date: nextRunStr,
         status: 'ACTIVE'
       })
@@ -2355,14 +2494,17 @@ app.post('/api/sips', authenticateToken, async (req, res) => {
   }
 });
 
-// Update SIP parameters (amount, day, next_run_date)
+// Update SIP parameters (amount, day, frequency, next_run_date, end_date)
 app.put('/api/sips/:id', authenticateToken, async (req, res) => {
   try {
-    const { amount, day_of_month, next_run_date } = req.body;
+    const { amount, day_of_month, frequency, next_run_date, end_date, start_date } = req.body;
     const updates = { updated_at: new Date().toISOString() };
     if (amount !== undefined) updates.amount = Number(amount);
     if (day_of_month !== undefined) updates.day_of_month = parseInt(day_of_month);
+    if (frequency !== undefined) updates.frequency = frequency.toUpperCase();
     if (next_run_date !== undefined) updates.next_run_date = next_run_date;
+    if (start_date !== undefined) updates.start_date = start_date;
+    if (end_date !== undefined) updates.end_date = end_date || null;
 
     const { data: updated, error } = await supabase
       .from('sips')
