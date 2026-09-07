@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Database, Table, Edit3, Check, RefreshCw, Download, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Database, Table, Edit3, Check, RefreshCw, Download, Search, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 
 export default function DatabaseStudioView() {
@@ -133,7 +133,12 @@ export default function DatabaseStudioView() {
 
           <div className="relative w-full md:w-72 mb-4">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter rows..." className="w-full pl-9 pr-3 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500/50" aria-label="Filter database rows" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter rows..." className="w-full pl-9 pr-10 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500/50" aria-label="Filter database rows" />
+            {search && (
+              <button type="button" onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5" aria-label="Clear filter">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">

@@ -570,7 +570,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     }}
                     onFocus={() => { if (searchResults.length > 0) setShowDropdown(true); }}
                     placeholder={isMF ? 'Search mutual fund schemes...' : 'Search stock name or ticker...'}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
+                    className="w-full pl-9 pr-10 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
                   />
                   {searchQuery && (
                     <button type="button" onClick={() => { setSearchQuery(''); updateField('symbol', ''); updateField('name', ''); }} className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"><X className="w-3.5 h-3.5"/></button>
@@ -640,8 +640,13 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 }}
                 onFocus={() => { if (searchResults.length > 0) setShowDropdown(true); }}
                 placeholder="Search existing stock to split..."
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
+                className="w-full pl-9 pr-10 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-semibold focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
               />
+              {searchQuery && (
+                <button type="button" onClick={() => { setSearchQuery(''); updateField('symbol', ''); updateField('name', ''); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5" aria-label="Clear search">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
             <AnimatePresence>
               {showDropdown && (searchResults.length > 0 || isSearching) && (

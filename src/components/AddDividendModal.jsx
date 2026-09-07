@@ -248,8 +248,13 @@ export default function AddDividendModal({ isOpen, onClose, onSuccess, holdings 
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setIsDropdownOpen(true); }}
                   onFocus={() => setIsDropdownOpen(true)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                  className="w-full pl-9 pr-10 py-2 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
                 />
+                {search && (
+                  <button type="button" onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5" aria-label="Clear search">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
                 {isDropdownOpen && filteredHoldings.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-48 overflow-y-auto rounded-xl border border-slate-700 modal-surface shadow-2xl backdrop-blur-2xl">

@@ -539,7 +539,7 @@ export default function AssetDividendDetailModal({
                     placeholder="Filter distributions..."
                     value={divSearch}
                     onChange={(e) => setDivSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
+                    className="w-full pl-8 pr-10 py-1 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
                   />
                   {divSearch && (
                     <button

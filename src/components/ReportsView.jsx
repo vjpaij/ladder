@@ -1274,7 +1274,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                       placeholder="Search companies, symbols, sectors..."
                       value={mfCompanySearch}
                       onChange={(e) => setMfCompanySearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                      className="w-full pl-9 pr-10 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
                     />
                     {mfCompanySearch && (
                       <button 
@@ -1687,7 +1687,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                     placeholder="Filter asset classes..."
                     value={categorySearch}
                     onChange={(e) => setCategorySearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                    className="w-full pl-9 pr-10 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
                   />
                   {categorySearch && (
                     <button 
@@ -1936,7 +1936,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                         placeholder="Search companies, symbols..."
                         value={mcapCompanySearch}
                         onChange={(e) => setMcapCompanySearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                        className="w-full pl-9 pr-10 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
                       />
                       {mcapCompanySearch && (
                         <button 
@@ -2161,7 +2161,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                         placeholder="Search companies, symbols, sectors..."
                         value={sectorCompanySearch}
                         onChange={(e) => setSectorCompanySearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                        className="w-full pl-9 pr-10 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
                       />
                       {sectorCompanySearch && (
                         <button 

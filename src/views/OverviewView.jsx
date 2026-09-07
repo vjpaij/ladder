@@ -417,7 +417,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                 placeholder="Filter asset classes..."
                 value={perfSearch}
                 onChange={(e) => setPerfSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
+                className="w-full pl-9 pr-10 py-1.5 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50"
               />
               {perfSearch && (
                 <button

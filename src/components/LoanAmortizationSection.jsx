@@ -709,7 +709,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                 placeholder="Search schedule..."
                 value={scheduleSearch}
                 onChange={(e) => setScheduleSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-rose-500/50"
+                className="w-full pl-8 pr-10 py-1 bg-slate-900 border border-slate-700/80 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-rose-500/50"
               />
               {scheduleSearch && (
                 <button

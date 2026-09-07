@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { 
   Search, 
+  X,
   Filter, 
   TrendingUp, 
   TrendingDown, 
@@ -130,8 +131,13 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
             placeholder="Search symbol, asset, sector..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-500"
+            className="w-full pl-10 pr-10 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-slate-500"
           />
+          {search && (
+            <button type="button" onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5" aria-label="Clear search">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
       </div>

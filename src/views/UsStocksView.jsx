@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Globe, Search, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, DollarSign, RefreshCw } from 'lucide-react';
+import { Globe, Search, X, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, DollarSign, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
@@ -355,8 +355,13 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                     placeholder="Search US stocks..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                    className="w-full pl-9 pr-10 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
                   />
+                  {search && (
+                    <button type="button" onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5" aria-label="Clear search">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

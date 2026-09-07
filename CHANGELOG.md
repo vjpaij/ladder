@@ -5,6 +5,12 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.13.0] - 2026-09-07
+
+### Enhanced
+- **Universal Search Clear Controls**: Added conditional `X` buttons to every search and filter input across portfolio views, reports, ledgers, modals, and database tools.
+- **Long-Text Input Protection**: Increased right-side input padding wherever a clear control is present so typed text scrolls left and never renders beneath the `X` button.
+
 ## [5.12.0] - 2026-09-06
 
 ### Reconciled & Hardened

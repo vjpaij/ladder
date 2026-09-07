@@ -394,7 +394,7 @@ export default function FxRateModal({ isOpen, onClose }) {
                     placeholder="Filter by date or rate..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-inherit border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
+                    className="w-full pl-9 pr-10 py-1.5 rounded-xl text-xs bg-inherit border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
                   />
                   {searchQuery && (
                     <button 
