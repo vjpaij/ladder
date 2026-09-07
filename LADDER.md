@@ -52,10 +52,13 @@
 - Stat summary cards: Range P&L, Green Days count, Red Days count, and Win Rate %.
 - Interactive day drill-down inspecting historical Net Worth and Assets for that date.
 
-### 5. Dividends Ledger (`DividendsView.jsx`)
-- Tracks passive dividend cashflow across Indian & US equities.
-- Automatic conversion of US dollar dividends to INR using historical/live exchange rates.
-- Displays total dividends credited, India total, US total, and annualized cash yield %.
+### 5. Dividends Ledger & Scheme Hub (`DividendsView.jsx` & `AssetDividendDetailModal.jsx`)
+- **Aggregated Scheme Portfolio View**: Aggregates dividend payouts per scheme/stock (Indian & US Equities) displaying Logo, Clean Name, Symbol, Market Badge, Payouts Count, Total Original Payout, Total Credited INR/USD, and Latest Payment Date.
+- **Scheme & Transaction CRUD**:
+  - Main page Action column includes Delete icon button (`Trash2`) with mandatory user confirmation to delete all dividend records for that scheme (`DELETE /api/dividends/scheme/:idOrSymbol`).
+  - Interactive drilldown opens `AssetDividendDetailModal.jsx` displaying Annual Breakdown bar charts, Cumulative Growth curves, KPI metric cards, and an Itemized Distribution Ledger.
+  - Transaction-level **Edit** (`Edit3`) and **Delete** (`Trash2`) actions under the Itemized Ledger's Action column, with inline editing for date, payout amount, and FX rate (`PUT /api/dividends/:id` & `DELETE /api/dividends/:id`).
+- Real-time automatic cascade updates synchronizing Dashboard Net Worth, Asset Allocations, and Reports.
 
 ### 6. Relational Database Studio (`DatabaseStudioView.jsx`)
 - Visual table inspector browsing all 8 database tables (`users`, `categories`, `holdings`, `transactions`, `liabilities`, `dividends`, `daily_pnl_logs`, `fx_rates`).
@@ -386,6 +389,7 @@ To ensure existing functionality is never broken when new features, refactors, o
 
 | Version | Date | Description | Author/Agent |
 | :--- | :--- | :--- | :--- |
+| `v1.3.3` | 07-09-2026 | Dividends aggregation and transaction-level management upgrade: (1) Aggregated main Dividends page by scheme with Logo, Clean Name, Market Badge, Payouts Count, Total Payout, Total Credited INR/USD, Latest Date, and Action Delete button; (2) Added transaction-level Edit and Delete actions in AssetDividendDetailModal itemized ledger with inline editing; (3) Added backend endpoints (DELETE /api/dividends/scheme/:idOrSymbol, DELETE /api/dividends/:id, PUT /api/dividends/:id); (4) Upgraded AssetDividendDetailModal with stacked monthly sub-bars inside annual breakdown chart, embedded month badges, unabbreviated exact annual total numbers at top of bars, multi-theme contrast support across all light/dark themes, robust multi-format date tracking across all years, calendar range selector (ALL, 1Y, 3Y, 5Y, Custom), and removed redundant payout badges; (5) Verified dynamic transaction type filtering in HoldingDetailModal and confirmed 100% pass on financial integrity audit. | Antigravity AI |
 | `v1.3.2` | 07-09-2026 | Universal search UX enhancement: added conditional X clear buttons to every search and filter input across portfolio views, reports, ledgers, modals, and database tools; increased right-side input padding so long text scrolls left without overlapping the clear control. | GitHub Copilot |
 | `v1.3.1` | 06-09-2026 | Comprehensive Database & Ledger Reconciliation: (1) Resolved Federal Bank 0/103 sync issue by updating EOD detail endpoint to include zero closing entries and display real Supabase transactions; (2) Reconciled Bank and EPF holding statuses (HDFC, IndusInd, IDFC, SBI, RBL, EPF set to ACTIVE, Federal Bank set to REDEEMED); (3) Inserted 73 missing US stock dividends into unified transactions table; (4) Fixed fractional unit rounding on liquidated Mutual Funds; (5) Upgraded FixedIncomeView with status filter tabs (Active, Closed, All) and closed account indicators; (6) Verified 100% pass across financial integrity tests. | Antigravity AI |
 | `v1.3.0` | 06-09-2026 | Standardized project-wide modal & popup architecture rule (Rule 7 in .agents/AGENTS.md & LADDER.md): enforced glassmorphic surface token inheritance, eliminated redundant header buttons (+ Cancel next to X), and unified form actions strictly within bottom drawers. | Antigravity AI |

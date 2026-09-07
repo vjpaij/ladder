@@ -1903,6 +1903,69 @@ app.get('/api/dividends', authenticateToken, async (req, res) => {
   }
 });
 
+app.delete('/api/dividends/scheme/:idOrSymbol', authenticateToken, async (req, res) => {
+  try {
+    const { idOrSymbol } = req.params;
+    const { currency } = req.query;
+
+    let query = supabase.from('dividends').delete().or(`holding_id.eq.${idOrSymbol},symbol.eq.${idOrSymbol}`);
+    if (currency) {
+      query = query.eq('currency', currency);
+    }
+    const { error } = await query;
+    if (error) throw new Error(error.message);
+
+    res.json({ success: true, message: 'Scheme dividend records deleted successfully.' });
+  } catch (err) {
+    console.error('[API Error - delete scheme dividends]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/dividends/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from('dividends').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    res.json({ success: true, message: 'Dividend entry deleted successfully.' });
+  } catch (err) {
+    console.error('[API Error - delete dividend]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/dividends/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount_original, payment_date, currency, fx_rate } = req.body;
+    const originalAmt = Number(amount_original);
+    if (isNaN(originalAmt) || originalAmt <= 0) {
+      return res.status(400).json({ error: 'Dividend amount must be a positive number.' });
+    }
+
+    const liveFx = await fetchFxRate();
+    const effFx = Number(fx_rate) || liveFx || 87.25;
+    const isUs = currency === 'USD';
+    const amountInr = isUs ? Number((originalAmt * effFx).toFixed(2)) : originalAmt;
+
+    const updates = {
+      amount_original: originalAmt,
+      payment_date: payment_date,
+      currency: currency || (isUs ? 'USD' : 'INR'),
+      fx_rate: isUs ? effFx : 1.0,
+      amount_inr: amountInr
+    };
+
+    const { data, error } = await supabase.from('dividends').update(updates).eq('id', id).select();
+    if (error) throw new Error(error.message);
+
+    res.json({ success: true, message: 'Dividend entry updated successfully.', data: data?.[0] });
+  } catch (err) {
+    console.error('[API Error - update dividend]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // Daily P&L Calendar Heatmap API
 // -------------------------------------------------------------

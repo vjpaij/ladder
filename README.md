@@ -53,14 +53,15 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments) that immediately recalculate future amortization schedules and interest savings.
    - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
 
-9. **Dividends Ledger Hub & Multi-Market Filtering**
-   - Tracks cash dividend distributions across Indian Equities (₹) and US Equities ($).
+9. **Dividends Scheme Hub & Transaction Management**
+   - **Aggregated Scheme Portfolio View**: Aggregates dividend payouts per scheme/stock (Indian & US Equities) displaying Logo, Clean Name, Symbol, Market Badge, Payouts Count, Total Original Payout, Total Credited INR/USD, and Latest Payment Date.
+   - **Scheme Deletion**: Action column on main table includes Delete icon button (`Trash2`) with mandatory user confirmation prompt to delete all dividend records for a scheme (`DELETE /api/dividends/scheme/:idOrSymbol`).
+   - **Transaction-Level CRUD & Reports**: Clicking any scheme row opens `AssetDividendDetailModal.jsx` displaying Annual Breakdown bar charts, Cumulative Growth curves, KPI metric cards, and an Itemized Distribution Ledger table equipped with inline **Edit** (`Edit3`) and **Delete** (`Trash2`) actions under its Action column.
    - Dynamic currency toggle synchronization: displays primary values in INR with USD secondary in INR mode, and flips to primary USD with INR secondary in USD mode.
    - Dedicated `Add Entry` modal matching equity dividend transaction styling with live stock autocomplete and real-time USD/INR preview.
-   - Integrated `HoldingLogo` and sanitized stock names eliminating legal and share-class clutter.
-   - Granular market filters (`All`, `Indian Equity`, `US Equity`), instant search, and multi-column sorting (Stock Name, Market, Payout, INR Credited, Date).
-   - Dedicated Scheme Dividend Report Modal (`AssetDividendDetailModal.jsx`): Clicking any scheme opens a full dividend performance report with scheme KPIs (Total Received, Distributions Count, Average Payout, Latest Payout, Yield on Cost), Recharts Annual Breakdown Bar Chart, Cumulative Growth Area Chart, and Itemized Distribution Ledger table.
-   - Historical USD/INR Exchange Rate Auto-Sync: When selecting past dates in US Equity (`AddInvestmentView.jsx`) or Dividends (`AddDividendModal.jsx`), the backend `/api/fx-rate?date=YYYY-MM-DD` queries the verified daily exchange rate archive (4,340 daily records) and dynamically populates the exact historical rate for that session.
+   - Granular market filters (`All`, `Indian Equity`, `US Equity`), instant search with clear control, and multi-column sorting (Stock Name, Market, Payouts, Total Payout, INR Credited, Latest Date).
+   - Historical USD/INR Exchange Rate Auto-Sync: Queries verified daily exchange rate archive and dynamically populates the exact historical rate for past dividend distributions.
+   - Universal view synchronization immediately cascades any dividend changes to Dashboard Net Worth, Asset Allocations, and Reports.
 
 ---
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { Coins, IndianRupee, Globe, Search, X, ArrowUpDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
+import { Coins, IndianRupee, Globe, Search, X, ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
@@ -15,10 +15,11 @@ export default function DividendsView({ holdings = [], onRefresh }) {
   const [data, setData] = useState(null);
   const [search, setSearch] = useState('');
   const [marketFilter, setMarketFilter] = useState('all'); // 'all' | 'IN' | 'US'
-  const [sortField, setSortField] = useState('date'); // 'date' | 'name' | 'market' | 'payout' | 'inr'
+  const [sortField, setSortField] = useState('date'); // 'date' | 'name' | 'market' | 'payouts' | 'payout' | 'inr'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
   const [selectedDividendAsset, setSelectedDividendAsset] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isDeletingScheme, setIsDeletingScheme] = useState(null);
 
   const closeDetail = useCallback(() => setSelectedDividendAsset(null), []);
 
@@ -27,7 +28,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
       const res = await axios.get('/api/dividends');
       setData(res.data);
     } catch (err) {
-      console.error(err);
+      console.error('[Dividends] Error fetching dividends:', err);
     }
   };
 
@@ -44,7 +45,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
       .trim();
   };
 
-  const history = useMemo(() => {
+  const rawHistory = useMemo(() => {
     if (!data?.history) return [];
     return data.history.map(d => ({
       ...d,
@@ -52,32 +53,76 @@ export default function DividendsView({ holdings = [], onRefresh }) {
     }));
   }, [data]);
 
-  // Counts for filter tabs
-  const inCount = useMemo(() => history.filter(d => d.currency !== 'USD').length, [history]);
-  const usCount = useMemo(() => history.filter(d => d.currency === 'USD').length, [history]);
-  const totalCount = history.length;
+  // Aggregate dividends by scheme (holding_id or symbol + currency)
+  const aggregatedSchemes = useMemo(() => {
+    if (!rawHistory || rawHistory.length === 0) return [];
+    const schemeMap = new Map();
+
+    rawHistory.forEach(d => {
+      const isUS = d.currency === 'USD';
+      const key = d.holding_id ? String(d.holding_id) : `${(d.symbol || '').toUpperCase()}_${d.currency}`;
+      
+      if (!schemeMap.has(key)) {
+        schemeMap.set(key, {
+          id: d.holding_id || key,
+          holding_id: d.holding_id || null,
+          symbol: d.symbol || 'ASSET',
+          name: d.clean_name || d.asset_name || d.symbol,
+          clean_name: d.clean_name || d.asset_name || d.symbol,
+          currency: d.currency || (isUS ? 'USD' : 'INR'),
+          category_id: d.category_id || (isUS ? 'us_stocks' : 'in_stocks'),
+          payouts_count: 0,
+          total_amount_original: 0,
+          total_amount_inr: 0,
+          latest_raw_date: '',
+          latest_payment_date: '',
+          fx_rate: d.fx_rate || 1.0,
+          records: []
+        });
+      }
+
+      const scheme = schemeMap.get(key);
+      scheme.payouts_count += 1;
+      scheme.total_amount_original += (Number(d.amount_original) || 0);
+      scheme.total_amount_inr += (Number(d.amount_inr) || 0);
+      scheme.records.push(d);
+
+      const dRawDate = d.raw_date || d.payment_date || '';
+      if (!scheme.latest_raw_date || dRawDate.localeCompare(scheme.latest_raw_date) > 0) {
+        scheme.latest_raw_date = dRawDate;
+        scheme.latest_payment_date = d.payment_date || d.raw_date;
+      }
+    });
+
+    return Array.from(schemeMap.values());
+  }, [rawHistory]);
+
+  // Counts for filter tabs based on aggregated schemes
+  const inSchemesCount = useMemo(() => aggregatedSchemes.filter(s => s.currency !== 'USD').length, [aggregatedSchemes]);
+  const usSchemesCount = useMemo(() => aggregatedSchemes.filter(s => s.currency === 'USD').length, [aggregatedSchemes]);
+  const totalSchemesCount = aggregatedSchemes.length;
 
   // Filter by market tab
   const marketFiltered = useMemo(() => {
-    return history.filter(d => {
-      if (marketFilter === 'IN') return d.currency !== 'USD';
-      if (marketFilter === 'US') return d.currency === 'USD';
+    return aggregatedSchemes.filter(s => {
+      if (marketFilter === 'IN') return s.currency !== 'USD';
+      if (marketFilter === 'US') return s.currency === 'USD';
       return true;
     });
-  }, [history, marketFilter]);
+  }, [aggregatedSchemes, marketFilter]);
 
   // Filter by search string
   const searchFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return marketFiltered;
-    return marketFiltered.filter(d =>
-      (d.clean_name || '').toLowerCase().includes(q) ||
-      (d.symbol || '').toLowerCase().includes(q)
+    return marketFiltered.filter(s =>
+      (s.clean_name || '').toLowerCase().includes(q) ||
+      (s.symbol || '').toLowerCase().includes(q)
     );
   }, [marketFiltered, search]);
 
-  // Sort rows
-  const sortedHistory = useMemo(() => {
+  // Sort aggregated schemes
+  const sortedSchemes = useMemo(() => {
     return [...searchFiltered].sort((a, b) => {
       let aVal, bVal;
       if (sortField === 'name') {
@@ -86,15 +131,18 @@ export default function DividendsView({ holdings = [], onRefresh }) {
       } else if (sortField === 'market') {
         aVal = a.currency === 'USD' ? 'US' : 'IN';
         bVal = b.currency === 'USD' ? 'US' : 'IN';
+      } else if (sortField === 'payouts') {
+        aVal = Number(a.payouts_count) || 0;
+        bVal = Number(b.payouts_count) || 0;
       } else if (sortField === 'payout') {
-        aVal = Number(a.amount_original) || 0;
-        bVal = Number(b.amount_original) || 0;
+        aVal = Number(a.total_amount_original) || 0;
+        bVal = Number(b.total_amount_original) || 0;
       } else if (sortField === 'inr') {
-        aVal = Number(a.amount_inr) || 0;
-        bVal = Number(b.amount_inr) || 0;
+        aVal = Number(a.total_amount_inr) || 0;
+        bVal = Number(b.total_amount_inr) || 0;
       } else { // date
-        aVal = a.raw_date || a.payment_date || '';
-        bVal = b.raw_date || b.payment_date || '';
+        aVal = a.latest_raw_date || '';
+        bVal = b.latest_raw_date || '';
       }
 
       if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
@@ -119,8 +167,27 @@ export default function DividendsView({ holdings = [], onRefresh }) {
       : <ArrowDown className="w-3 h-3 text-emerald-400 inline ml-1" />;
   };
 
-  const handleRowClick = (d) => {
-    setSelectedDividendAsset(d);
+  const handleRowClick = (scheme) => {
+    setSelectedDividendAsset(scheme);
+  };
+
+  const handleDeleteScheme = async (e, scheme) => {
+    e.stopPropagation();
+    const displayName = `${scheme.clean_name} (${scheme.symbol})`;
+    const confirmed = window.confirm(`Are you sure you want to delete all dividend records for ${displayName}?`);
+    if (!confirmed) return;
+
+    setIsDeletingScheme(scheme.id);
+    try {
+      const identifier = scheme.holding_id || scheme.symbol;
+      await axios.delete(`/api/dividends/scheme/${encodeURIComponent(identifier)}?currency=${scheme.currency}`);
+      await fetchDividends();
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      alert('Error deleting scheme dividends: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsDeletingScheme(null);
+    }
   };
 
   if (!data) return null;
@@ -226,7 +293,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
 
         </div>
 
-        {/* Ledger */}
+        {/* Aggregated Schemes Table Container */}
         <AnimatedItem>
           <div className="glass-card p-4 sm:p-5 rounded-3xl border border-slate-800 space-y-4">
             
@@ -242,7 +309,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  All ({totalCount})
+                  All ({totalSchemesCount})
                 </button>
                 <button
                   onClick={() => setMarketFilter('IN')}
@@ -252,7 +319,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Indian Equity ({inCount})
+                  Indian Equity ({inSchemesCount})
                 </button>
                 <button
                   onClick={() => setMarketFilter('US')}
@@ -262,7 +329,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  US Equity ({usCount})
+                  US Equity ({usSchemesCount})
                 </button>
               </div>
 
@@ -271,7 +338,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                 <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Search dividends..."
+                  placeholder="Search dividend schemes..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full pl-9 pr-10 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
@@ -289,30 +356,36 @@ export default function DividendsView({ holdings = [], onRefresh }) {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
                       Stock Name {getSortIcon('name')}
                     </th>
-                    <th onClick={() => handleSort('market')} className="py-3 px-3 cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('market')} className="py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap">
                       Market {getSortIcon('market')}
                     </th>
-                    <th onClick={() => handleSort('payout')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
-                      Payout {getSortIcon('payout')}
+                    <th onClick={() => handleSort('payouts')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Payouts {getSortIcon('payouts')}
                     </th>
-                    <th onClick={() => handleSort('inr')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                    <th onClick={() => handleSort('payout')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Total Payout {getSortIcon('payout')}
+                    </th>
+                    <th onClick={() => handleSort('inr')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       {isUSDMode ? 'USD Credited' : 'INR Credited'} {getSortIcon('inr')}
                     </th>
-                    <th onClick={() => handleSort('date')} className="py-3 px-3 text-center rounded-r-xl cursor-pointer hover:text-white">
-                      Date {getSortIcon('date')}
+                    <th onClick={() => handleSort('date')} className="py-3 px-3 text-center cursor-pointer hover:text-white whitespace-nowrap">
+                      Latest Date {getSortIcon('date')}
+                    </th>
+                    <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">
+                      Action
                     </th>
                   </tr>
                 </thead>
                 <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs">
-                  {sortedHistory.map((d, i) => {
-                    const isUS = d.currency === 'USD';
+                  {sortedSchemes.map((s, i) => {
+                    const isUS = s.currency === 'USD';
                     return (
                       <motion.tr 
-                        key={d.id || `${d.symbol}-${i}`} 
-                        onClick={() => handleRowClick(d)}
+                        key={s.id || `${s.symbol}-${i}`} 
+                        onClick={() => handleRowClick(s)}
                         className="hover:bg-slate-800/40 cursor-pointer transition-all"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -322,9 +395,9 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                           <div className="flex items-center gap-2.5">
                             <HoldingLogo 
                               holding={{
-                                name: d.clean_name,
-                                symbol: d.symbol,
-                                category_id: d.category_id || (isUS ? 'us_stocks' : 'in_stocks')
+                                name: s.clean_name,
+                                symbol: s.symbol,
+                                category_id: s.category_id || (isUS ? 'us_stocks' : 'in_stocks')
                               }} 
                               className="w-7 h-7 rounded-lg" 
                               fallbackClass="text-[10px]"
@@ -333,16 +406,16 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-[12px] transition-colors block text-slate-100 hover:text-emerald-400">
-                                  {d.clean_name}
+                                  {s.clean_name}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span className="text-[10px] text-slate-500 font-mono">{d.symbol}</span>
+                                <span className="text-[10px] text-slate-500 font-mono">{s.symbol}</span>
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
                             isUS 
                               ? 'bg-purple-500/10 text-purple-400 border-purple-500/25' 
@@ -351,28 +424,41 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                             {isUS ? 'US Equity' : 'Indian Equity'}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-200">
+                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-300 whitespace-nowrap">
+                          {s.payouts_count}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-200 whitespace-nowrap">
                           {isUS 
-                            ? `$${Number(d.amount_original).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                            : `₹${Number(d.amount_original).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            ? `$${Number(s.total_amount_original).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                            : `₹${Number(s.total_amount_original).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           }
                         </td>
-                        <td className="py-3 px-3 text-right font-mono font-black text-emerald-400">
+                        <td className="py-3 px-3 text-right font-mono font-black text-emerald-400 whitespace-nowrap">
                           {isUSDMode
-                            ? `$${(isUS ? Number(d.amount_original) : Number(d.amount_inr) / effectiveFx).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : `₹${Number(d.amount_inr).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            ? `$${(isUS ? Number(s.total_amount_original) : Number(s.total_amount_inr) / effectiveFx).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : `₹${Number(s.total_amount_inr).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           }
                         </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-400">
-                          {formatDateDDMMYYYY(d.payment_date || d.raw_date)}
+                        <td className="py-3 px-3 text-center font-mono text-slate-400 whitespace-nowrap">
+                          {formatDateDDMMYYYY(s.latest_payment_date || s.latest_raw_date)}
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <button 
+                            onClick={(e) => handleDeleteScheme(e, s)} 
+                            disabled={isDeletingScheme === s.id}
+                            className="p-1 hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 rounded-lg transition-colors disabled:opacity-50" 
+                            title={`Delete All Dividends for ${s.clean_name}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </td>
                       </motion.tr>
                     );
                   })}
-                  {sortedHistory.length === 0 && (
+                  {sortedSchemes.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-500">
-                        No dividend records found matching your filters.
+                      <td colSpan={7} className="py-8 text-center text-slate-500">
+                        No dividend schemes found matching your filters.
                       </td>
                     </tr>
                   )}
@@ -392,12 +478,16 @@ export default function DividendsView({ holdings = [], onRefresh }) {
           asset={selectedDividendAsset}
           dividendsHistory={data?.history || []}
           holding={holdings.find(h => 
-            h.id === selectedDividendAsset.holding_id || 
+            (selectedDividendAsset.holding_id && h.id === selectedDividendAsset.holding_id) || 
             (h.symbol === selectedDividendAsset.symbol && 
               (selectedDividendAsset.currency === 'USD' ? h.category_id === 'us_stocks' : h.category_id === 'in_stocks')
             )
           )}
           onAddDividend={() => setIsAddModalOpen(true)}
+          onRefresh={async () => {
+            await fetchDividends();
+            if (onRefresh) await onRefresh();
+          }}
         />
       )}
 
@@ -416,3 +506,4 @@ export default function DividendsView({ holdings = [], onRefresh }) {
     </>
   );
 }
+
