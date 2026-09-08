@@ -3,8 +3,10 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Database, Table, Edit3, Check, RefreshCw, Download, Search, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
+import { useThemeAuth } from '../context/ThemeAuthContext';
 
 export default function DatabaseStudioView() {
+  const { showError } = useThemeAuth();
   const [tables, setTables] = useState([]);
   const [selectedTable, setSelectedTable] = useState('holdings');
   const [tableData, setTableData] = useState({ columns: [], rows: [] });
@@ -32,7 +34,7 @@ export default function DatabaseStudioView() {
       await axios.post('/api/db-table-update', { tableName: selectedTable, id: editingCell.id, column: editingCell.column, value: editingCell.value });
       setEditingCell(null);
       fetchTableData(selectedTable);
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) { showError('Error: ' + err.message); }
   };
 
   const exportTableJSON = () => {

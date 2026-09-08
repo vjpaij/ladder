@@ -407,4 +407,6 @@ To ensure existing functionality is never broken when new features, refactors, o
 | `v1.2.1` | 30-08-2026 | Dividend ledger enhancements, multi-market filters, and benchmark growth lookups. | Antigravity AI |
 | `v1.2.0` | 29-08-2026 | 19-Year Calendar Heatmap and portfolio valuation delta engine integration. | Antigravity AI |
 | `v1.0.0` | 28-08-2026 | Initial release of Ladder Institutional Finance & Investment Dashboard. | Antigravity AI |
+| `v5.13.0` | 07-09-2026 | Universal search clear controls (`X` buttons) with long-text input protection padding across all portfolio, ledger, and modal inputs. | Antigravity AI |
+| `v5.14.0` | 08-09-2026 | Global Modals Architecture: Eradicated all native browser popups (`alert`, `confirm`, `prompt`) across the entire codebase. Replaced them with centralized, beautifully animated, theme-aware React modals (`showError`, `showSuccess`, `showConfirm`, `showPrompt`) managed by `ThemeAuthContext`. Ensured modals render via React Portals (`createPortal`) at the DOM root. | Antigravity AI |
 

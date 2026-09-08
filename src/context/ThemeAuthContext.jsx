@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { XCircle, AlertTriangle, CheckCircle2, Edit3 } from 'lucide-react';
 
 const ThemeAuthContext = createContext();
 
@@ -17,6 +20,49 @@ export function ThemeAuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('ladder_token') || 'demo_token');
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('ladder_user') || '{"name":"Vijay Pai","email":"admin@ladder.com","avatar":"VP"}'));
   const [fxRate, setFxRate] = useState(87.25);
+
+  // Global UI states for Modals
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
+  const [confirmState, setConfirmState] = useState(null); // { message: string, resolve: function }
+  const [promptState, setPromptState] = useState(null); // { message: string, defaultValue: string, resolve: function }
+  const [promptInput, setPromptInput] = useState('');
+
+  const showError = (msg) => setErrorMsg(msg);
+  const hideError = () => setErrorMsg(null);
+
+  const showSuccess = (msg) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 3000); // auto-hide success
+  };
+  const hideSuccess = () => setSuccessMsg(null);
+
+  const showConfirm = (msg) => {
+    return new Promise((resolve) => {
+      setConfirmState({ message: msg, resolve });
+    });
+  };
+
+  const handleConfirmClose = (result) => {
+    if (confirmState && confirmState.resolve) {
+      confirmState.resolve(result);
+    }
+    setConfirmState(null);
+  };
+
+  const showPrompt = (msg, defaultValue = '') => {
+    return new Promise((resolve) => {
+      setPromptInput(defaultValue);
+      setPromptState({ message: msg, defaultValue, resolve });
+    });
+  };
+
+  const handlePromptClose = (submit) => {
+    if (promptState && promptState.resolve) {
+      promptState.resolve(submit ? promptInput : null);
+    }
+    setPromptState(null);
+  };
 
   useEffect(() => {
     localStorage.setItem('ladder_theme', theme);
@@ -117,9 +163,149 @@ export function ThemeAuthProvider({ children }) {
       fxRate,
       setFxRate,
       formatMoney,
-      formatRawUSD
+      formatRawUSD,
+      showError,
+      hideError,
+      showSuccess,
+      hideSuccess,
+      showConfirm,
+      showPrompt
     }}>
       {children}
+      
+      {/* Global Success Modal */}
+      {successMsg && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="modal-surface reports-card relative w-full max-w-sm rounded-2xl border border-inherit shadow-2xl p-6 text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 mx-auto flex items-center justify-center mb-4">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-inherit mb-2">Success</h3>
+              <p className="text-sm text-slate-400 mb-6">{successMsg}</p>
+              <button
+                onClick={hideSuccess}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          </div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Global Error Modal */}
+      {errorMsg && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="modal-surface reports-card relative w-full max-w-sm rounded-2xl border border-inherit shadow-2xl p-6 text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-500 mx-auto flex items-center justify-center mb-4">
+                <XCircle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-inherit mb-2">Error</h3>
+              <p className="text-sm text-slate-400 mb-6">{errorMsg}</p>
+              <button
+                onClick={hideError}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </motion.div>
+          </div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Global Confirm Modal */}
+      {confirmState && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="modal-surface reports-card relative w-full max-w-sm rounded-2xl border border-inherit shadow-2xl p-6 text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 mx-auto flex items-center justify-center mb-4">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-inherit mb-2">Confirm Action</h3>
+              <p className="text-sm text-slate-400 mb-6">{confirmState.message}</p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => handleConfirmClose(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleConfirmClose(true)}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-colors cursor-pointer"
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </AnimatePresence>,
+        document.body
+      )}
+      {/* Global Prompt Modal */}
+      {promptState && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="modal-surface reports-card relative w-full max-w-sm rounded-2xl border border-inherit shadow-2xl p-6 text-center"
+            >
+              <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-500 mx-auto flex items-center justify-center mb-4">
+                <Edit3 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-inherit mb-2">Input Required</h3>
+              <p className="text-sm text-slate-400 mb-4">{promptState.message}</p>
+              <input
+                type="text"
+                autoFocus
+                value={promptInput}
+                onChange={(e) => setPromptInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handlePromptClose(true);
+                  if (e.key === 'Escape') handlePromptClose(false);
+                }}
+                className="w-full px-4 py-2.5 mb-6 bg-slate-900 border border-slate-700 rounded-xl text-sm outline-none focus:border-blue-500 text-center"
+              />
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => handlePromptClose(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handlePromptClose(true)}
+                  className="flex-1 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold text-sm transition-colors cursor-pointer"
+                >
+                  Submit
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </AnimatePresence>,
+        document.body
+      )}
     </ThemeAuthContext.Provider>
   );
 }

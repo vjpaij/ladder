@@ -11,7 +11,7 @@ import AddDividendModal from '../components/AddDividendModal';
 import { formatDateDDMMYYYY } from '../utils/dateFormatter';
 
 export default function DividendsView({ holdings = [], onRefresh }) {
-  const { currency, formatMoney, fxRate } = useThemeAuth();
+  const { currency, formatMoney, fxRate, showError, showConfirm } = useThemeAuth();
   const [data, setData] = useState(null);
   const [search, setSearch] = useState('');
   const [marketFilter, setMarketFilter] = useState('all'); // 'all' | 'IN' | 'US'
@@ -174,7 +174,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
   const handleDeleteScheme = async (e, scheme) => {
     e.stopPropagation();
     const displayName = `${scheme.clean_name} (${scheme.symbol})`;
-    const confirmed = window.confirm(`Are you sure you want to delete all dividend records for ${displayName}?`);
+    const confirmed = await showConfirm(`Are you sure you want to delete all dividend records for ${displayName}?`);
     if (!confirmed) return;
 
     setIsDeletingScheme(scheme.id);
@@ -184,7 +184,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
       await fetchDividends();
       if (onRefresh) await onRefresh();
     } catch (err) {
-      alert('Error deleting scheme dividends: ' + (err.response?.data?.error || err.message));
+      showError('Error deleting scheme dividends: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsDeletingScheme(null);
     }

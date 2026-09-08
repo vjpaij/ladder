@@ -151,7 +151,7 @@ export default function AssetDividendDetailModal({
   onAddDividend = null,
   onRefresh = null
 }) {
-  const { theme, fxRate, currency: globalCurrency } = useThemeAuth();
+  const { theme, fxRate, currency: globalCurrency, showError, showConfirm } = useThemeAuth();
   const [chartTab, setChartTab] = useState('annual'); // 'annual' | 'cumulative'
   const [localCurrency, setLocalCurrency] = useState('DEFAULT'); // 'DEFAULT' | 'INR' | 'USD'
   const [chartRange, setChartRange] = useState('ALL'); // 'ALL' | '1Y' | '3Y' | '5Y' | 'CUSTOM'
@@ -415,7 +415,7 @@ export default function AssetDividendDetailModal({
   const handleSaveEdit = async (row) => {
     const amt = Number(editForm.amount_original);
     if (isNaN(amt) || amt <= 0) {
-      alert('Please enter a valid positive dividend amount.');
+      showError('Please enter a valid positive dividend amount.');
       return;
     }
 
@@ -430,7 +430,7 @@ export default function AssetDividendDetailModal({
       setEditingDivId(null);
       if (onRefresh) await onRefresh();
     } catch (err) {
-      alert('Error updating dividend: ' + (err.response?.data?.error || err.message));
+      showError('Error updating dividend: ' + (err.response?.data?.error || err.message));
     } finally {
       setActionLoadingId(null);
     }
@@ -439,7 +439,7 @@ export default function AssetDividendDetailModal({
   const handleDeleteSingleDiv = async (row) => {
     const formattedDate = formatDateDDMMYYYY(row.payment_date || row.raw_date);
     const amountStr = row.currency === 'USD' ? `$${row.amount_original}` : `₹${row.amount_original}`;
-    const confirmed = window.confirm(`Are you sure you want to delete the dividend payout of ${amountStr} on ${formattedDate}?`);
+    const confirmed = await showConfirm(`Are you sure you want to delete the dividend payout of ${amountStr} on ${formattedDate}?`);
     if (!confirmed) return;
 
     setActionLoadingId(row.id);
@@ -450,7 +450,7 @@ export default function AssetDividendDetailModal({
       }
       if (onRefresh) await onRefresh();
     } catch (err) {
-      alert('Error deleting dividend: ' + (err.response?.data?.error || err.message));
+      showError('Error deleting dividend: ' + (err.response?.data?.error || err.message));
     } finally {
       setActionLoadingId(null);
     }

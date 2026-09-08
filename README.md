@@ -40,6 +40,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Universal Border Integrity & Complete Box Containment: Replaced outset rings with inset borders and container scrollbar padding, eliminating border-clipping artifacts across all themes and viewports.
    - Project-Wide Tabular Search & Sorting: Comprehensive real-time search filtering and clickable column sorting implemented across every tabular ledger in the application (Consolidated Category Performance, MF Look-Through Constituents, Market Cap drill-down, Sector drill-down, Scheme breakdown modal, Overview performance, Transaction ledgers, Dividend distribution ledgers, and Amortization schedules).
    - Universal Search Clear Controls: Every search and filter input includes a conditional `X` clear button, with reserved right-side input space so long text scrolls left without overlapping the control.
+   - **Global Modals Architecture**: Eradicated all native browser popups. Built a centralized, beautifully animated, theme-aware React modal system (`showError`, `showSuccess`, `showConfirm`, `showPrompt`) managed by `ThemeAuthContext`, rendering securely via React Portals (`createPortal`) to guarantee perfect viewport centering and zero z-index conflicts.
 
 7. **Safety, Backup & Atomic Restoration**
    - Paginated backup tool (`scripts/dump_db_snapshot.mjs`) exporting full database state and EOD logs past Supabase row limits.

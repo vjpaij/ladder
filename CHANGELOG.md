@@ -5,6 +5,12 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.14.0] - 2026-09-08
+
+### Refactored
+- **Global Modals Architecture**: Eradicated all native browser popups (`alert`, `confirm`, `prompt`) across the entire codebase. Replaced them with centralized, beautifully animated, theme-aware React modals (`showError`, `showSuccess`, `showConfirm`, `showPrompt`) managed by `ThemeAuthContext`.
+- **UI/UX Consistency**: Affected 9 files (`TopNavbar`, `App`, `SipManagerModal`, `DatabaseViewer`, `DatabaseStudioView`, `AssetDividendDetailModal`, `DividendsView`, `ExcelToolsView`, `LoanAmortizationSection`, `HoldingDetailModal`). Ensured modals render via React Portals (`createPortal`) at the DOM root to avoid z-index and overflow clipping issues. Full support for Dark/Light theme modes and keyboard accessibility.
+
 ## [5.13.0] - 2026-09-07
 
 ### Enhanced

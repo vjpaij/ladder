@@ -46,7 +46,9 @@ export default function TopNavbar({
     updateUserAuth,
     logout,
     formatMoney,
-    fxRate
+    fxRate,
+    showError,
+    showConfirm
   } = useThemeAuth();
 
   const [query, setQuery] = useState('');
@@ -99,7 +101,7 @@ export default function TopNavbar({
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        alert('Please choose an image under 2MB.');
+        showError('Please choose an image under 2MB.');
         return;
       }
       const reader = new FileReader();
@@ -364,8 +366,9 @@ export default function TopNavbar({
                   {user?.avatarUrl && (
                     <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex justify-end">
                       <button
-                        onClick={() => {
-                          if (window.confirm('Are you sure you want to remove your profile photo?')) {
+                        onClick={async () => {
+                          const confirmed = await showConfirm('Are you sure you want to remove your profile photo?');
+                          if (confirmed) {
                             updateUserAvatar(null);
                           }
                         }}
@@ -473,8 +476,9 @@ export default function TopNavbar({
                 {/* Logout / Session Control */}
                 <div className="pt-3 px-1">
                   <button
-                    onClick={() => {
-                      if (window.confirm('Sign out of your Ladder session?')) {
+                    onClick={async () => {
+                      const confirmed = await showConfirm('Sign out of your Ladder session?');
+                      if (confirmed) {
                         logout();
                         setIsUserMenuOpen(false);
                       }

@@ -38,7 +38,7 @@ function StatTile({ label, value, sub, accent, positive, icon: Icon }) {
 }
 
 export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0000-0000-000000000010' }) {
-  const { theme } = useThemeAuth();
+  const { theme, showError } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
 
   const [data, setData] = useState(null);
@@ -246,7 +246,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
   const handleAddEntry = async (e) => {
     e.preventDefault();
     if (!newAmount && newEntryType !== 'RATE_CHANGE') {
-      alert('Please enter an amount.');
+      showError('Please enter an amount.');
       return;
     }
 
@@ -280,7 +280,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
       setNewAmount('');
       setNewNotes('');
     } catch (err) {
-      alert('Error adding entry: ' + err.message);
+      showError('Error adding entry: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -337,7 +337,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
       await fetchData();
       setEditingEntry(null);
     } catch (err) {
-      alert('Error saving edit: ' + err.message);
+      showError('Error saving edit: ' + err.message);
     } finally {
       setEditSubmitting(false);
     }
@@ -368,7 +368,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
       await fetchData();
       setDeleteConfirmEntry(null);
     } catch (err) {
-      alert('Error deleting entry: ' + err.message);
+      showError('Error deleting entry: ' + err.message);
     } finally {
       setIsDeleting(false);
     }

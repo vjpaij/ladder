@@ -33,7 +33,7 @@ export default function App() {
 }
 
 function AppInner() {
-  const { setFxRate } = useThemeAuth();
+  const { setFxRate, showError, showSuccess, showPrompt } = useThemeAuth();
   const [currentView, setCurrentView] = useState('overview');
   const [summary, setSummary] = useState(null);
   const [holdings, setHoldings] = useState([]);
@@ -150,27 +150,36 @@ function AppInner() {
       await fetchDashboardData();
       setToast({ type: 'success', message: `Position "${label}" removed from portfolio.` });
     } catch (err) {
-      alert('Error deleting holding: ' + (err.response?.data?.error || err.message));
+      showError('Error deleting holding: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsDeletingHolding(false);
     }
   };
 
-  const handleEditHolding = (holding) => {
-    const newQty = prompt(`New quantity for ${holding.name}:`, holding.quantity);
-    if (newQty !== null && !isNaN(newQty)) {
-      const newPrice = prompt(`Current price (${holding.currency}):`, holding.current_price);
-      if (newPrice !== null && !isNaN(newPrice)) {
-        axios.put(`/api/holdings/${holding.id}`, {
-          ...holding,
-          quantity: Number(newQty),
-          current_price: Number(newPrice)
-        }).then(() => {
-          fetchDashboardData();
-          setToast({ type: 'success', message: `${holding.name} updated.` });
-        });
-      }
+  const handleEditHolding = async (holding) => {
+    const newQtyStr = await showPrompt(`New quantity for ${holding.name}:`, holding.quantity);
+    if (newQtyStr === null) return;
+    const newQty = Number(newQtyStr);
+
+    let newPriceStr = null;
+    let newPrice = Number(holding.current_price);
+    
+    // Always ask for price, even for mutual funds, if they want to override
+    newPriceStr = await showPrompt(`Current price (${holding.currency}):`, holding.current_price);
+    if (newPriceStr !== null) {
+      newPrice = Number(newPriceStr);
     }
+    
+    axios.put(`/api/holdings/${holding.id}`, {
+      ...holding,
+      quantity: Number(newQty),
+      current_price: Number(newPrice)
+    }).then(() => {
+      fetchDashboardData();
+      setToast({ type: 'success', message: `${holding.name} updated.` });
+    }).catch(err => {
+      showError('Error updating holding: ' + (err.response?.data?.error || err.message));
+    });
   };
 
   const handleCloseBankAccount = async (holding, reopen = false, reopenBalance = 0) => {

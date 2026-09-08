@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FileSpreadsheet, Upload, Download, CheckCircle2, FileText, Database } from 'lucide-react';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
+import { useThemeAuth } from '../context/ThemeAuthContext';
 
 export default function ExcelToolsView({ onRefresh }) {
+  const { showSuccess } = useThemeAuth();
   const [fileUploaded, setFileUploaded] = useState(false);
   const [fileName, setFileName] = useState('');
 
@@ -13,7 +15,7 @@ export default function ExcelToolsView({ onRefresh }) {
       setFileName(file.name);
       setFileUploaded(true);
       setTimeout(() => {
-        alert(`Imported ${file.name} successfully! Database tables synchronized.`);
+        showSuccess(`Imported ${file.name} successfully! Database tables synchronized.`);
         if (onRefresh) onRefresh();
       }, 800);
     }
@@ -130,7 +132,7 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
           </p>
 
           <motion.button
-            onClick={() => alert('Database backup exported!')}
+            onClick={() => showSuccess('Database backup exported!')}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-white"

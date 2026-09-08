@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Database, Table, Edit3, Check, RefreshCw, Layers, ShieldCheck, Tag, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useThemeAuth } from '../context/ThemeAuthContext';
 
 export default function DatabaseViewer() {
+  const { showError } = useThemeAuth();
   const [tables, setTables] = useState([]);
   const [selectedTable, setSelectedTable] = useState('holdings');
   const [tableData, setTableData] = useState({ columns: [], rows: [] });
@@ -52,7 +54,7 @@ export default function DatabaseViewer() {
       setEditingCell(null);
       fetchTableData(selectedTable);
     } catch (err) {
-      alert('Error updating database table: ' + err.message);
+      showError('Error updating database table: ' + err.message);
     }
   };
 

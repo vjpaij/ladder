@@ -13,7 +13,7 @@ const FREQUENCY_OPTIONS = [
 ];
 
 export default function SipManagerModal({ isOpen, onClose, holdings }) {
-  const { formatMoney } = useThemeAuth();
+  const { formatMoney, showError, showConfirm } = useThemeAuth();
   const [sips, setSips] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingSipId, setEditingSipId] = useState(null);
@@ -30,7 +30,6 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
   const [newStartDate, setNewStartDate] = useState(todayStr);
   const [newEndDate, setNewEndDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(null);
 
   const mfHoldings = holdings?.filter(h => h.category_id === 'mutual_funds' && (Number(h.quantity) || 0) > 0) || [];
 
@@ -50,7 +49,6 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
     if (isOpen) {
       fetchSips();
       setShowAddForm(false);
-      setErrorMsg(null);
       setNewStartDate(new Date().toISOString().split('T')[0]);
       setNewEndDate('');
       setNewFrequency('MONTHLY');
@@ -63,27 +61,29 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
       await axios.patch(`/api/sips/${sip.id}/status`, { status: nextStatus });
       setSips(prev => prev.map(s => s.id === sip.id ? { ...s, status: nextStatus } : s));
     } catch (err) {
-      alert('Failed to update SIP status: ' + (err.response?.data?.error || err.message));
+      showError('Failed to update SIP status: ' + (err.response?.data?.error || err.message));
     }
   };
 
   const handleEndSip = async (sip) => {
-    if (!window.confirm(`Are you sure you want to end and close the open SIP for "${sip.name}"?`)) return;
+    const confirmed = await showConfirm(`Are you sure you want to end and close the open SIP for "${sip.name}"?`);
+    if (!confirmed) return;
     try {
       await axios.patch(`/api/sips/${sip.id}/status`, { status: 'CLOSED' });
       setSips(prev => prev.map(s => s.id === sip.id ? { ...s, status: 'CLOSED' } : s));
     } catch (err) {
-      alert('Failed to end SIP: ' + (err.response?.data?.error || err.message));
+      showError('Failed to end SIP: ' + (err.response?.data?.error || err.message));
     }
   };
 
   const handleDeleteSip = async (sip) => {
-    if (!window.confirm(`Are you sure you want to permanently delete the SIP record for "${sip.name}"?`)) return;
+    const confirmed = await showConfirm(`Are you sure you want to permanently delete the SIP record for "${sip.name}"?`);
+    if (!confirmed) return;
     try {
       await axios.delete(`/api/sips/${sip.id}`);
       setSips(prev => prev.filter(s => s.id !== sip.id));
     } catch (err) {
-      alert('Failed to delete SIP: ' + (err.response?.data?.error || err.message));
+      showError('Failed to delete SIP: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -102,14 +102,14 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
       } : s));
       setEditingSipId(null);
     } catch (err) {
-      alert('Failed to edit SIP: ' + (err.response?.data?.error || err.message));
+      showError('Failed to edit SIP: ' + (err.response?.data?.error || err.message));
     }
   };
 
   const handleCreateSip = async (e) => {
     e.preventDefault();
     if (!selectedHoldingId || !newAmount) {
-      setErrorMsg('Please select a fund and enter a valid instalment amount.');
+      showError('Please select a fund and enter a valid instalment amount.');
       return;
     }
 
@@ -117,12 +117,11 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
     if (!holding) return;
 
     if (newEndDate && newEndDate < newStartDate) {
-      setErrorMsg('End date cannot be earlier than start date.');
+      showError('End date cannot be earlier than start date.');
       return;
     }
 
     setSubmitting(true);
-    setErrorMsg(null);
     try {
       const startD = new Date(newStartDate);
       const dom = startD.getDate() || 1;
@@ -146,7 +145,7 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
         setNewEndDate('');
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.error || err.message);
+      showError(err.response?.data?.error || err.message);
     } finally {
       setSubmitting(false);
     }
@@ -254,12 +253,6 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
                   className="p-4 reports-subcard rounded-2xl space-y-3 shrink-0 border"
                 >
                   <div className="font-bold text-xs">Setup New SIP</div>
-                  {errorMsg && (
-                    <div className="text-[11px] text-rose-400 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      {errorMsg}
-                    </div>
-                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="sm:col-span-2">
                       <label className="text-[10px] opacity-70 font-medium block mb-1">Mutual Fund</label>

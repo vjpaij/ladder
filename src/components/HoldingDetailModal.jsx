@@ -153,7 +153,7 @@ function formatAxisValue(value, isUSD) {
 }
 
 export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
-  const { currency, theme, fxRate, formatMoney } = useThemeAuth();
+  const { currency, theme, fxRate, formatMoney, showError } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -249,7 +249,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       await fetchDetail(false);
       if (onRefresh) await onRefresh();
     } catch (err) {
-      alert('Error updating transaction: ' + (err.response?.data?.error || err.message));
+      showError('Error updating transaction: ' + (err.response?.data?.error || err.message));
     } finally {
       setTxActionLoading(null);
     }
@@ -269,7 +269,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       await fetchDetail(false);
       if (onRefresh) await onRefresh();
     } catch (err) {
-      alert('Error deleting transaction: ' + (err.response?.data?.error || err.message));
+      showError('Error deleting transaction: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsDeletingTx(false);
       setTxActionLoading(null);
