@@ -83,6 +83,57 @@ function AppInner() {
     };
   }, []);
 
+  // Global Auto-Select: Highlight existing text or numbers on focus/click so edits overwrite immediately
+  useEffect(() => {
+    let activeFocusedTarget = null;
+
+    const handleFocusIn = (e) => {
+      const target = e.target;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') &&
+        !target.readOnly &&
+        !target.disabled
+      ) {
+        const inputType = (target.type || 'text').toLowerCase();
+        const selectableTypes = ['text', 'number', 'search', 'tel', 'url', 'email', 'password', ''];
+        if (target.tagName === 'TEXTAREA' || selectableTypes.includes(inputType)) {
+          activeFocusedTarget = target;
+          setTimeout(() => {
+            try {
+              if (document.activeElement === target && typeof target.select === 'function') {
+                target.select();
+              }
+            } catch (err) {}
+          }, 0);
+        }
+      }
+    };
+
+    const handleMouseUp = (e) => {
+      const target = e.target;
+      if (
+        target &&
+        target === activeFocusedTarget &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') &&
+        !target.readOnly &&
+        !target.disabled
+      ) {
+        setTimeout(() => {
+          activeFocusedTarget = null;
+        }, 150);
+      }
+    };
+
+    document.addEventListener('focusin', handleFocusIn, true);
+    document.addEventListener('mouseup', handleMouseUp, true);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn, true);
+      document.removeEventListener('mouseup', handleMouseUp, true);
+    };
+  }, []);
+
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 4000);

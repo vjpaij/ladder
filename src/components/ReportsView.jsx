@@ -16,6 +16,7 @@ import {
   Bar
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import ChartRangeSelector from './ChartRangeSelector';
 import { 
   PieChart, 
   BarChart3, 
@@ -197,10 +198,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
 
   // Benchmark Growth settings & Date Picker
   const [benchmark, setBenchmark] = useState('NIFTY_50');
-  const [growthTimeframe, setGrowthTimeframe] = useState('1Y'); // 1M, 3M, 6M, 1Y, ALL, CUSTOM
-  const [customStartDate, setCustomStartDate] = useState('2023-01-01');
-  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [growthRangeFilter, setGrowthRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
   const [growthData, setGrowthData] = useState(null);
   const [loadingGrowth, setLoadingGrowth] = useState(false);
 
@@ -306,9 +304,13 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
     const fetchGrowth = async () => {
       setLoadingGrowth(true);
       try {
-        let url = `/api/reports/growth-benchmarks?timeframe=${growthTimeframe}&scope=${activeScopeParam}`;
-        if (growthTimeframe === 'CUSTOM' && customStartDate && customEndDate) {
-          url = `/api/reports/growth-benchmarks?timeframe=CUSTOM&startDate=${customStartDate}&endDate=${customEndDate}&scope=${activeScopeParam}`;
+        let url = `/api/reports/growth-benchmarks?timeframe=ALL&scope=${activeScopeParam}`;
+        if (growthRangeFilter.type === 'ALL') {
+          url = `/api/reports/growth-benchmarks?timeframe=ALL&scope=${activeScopeParam}`;
+        } else if (growthRangeFilter.startDate && growthRangeFilter.endDate) {
+          url = `/api/reports/growth-benchmarks?timeframe=CUSTOM&startDate=${growthRangeFilter.startDate}&endDate=${growthRangeFilter.endDate}&scope=${activeScopeParam}`;
+        } else if (growthRangeFilter.rangeKey) {
+          url = `/api/reports/growth-benchmarks?timeframe=${growthRangeFilter.rangeKey}&scope=${activeScopeParam}`;
         }
         const res = await fetch(url);
         if (res.ok) {
@@ -323,7 +325,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
     };
     fetchGrowth();
     return () => { isMounted = false; };
-  }, [growthTimeframe, activeScopeParam, customStartDate, customEndDate]);
+  }, [growthRangeFilter, activeScopeParam]);
 
   if (!summary || !holdings) return null;
 
@@ -2360,86 +2362,10 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                 </select>
               </div>
 
-              {/* Timeframe Presets & Custom Calendar Popover Trigger */}
-              <div className="relative flex items-center gap-2">
-                <div className="flex items-center gap-1 reports-pill p-1 rounded-xl">
-                  {['1M', '3M', '6M', '1Y', 'ALL'].map(tf => (
-                    <button
-                      key={tf}
-                      onClick={() => {
-                        setGrowthTimeframe(tf);
-                        setShowCalendarPicker(false);
-                      }}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        growthTimeframe === tf
-                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                          : 'opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      {tf}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Calendar Range Picker Trigger */}
-                <button
-                  onClick={() => setShowCalendarPicker(!showCalendarPicker)}
-                  className={`p-1.5 rounded-xl border transition-all duration-200 flex items-center gap-1 text-xs font-bold cursor-pointer ${
-                    growthTimeframe === 'CUSTOM' || showCalendarPicker
-                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40'
-                      : 'reports-pill opacity-75 hover:opacity-100'
-                  }`}
-                  title="Select Custom Date Range"
-                >
-                  <CalendarDays className="w-4 h-4" />
-                </button>
-
-                {/* Custom Date Range Popover */}
-                <AnimatePresence>
-                  {showCalendarPicker && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                      className="absolute right-0 top-11 z-40 p-3.5 reports-card rounded-2xl shadow-xl flex flex-col gap-2.5 text-xs min-w-[260px]"
-                    >
-                      <p className="text-[10px] font-bold uppercase tracking-wider opacity-75 flex items-center gap-1.5">
-                        <CalendarDays className="w-3.5 h-3.5 text-emerald-500" />
-                        Custom Date Range
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[9px] opacity-75 font-bold">From</span>
-                          <input 
-                            type="date" 
-                            value={customStartDate} 
-                            onChange={(e) => setCustomStartDate(e.target.value)}
-                            className="reports-subcard rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[9px] opacity-75 font-bold">To</span>
-                          <input 
-                            type="date" 
-                            value={customEndDate} 
-                            onChange={(e) => setCustomEndDate(e.target.value)}
-                            className="reports-subcard rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setGrowthTimeframe('CUSTOM');
-                          setShowCalendarPicker(false);
-                        }}
-                        className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow cursor-pointer"
-                      >
-                        Apply Range
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <ChartRangeSelector
+                initialRange="ALL"
+                onChange={(range) => setGrowthRangeFilter(range)}
+              />
             </div>
 
             {/* Growth Metrics Summary Cards */}

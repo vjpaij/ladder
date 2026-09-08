@@ -26,6 +26,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import ChartRangeSelector from './ChartRangeSelector';
 
 function formatDateDDMMYYYY(dateStr) {
   if (!dateStr) return '—';
@@ -40,11 +41,7 @@ function formatDateDDMMYYYY(dateStr) {
 export default function FxRateModal({ isOpen, onClose }) {
   const { formatMoney } = useThemeAuth();
 
-  const [timeframe, setTimeframe] = useState('1Y'); // 1M, 3M, 6M, 1Y, 3Y, 5Y, ALL, CUSTOM
-  const [customStartDate, setCustomStartDate] = useState('2023-01-01');
-  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-
+  const [fxRangeFilter, setFxRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -62,9 +59,13 @@ export default function FxRateModal({ isOpen, onClose }) {
       setLoading(true);
       setError(null);
       try {
-        let url = `/api/fx-history?timeframe=${timeframe}`;
-        if (timeframe === 'CUSTOM' && customStartDate && customEndDate) {
-          url = `/api/fx-history?timeframe=CUSTOM&startDate=${customStartDate}&endDate=${customEndDate}`;
+        let url = `/api/fx-history?timeframe=ALL`;
+        if (fxRangeFilter.type === 'ALL') {
+          url = `/api/fx-history?timeframe=ALL`;
+        } else if (fxRangeFilter.startDate && fxRangeFilter.endDate) {
+          url = `/api/fx-history?timeframe=CUSTOM&startDate=${fxRangeFilter.startDate}&endDate=${fxRangeFilter.endDate}`;
+        } else if (fxRangeFilter.rangeKey) {
+          url = `/api/fx-history?timeframe=${fxRangeFilter.rangeKey}`;
         }
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to load forex history');
@@ -79,12 +80,14 @@ export default function FxRateModal({ isOpen, onClose }) {
 
     fetchHistory();
     return () => { isMounted = false; };
-  }, [isOpen, timeframe, customStartDate, customEndDate]);
+  }, [isOpen, fxRangeFilter]);
 
   // Handle ESC key to close
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+      }
     };
     if (isOpen) {
       window.addEventListener('keydown', handleKeyDown);
@@ -253,83 +256,15 @@ export default function FxRateModal({ isOpen, onClose }) {
             {/* Timeframe Range Selector & Chart Header */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <div className="flex items-center gap-1.5 reports-pill p-1 rounded-2xl text-xs font-black">
-                  {['1M', '3M', '6M', '1Y', '3Y', '5Y', 'ALL'].map((tf) => (
-                    <button
-                      key={tf}
-                      onClick={() => {
-                        setTimeframe(tf);
-                        setShowCalendarPicker(false);
-                      }}
-                      className={`px-3 py-1 rounded-xl transition-all cursor-pointer ${
-                        timeframe === tf
-                          ? 'bg-emerald-500 text-slate-950 shadow-sm font-black'
-                          : 'opacity-70 hover:opacity-100 hover:bg-slate-500/10'
-                      }`}
-                    >
-                      {tf}
-                    </button>
-                  ))}
-
-                  <button
-                    onClick={() => setShowCalendarPicker(!showCalendarPicker)}
-                    className={`flex items-center gap-1 px-3 py-1 rounded-xl transition-all cursor-pointer ${
-                      timeframe === 'CUSTOM'
-                        ? 'bg-emerald-500 text-slate-950 shadow-sm font-black'
-                        : 'opacity-70 hover:opacity-100 hover:bg-slate-500/10'
-                    }`}
-                  >
-                    <CalendarDays className="w-3.5 h-3.5" />
-                    <span>Custom</span>
-                  </button>
-                </div>
+                <ChartRangeSelector
+                  initialRange="ALL"
+                  onChange={(range) => setFxRangeFilter(range)}
+                />
 
                 <div className="text-[11px] font-mono opacity-60">
                   {data?.series?.length || 0} Trading Sessions Recorded
                 </div>
               </div>
-
-              {/* Custom Date Picker Popup */}
-              <AnimatePresence>
-                {showCalendarPicker && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="p-3.5 reports-subcard rounded-2xl space-y-3 border"
-                  >
-                    <div className="flex flex-wrap items-center gap-3 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="opacity-70 font-bold">Start:</span>
-                        <input
-                          type="date"
-                          value={customStartDate}
-                          onChange={(e) => setCustomStartDate(e.target.value)}
-                          className="px-2.5 py-1 rounded-lg text-xs bg-inherit border border-inherit outline-none font-mono"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="opacity-70 font-bold">End:</span>
-                        <input
-                          type="date"
-                          value={customEndDate}
-                          onChange={(e) => setCustomEndDate(e.target.value)}
-                          className="px-2.5 py-1 rounded-lg text-xs bg-inherit border border-inherit outline-none font-mono"
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          setTimeframe('CUSTOM');
-                          setShowCalendarPicker(false);
-                        }}
-                        className="px-4 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs transition-colors cursor-pointer"
-                      >
-                        Apply Range
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
               {/* Recharts Area Chart */}
               <div className="h-[280px] w-full pt-1">

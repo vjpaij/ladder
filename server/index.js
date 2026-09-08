@@ -603,8 +603,20 @@ app.get('/api/fx-history', async (req, res) => {
     // Determine start date based on timeframe
     let filterStart = '2010-01-01';
     const now = new Date();
+    const rangeMatch = String(timeframe).match(/^(\d+)([DWMYdwmy])$/);
 
-    if (timeframe === '1M') {
+    if (timeframe === 'ALL') {
+      filterStart = '2010-01-01';
+    } else if (rangeMatch) {
+      const count = parseInt(rangeMatch[1], 10) || 1;
+      const u = rangeMatch[2].toUpperCase();
+      const d = new Date(now);
+      if (u === 'D') d.setDate(d.getDate() - count);
+      else if (u === 'W') d.setDate(d.getDate() - count * 7);
+      else if (u === 'M') d.setMonth(d.getMonth() - count);
+      else if (u === 'Y') d.setFullYear(d.getFullYear() - count);
+      filterStart = d.toISOString().split('T')[0];
+    } else if (timeframe === '1M') {
       const d = new Date(now);
       d.setMonth(d.getMonth() - 1);
       filterStart = d.toISOString().split('T')[0];
@@ -2082,7 +2094,17 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       const endD = new Date(`${lastDateStr}T00:00:00Z`);
       const startD = new Date(endD);
 
-      if (range === '1M') startD.setUTCMonth(startD.getUTCMonth() - 1);
+      const rangeMatch = String(range).match(/^(\d+)([DWMYdwmy])$/);
+      if (range === 'ALL') {
+        startD.setUTCFullYear(2000);
+      } else if (rangeMatch) {
+        const count = parseInt(rangeMatch[1], 10) || 1;
+        const u = rangeMatch[2].toUpperCase();
+        if (u === 'D') startD.setUTCDate(startD.getUTCDate() - count);
+        else if (u === 'W') startD.setUTCDate(startD.getUTCDate() - count * 7);
+        else if (u === 'M') startD.setUTCMonth(startD.getUTCMonth() - count);
+        else if (u === 'Y') startD.setUTCFullYear(startD.getUTCFullYear() - count);
+      } else if (range === '1M') startD.setUTCMonth(startD.getUTCMonth() - 1);
       else if (range === '3M') startD.setUTCMonth(startD.getUTCMonth() - 3);
       else if (range === '6M') startD.setUTCMonth(startD.getUTCMonth() - 6);
       else if (range === '1Y') startD.setUTCFullYear(startD.getUTCFullYear() - 1);
@@ -2090,7 +2112,6 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       else if (range === '3Y') startD.setUTCFullYear(startD.getUTCFullYear() - 3);
       else if (range === '5Y') startD.setUTCFullYear(startD.getUTCFullYear() - 5);
       else if (range === '10Y') startD.setUTCFullYear(startD.getUTCFullYear() - 10);
-      else if (range === 'ALL') startD.setUTCFullYear(2000);
 
       targetStartDate = startD.toISOString().slice(0, 10);
     }

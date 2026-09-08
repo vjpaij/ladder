@@ -242,14 +242,23 @@ export async function computeGrowthBenchmarks({ timeframe = '1Y', scope = 'all',
   let startDate = new Date();
   let endDate = new Date();
 
+  const rangeMatch = String(timeframe).match(/^(\d+)([DWMYdwmy])$/);
   if (timeframe === 'CUSTOM' && customStart) {
     startDate = new Date(customStart);
     if (customEnd) endDate = new Date(customEnd);
+  } else if (timeframe === 'ALL') {
+    startDate = new Date(earliestDataDate);
+  } else if (rangeMatch) {
+    const count = parseInt(rangeMatch[1], 10) || 1;
+    const u = rangeMatch[2].toUpperCase();
+    if (u === 'D') startDate.setDate(now.getDate() - count);
+    else if (u === 'W') startDate.setDate(now.getDate() - count * 7);
+    else if (u === 'M') startDate.setMonth(now.getMonth() - count);
+    else if (u === 'Y') startDate.setFullYear(now.getFullYear() - count);
   } else if (timeframe === '1M') startDate.setMonth(now.getMonth() - 1);
   else if (timeframe === '3M') startDate.setMonth(now.getMonth() - 3);
   else if (timeframe === '6M') startDate.setMonth(now.getMonth() - 6);
   else if (timeframe === '1Y') startDate.setFullYear(now.getFullYear() - 1);
-  else if (timeframe === 'ALL') startDate = new Date(earliestDataDate);
 
   const startIso = startDate.toISOString().split('T')[0];
   const endIso = endDate.toISOString().split('T')[0];

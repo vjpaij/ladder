@@ -5,6 +5,30 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.17.0] - 2026-09-08
+
+### Enhanced
+- **Global Auto-Select on Input Focus/Click**: Implemented universal auto-selection across all text, number, and search inputs throughout the application (search bars, inline table editors, modal inputs, SIP and loan forms, and range controls). Clicking or focusing any field instantly highlights its existing content so typing immediately overwrites it, while fully preserving the `X` clear button controls.
+
+## [5.16.1] - 2026-09-08
+
+### Fixed
+- **Resolved showCalendarPicker ReferenceError**: Cleaned up obsolete references to `showCalendarPicker` in `HoldingDetailModal.jsx`, `FxRateModal.jsx`, and `AssetDividendDetailModal.jsx` keyboard handlers, properly delegating calendar state management to the encapsulated `ChartRangeSelector` component.
+
+## [5.16.0] - 2026-09-08
+
+### Enhanced
+- **Modernized Dynamic Graph Range Selector**: Replaced long static preset range pill bars across all charts and modals (`OverviewView`, `HoldingDetailModal`, `ReportsView`, `FxRateModal`, `AssetDividendDetailModal`, `CalendarView`) with a unified, beautiful `ChartRangeSelector` component featuring:
+  - **ALL Button**: Instant full-history reset.
+  - **Relative Integer + Unit Input**: User input for any integer accompanied by a clean dropdown to select `Days`, `Weeks`, `Months`, or `Years` (e.g., 5 Months, 2 Weeks, 10 Days, 3 Years).
+  - **Custom Calendar Date Range Popover**: Accessible calendar popover with From/To date inputs, Apply button, Cancel X, and keyboard shortcuts (`Escape` to close, `Enter` to apply).
+  - **Universal Backend Relative Range Parser**: Added regex token parser (`/^(\d+)([DWMYdwmy])$/`) across `/api/daily-pnl`, `/api/fx-history`, and `/api/reports/growth-benchmarks` to support dynamic relative range calculations with dual fallback to `startDate`/`endDate`.
+
+## [5.15.0] - 2026-09-08
+
+### Enhanced
+- **Global Keyboard Accessibility for Modals**: Added explicit 'X' cancel button to Custom Date Range picker in `CalendarView.jsx`. Implemented `Escape` key to close and `Enter` key to submit/confirm functionality across all application modals, dialogs, and popovers (`HoldingDetailModal`, `AssetDividendDetailModal`, `SipManagerModal`, `FxRateModal`, and `ThemeAuthContext` global dialogs).
+
 ## [5.14.0] - 2026-09-08
 
 ### Refactored

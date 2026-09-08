@@ -55,6 +55,16 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleToggleStatus = async (sip) => {
     const nextStatus = sip.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
     try {

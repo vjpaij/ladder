@@ -1,9 +1,31 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { XCircle, AlertTriangle, CheckCircle2, Edit3 } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Edit3 } from 'lucide-react';
 
 const ThemeAuthContext = createContext();
+
+// Helper component for dialog keydown handling without re-rendering the whole tree
+function DialogKeyHandler({ successMsg, errorMsg, confirmState, hideSuccess, hideError, handleConfirmClose }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (successMsg) hideSuccess();
+        else if (errorMsg) hideError();
+        else if (confirmState) handleConfirmClose(false);
+      } else if (e.key === 'Enter') {
+        if (successMsg) hideSuccess();
+        else if (errorMsg) hideError();
+        else if (confirmState) handleConfirmClose(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [successMsg, errorMsg, confirmState, hideSuccess, hideError, handleConfirmClose]);
+  
+  return null;
+}
 
 const THEMES = [
   { id: 'dark', label: 'Obsidian Dark', color: '#060709', accent: '#10B981' },
@@ -172,6 +194,18 @@ export function ThemeAuthProvider({ children }) {
       showPrompt
     }}>
       {children}
+
+      {/* Global keydown listener for dialogs */}
+      {typeof document !== 'undefined' && (successMsg || errorMsg || confirmState) && (
+        <DialogKeyHandler
+          successMsg={successMsg}
+          errorMsg={errorMsg}
+          confirmState={confirmState}
+          hideSuccess={hideSuccess}
+          hideError={hideError}
+          handleConfirmClose={handleConfirmClose}
+        />
+      )}
       
       {/* Global Success Modal */}
       {successMsg && typeof document !== 'undefined' && createPortal(

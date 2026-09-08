@@ -14,6 +14,7 @@ import {
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
 import formatDateDDMMYYYY from '../utils/dateFormatter';
+import ChartRangeSelector from './ChartRangeSelector';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // Soothing pastel palette with eye-friendly contrast in light and dark modes
@@ -154,16 +155,27 @@ export default function AssetDividendDetailModal({
   const { theme, fxRate, currency: globalCurrency, showError, showConfirm } = useThemeAuth();
   const [chartTab, setChartTab] = useState('annual'); // 'annual' | 'cumulative'
   const [localCurrency, setLocalCurrency] = useState('DEFAULT'); // 'DEFAULT' | 'INR' | 'USD'
-  const [chartRange, setChartRange] = useState('ALL'); // 'ALL' | '1Y' | '3Y' | '5Y' | 'CUSTOM'
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [divRangeFilter, setDivRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
   
   const [divSearch, setDivSearch] = useState('');
   const [divSort, setDivSort] = useState({ field: 'raw_date', direction: 'desc' });
   const [editingDivId, setEditingDivId] = useState(null);
   const [editForm, setEditForm] = useState({ payment_date: '', amount_original: '', fx_rate: '' });
   const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        if (editingDivId) {
+          setEditingDivId(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, editingDivId]);
 
   if (!isOpen || !asset) return null;
 
@@ -197,22 +209,11 @@ export default function AssetDividendDetailModal({
   // Apply calendar range filter
   const schemeDividends = useMemo(() => {
     if (!rawSchemeDividends || rawSchemeDividends.length === 0) return [];
-    if (chartRange === 'ALL') return rawSchemeDividends;
+    if (divRangeFilter.type === 'ALL') return rawSchemeDividends;
 
-    const now = new Date();
-    let start = new Date();
-    let end = new Date();
-
-    if (chartRange === '1Y') start.setFullYear(now.getFullYear() - 1);
-    else if (chartRange === '3Y') start.setFullYear(now.getFullYear() - 3);
-    else if (chartRange === '5Y') start.setFullYear(now.getFullYear() - 5);
-    else if (chartRange === 'CUSTOM') {
-      if (customStartDate) start = new Date(customStartDate);
-      if (customEndDate) end = new Date(customEndDate);
-    }
-
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = end.toISOString().split('T')[0];
+    const startStr = divRangeFilter.startDate;
+    const endStr = divRangeFilter.endDate || new Date().toISOString().split('T')[0];
+    if (!startStr) return rawSchemeDividends;
 
     return rawSchemeDividends.filter(d => {
       const parts = extractDateParts(d.raw_date || d.payment_date);
@@ -220,7 +221,7 @@ export default function AssetDividendDetailModal({
       if (!dateStr) return true;
       return dateStr >= startStr && dateStr <= endStr;
     });
-  }, [rawSchemeDividends, chartRange, customStartDate, customEndDate]);
+  }, [rawSchemeDividends, divRangeFilter]);
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -720,70 +721,10 @@ export default function AssetDividendDetailModal({
 
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Calendar Range Selector */}
-                  <div className="relative">
-                    <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-xs font-bold">
-                      {['ALL', '1Y', '3Y', '5Y', 'CUSTOM'].map(r => (
-                        <button
-                          key={r}
-                          onClick={() => {
-                            setChartRange(r);
-                            if (r === 'CUSTOM') setShowCalendarPicker(prev => !prev);
-                            else setShowCalendarPicker(false);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                            chartRange === r 
-                              ? 'bg-slate-800 text-emerald-400 font-black shadow-sm' 
-                              : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          {r === 'CUSTOM' ? 'Custom' : r}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Custom Date Range Popover */}
-                    <AnimatePresence>
-                      {showCalendarPicker && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 5 }}
-                          className="absolute right-0 top-full mt-2 z-30 p-3.5 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl space-y-3 w-64"
-                        >
-                          <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Custom Date Range</div>
-                          <div className="space-y-2">
-                            <div>
-                              <label className="text-[10px] text-slate-400 block mb-0.5">Start Date</label>
-                              <input
-                                type="date"
-                                value={customStartDate}
-                                onChange={(e) => setCustomStartDate(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-slate-400 block mb-0.5">End Date</label>
-                              <input
-                                type="date"
-                                value={customEndDate}
-                                onChange={(e) => setCustomEndDate(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setChartRange('CUSTOM');
-                              setShowCalendarPicker(false);
-                            }}
-                            className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-black rounded-xl text-xs cursor-pointer transition-all"
-                          >
-                            Apply Filter
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                  <ChartRangeSelector
+                    initialRange="ALL"
+                    onChange={(range) => setDivRangeFilter(range)}
+                  />
 
                   {/* Tab Switcher */}
                   <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-xs font-bold">

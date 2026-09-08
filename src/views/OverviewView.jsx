@@ -32,16 +32,17 @@ import {
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
+import ChartRangeSelector from '../components/ChartRangeSelector';
 
 const PIE_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#06B6D4', '#64748B'];
 
 export default function OverviewView({ summary, holdings, liabilities, onNavigate }) {
   const { formatMoney, fxRate, currency } = useThemeAuth();
   const [returnMetric, setReturnMetric] = useState('xirr'); // 'xirr' | 'absolute'
+  const [rangeFilter, setRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
   const [sortColumn, setSortColumn] = useState('currentINR');
   const [sortDirection, setSortDirection] = useState('desc');
   const [perfSearch, setPerfSearch] = useState('');
-  const [netWorthRange, setNetWorthRange] = useState('ALL');
   const isDayPositive = summary?.dayPnlINR >= 0;
   const isGainPositive = summary?.totalGainINR >= 0;
   const isRealizedPositive = (summary?.totalRealizedPnlINR || 0) >= 0;
@@ -103,9 +104,6 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
     );
   };
 
-  const [customStartDate, setCustomStartDate] = useState('2023-01-01');
-  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [activePieIndex, setActivePieIndex] = useState(null);
 
   // --- Net Worth History: True Historical EOD Data from /api/daily-pnl ---
@@ -115,9 +113,13 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
   useEffect(() => {
     let isMounted = true;
     setLoadingEod(true);
-    let url = `/api/daily-pnl?range=${netWorthRange}`;
-    if (netWorthRange === 'CUSTOM' && customStartDate && customEndDate) {
-      url = `/api/daily-pnl?startDate=${customStartDate}&endDate=${customEndDate}`;
+    let url = `/api/daily-pnl?range=ALL`;
+    if (rangeFilter.type === 'ALL') {
+      url = `/api/daily-pnl?range=ALL`;
+    } else if (rangeFilter.startDate && rangeFilter.endDate) {
+      url = `/api/daily-pnl?startDate=${rangeFilter.startDate}&endDate=${rangeFilter.endDate}`;
+    } else if (rangeFilter.rangeKey) {
+      url = `/api/daily-pnl?range=${rangeFilter.rangeKey}`;
     }
 
     axios.get(url)
@@ -134,7 +136,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
     return () => {
       isMounted = false;
     };
-  }, [netWorthRange, customStartDate, customEndDate]);
+  }, [rangeFilter]);
 
   const netWorthData = useMemo(() => {
     if (!eodLogs || eodLogs.length === 0) return [];
@@ -632,87 +634,11 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                 Net Worth
               </h3>
               
-              {/* Date Range Filter Pills & Calendar Toggle */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <div className="flex items-center gap-1 p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
-                  {['1M', '3M', '6M', '1Y', '2Y', '3Y', '5Y', '10Y', 'ALL'].map(range => (
-                    <button
-                      key={range}
-                      onClick={() => {
-                        setNetWorthRange(range);
-                        setShowCalendarPicker(false);
-                      }}
-                      className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all duration-200 ${
-                        netWorthRange === range
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                          : 'text-slate-500 hover:text-slate-300'
-                      }`}
-                    >
-                      {range}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Calendar Range Picker Trigger */}
-                <button
-                  onClick={() => setShowCalendarPicker(!showCalendarPicker)}
-                  className={`p-1.5 rounded-full border transition-all duration-200 flex items-center gap-1 text-[10px] font-bold ${
-                    netWorthRange === 'CUSTOM' || showCalendarPicker
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                      : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
-                  }`}
-                  title="Select Date Range"
-                >
-                  <CalendarDays className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <ChartRangeSelector
+                initialRange="ALL"
+                onChange={(range) => setRangeFilter(range)}
+              />
             </div>
-
-            {/* Custom Date Range Popover */}
-            <AnimatePresence>
-              {showCalendarPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                  className="absolute right-5 top-14 z-30 p-3 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 text-xs text-slate-300"
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <CalendarDays className="w-3 h-3 text-emerald-400" />
-                    Select Custom Date Range
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[9px] text-slate-500">From Date</span>
-                      <input 
-                        type="date" 
-                        value={customStartDate} 
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[9px] text-slate-500">To Date</span>
-                      <input 
-                        type="date" 
-                        value={customEndDate} 
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setNetWorthRange('CUSTOM');
-                      setShowCalendarPicker(false);
-                    }}
-                    className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow"
-                  >
-                    Apply Range
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             <p className="text-[10px] text-slate-500 mb-5">Portfolio value over time</p>
             

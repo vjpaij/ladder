@@ -16,6 +16,7 @@ import HoldingLogo from './HoldingLogo';
 import LoanAmortizationSection from './LoanAmortizationSection';
 import { CalendarDays } from 'lucide-react';
 import formatDateDDMMYYYY, { formatQuoteBadgeDate } from '../utils/dateFormatter';
+import ChartRangeSelector from './ChartRangeSelector';
 
 function fmtINR(val) {
   const n = Number(val) || 0;
@@ -166,10 +167,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const isLoan = holding?.category_id === 'loans';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
   const [loanViewTab, setLoanViewTab] = useState(holding?.initialTab || 'history');
-  const [chartRange, setChartRange] = useState('ALL');
-  const [customStartDate, setCustomStartDate] = useState('2023-01-01');
-  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [chartRangeFilter, setChartRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
 
   // Transaction Edit/Delete state
   const [editingTxId, setEditingTxId] = useState(null);
@@ -177,6 +175,22 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const [txActionLoading, setTxActionLoading] = useState(null);
   const [deleteConfirmTx, setDeleteConfirmTx] = useState(null);
   const [isDeletingTx, setIsDeletingTx] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && holding) {
+        if (deleteConfirmTx) {
+          setDeleteConfirmTx(null);
+        } else if (editingTxId) {
+          setEditingTxId(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [holding, onClose, deleteConfirmTx, editingTxId]);
 
   const fetchDetail = React.useCallback(async (isInitial = false) => {
     if (!holding?.id) return;
@@ -345,21 +359,12 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
 
   const filteredTimeline = React.useMemo(() => {
     if (!activeTimeline || activeTimeline.length === 0) return [];
-    let start = new Date();
-    let end = new Date();
-    if (chartRange === '1M') start.setMonth(start.getMonth() - 1);
-    else if (chartRange === '3M') start.setMonth(start.getMonth() - 3);
-    else if (chartRange === '6M') start.setMonth(start.getMonth() - 6);
-    else if (chartRange === '1Y') start.setFullYear(start.getFullYear() - 1);
-    else if (chartRange === 'ALL') start = new Date(activeTimeline[0].label);
-    else if (chartRange === 'CUSTOM') {
-      if (customStartDate) start = new Date(customStartDate);
-      if (customEndDate) end = new Date(customEndDate);
-    }
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = end.toISOString().split('T')[0];
+    if (chartRangeFilter.type === 'ALL') return activeTimeline;
+    const startStr = chartRangeFilter.startDate;
+    const endStr = chartRangeFilter.endDate || new Date().toISOString().split('T')[0];
+    if (!startStr) return activeTimeline;
     return activeTimeline.filter(t => t.label >= startStr && t.label <= endStr);
-  }, [activeTimeline, chartRange, customStartDate, customEndDate]);
+  }, [activeTimeline, chartRangeFilter]);
 
   const availableTxTypes = React.useMemo(() => {
     if (!detail?.transactions || detail.transactions.length === 0) return ['ALL'];
@@ -407,7 +412,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
         };
       });
 
-      if (chartRange === 'ALL') return computed;
+      if (chartRangeFilter.type === 'ALL') return computed;
       const start = filteredTimeline[0]?.label;
       const end = filteredTimeline[filteredTimeline.length - 1]?.label;
       if (!start || !end) return computed;
@@ -417,7 +422,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       });
     }
 
-    if (chartRange === 'ALL') return detail.transactions;
+    if (chartRangeFilter.type === 'ALL') return detail.transactions;
     const start = filteredTimeline[0]?.label;
     const end = filteredTimeline[filteredTimeline.length - 1]?.label;
     if (!start || !end) return [];
@@ -425,7 +430,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       const date = (tx.date || '').split('T')[0];
       return date >= start && date <= end;
     });
-  }, [detail?.transactions, isEodAsset, chartRange, filteredTimeline, holding?.category_id]);
+  }, [detail?.transactions, isEodAsset, chartRangeFilter, filteredTimeline, holding?.category_id]);
 
   const sortedTxs = React.useMemo(() => {
     let list = [...processedTransactions];
@@ -933,59 +938,10 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1.5 relative">
-                          <div className="flex items-center gap-1 p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
-                            {['1M', '3M', '6M', '1Y', 'ALL'].map(r => (
-                              <button
-                                key={r}
-                                onClick={() => { setChartRange(r); setShowCalendarPicker(false); }}
-                                className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all duration-200 ${
-                                  chartRange === r ? `bg-emerald-500/20 text-emerald-400 border border-emerald-500/40` : 'text-slate-500 hover:text-slate-300 border border-transparent'
-                                }`}
-                              >
-                                {r}
-                              </button>
-                            ))}
-                          </div>
-                          <button
-                            onClick={() => setShowCalendarPicker(!showCalendarPicker)}
-                            className={`p-1.5 rounded-full border transition-all duration-200 flex items-center gap-1 text-[10px] font-bold ${
-                              chartRange === 'CUSTOM' || showCalendarPicker
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                                : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
-                            }`}
-                          >
-                            <CalendarDays className="w-3.5 h-3.5" />
-                          </button>
-
-                          <AnimatePresence>
-                            {showCalendarPicker && (
-                              <motion.div
-                                initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                                className="absolute right-0 top-10 z-30 p-3 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 text-xs text-slate-300 w-64"
-                              >
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                                  <CalendarDays className="w-3 h-3 text-emerald-400" /> Select Custom Date Range
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex flex-col gap-1 w-1/2">
-                                    <span className="text-[9px] text-slate-500">From</span>
-                                    <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[10px] text-slate-200 w-full" />
-                                  </div>
-                                  <div className="flex flex-col gap-1 w-1/2">
-                                    <span className="text-[9px] text-slate-500">To</span>
-                                    <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[10px] text-slate-200 w-full" />
-                                  </div>
-                                </div>
-                                <button onClick={() => { setChartRange('CUSTOM'); setShowCalendarPicker(false); }} className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs mt-1">
-                                  Apply
-                                </button>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
+                        <ChartRangeSelector
+                          initialRange="ALL"
+                          onChange={(range) => setChartRangeFilter(range)}
+                        />
                       </div>
 
                       <div className="glass-card rounded-2xl border border-slate-800 p-4">

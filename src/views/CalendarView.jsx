@@ -10,8 +10,7 @@ import {
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
-
-const RANGE_PILLS = ['1M', '3M', '6M', '1Y', '2Y', '3Y', '5Y', '10Y', 'ALL'];
+import ChartRangeSelector from '../components/ChartRangeSelector';
 
 // Helper for stylish date formatting (e.g. "07 Aug 2026")
 function formatPrettyDate(dateStr) {
@@ -89,10 +88,7 @@ export default function CalendarView() {
   const [sortDirection, setSortDirection] = useState('desc');
 
   // Range & Custom Date pickers
-  const [activeRange, setActiveRange] = useState('1M');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [calendarRangeFilter, setCalendarRangeFilter] = useState({ type: 'RELATIVE', count: 1, unit: 'M', rangeKey: '1M' });
 
   useEffect(() => {
     fetchLogs();
@@ -101,7 +97,18 @@ export default function CalendarView() {
       fetchLogs(true);
     }, 5000);
     return () => clearInterval(interval);
-  }, [activeRange, customStartDate, customEndDate]);
+  }, [calendarRangeFilter]);
+
+  // Global keydown listener for Esc and Enter across modals and popovers
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (modalLog) setModalLog(null);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [modalLog]);
 
   // Lock body scrolling when popup is open to prevent page shifting
   useEffect(() => {
@@ -120,11 +127,13 @@ export default function CalendarView() {
     try {
       let url = '/api/daily-pnl';
       const params = [];
-      if (activeRange === 'CUSTOM' && customStartDate && customEndDate) {
-        params.push(`startDate=${customStartDate}`);
-        params.push(`endDate=${customEndDate}`);
-      } else if (activeRange) {
-        params.push(`range=${activeRange}`);
+      if (calendarRangeFilter.type === 'ALL') {
+        params.push('range=ALL');
+      } else if (calendarRangeFilter.startDate && calendarRangeFilter.endDate) {
+        params.push(`startDate=${calendarRangeFilter.startDate}`);
+        params.push(`endDate=${calendarRangeFilter.endDate}`);
+      } else if (calendarRangeFilter.rangeKey) {
+        params.push(`range=${calendarRangeFilter.rangeKey}`);
       }
       if (params.length > 0) url += `?${params.join('&')}`;
 
@@ -386,84 +395,10 @@ export default function CalendarView() {
               </button>
             </div>
 
-            {/* Pill Bar */}
-            <div className="flex items-center gap-1 p-0.5 bg-slate-900/60 border border-slate-800 rounded-full">
-              {RANGE_PILLS.map((range) => (
-                <button
-                  key={range}
-                  onClick={() => handleRangeClick(range)}
-                  className={`px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all duration-200 ${
-                    activeRange === range
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
-
-            {/* Calendar Popover Trigger */}
-            <button
-              onClick={() => setShowCalendarPicker(!showCalendarPicker)}
-              className={`p-1.5 rounded-full border transition-all duration-200 flex items-center gap-1 text-[10px] font-bold ${
-                activeRange === 'CUSTOM' || showCalendarPicker
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                  : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200'
-              }`}
-              title="Select Custom Date Range"
-            >
-              <CalendarDays className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Custom Date Range Popover */}
-            <AnimatePresence>
-              {showCalendarPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                  className="absolute right-5 top-16 z-50 p-3.5 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 text-xs text-slate-300 min-w-[280px]"
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <CalendarDays className="w-3.5 h-3.5 text-emerald-400" />
-                    Select Custom Date Range
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex flex-col gap-1 flex-1">
-                      <span className="text-[9px] text-slate-400 font-semibold">From Date</span>
-                      <input 
-                        type="date" 
-                        value={customStartDate} 
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1 flex-1">
-                      <span className="text-[9px] text-slate-400 font-semibold">To Date</span>
-                      <input 
-                        type="date" 
-                        value={customEndDate} 
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (customStartDate && customEndDate) {
-                        setActiveRange('CUSTOM');
-                        setShowCalendarPicker(false);
-                      }
-                    }}
-                    disabled={!customStartDate || !customEndDate}
-                    className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition-colors"
-                  >
-                    Apply Filter
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <ChartRangeSelector
+              initialRange="1M"
+              onChange={(range) => setCalendarRangeFilter(range)}
+            />
           </div>
         </div>
       </AnimatedItem>
