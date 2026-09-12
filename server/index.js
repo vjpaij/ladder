@@ -18,6 +18,7 @@ import { fork } from 'child_process';
 import axios from 'axios';
 import { createCloudBackup, listCloudBackups } from '../scripts/backup_manager.mjs';
 import { restoreCloudBackup } from '../scripts/restore_backup.mjs';
+import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay } from './services/marketCalendar.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -846,9 +847,13 @@ app.get('/api/holdings', authenticateToken, async (req, res) => {
         category_color: catMap[h.category_id] ? catMap[h.category_id].color : '#3B82F6',
         fxRate: liveRate,
         txFxRate: Number(txRate.toFixed(2)),
-        day_change: Number(Number(dayChange || 0).toFixed(2)),
+        day_change: (h.category_id === 'mutual_funds' || h.category_id === 'nps') 
+          ? Number(Number(dayChange || 0).toFixed(4)) 
+          : Number(Number(dayChange || 0).toFixed(2)),
         day_change_pct: Number(Number(dayChangePct || 0).toFixed(2)),
-        prev_price: Number(prevPrice.toFixed(2)),
+        prev_price: (h.category_id === 'mutual_funds' || h.category_id === 'nps')
+          ? Number(prevPrice.toFixed(4))
+          : Number(prevPrice.toFixed(2)),
         quote_date: liveQuote?.quoteDate || (h.updated_at ? h.updated_at.split('T')[0] : null),
         currentValueOriginal: Number(currentValueOriginal.toFixed(2)),
         currentValueINR: Number(currentValueINR.toFixed(2)),
@@ -1677,18 +1682,21 @@ app.get('/api/holding/:holdingId/detail', authenticateToken, async (req, res) =>
       return (txTypePriority[a.type] || 9) - (txTypePriority[b.type] || 9);
     });
 
+    const isFundOrNps = holding.category_id === 'mutual_funds' || holding.category_id === 'nps';
+    const quoteDigits = isFundOrNps ? 4 : 2;
+
     res.json({
       holding,
       quote: {
-        price: Number(quotePrice.toFixed(2)),
-        previousClose: Number(prevClose.toFixed(2)),
-        open: Number(openPrice.toFixed(2)),
-        high: Number(dayHigh.toFixed(2)),
-        low: Number(dayLow.toFixed(2)),
-        close: Number(quotePrice.toFixed(2)),
-        fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(2)),
-        fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(2)),
-        dayChange: Number(dayChange.toFixed(2)),
+        price: Number(quotePrice.toFixed(quoteDigits)),
+        previousClose: Number(prevClose.toFixed(quoteDigits)),
+        open: Number(openPrice.toFixed(quoteDigits)),
+        high: Number(dayHigh.toFixed(quoteDigits)),
+        low: Number(dayLow.toFixed(quoteDigits)),
+        close: Number(quotePrice.toFixed(quoteDigits)),
+        fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(quoteDigits)),
+        fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(quoteDigits)),
+        dayChange: Number(dayChange.toFixed(quoteDigits)),
         dayChangePct,
         quoteDate: quoteDateStr || 'Latest Available',
         currency: isUSStock ? 'USD' : 'INR'
@@ -2588,6 +2596,32 @@ app.post('/api/refresh-navs', authenticateToken, async (req, res) => {
       success: true,
       message: `Sync complete: ${results.npsUpdated} NPS schemes & ${results.mfUpdated} Mutual Funds updated.`,
       results
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dynamic Multi-Asset Market Holidays API (NSE/BSE/AMFI/NPS & NYSE/NASDAQ)
+app.get('/api/market-holidays', (req, res) => {
+  try {
+    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+    const market = (req.query.market || 'ALL').toUpperCase();
+    const holidays = getHolidaysForYear(year, market);
+    const todayISO = new Date().toISOString().split('T')[0];
+
+    res.json({
+      success: true,
+      year,
+      market,
+      count: holidays.length,
+      isTodayTradingDayNSE: isTradingDay(todayISO, 'NSE'),
+      isTodayTradingDayNYSE: isTradingDay(todayISO, 'NYSE'),
+      lastTradingDayNSE: getLastTradingDay(todayISO, 'NSE'),
+      lastTradingDayNYSE: getLastTradingDay(todayISO, 'NYSE'),
+      nextTradingDayNSE: getNextTradingDay(todayISO, 'NSE'),
+      nextTradingDayNYSE: getNextTradingDay(todayISO, 'NYSE'),
+      holidays
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

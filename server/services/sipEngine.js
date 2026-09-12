@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { supabase } from '../supabaseClient.js';
 import db from '../db.js';
-import { fetchMutualFundNav, isTradingDay } from './priceEngine.js';
+import { fetchMutualFundNav } from './priceEngine.js';
+import { isTradingDay, getNextTradingDay } from './marketCalendar.js';
 import { recalculateHoldingState } from './recalculator.js';
 
 const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');

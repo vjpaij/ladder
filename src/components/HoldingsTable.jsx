@@ -164,6 +164,7 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
             {filteredHoldings.map(h => {
               const isGainPositive = h.gainINR >= 0;
               const isUS = h.currency === 'USD';
+              const isFundOrNps = h.category_id === 'mutual_funds' || h.category_id === 'nps';
 
               return (
                 <tr key={h.id} className="hover:bg-slate-800/30 transition-colors group">
@@ -205,19 +206,19 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
 
                   {/* Avg Buy Price */}
                   <td className="py-4 px-4 text-right font-mono text-slate-300">
-                    {isUS ? `$${h.avg_buy_price}` : `₹${h.avg_buy_price.toLocaleString('en-IN')}`}
+                    {isUS ? `$${h.avg_buy_price}` : `₹${Number(h.avg_buy_price).toLocaleString('en-IN', { minimumFractionDigits: isFundOrNps ? 4 : 2, maximumFractionDigits: isFundOrNps ? 4 : 2 })}`}
                   </td>
 
                   {/* Current Price & Day Change */}
                   <td className="py-4 px-4 text-right font-mono text-slate-100 font-bold">
                     <div>
-                      {isUS ? `$${h.current_price}` : `₹${h.current_price.toLocaleString('en-IN')}`}
+                      {isUS ? `$${h.current_price}` : `₹${Number(h.current_price).toLocaleString('en-IN', { minimumFractionDigits: isFundOrNps ? 4 : 2, maximumFractionDigits: isFundOrNps ? 4 : 2 })}`}
                     </div>
                     {h.day_change !== undefined ? (
                       <div className={`text-[9.5px] font-bold flex items-center justify-end gap-0.5 ${
                         (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}>
-                        <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}{isUS ? `$${Math.abs(h.day_change)}` : `₹${Math.abs(h.day_change).toLocaleString('en-IN')}`}</span>
+                        <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}{isUS ? `$${Math.abs(h.day_change)}` : `₹${Number(Math.abs(h.day_change)).toLocaleString('en-IN', { minimumFractionDigits: isFundOrNps ? 4 : 2, maximumFractionDigits: isFundOrNps ? 4 : 2 })}`}</span>
                         <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                       </div>
                     ) : (

@@ -76,6 +76,10 @@
     - Automated daily execution: Daily backup runs automatically at 08:25 AM IST (just before 08:30 AM IST) via Express server scheduler and GitHub Actions (`daily_backup.yml`).
     - Manual backup & restoration: Supported directly via the user Profile dropdown menu ("Backup Database Now", "Restore Database" modal), `ExcelToolsView.jsx`, and CLI scripts (`scripts/backup_manager.mjs`, `scripts/restore_backup.mjs`), with explicit safety confirmations before executing any database overwrite.
 
+13. **STRICT ANTI-HARDCODING & DYNAMIC ENGINE ARCHITECTURE PROTOCOL**:
+    - **ZERO HARDCODED DATES, YEARS, OR HEURISTICS**: Never hardcode static calendar years, time-locked dates, single-year arrays/sets, or static assumptions in application code or backend services.
+    - **DYNAMIC ALGORITHMIC IMPLEMENTATION**: Any functionality that is dynamic in nature (market trading schedules, exchange holidays, calendar dates, tax brackets, date arithmetic, recurring intervals) MUST be implemented algorithmically or through extensible multi-year dynamic registries (such as `server/services/marketCalendar.js`) capable of seamlessly evaluating across arbitrary future years (e.g. 2026, 2027, 2028, and beyond) without code modifications.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:

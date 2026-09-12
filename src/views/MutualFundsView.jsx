@@ -9,7 +9,7 @@ import HoldingLogo from '../components/HoldingLogo';
 import SipManagerModal from '../components/SipManagerModal';
 
 export default function MutualFundsView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal, onRefresh }) {
-  const { formatMoney } = useThemeAuth();
+  const { formatMoney, formatNAV } = useThemeAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'closed'
   const [sortField, setSortField] = useState('name'); // Default sort by name
@@ -35,14 +35,44 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
     }
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-  const todayShortFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
-  const isUpToDate = (qd) => {
+  const isUpToDate = useCallback((qd) => {
     if (!qd) return false;
-    return qd === todayStr || qd === todayFormatted || qd === todayShortFormatted;
-  };
+    const now = new Date();
+    const todayISO = now.toISOString().split('T')[0];
+    const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Most recent completed trading day (walking back weekend)
+    const dow = now.getDay();
+    const lastTradingDate = new Date(now);
+    if (dow === 6) lastTradingDate.setDate(lastTradingDate.getDate() - 1);
+    else if (dow === 0) lastTradingDate.setDate(lastTradingDate.getDate() - 2);
+
+    const lastISO = lastTradingDate.toISOString().split('T')[0];
+    const lastFormatted = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const lastShort = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    return (
+      qd === todayISO || qd === todayFormatted || qd === todayShort ||
+      qd === lastISO || qd === lastFormatted || qd === lastShort
+    );
+  }, []);
+
+  const getQuoteDateLabel = useCallback((qd) => {
+    if (!qd) return '';
+    const now = new Date();
+    const todayISO = now.toISOString().split('T')[0];
+    const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    if (qd === todayISO || qd === todayFormatted || qd === todayShort) {
+      return `Today (${qd})`;
+    }
+    if (isUpToDate(qd)) {
+      return `Latest (${qd})`;
+    }
+    return `As of ${qd}`;
+  }, [isUpToDate]);
 
   const rawMfs = useMemo(() => {
     return holdings.filter(h => h.category_id === 'mutual_funds');
@@ -55,7 +85,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
         const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
         return isUpToDate(qd);
       }).length;
-  }, [rawMfs, todayStr, todayFormatted, todayShortFormatted]);
+  }, [rawMfs, isUpToDate]);
 
   // Filter by status tab
   const statusFiltered = useMemo(() => {
@@ -434,7 +464,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                                       : 'bg-amber-500/10 text-amber-400/90 border border-amber-500/20'
                                   }`}>
                                     <span className={`w-1.5 h-1.5 rounded-full ${isUpToDate(h.quote_date) ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                                    {isUpToDate(h.quote_date) ? `Today (${h.quote_date})` : `As of ${h.quote_date}`}
+                                    {getQuoteDateLabel(h.quote_date)}
                                   </span>
                                 )}
                             </div>
@@ -448,10 +478,10 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                             {soldQty.toLocaleString()}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-slate-300 whitespace-nowrap">
-                            {formatMoney(avgBuy, true)}
+                            {formatNAV(avgBuy)}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-amber-400 font-bold whitespace-nowrap">
-                            {formatMoney(avgSell, true)}
+                            {formatNAV(avgSell)}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold whitespace-nowrap">
                             {formatMoney(investedVal, true)}
@@ -477,10 +507,10 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                               <span className="text-slate-600 font-medium">0</span>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap">{formatMoney(h.avg_buy_price, true)}</td>
+                          <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap">{formatNAV(h.avg_buy_price)}</td>
                           <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                             <div className="text-[12px] font-bold text-amber-400 font-black">
-                              {formatMoney(h.current_price, true)}
+                              {formatNAV(h.current_price)}
                             </div>
                             {h.day_change !== undefined && (
                               <div className={`text-[9.5px] font-bold inline-flex items-center justify-end gap-1 whitespace-nowrap ${
@@ -491,7 +521,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                                 ) : (
                                   <ArrowDown className="w-2.5 h-2.5 stroke-[3] shrink-0" />
                                 )}
-                                <span>{(h.day_change || 0) >= 0 ? '+' : '-'}{formatMoney(Math.abs(h.day_change), true)}</span>
+                                <span>{(h.day_change || 0) >= 0 ? '+' : '-'}{formatNAV(Math.abs(h.day_change))}</span>
                                 <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                               </div>
                             )}

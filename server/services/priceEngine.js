@@ -161,65 +161,25 @@ export async function fetchMutualFundNav(schemeCode) {
 }
 
 // ---------------------------------------------------------------------------
-// NPS NAV Pipeline — Robust Protean CRA scraper with holiday awareness,
-// already-synced detection, and npsnav.in as a dated fallback.
+// NPS NAV Pipeline — Robust Protean CRA scraper with dynamic multi-asset
+// holiday calendar awareness, already-synced detection, and npsnav.in fallback.
 // ---------------------------------------------------------------------------
 
-// NSE/RBI trading holidays for 2026 (ISO format YYYY-MM-DD)
-// Update this list annually at the start of each calendar year.
-const NSE_HOLIDAYS_2026 = new Set([
-  '2026-01-26', // Republic Day
-  '2026-02-19', // Chhatrapati Shivaji Maharaj Jayanti
-  '2026-03-20', // Holi
-  '2026-04-02', // Ram Navami
-  '2026-04-06', // Mahavir Jayanti / Good Friday
-  '2026-04-14', // Dr. Ambedkar Jayanti
-  '2026-05-01', // Maharashtra Day
-  '2026-06-02', // Eid ul-Adha (Bakri Eid) (tentative)
-  '2026-08-15', // Independence Day
-  '2026-08-27', // Ganesh Chaturthi
-  '2026-10-02', // Gandhi Jayanti / Dussehra (tentative)
-  '2026-10-20', // Diwali Laxmi Pujan (tentative)
-  '2026-10-21', // Diwali Balipratipada (tentative)
-  '2026-11-04', // Guru Nanak Jayanti (tentative)
-  '2026-11-27', // Christmas Eve (tentative)
-  '2026-12-25', // Christmas
-]);
+import { 
+  isTradingDay, 
+  getLastTradingDay, 
+  getNextTradingDay, 
+  getTodayIST, 
+  getHolidaysForYear 
+} from './marketCalendar.js';
 
-/**
- * Returns today's date in IST as YYYY-MM-DD string.
- */
-function getTodayIST() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // 'en-CA' gives YYYY-MM-DD
-}
-
-/**
- * Returns true if the given YYYY-MM-DD date is a trading day
- * (not a Saturday, Sunday, or known NSE holiday).
- */
-export function isTradingDay(dateISO) {
-  const d = new Date(dateISO + 'T00:00:00+05:30');
-  const dow = d.getDay(); // 0=Sun, 6=Sat
-  if (dow === 0 || dow === 6) return false;
-  if (NSE_HOLIDAYS_2026.has(dateISO)) return false;
-  return true;
-}
-
-/**
- * Returns the most recent trading day on or before today (IST).
- */
-function getLastTradingDay() {
-  const today = getTodayIST();
-  if (isTradingDay(today)) return today;
-  // Walk back up to 5 days (never more than Mon seeking last Fri)
-  for (let i = 1; i <= 5; i++) {
-    const d = new Date(today + 'T00:00:00+05:30');
-    d.setDate(d.getDate() - i);
-    const prev = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    if (isTradingDay(prev)) return prev;
-  }
-  return today;
-}
+export { 
+  isTradingDay, 
+  getLastTradingDay, 
+  getNextTradingDay, 
+  getTodayIST, 
+  getHolidaysForYear 
+};
 
 // In-memory cache for the Protean NAV batch: { navMap, navDate, cachedAt }
 let proteanBatchCache = null;
@@ -251,11 +211,10 @@ async function areTodayNavsAlreadySynced(schemeCodes, targetDate) {
  * - Returns { navMap, navDate } or null on failure.
  */
 export async function fetchProteanNpsNavBatch() {
-  // Serve from in-memory cache if fresh and nav date is still the latest trading day
-  const lastTradingDay = getLastTradingDay();
+  const lastTradingDay = getLastTradingDay(getTodayIST(), 'NSE');
+  // Serve from in-memory cache if fresh within TTL
   if (
     proteanBatchCache &&
-    proteanBatchCache.navDate === lastTradingDay &&
     (Date.now() - proteanBatchCache.cachedAt < PROTEAN_CACHE_TTL_MS)
   ) {
     return proteanBatchCache.navMap;
@@ -410,14 +369,6 @@ export async function syncAllMissingNavs() {
   const today = getTodayIST();
   const lastTradingDay = getLastTradingDay();
 
-  // Skip entirely on weekends/holidays — no NAVs will be published
-  if (!isTradingDay(today)) {
-    results.skipped = true;
-    results.skipReason = `Non-trading day (${today}). Last trading day was ${lastTradingDay}.`;
-    console.log(`[syncAllMissingNavs] ${results.skipReason} Skipping.`);
-    return results;
-  }
-
   // 1. Fetch active MF & NPS holdings
   const { data: holdings } = await supabase
     .from('holdings')
@@ -431,14 +382,14 @@ export async function syncAllMissingNavs() {
   const npsHoldings = holdings.filter(h => h.category_id === 'nps' && h.symbol);
   const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && h.symbol);
 
-  // 2. Sync NPS via Protean — but first check if today is already in Supabase
+  // 2. Sync NPS via Protean / fallback
   if (npsHoldings.length > 0) {
     const npsSchemeCodes = npsHoldings.map(h => h.symbol);
     const alreadySynced = await areTodayNavsAlreadySynced(npsSchemeCodes, lastTradingDay);
 
     if (alreadySynced) {
       console.log(`[syncAllMissingNavs] NPS NAVs for ${lastTradingDay} already in Supabase. Loading from DB.`);
-      // Load from Supabase into liveQuoteCache without hitting Protean
+      // Load from Supabase into liveQuoteCache and ensure holdings table matches
       const { data: navRows } = await supabase
         .from('nps_daily_navs')
         .select('scheme_code,nav,nav_date')
@@ -450,6 +401,13 @@ export async function syncAllMissingNavs() {
             price: row.nav,
             quoteDate: formatCleanQuoteDate(row.nav_date)
           });
+          const h = npsHoldings.find(item => item.symbol === row.scheme_code);
+          if (h && Number(h.current_price) !== Number(row.nav)) {
+            await db.update('holdings', h.id, {
+              current_price: row.nav,
+              updated_at: new Date().toISOString()
+            });
+          }
         }
         results.npsUpdated = navRows.length;
       }
@@ -460,35 +418,37 @@ export async function syncAllMissingNavs() {
 
       await Promise.all(npsHoldings.map(async (h) => {
         try {
-          let item = navMap?.get(h.symbol);
+          let item = (!isStale && navMap) ? navMap.get(h.symbol) : null;
 
-          // If Protean ZIP is stale (today's NAV not yet published), try npsnav.in
-          // npsnav.in is acceptable as a dated fallback, not as primary truth
+          // If Protean ZIP is stale (today's/last trading day's NAV not yet published), try npsnav.in
           if (!item || isStale) {
             const fallback = await fetchNpsNavFallback(h.symbol);
-            if (fallback && fallback.date === lastTradingDay) {
-              // npsnav.in has today's NAV — persist it
+            if (fallback && (fallback.date === lastTradingDay || fallback.date > (item?.date || ''))) {
               item = { nav: fallback.nav, date: fallback.date, quoteDate: fallback.quoteDate };
-              console.log(`[syncAllMissingNavs] NPS ${h.symbol}: Protean stale, using npsnav.in NAV ${fallback.nav} for ${fallback.date}`);
+              console.log(`[syncAllMissingNavs] NPS ${h.symbol}: Protean stale, using fallback NAV ${fallback.nav} for ${fallback.date}`);
               try {
                 await supabase.from('nps_daily_navs').upsert({
                   scheme_code: h.symbol,
+                  scheme_name: h.name,
                   nav: fallback.nav,
                   nav_date: fallback.date
                 }, { onConflict: 'scheme_code,nav_date' });
-              } catch (e) {}
-            } else if (item && isStale) {
-              // Protean has latest-known (yesterday's), use it for live display but don't mark as today's
-              console.log(`[syncAllMissingNavs] NPS ${h.symbol}: Using Protean carry-forward NAV ${item.nav} (${item.date})`);
+              } catch (e) {
+                console.warn(`[syncAllMissingNavs] Supabase upsert error for ${h.symbol}:`, e.message);
+              }
+            } else if (!item && navMap?.get(h.symbol)) {
+              item = navMap.get(h.symbol);
             }
           }
 
           if (item) {
             liveQuoteCache.set(h.symbol, { price: item.nav, quoteDate: item.quoteDate });
-            await db.update('holdings', h.id, {
-              current_price: item.nav,
-              updated_at: new Date().toISOString()
-            });
+            if (Number(h.current_price) !== Number(item.nav)) {
+              await db.update('holdings', h.id, {
+                current_price: item.nav,
+                updated_at: new Date().toISOString()
+              });
+            }
             results.npsUpdated++;
           }
         } catch (e) {
@@ -504,10 +464,12 @@ export async function syncAllMissingNavs() {
       const q = await fetchMutualFundNav(h.symbol);
       if (q) {
         liveQuoteCache.set(h.symbol, q);
-        await db.update('holdings', h.id, {
-          current_price: q.nav,
-          updated_at: new Date().toISOString()
-        });
+        if (Number(h.current_price) !== Number(q.nav)) {
+          await db.update('holdings', h.id, {
+            current_price: q.nav,
+            updated_at: new Date().toISOString()
+          });
+        }
         results.mfUpdated++;
       }
     } catch (e) {
@@ -515,6 +477,7 @@ export async function syncAllMissingNavs() {
     }
   }));
 
+  db.invalidateCache('holdings');
   return results;
 }
 
@@ -546,7 +509,17 @@ export async function fetchNpsNavFallback(schemeCode) {
       const latest = res.data.data[0];
       const nav = parseFloat(latest.nav);
       if (!isNaN(nav) && nav > 0) {
-        return { nav, date: latest.date, quoteDate: formatCleanQuoteDate(latest.date) };
+        let isoDate = latest.date;
+        if (/^\d{2}-\d{2}-\d{4}$/.test(isoDate)) {
+          const [d, m, y] = isoDate.split('-');
+          isoDate = `${y}-${m}-${d}`;
+        }
+        return { 
+          nav, 
+          date: isoDate, 
+          rawDate: latest.date,
+          quoteDate: formatCleanQuoteDate(isoDate) 
+        };
       }
     }
   } catch (err) {
@@ -742,10 +715,27 @@ export async function refreshActiveHoldingsPrices() {
   const npsHoldings = activeHoldings.filter(h => h.category_id === 'nps');
   if (npsHoldings.length > 0) {
     const proteanMap = await fetchProteanNpsNavBatch();
+    const isStale = isProteanNavStale();
+    const lastTradingDay = getLastTradingDay();
     await Promise.all(npsHoldings.map(async (h) => {
       try {
-        let q = proteanMap?.get(h.symbol);
-        if (!q) q = await fetchNpsNavFallback(h.symbol);
+        let q = (!isStale && proteanMap) ? proteanMap.get(h.symbol) : null;
+        if (!q || isStale) {
+          const fallback = await fetchNpsNavFallback(h.symbol);
+          if (fallback && (fallback.date === lastTradingDay || fallback.date > (q?.date || ''))) {
+            q = fallback;
+            try {
+              await supabase.from('nps_daily_navs').upsert({
+                scheme_code: h.symbol,
+                scheme_name: h.name,
+                nav: fallback.nav,
+                nav_date: fallback.date
+              }, { onConflict: 'scheme_code,nav_date' });
+            } catch (e) {}
+          } else if (!q && proteanMap?.get(h.symbol)) {
+            q = proteanMap.get(h.symbol);
+          }
+        }
         if (q && q.nav > 0) {
           const qDate = q.quoteDate || formatCleanQuoteDate(q.date);
           liveQuoteCache.set(h.symbol, {
@@ -877,10 +867,27 @@ export async function refreshAllHoldingsPrices() {
   const npsHoldings = holdings.filter(h => h.category_id === 'nps');
   if (npsHoldings.length > 0) {
     const proteanMap = await fetchProteanNpsNavBatch();
+    const isStale = isProteanNavStale();
+    const lastTradingDay = getLastTradingDay();
     await Promise.all(npsHoldings.map(async (h) => {
       try {
-        let q = proteanMap?.get(h.symbol);
-        if (!q) q = await fetchNpsNavFallback(h.symbol);
+        let q = (!isStale && proteanMap) ? proteanMap.get(h.symbol) : null;
+        if (!q || isStale) {
+          const fallback = await fetchNpsNavFallback(h.symbol);
+          if (fallback && (fallback.date === lastTradingDay || fallback.date > (q?.date || ''))) {
+            q = fallback;
+            try {
+              await supabase.from('nps_daily_navs').upsert({
+                scheme_code: h.symbol,
+                scheme_name: h.name,
+                nav: fallback.nav,
+                nav_date: fallback.date
+              }, { onConflict: 'scheme_code,nav_date' });
+            } catch (e) {}
+          } else if (!q && proteanMap?.get(h.symbol)) {
+            q = proteanMap.get(h.symbol);
+          }
+        }
         if (q && q.nav > 0) {
           const qDate = q.quoteDate || formatCleanQuoteDate(q.date);
           liveQuoteCache.set(h.symbol, {

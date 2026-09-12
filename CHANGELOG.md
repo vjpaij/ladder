@@ -5,6 +5,70 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.25.0] - 2026-09-12
+
+### Changed
+- **Mutual Funds and NPS 4-Decimal NAV Precision Upgrade**:
+  - Implemented 4-decimal precision for NAV and unit price metrics across Mutual Funds and National Pension System (NPS) schemes in frontend views, backend APIs, and database records.
+  - Updated `ThemeAuthContext.jsx` with `formatNAV(nav, forceINR = true)` utility and extended `formatMoney` to support arbitrary decimal parameterization (`decimals = 4`).
+  - Updated `MutualFundsView.jsx` and `NpsView.jsx` tables: Avg Buy NAV, Current NAV, NAV Day Change, and Redeemed Avg Buy / Sell NAVs now display with exact 4 decimals (e.g. `₹70.3376`, `₹30.9826`, `₹35.7989`, `₹109.3531`).
+  - Updated `HoldingDetailModal.jsx` for MF and NPS schemes: header quote price badge, daily change, market snapshot statistics (Open, Prev Close, Day High, Day Low, 52W Range), Actual Chart Y-axis ticks, event tooltips, and transaction ledger unit prices now display 4-decimal precision.
+  - Updated `HoldingsTable.jsx` to render 4 decimals for mutual fund and NPS rows.
+  - Updated backend API endpoints (`/api/holdings`, `/api/holding/:id/detail`) in `server/index.js` to return 4-decimal precision for MF and NPS quote prices, day changes, and statistical extremes without rounding to 2 decimals.
+  - Re-synchronized Supabase `holdings.avg_buy_price` and `holdings.current_price` via `recalculateHoldingState` across all 47 MF and NPS positions, establishing 4-decimal acquisition and market NAV baselines.
+  - Maintained strict 2-decimal rupee/paise formatting for all portfolio value aggregations (Invested, Current Value, P&L, Day P&L).
+
+## [5.24.0] - 2026-09-12
+
+### Added
+- **Dynamic Multi-Asset & Multi-Year Market Calendar Engine (`server/services/marketCalendar.js`)**:
+  - Implemented dynamic trading day, market holiday, and prior/next trading day calculation engine for Indian markets (NSE/BSE/AMFI/NPS) and US markets (NYSE/NASDAQ).
+  - Dynamically evaluates market trading status across current and future years (2026, 2027, 2028, and beyond) without code modifications.
+  - Features algorithmic US holiday computation (MLK Day, Washington's Birthday, Memorial Day, Labor Day, Thanksgiving, Good Friday via Gauss Easter algorithm, and weekend observation rules for Juneteenth, Independence Day, Christmas, and New Year's Day).
+  - Features Indian national gazetted calendar synthesis combining fixed national holidays (Republic Day, Maharashtra Day, Independence Day, Gandhi Jayanti, Christmas), algorithmic Good Friday, and multi-year gazetted festival calendars (Diwali, Holi, Eid, Ram Navami, etc.).
+  - Added REST API endpoint `GET /api/market-holidays` allowing frontend and external consumers to inspect market trading schedules by year (`?year=YYYY`) and market (`?market=NSE|NYSE|ALL`).
+- **Rule 13: Strict Anti-Hardcoding & Dynamic Engine Architecture Protocol**:
+  - Codified mandatory rule in `.agents/AGENTS.md` and `LADDER.md` prohibiting static calendar years, time-locked dates, single-year arrays/sets, or hardcoded heuristics for any logic that can be dynamic in nature.
+
+### Changed
+- **Refactored Price and SIP Engines to Eliminate Hardcoded Calendars**:
+  - Replaced static `NSE_HOLIDAYS_2026` set in `server/services/priceEngine.js` with calls to `marketCalendar.js` (`isTradingDay(date, 'NSE')`, `getLastTradingDay(date, 'NSE')`).
+  - Replaced local date checks in `server/services/sipEngine.js` with `marketCalendar.js` methods (`isTradingDay`, `getNextTradingDay`).
+  - Verified Express daemon health on port 5000 and confirmed 100% financial integrity test pass.
+
+## [5.23.0] - 2026-09-12
+
+
+### Changed
+- **Robust Universal On-Demand Refresh Engine & Non-Trading Day Parity**:
+  - Resolved NPS on-demand refresh stall on weekends/holidays: `syncAllMissingNavs()` now targets the most recent completed market trading day (`lastTradingDay`, e.g. Friday on weekends) rather than aborting when `today` is a Saturday/Sunday/holiday.
+  - Normalized date parsing in `fetchNpsNavFallback`: converts `DD-MM-YYYY` dates from fallback feeds to standard ISO `YYYY-MM-DD`, allowing matching against `lastTradingDay` and upserting directly into `nps_daily_navs`.
+  - Upgraded `refreshActiveHoldingsPrices()` and `refreshAllHoldingsPrices()` to detect stale Protean CRA batches (`isProteanNavStale()`) and seamlessly use verified fallback quotes, persisting confirmed latest-session NAVs to Supabase.
+  - Enhanced `isUpToDate` and added `getQuoteDateLabel` across all 4 portfolio views (`NpsView`, `IndianStocksView`, `MutualFundsView`, `UsStocksView`), recognizing the latest completed market session as up-to-date with emerald badges and clean `Latest (Date)` labels instead of false stale alerts on weekends.
+  - Refined TopNavbar Profile dropdown UI: dynamic theme background on `VP` avatar, removed redundant bottom line and border on `Backup Now`, and renamed `Data Import / Export` to `Import / Export`.
+  - Verified 100% pass across financial integrity tests and Vite production build.
+
+## [5.22.0] - 2026-09-12
+
+### Changed
+- **Official Protean CRA Direct NPS Scheme Alignment & Accurate Valuations**:
+  - Re-mapped active NPS Direct holdings and post-01-Apr-2026 transactions from old Regular/POP scheme codes (`SM008002`, `SM003007`, `SM002003`) to official PFRDA Multiple NAV Framework Direct scheme codes:
+    - HDFC Scheme C Tier I Direct -> `SM008019`
+    - LIC Scheme G Tier I Direct -> `SM003027`
+    - UTI Scheme E Tier I Direct -> `SM002027`
+  - Backfilled 12 missing market days of official Protean CRA daily NAVs from official archive ZIPs (`NAV_File_DDMMYYYY.zip`) into `nps_daily_navs`.
+  - Updated active NPS valuation to verified official Protean CRA Direct NAVs (`₹5,10,232.39` total active valuation).
+  - Preserved 11 historical closed schemes with their official POP codes, exact transaction ledger, lifetime cost basis, and realized P&L.
+  - Upgraded `recalculator.js` to preserve lifetime average buy cost for redeemed positions so historical cost basis and ROI % are accurately displayed across all asset classes.
+  - Rebuilt all 6,925 historical portfolio EOD records in `pnl_history` and `data/portfolio_eod_logs.json`.
+  - Verified 100% pass across all financial integrity and multi-asset audit test suites.
+
+## [5.21.1] - 2026-09-12
+
+### Changed
+- **Application Logo Replacement**:
+  - Replaced the CSS animated "LADDER" logo in `Sidebar.jsx` with the user's custom uploaded image logo (`logo.png`), scaling it perfectly to fit the sidebar constraints.
+
 ## [5.21.0] - 2026-09-12
 
 ### Added

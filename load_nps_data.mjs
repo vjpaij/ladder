@@ -31,11 +31,11 @@ const SCHEME_CODE_MAP = {
   // UTI (POP)
   "NPS TRUST- A/C - UTI PENSION FUND SCHEME E - TIER I POP": "SM002003",
   // HDFC (DIRECT - new Multiple NAV Framework 2026)
-  "NPS TRUST A/C HDFC PENSION FUND MANAGEMENT LIMITED SCHEME C - TIER I DIRECT": "SM008002",
+  "NPS TRUST A/C HDFC PENSION FUND MANAGEMENT LIMITED SCHEME C - TIER I DIRECT": "SM008019",
   // LIC (DIRECT)
-  "NPS TRUST A/C LIC PENSION FUND SCHEME G - TIER I DIRECT": "SM003007",
+  "NPS TRUST A/C LIC PENSION FUND SCHEME G - TIER I DIRECT": "SM003027",
   // UTI (DIRECT)
-  "NPS TRUST A/C - UTI PENSION FUND SCHEME E - TIER I DIRECT": "SM002003",
+  "NPS TRUST A/C - UTI PENSION FUND SCHEME E - TIER I DIRECT": "SM002027",
 };
 
 // Derive a short human-readable name from the raw scheme header
@@ -375,7 +375,11 @@ async function run() {
   console.log(`Transactions inserted: ${totalTxInserted}`);
 }
 
-run().catch(err => {
-  console.error("FATAL:", err);
-  process.exit(1);
-});
+export { run, parseNpsCsv, SCHEME_CODE_MAP };
+
+if (process.argv[1] && (process.argv[1].endsWith('load_nps_data.mjs') || process.argv[1].includes('load_nps_data'))) {
+  run().catch(err => {
+    console.error("FATAL:", err);
+    process.exit(1);
+  });
+}

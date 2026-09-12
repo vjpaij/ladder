@@ -97,9 +97,9 @@ function ChartTooltip({ active, payload, label, isUSD }) {
   );
 }
 
-function ActualChartTooltip({ active, payload, label, isUSD, timelineData }) {
+function ActualChartTooltip({ active, payload, label, isUSD, isFundOrNps, timelineData }) {
   if (!active || !payload?.length) return null;
-  const fmt = isUSD ? fmtUSD : fmtINR;
+  const fmt = isUSD ? fmtUSD : isFundOrNps ? (v) => `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : fmtINR;
   const point = payload[0].payload;
   let events = point.events;
   let eventDate = label;
@@ -664,7 +664,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                         {isDisplayUSD 
                           ? fmtUSD(quotePriceVal) 
                           : isFundOrNps 
-                          ? `₹${Number(quotePriceVal).toFixed(2)}` 
+                          ? `₹${Number(quotePriceVal).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` 
                           : fmtINR(quotePriceVal * (isUSStock && !isDisplayUSD ? fxRate : 1))}
                       </span>
                       {dayChangeVal !== undefined && (
@@ -673,7 +673,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                             ? (isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30')
                             : (isLight ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30')
                         }`}>
-                          {dayChangeVal >= 0 ? '▲ +' : '▼ '}{isDisplayUSD ? `$${Math.abs(dayChangeVal).toFixed(2)}` : `₹${Math.abs(dayChangeVal).toFixed(2)}`} ({dayChangeVal >= 0 ? '+' : ''}{dayChangePctVal}%)
+                          {dayChangeVal >= 0 ? '▲ +' : '▼ '}{isDisplayUSD ? `$${Math.abs(dayChangeVal).toFixed(2)}` : isFundOrNps ? `₹${Math.abs(dayChangeVal).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : `₹${Math.abs(dayChangeVal).toFixed(2)}`} ({dayChangeVal >= 0 ? '+' : ''}{dayChangePctVal}%)
                         </span>
                       )}
                     </div>
@@ -774,35 +774,49 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                     >
                       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                         {/* 4 Key Stat Points */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 flex-1 w-full">
-                          <div>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Open</span>
-                            <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                              {fmt(detail?.quote?.open || quotePriceVal)}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Prev Close</span>
-                            <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                              {fmt(detail?.quote?.previousClose || quotePriceVal)}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Day High</span>
-                            <span className="text-xs font-mono font-bold text-emerald-400">
-                              {fmt(detail?.quote?.high || quotePriceVal)}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Day Low</span>
-                            <span className="text-xs font-mono font-bold text-rose-400">
-                              {fmt(detail?.quote?.low || quotePriceVal)}
-                            </span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const fmtStat = (val) => {
+                            if (isDisplayUSD) return fmtUSD(val);
+                            if (isFundOrNps) return `₹${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+                            return fmt(val);
+                          };
+                          return (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 flex-1 w-full">
+                              <div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Open</span>
+                                <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                                  {fmtStat(detail?.quote?.open || quotePriceVal)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Prev Close</span>
+                                <span className={`text-xs font-mono font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                                  {fmtStat(detail?.quote?.previousClose || quotePriceVal)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Day High</span>
+                                <span className="text-xs font-mono font-bold text-emerald-400">
+                                  {fmtStat(detail?.quote?.high || quotePriceVal)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">Day Low</span>
+                                <span className="text-xs font-mono font-bold text-rose-400">
+                                  {fmtStat(detail?.quote?.low || quotePriceVal)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* 52-Week Range Slider Bar */}
                         {(() => {
+                          const fmtStat = (val) => {
+                            if (isDisplayUSD) return fmtUSD(val);
+                            if (isFundOrNps) return `₹${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+                            return fmt(val);
+                          };
                           const high52 = Number(detail?.quote?.fiftyTwoWeekHigh || holding.fifty_two_week_high || (quotePriceVal * 1.15));
                           const low52 = Number(detail?.quote?.fiftyTwoWeekLow || holding.fifty_two_week_low || (quotePriceVal * 0.85));
                           if (high52 <= low52) return null;
@@ -812,9 +826,9 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                           return (
                             <div className="w-full lg:w-72 pl-0 lg:pl-4 lg:border-l border-slate-700/40 flex flex-col justify-center">
                               <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                                <span>52W L: {fmt(low52)}</span>
+                                <span>52W L: {fmtStat(low52)}</span>
                                 <span className={`font-black uppercase tracking-widest ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>52W Range</span>
-                                <span>52W H: {fmt(high52)}</span>
+                                <span>52W H: {fmtStat(high52)}</span>
                               </div>
                               <div className="relative w-full h-2 rounded-full bg-slate-800 overflow-visible mt-1">
                                 <div 
@@ -828,7 +842,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                                   style={{ left: `${pos}%` }}
                                   animate={{ scale: [1, 1.25, 1] }}
                                   transition={{ duration: 2, repeat: Infinity }}
-                                  title={`Current: ${fmt(quotePriceVal)} (${pos.toFixed(0)}% of 52W range)`}
+                                  title={`Current: ${fmtStat(quotePriceVal)} (${pos.toFixed(0)}% of 52W range)`}
                                 />
                               </div>
                             </div>
@@ -1034,8 +1048,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                             <ComposedChart data={filteredTimeline} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
                               <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
-                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${Number(v).toFixed(2)}` : `₹${Number(v).toFixed(2)}`} width={65} domain={chartMinMax} />
-                              <Tooltip content={<ActualChartTooltip isUSD={isDisplayUSD} timelineData={filteredTimeline} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                              <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${Number(v).toFixed(2)}` : isFundOrNps ? `₹${Number(v).toFixed(4)}` : `₹${Number(v).toFixed(2)}`} width={isFundOrNps ? 80 : 65} domain={chartMinMax} />
+                              <Tooltip content={<ActualChartTooltip isUSD={isDisplayUSD} isFundOrNps={isFundOrNps} timelineData={filteredTimeline} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
                               <Line type="linear" dataKey="price" name="Asset Price" stroke={chartLineColor} strokeWidth={2.5} dot={<ActualEventDot />} activeDot={{ r: 5, fill: chartLineColor, stroke: '#ffffff', strokeWidth: 2 }} />
                             </ComposedChart>
                           )}
@@ -1460,7 +1474,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                               } else if (isBonus && (!tx.price || Number(tx.price) === 0)) {
                                 priceDisplay = isUSStock ? '$0.00' : '₹0.00';
                               } else if (Number(tx.price) > 0) {
-                                priceDisplay = `${isUSStock ? '$' : '₹'}${Number(tx.price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                const priceDigits = isFundOrNps ? 4 : 2;
+                                priceDisplay = `${isUSStock ? '$' : '₹'}${Number(tx.price).toLocaleString('en-IN', { minimumFractionDigits: priceDigits, maximumFractionDigits: priceDigits })}`;
                               }
 
                               let amountDisplay = '—';

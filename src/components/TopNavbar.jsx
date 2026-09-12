@@ -66,6 +66,8 @@ export default function TopNavbar({
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
   const [latestBackup, setLatestBackup] = useState(null);
 
+  const activeTheme = availableThemes?.find(t => t.id === theme) || availableThemes?.[0];
+
   const fetchLatestBackupInfo = async () => {
     try {
       const res = await axios.get('/api/cloud-backups');
@@ -347,7 +349,10 @@ export default function TopNavbar({
             whileTap={{ scale: 0.95 }}
             className="relative flex items-center gap-2 p-0.5 rounded-xl cursor-pointer group focus:outline-none"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-md overflow-hidden group-hover:ring-2 group-hover:ring-blue-500/50 transition-all">
+            <div 
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black text-xs shadow-md overflow-hidden transition-all"
+              style={{ backgroundColor: activeTheme?.accent || activeTheme?.color || '#3b82f6' }}
+            >
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="User Avatar" className="w-full h-full object-cover" />
               ) : (
@@ -372,7 +377,8 @@ export default function TopNavbar({
                     <div 
                       onClick={() => fileInputRef.current?.click()}
                       title="Click to upload profile photo"
-                      className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-md shrink-0 cursor-pointer group overflow-hidden"
+                      className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-sm shadow-md shrink-0 cursor-pointer group overflow-hidden"
+                      style={{ backgroundColor: activeTheme?.accent || activeTheme?.color || '#3b82f6' }}
                     >
                       {user?.avatarUrl ? (
                         <img src={user.avatarUrl} alt="User Avatar" className="w-full h-full object-cover" />
@@ -505,7 +511,7 @@ export default function TopNavbar({
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
                     >
                       <ArrowUpDown className="w-4 h-4 text-slate-400" />
-                      <span>Data Import / Export</span>
+                      <span>Import / Export</span>
                     </button>
                   )}
 
@@ -521,22 +527,13 @@ export default function TopNavbar({
                     </div>
                     {latestBackup && (
                       <span className="text-[10px] text-slate-500 font-mono">
-                        {(latestBackup.size / (1024 * 1024)).toFixed(1)}MB
+                        {(() => {
+                          const m = latestBackup.name?.match(/ladder_backup_(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
+                          return m ? `${m[3]}-${m[2]}-${m[1]}` : (latestBackup.created_at?.slice(0, 10) || 'Recent');
+                        })()}
                       </span>
                     )}
                   </button>
-
-                  {latestBackup && (
-                    <div className="px-3 py-1 text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-slate-800/40 pb-2 mb-1">
-                      <span>Last Backup</span>
-                      <span className="text-slate-500">
-                        {(() => {
-                          const m = latestBackup.name?.match(/ladder_backup_(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
-                          return m ? `${m[3]}-${m[2]}-${m[1]} ${m[4]}:${m[5]}` : (latestBackup.created_at?.slice(0, 10) || 'Recent');
-                        })()}
-                      </span>
-                    </div>
-                  )}
 
                   {/* Restore */}
                   <button

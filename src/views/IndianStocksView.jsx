@@ -33,14 +33,44 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
     }
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-  const todayShortFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
-  const isUpToDate = (qd) => {
+  const isUpToDate = useCallback((qd) => {
     if (!qd) return false;
-    return qd === todayStr || qd === todayFormatted || qd === todayShortFormatted;
-  };
+    const now = new Date();
+    const todayISO = now.toISOString().split('T')[0];
+    const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    // Most recent completed trading day (walking back weekend)
+    const dow = now.getDay();
+    const lastTradingDate = new Date(now);
+    if (dow === 6) lastTradingDate.setDate(lastTradingDate.getDate() - 1);
+    else if (dow === 0) lastTradingDate.setDate(lastTradingDate.getDate() - 2);
+
+    const lastISO = lastTradingDate.toISOString().split('T')[0];
+    const lastFormatted = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const lastShort = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    return (
+      qd === todayISO || qd === todayFormatted || qd === todayShort ||
+      qd === lastISO || qd === lastFormatted || qd === lastShort
+    );
+  }, []);
+
+  const getQuoteDateLabel = useCallback((qd) => {
+    if (!qd) return '';
+    const now = new Date();
+    const todayISO = now.toISOString().split('T')[0];
+    const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    if (qd === todayISO || qd === todayFormatted || qd === todayShort) {
+      return `Today (${qd})`;
+    }
+    if (isUpToDate(qd)) {
+      return `Latest (${qd})`;
+    }
+    return `As of ${qd}`;
+  }, [isUpToDate]);
 
   const rawIndianStocks = useMemo(() => {
     return holdings.filter(h => h.category_id === 'in_stocks');
@@ -53,7 +83,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
         const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
         return isUpToDate(qd);
       }).length;
-  }, [rawIndianStocks, todayStr, todayFormatted, todayShortFormatted]);
+  }, [rawIndianStocks, isUpToDate]);
 
   const statusFiltered = useMemo(() => {
     return rawIndianStocks.filter(h => {
@@ -420,7 +450,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                       : 'bg-amber-500/10 text-amber-400/90 border border-amber-500/20'
                                   }`}>
                                     <span className={`w-1.5 h-1.5 rounded-full ${isUpToDate(h.quote_date) ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                                    {isUpToDate(h.quote_date) ? `Today (${h.quote_date})` : `As of ${h.quote_date}`}
+                                    {getQuoteDateLabel(h.quote_date)}
                                   </span>
                                 )}
                               </div>

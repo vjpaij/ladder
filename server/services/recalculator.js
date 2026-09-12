@@ -87,6 +87,7 @@ export async function recalculateHoldingState(holdingId) {
 
       let runningQty = 0;
       let totalBuyQty = 0;
+      let totalBuyAmount = 0;
       let totalSellQty = 0;
       let totalCharges = 0;
       let totalRealizedPnl = 0;
@@ -102,6 +103,7 @@ export async function recalculateHoldingState(holdingId) {
         if (type === 'BUY' || type === 'INVESTMENT' || type === 'INVESTMENT (SIP)') {
           runningQty += qty;
           totalBuyQty += qty;
+          totalBuyAmount += (qty * price);
           openLots.push({ qty, price, charges, rem: qty });
         } else if (type === 'BONUS') {
           // If bonus has a positive quantity, add to runningQty at 0 cost
@@ -151,7 +153,9 @@ export async function recalculateHoldingState(holdingId) {
         totalOpenShares += lot.rem;
       }
 
-      const avgBuyPrice = totalOpenShares > 0 ? (totalCostBasis / totalOpenShares) : 0;
+      const avgBuyPrice = totalOpenShares > 0 
+        ? (totalCostBasis / totalOpenShares) 
+        : (totalBuyQty > 0 ? (totalBuyAmount / totalBuyQty) : 0);
       const status = runningQty > 0.0001 ? 'ACTIVE' : 'REDEEMED';
 
       await db.update('holdings', holdingId, {

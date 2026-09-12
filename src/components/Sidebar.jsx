@@ -19,6 +19,7 @@ import {
   Clock
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import logoImg from '../assets/logo.png';
 
 export default function Sidebar({ currentView, setCurrentView, summary, isCollapsed, onToggleCollapse }) {
   const { formatMoney, fxRate } = useThemeAuth();
@@ -77,22 +78,11 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
           className={`flex items-center gap-3 mb-7 cursor-pointer group w-full ${isCollapsed ? 'justify-center mt-8' : 'px-2'}`}
         >
           <motion.div 
-            className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25 relative overflow-hidden shrink-0"
+            className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg relative overflow-hidden shrink-0 bg-white"
             whileHover={{ scale: 1.1, rotate: 5 }}
             transition={{ type: 'spring', stiffness: 300 }}
           >
-            <div className="absolute inset-0 flex items-center justify-center rotate-[35deg] scale-110">
-              <div className="absolute flex gap-3">
-                <div className="w-1 h-14 bg-white/20 rounded-full" />
-                <div className="w-1 h-14 bg-white/20 rounded-full" />
-              </div>
-              <div className="absolute flex flex-col gap-2">
-                <div className="w-5 h-1 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,1)]" />
-                <div className="w-5 h-1 bg-white/70 rounded-full" />
-                <div className="w-5 h-1 bg-white/40 rounded-full" />
-                <div className="w-5 h-1 bg-white/20 rounded-full" />
-              </div>
-            </div>
+            <img src={logoImg} alt="Ladder Logo" className="w-full h-full object-contain" />
           </motion.div>
           
           <AnimatePresence>
