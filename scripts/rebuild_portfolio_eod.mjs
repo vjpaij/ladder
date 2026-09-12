@@ -5,7 +5,7 @@ import axios from 'axios';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { fetchNpsHistoricalNav } from '../server/services/priceEngine.js';
+import { fetchNpsHistoricalNav, isTradingDay } from '../server/services/priceEngine.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -160,13 +160,23 @@ async function rebuildEod() {
   const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && (Number(h.quantity) || 0) > 0);
   const npsHoldings = holdings.filter(h => h.category_id === 'nps' && (Number(h.quantity) || 0) > 0);
 
-  // 1. Fetch official Protean CRA NAVs directly from Supabase nps_daily_navs table
-  const { data: proteanDbNavs } = await supabase
-    .from('nps_daily_navs')
-    .select('scheme_code, nav, nav_date');
+  // 1. Fetch official Protean CRA NAVs directly from Supabase nps_daily_navs table with pagination guard
+  let proteanDbNavs = [];
+  let navFrom = 0;
+  const navBatchSize = 1000;
+  while (true) {
+    const { data: batch, error } = await supabase
+      .from('nps_daily_navs')
+      .select('scheme_code, nav, nav_date')
+      .range(navFrom, navFrom + navBatchSize - 1);
+    if (error || !batch || batch.length === 0) break;
+    proteanDbNavs.push(...batch);
+    if (batch.length < navBatchSize) break;
+    navFrom += navBatchSize;
+  }
   
   const proteanMap = {};
-  (proteanDbNavs || []).forEach(r => {
+  proteanDbNavs.forEach(r => {
     if (!proteanMap[r.scheme_code]) proteanMap[r.scheme_code] = {};
     proteanMap[r.scheme_code][r.nav_date] = Number(r.nav);
   });
@@ -232,6 +242,7 @@ async function rebuildEod() {
             let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
             if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
               val = meta.chartPreviousClose || meta.previousClose;
+              console.warn(`[WARN] Equity fallback used for ${h.symbol} on ${dStr}: substituted previous close ${val}`);
             }
             if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
               historicalPrices[h.symbol][dStr] = Number(Number(val).toFixed(2));
@@ -262,6 +273,29 @@ async function rebuildEod() {
     debt: 4498620.16
   };
 
+  // Pre-load transactions and liabilities for bank/EPF/loan timeline replay
+  const allTxs = await db.select('transactions');
+  const allLiabilities = await db.select('liabilities');
+  const hMap = Object.fromEntries(holdings.map(h => [h.id, h]));
+  const lMap = Object.fromEntries(allLiabilities.map(l => [l.id, l]));
+
+  // Index post-baseline transactions by date for chronological replay
+  const txsByDate = new Map();
+  allTxs.filter(t => t.date > lastExcelLog.date).forEach(t => {
+    if (!txsByDate.has(t.date)) txsByDate.set(t.date, []);
+    txsByDate.get(t.date).push(t);
+  });
+
+  let curHdfc = Number(lastExcelLog.hdfc || 0);
+  let curIndusind = Number(lastExcelLog.indusind || 0);
+  let curIdfc = Number(lastExcelLog.idfc || 0);
+  let curRbl = Number(lastExcelLog.rbl || 0);
+  let curSbi = Number(lastExcelLog.sbi || 0);
+  let curFederal = Number(lastExcelLog.federal || 0);
+  let curEpf = Number(lastExcelLog.epf || 0);
+  let curLoan = Number(lastExcelLog.loan || 0);
+  let curCredits = Number(lastExcelLog.credits || 0);
+
   let curDate = new Date(`${lastExcelLog.date}T00:00:00Z`);
   const endDate = new Date(`${targetEndDate}T00:00:00Z`);
   
@@ -276,40 +310,92 @@ async function rebuildEod() {
 
     const dayOfWeek = curDate.getUTCDay(); // 0 is Sunday, 6 is Saturday
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isMarketClosed = isWeekend || !isTradingDay(dateStr);
+
+    // Replay any bank/EPF/liability transactions occurring on dateStr
+    const todayTxs = txsByDate.get(dateStr) || [];
+    todayTxs.forEach(t => {
+      const amt = Number(t.total_amount) || Number(t.price) || 0;
+      const type = (t.type || '').toUpperCase();
+      const isPositive = ['OPENING_BALANCE', 'DEPOSIT', 'CREDIT', 'CONTRIBUTION', 'INTEREST', 'BUY'].includes(type);
+      const isNegative = ['WITHDRAWAL', 'DEBIT', 'SELL'].includes(type);
+      const isDebtIncr = ['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'TAKE'].includes(type);
+      const isDebtDecr = ['EMI_PAYMENT', 'PREPAYMENT', 'BILL_PAYMENT', 'REPAYMENT', 'PAY'].includes(type);
+
+      const h = hMap[t.holding_id];
+      if (h) {
+        if (h.category_id === 'epf') {
+          if (isPositive) curEpf += amt;
+          else if (isNegative) curEpf -= amt;
+        } else if (h.category_id === 'bank') {
+          const sym = (h.symbol || h.name || '').toUpperCase();
+          if (sym.includes('HDFC')) {
+            if (isPositive) curHdfc += amt; else if (isNegative) curHdfc -= amt;
+          } else if (sym.includes('INDUSIND')) {
+            if (isPositive) curIndusind += amt; else if (isNegative) curIndusind -= amt;
+          } else if (sym.includes('IDFC')) {
+            if (isPositive) curIdfc += amt; else if (isNegative) curIdfc -= amt;
+          } else if (sym.includes('RBL')) {
+            if (isPositive) curRbl += amt; else if (isNegative) curRbl -= amt;
+          } else if (sym.includes('SBI')) {
+            if (isPositive) curSbi += amt; else if (isNegative) curSbi -= amt;
+          } else if (sym.includes('FEDERAL')) {
+            if (isPositive) curFederal += amt; else if (isNegative) curFederal -= amt;
+          }
+        }
+      }
+
+      if (t.liability_id) {
+        const l = lMap[t.liability_id];
+        const isLoan = l?.category_id === 'loans' || (l?.name || '').toLowerCase().includes('loan');
+        if (isLoan) {
+          if (isDebtIncr) curLoan += amt;
+          else if (isDebtDecr) curLoan -= amt;
+        } else {
+          if (isDebtIncr) curCredits += amt;
+          else if (isDebtDecr) curCredits -= amt;
+        }
+      }
+    });
+
+    const curSavings = Number((curHdfc + curIndusind + curIdfc + curRbl + curSbi + curFederal).toFixed(2));
+    const curDebt = Number((curLoan + curCredits).toFixed(2));
 
     let inVal = 0;
     let usVal = 0;
     let mfVal = 0;
     let npsVal = 0;
 
-    if (isWeekend) {
-      // On Saturday and Sunday, all financial markets (Indian & US) are closed.
-      // Carry forward the finalized Friday closing valuations and totals exactly with 0 change.
+    if (isMarketClosed) {
+      // On non-trading days (weekends & market holidays), all financial markets carry forward finalized closing valuations
       inVal = prevLog.indian_stocks;
       usVal = prevLog.us_stocks;
       mfVal = prevLog.mutual_funds;
       npsVal = prevLog.nps;
 
+      const totalAssets = Number((curSavings + curEpf + inVal + usVal + mfVal + npsVal).toFixed(2));
+      const wealth = Number((totalAssets - curDebt).toFixed(2));
+
       const newLog = {
         date: dateStr,
-        hdfc: prevLog.hdfc,
-        indusind: prevLog.indusind,
-        idfc: prevLog.idfc,
-        rbl: prevLog.rbl,
-        sbi: prevLog.sbi,
-        federal: prevLog.federal,
-        savings: prevLog.savings,
-        mutual_funds: prevLog.mutual_funds,
-        indian_stocks: prevLog.indian_stocks,
-        us_stocks: prevLog.us_stocks,
-        nps: prevLog.nps,
-        epf: prevLog.epf,
-        loan: prevLog.loan,
-        credits: prevLog.credits,
-        debt: prevLog.debt,
-        total_assets: prevLog.total_assets,
-        wealth: prevLog.wealth,
-        total_wealth: prevLog.total_wealth
+        hdfc: Number(curHdfc.toFixed(2)),
+        indusind: Number(curIndusind.toFixed(2)),
+        idfc: Number(curIdfc.toFixed(2)),
+        rbl: Number(curRbl.toFixed(2)),
+        sbi: Number(curSbi.toFixed(2)),
+        federal: Number(curFederal.toFixed(2)),
+        savings: curSavings,
+        mutual_funds: mfVal,
+        indian_stocks: inVal,
+        us_stocks: usVal,
+        nps: npsVal,
+        epf: Number(curEpf.toFixed(2)),
+        loan: Number(curLoan.toFixed(2)),
+        credits: Number(curCredits.toFixed(2)),
+        debt: curDebt,
+        total_assets: totalAssets,
+        wealth: wealth,
+        total_wealth: wealth
       };
 
       baseLogs.push(newLog);
@@ -341,29 +427,31 @@ async function rebuildEod() {
         priceMap[h.symbol] = p;
       });
 
-      // Construct current snapshot with previous bank & debt carry-forwards
+      // Construct current snapshot with dynamically replayed bank & debt balances
       const valuation = computePortfolioValuation(holdings, [], priceMap, fx);
+      const totalAssets = Number((curSavings + curEpf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps).toFixed(2));
+      const wealth = Number((totalAssets - curDebt).toFixed(2));
 
       const newLog = {
         date: dateStr,
-        hdfc: prevLog.hdfc,
-        indusind: prevLog.indusind,
-        idfc: prevLog.idfc,
-        rbl: prevLog.rbl,
-        sbi: prevLog.sbi,
-        federal: prevLog.federal,
-        savings: prevLog.savings,
+        hdfc: Number(curHdfc.toFixed(2)),
+        indusind: Number(curIndusind.toFixed(2)),
+        idfc: Number(curIdfc.toFixed(2)),
+        rbl: Number(curRbl.toFixed(2)),
+        sbi: Number(curSbi.toFixed(2)),
+        federal: Number(curFederal.toFixed(2)),
+        savings: curSavings,
         mutual_funds: valuation.mutual_funds,
         indian_stocks: valuation.indian_stocks,
         us_stocks: valuation.us_stocks,
         nps: valuation.nps,
-        epf: prevLog.epf,
-        loan: prevLog.loan,
-        credits: prevLog.credits,
-        debt: prevLog.debt,
-        total_assets: Number((prevLog.savings + prevLog.epf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps).toFixed(2)),
-        wealth: Number((prevLog.savings + prevLog.epf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps - prevLog.debt).toFixed(2)),
-        total_wealth: Number((prevLog.savings + prevLog.epf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps - prevLog.debt).toFixed(2))
+        epf: Number(curEpf.toFixed(2)),
+        loan: Number(curLoan.toFixed(2)),
+        credits: Number(curCredits.toFixed(2)),
+        debt: curDebt,
+        total_assets: totalAssets,
+        wealth: wealth,
+        total_wealth: wealth
       };
 
       baseLogs.push(newLog);
@@ -371,14 +459,22 @@ async function rebuildEod() {
     }
   }
 
-  // Calculate daily_pnl and pnl_pct for each record
+  // Calculate daily_pnl and pnl_pct for each record with transaction-aware weekend check
   for (let i = 0; i < baseLogs.length; i++) {
     const cur = baseLogs[i];
     const prev = i > 0 ? baseLogs[i - 1] : cur;
-    const pnl = cur.total_wealth - prev.total_wealth;
-    const pct = prev.total_wealth !== 0 ? ((pnl / prev.total_wealth) * 100) : 0;
+    const curWealth = cur.total_wealth !== undefined ? cur.total_wealth : (cur.wealth || 0);
+    const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
+    const rawDelta = curWealth - prevWealth;
+    const isWk = (new Date(`${cur.date}T00:00:00Z`).getUTCDay() === 0 || new Date(`${cur.date}T00:00:00Z`).getUTCDay() === 6);
+    const pnl = isWk ? (Math.abs(rawDelta) > 0.01 ? rawDelta : 0) : rawDelta;
+    const pct = isWk
+      ? (Math.abs(rawDelta) > 0.01 && prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0)
+      : (prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0);
     cur.daily_pnl = Number(pnl.toFixed(2));
     cur.pnl_pct = Number(pct.toFixed(2));
+    cur.total_wealth = curWealth;
+    cur.wealth = curWealth;
   }
 
   fs.writeFileSync(EOD_FILE, JSON.stringify(baseLogs, null, 2), 'utf-8');

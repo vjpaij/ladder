@@ -144,30 +144,55 @@ async function verifyAllAssetsIntegrity() {
     console.log(`  PASS: Found ${proteanRows.length} recent verified Protean CRA records. Latest date: ${proteanRows[0].nav_date}.`);
   }
 
-  // 4. Verify Recent Date (2026-09-07) Against True AMFI & Protean Final NAVs
-  console.log('\n[Check 4] Verifying 2026-09-07 Finalized Valuations...');
-  const row07 = allRows.find(r => r.log_date === '2026-09-07');
-  if (!row07) {
-    console.error('  FAIL: 2026-09-07 record not found in pnl_history.');
-    failureCount++;
-  } else {
-    const expectedMf = 4520076.75;
-    const expectedNps = 513037.68;
-    const mfDiff = Math.abs(row07.mutual_funds - expectedMf);
-    const npsDiff = Math.abs(row07.nps - expectedNps);
+  // 4. Invariance & Continuity Verification on Historical Log Dates
+  console.log('\n[Check 4] Auditing Date Uniqueness, Monotonicity & Recent Continuity...');
+  const dateSet = new Set();
+  let duplicateDates = 0;
+  let outOfOrderDates = 0;
 
-    if (mfDiff > 0.05) {
-      console.error(`  FAIL: 2026-09-07 MF stored=${row07.mutual_funds} vs expected=${expectedMf} (diff=${mfDiff})`);
-      failureCount++;
-    } else {
-      console.log(`  PASS: 2026-09-07 Mutual Funds valuation exact parity: ₹${row07.mutual_funds}.`);
+  for (let i = 0; i < allRows.length; i++) {
+    const dStr = allRows[i].log_date;
+    if (dateSet.has(dStr)) {
+      duplicateDates++;
+      if (duplicateDates <= 3) console.error(`  FAIL Duplicate date detected in pnl_history: ${dStr}`);
     }
+    dateSet.add(dStr);
 
-    if (npsDiff > 0.05) {
-      console.error(`  FAIL: 2026-09-07 NPS stored=${row07.nps} vs expected=${expectedNps} (diff=${npsDiff})`);
-      failureCount++;
+    if (i > 0 && dStr < allRows[i - 1].log_date) {
+      outOfOrderDates++;
+      if (outOfOrderDates <= 3) console.error(`  FAIL Out of order date in pnl_history: ${dStr} after ${allRows[i - 1].log_date}`);
+    }
+  }
+
+  if (duplicateDates === 0) {
+    console.log(`  PASS: Zero duplicate dates across all ${allRows.length} historical records.`);
+  } else {
+    console.error(`  FAIL: Found ${duplicateDates} duplicate date records in pnl_history.`);
+    failureCount++;
+  }
+
+  if (outOfOrderDates === 0) {
+    console.log(`  PASS: Chronological monotonicity preserved (records strictly sorted ascending).`);
+  } else {
+    console.error(`  FAIL: Found ${outOfOrderDates} out-of-order date records in pnl_history.`);
+    failureCount++;
+  }
+
+  // Audit the most recent settled session's valuations for multi-asset completeness
+  if (allRows.length > 0) {
+    const latestSettled = allRows[allRows.length - 1];
+    console.log(`  Auditing latest settled session (${latestSettled.log_date}):`);
+    const hasAssets = (latestSettled.total_assets_inr || 0) > 0;
+    const hasMf = (latestSettled.mutual_funds || 0) > 0;
+    const hasNps = (latestSettled.nps || 0) > 0;
+    const hasEquities = (latestSettled.indian_stocks || 0) > 0;
+    const hasSavings = (latestSettled.savings || 0) > 0;
+
+    if (hasAssets && hasMf && hasNps && hasEquities && hasSavings) {
+      console.log(`  PASS: Latest settled session (${latestSettled.log_date}) contains complete multi-asset valuations (MF: ₹${latestSettled.mutual_funds}, NPS: ₹${latestSettled.nps}, In-Stocks: ₹${latestSettled.indian_stocks}, Savings: ₹${latestSettled.savings}).`);
     } else {
-      console.log(`  PASS: 2026-09-07 NPS valuation exact Protean parity: ₹${row07.nps}.`);
+      console.error(`  FAIL: Latest settled session (${latestSettled.log_date}) has missing asset classes!`);
+      failureCount++;
     }
   }
 

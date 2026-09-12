@@ -5,13 +5,13 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import db, { initDatabase } from './db.js';
+import db, { initDatabase, warmCache } from './db.js';
 import { supabase } from './supabaseClient.js';
 import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, liveQuoteCache, fetchFxRate, fetchNpsHistoricalNav, fetchMutualFundNav, formatCleanQuoteDate, syncAllMissingNavs, syncDailyNpsNavs } from './services/priceEngine.js';
 import { calculateXirr, calculateAbsoluteReturn } from './services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from './services/portfolioCalculator.js';
 import { recalculateHoldingState } from './services/recalculator.js';
-import { processDueSips } from './services/sipEngine.js';
+import { processDueSips, getSipExecutionHistory } from './services/sipEngine.js';
 import { computeGrowthBenchmarks, invalidateBenchmarkCache } from './services/benchmarkEngine.js';
 import { getLoanAmortizationData, addLoanAmortizationEntry, updateLoanAmortizationEntry, deleteLoanAmortizationEntry } from './services/loanEngine.js';
 import { fork } from 'child_process';
@@ -200,19 +200,17 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     let totalRealizedPnlINR = 0;
     let totalRealizedPnlUSD = 0;
 
-    // Compute exact weighted transaction FX rates for US stocks for invested amount
-    const usTxsRes = await supabase.from('transactions').select('holding_id, symbol, total_amount, fx_rate').eq('currency', 'USD').eq('type', 'BUY');
+    // Compute exact weighted transaction FX rates for US stocks for invested amount (using in-memory paginated cache)
+    const txs = await db.select('transactions');
     const usFxMap = {};
-    if (usTxsRes.data) {
-      usTxsRes.data.forEach(t => {
-        const key = t.holding_id || t.symbol;
-        if (!usFxMap[key]) usFxMap[key] = { totalUSD: 0, totalINR: 0 };
-        const amt = Number(t.total_amount) || 0;
-        const rate = Number(t.fx_rate) || 82.5;
-        usFxMap[key].totalUSD += amt;
-        usFxMap[key].totalINR += amt * rate;
-      });
-    }
+    (txs || []).filter(t => t.currency === 'USD' && t.type === 'BUY').forEach(t => {
+      const key = t.holding_id || t.symbol;
+      if (!usFxMap[key]) usFxMap[key] = { totalUSD: 0, totalINR: 0 };
+      const amt = Number(t.total_amount) || 0;
+      const rate = Number(t.fx_rate) || 82.5;
+      usFxMap[key].totalUSD += amt;
+      usFxMap[key].totalINR += amt * rate;
+    });
 
     // Fetch dividends — use correct field: amount_inr (not total_amount)
     const dividends = await db.select('dividends');
@@ -270,7 +268,6 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
     // -------------------------------------------------------------
     // Granular Asset Class Metrics & XIRR
     // -------------------------------------------------------------
-    const txs = await db.select('transactions');
     const overallCashflows = [];
     const validXirrCategories = new Set(['in_stocks', 'us_stocks', 'mutual_funds', 'nps']);
     let xirrFinalAssetsINR = 0;
@@ -516,24 +513,26 @@ app.get('/api/summary', authenticateToken, async (req, res) => {
         .limit(1)
         .maybeSingle();
       yesterdayWealth = previousEod?.net_worth_inr ?? null;
-
-      if (yesterdayWealth === null) {
-        const eodPath = './data/portfolio_eod_logs.json';
-        if (fs.existsSync(eodPath)) {
-          const raw = fs.readFileSync(eodPath, 'utf8');
-          const parsed = JSON.parse(raw);
-          const previousLogs = parsed.filter(l => l.date < todayStr);
-          const previousLog = previousLogs[previousLogs.length - 1];
-          yesterdayWealth = previousLog?.total_wealth ?? previousLog?.wealth ?? null;
-        }
-      }
     } catch (e) {
-      console.warn('[EOD JSON Fetch Error]:', e.message);
+      console.warn('[EOD pnl_history Fetch Error]:', e.message);
+    }
+
+    if (yesterdayWealth === null) {
+      yesterdayWealth = netWorthINR;
     }
 
     const isWeekend = (new Date().getUTCDay() === 0 || new Date().getUTCDay() === 6);
-    const dayPnlINR = isWeekend ? 0 : Number((netWorthINR - yesterdayWealth).toFixed(2));
-    const dayPnlPct = isWeekend ? 0 : (yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0);
+    const wealthDelta = Number((netWorthINR - yesterdayWealth).toFixed(2));
+    
+    // Check if any user transactions occurred today
+    const todayTxs = await db.selectWhere('transactions', { date: todayStr });
+    const hasTxToday = todayTxs && todayTxs.length > 0;
+
+    // Rule 5: On weekends, P&L is strictly 0 unless a user transaction occurred
+    const dayPnlINR = isWeekend ? (hasTxToday ? wealthDelta : 0) : wealthDelta;
+    const dayPnlPct = isWeekend
+      ? (hasTxToday && yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0)
+      : (yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0);
 
     // Asset Breakdown by Category (clean names)
     const categoryValues = {};
@@ -2084,14 +2083,23 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       return day === 0 || day === 6;
     };
 
+    // Load transaction dates to check for weekend user transactions (Rule 5)
+    const allTxs = await db.select('transactions');
+    const txDatesWithActivity = new Set((allTxs || []).map(t => t.date));
+
     // Recompute daily_pnl and pnl_pct across all logs so today is accurate against yesterday
     for (let i = 0; i < eodLogs.length; i++) {
       const cur = eodLogs[i];
       const prev = i > 0 ? eodLogs[i - 1] : cur;
       const curWealth = cur.total_wealth !== undefined ? cur.total_wealth : (cur.wealth || 0);
       const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
-      const pnl = isWeekendDay(cur.date) ? 0 : (curWealth - prevWealth);
-      const pct = isWeekendDay(cur.date) ? 0 : (prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0);
+      const rawDelta = curWealth - prevWealth;
+      const isWk = isWeekendDay(cur.date);
+      const hasTx = txDatesWithActivity.has(cur.date);
+      const pnl = isWk ? (hasTx ? rawDelta : 0) : rawDelta;
+      const pct = isWk
+        ? (hasTx && prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0)
+        : (prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0);
       cur.daily_pnl = Number(pnl.toFixed(2));
       cur.pnl_pct = Number(pct.toFixed(2));
       cur.total_wealth = curWealth;
@@ -2150,8 +2158,10 @@ app.get('/api/daily-pnl', authenticateToken, async (req, res) => {
       const wPrev = prevItem.total_wealth !== undefined ? prevItem.total_wealth : prevItem.wealth;
 
       const prevWealth = wPrev !== undefined ? wPrev : wCurr;
-      const dailyPnl = isWeekendDay(item.date) ? 0 : (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth));
-      const pct = isWeekendDay(item.date) ? 0 : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
+      const isWk = isWeekendDay(item.date);
+      const hasTx = txDatesWithActivity.has(item.date);
+      const dailyPnl = isWk ? (hasTx ? (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth)) : 0) : (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth));
+      const pct = isWk ? (hasTx && prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0) : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
 
       const wealth = wCurr || 0;
       const debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));
@@ -2268,7 +2278,12 @@ app.post('/api/cloud-backups/restore', authenticateToken, async (req, res) => {
     db.invalidateCache();
     // Auto-sync EOD logs after full restore
     triggerEodRebuildIfPastDate(new Date(Date.now() - 86400000).toISOString().slice(0, 10));
-    res.json({ success: true, message: `Database successfully restored from ${result.snapshotFile}!`, result });
+    res.json({
+      success: true,
+      message: `Database successfully restored from ${result.snapshotFile}! Background EOD valuation rebuild initiated.`,
+      rebuildStatus: 'initiated',
+      result
+    });
   } catch (err) {
     console.error('[API Cloud Backup Restore Error]:', err.message);
     res.status(500).json({ error: err.message });
@@ -2705,6 +2720,16 @@ app.post('/api/sips/process-due', authenticateToken, async (req, res) => {
   try {
     const result = await processDueSips();
     res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get SIP execution and skip history
+app.get('/api/sips/history', authenticateToken, (req, res) => {
+  try {
+    const history = getSipExecutionHistory();
+    res.json({ success: true, history: history || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3513,4 +3538,50 @@ app.listen(PORT, () => {
   };
 
   scheduleDailyCloudBackup();
+
+  // Automated daily EOD rebuild scheduler: runs twice daily
+  // 1. 06:30 PM IST (13:00 UTC) — post Indian market close & NAV settlement
+  // 2. 07:00 AM IST (01:30 UTC) — post US market close
+  const scheduleDailyEodRebuild = () => {
+    const getNextRebuildDelay = () => {
+      const now = new Date();
+      const targets = [
+        { hour: 1, minute: 30, label: '07:00 AM IST' },
+        { hour: 13, minute: 0, label: '06:30 PM IST' }
+      ].map(t => {
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), t.hour, t.minute, 0, 0));
+        if (d.getTime() <= now.getTime()) {
+          d.setUTCDate(d.getUTCDate() + 1);
+        }
+        return { time: d.getTime(), label: t.label, date: d };
+      });
+      targets.sort((a, b) => a.time - b.time);
+      const next = targets[0];
+      return { delay: next.time - now.getTime(), label: next.label, date: next.date };
+    };
+
+    const armNextRebuild = () => {
+      const { delay, label, date } = getNextRebuildDelay();
+      console.log(`[EOD Scheduler] Next automated EOD rebuild (${label}) scheduled for ${date.toISOString()} (in ${(delay / 3600000).toFixed(2)}h)`);
+      setTimeout(() => {
+        console.log(`[EOD Scheduler] Triggering scheduled EOD rebuild (${label})...`);
+        const child = fork('./scripts/rebuild_portfolio_eod.mjs');
+        child.on('exit', (code) => {
+          console.log(`[EOD Scheduler] Scheduled rebuild (${label}) completed with exit code ${code}`);
+          armNextRebuild();
+        });
+        child.on('error', (err) => {
+          console.error(`[EOD Scheduler] Error forking rebuild script:`, err.message);
+          armNextRebuild();
+        });
+      }, delay);
+    };
+
+    armNextRebuild();
+  };
+
+  scheduleDailyEodRebuild();
+
+  // Pre-warm database cache on boot to eliminate cold starts and protect egress
+  warmCache().catch(err => console.warn('[WarmCache Error]:', err.message));
 });

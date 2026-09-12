@@ -5,6 +5,68 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.21.0] - 2026-09-12
+
+### Added
+- **Bank & Liability Transaction Timeline Replay in EOD Rebuild**:
+  - Refactored `scripts/rebuild_portfolio_eod.mjs` to chronologically replay all post-baseline bank account transactions (`HDFC`, `INDUSIND`, `IDFC`, `RBL`, `SBI`, `FEDERAL`), `EPF` contributions, and debt transactions (`loans`, `credits`) from the `transactions` table, ensuring historical balances and Calendar heatmap accurately reflect actual transaction dates.
+- **Unified Daily Sync Orchestrator (`scripts/daily_sync.mjs`)**:
+  - Created a single master CLI orchestrator that executes the full end-of-day sequence deterministically: (1) `sync_daily_prices.mjs`, (2) `rebuild_portfolio_eod.mjs`, (3) `verify_financial_integrity.mjs`, and (4) `backup_manager.mjs` with per-stage timing benchmarks and exit code verification.
+- **Contextual "+ Add Transaction" Drawer in `HoldingDetailModal.jsx`**:
+  - Added a collapsible quick-add transaction drawer pre-filled with the active holding symbol, currency, and category-specific transaction types (`BUY`/`SELL`/`BONUS`/`SPLIT` for equities, `BUY`/`REDEEM` for MFs/NPS, `DEPOSIT`/`WITHDRAWAL`/`INTEREST` for bank accounts, `CONTRIBUTION`/`INTEREST` for EPF, and `EMI_PAYMENT`/`PREPAYMENT` for debt liabilities) with instant modal ledger refresh.
+- **SIP Execution & Skips History in `SipManagerModal.jsx`**:
+  - Built an "Execution & Skips" tab in `SipManagerModal.jsx` tracking every automated SIP run, successful unit allocation, skip event, and closure with exact timestamp, scheme name, and skip reasons.
+  - Persisted execution records to `data/sip_history.json` and exposed via backend endpoint `GET /api/sips/history`.
+  - Upgraded `server/services/sipEngine.js` with `isTradingDay(today)` awareness to defer runs on both weekends and NSE exchange holidays.
+- **Benchmark Sync Staleness Badge in `ReportsView.jsx`**:
+  - Added a live "Synced: DD-MM-YYYY" indicator badge next to the benchmark index selector in the Growth vs Indices report, clarifying when the underlying `index_history` was last updated.
+- **Last Backup Indicator in TopNavbar Profile Dropdown**:
+  - Displayed the most recent cloud backup timestamp (`DD-MM-YYYY HH:mm`) and compressed `.json.gz` file size directly inside the user Profile dropdown menu.
+- **Startup In-Memory Cache Pre-Warming (`warmCache()`)**:
+  - Added `warmCache()` in `server/db.js` pre-populating all high-frequency relational tables (`categories`, `holdings`, `liabilities`, `dividends`, `transactions`) on Express server startup, preventing cold-cache query storms and protecting Supabase monthly egress limits.
+- **Dual Daily EOD Rebuild Schedulers in `server/index.js`**:
+  - Configured precision Node timeout schedulers triggering automatic background EOD rebuilds at 18:30 IST (13:00 UTC, post-Indian market close) and 07:00 IST (01:30 UTC, post-US market close).
+
+### Fixed
+- **NPS Historical Query Pagination Guard**:
+  - Added chunked pagination loops (`range(from, from + 1000 - 1)`) for `nps_daily_navs` in `scripts/rebuild_portfolio_eod.mjs`, eliminating truncation across all 2,740+ historical NAV records.
+- **Authoritative NPS Historical Pricing**:
+  - Rewrote `fetchNpsHistoricalNav` in `server/services/priceEngine.js` to query Supabase `nps_daily_navs` exclusively and carry forward missing dates, fully eliminating default fallback calls to `npsnav.in` (Rule 8 enforcement).
+- **Weekend Market Settlement Invariance Parity**:
+  - Synchronized weekend P&L handling across `/api/summary` and `/api/daily-pnl` to strictly verify whether actual user transactions exist on that date before reporting non-zero values, preserving exact ₹0.00 (0.00%) invariance on non-trading weekend sessions.
+- **Lossy Price Fallback Audit Logging**:
+  - Added explicit `[WARN]` console logging in `scripts/rebuild_portfolio_eod.mjs` and `scripts/sync_daily_prices.mjs` detailing symbol, date, and substituted close price whenever the `chartPreviousClose` or `previousClose` fallback triggers.
+- **Generalized Multi-Asset Invariance Audit**:
+  - Replaced hardcoded date assertions in `scripts/verify_all_assets_integrity.mjs` with universal invariance checks: zero duplicate dates, chronological monotonicity, and multi-asset completeness audit on the latest settled trading session.
+- **Post-Restore Status Feedback**:
+  - Enhanced `RestoreBackupModal.jsx` and `POST /api/cloud-backups/restore` to return `rebuildStatus: 'initiated'` and display user confirmation of ongoing background EOD recalculations.
+- **Cleaned `/api/summary` EOD Sourcing**:
+  - Removed outdated `portfolio_eod_logs.json` fallback from `/api/summary`, utilizing Supabase `pnl_history` as the single authoritative source of truth.
+
+## [5.20.0] - 2026-09-12
+
+### Added
+- **NSE/RBI Trading Holiday Calendar**:
+  - Added `NSE_HOLIDAYS_2026` set in `server/services/priceEngine.js` covering all official NSE trading holidays for 2026.
+  - Exported `isTradingDay(dateISO)` helper that returns false for Saturdays, Sundays, and all known NSE holidays.
+  - Exported `isProteanNavStale()` helper that returns true when the last in-memory Protean batch's embedded NAV date does not match the last trading day.
+- **Already-Synced Detection in NPS NAV Pipeline**:
+  - Added `areTodayNavsAlreadySynced(schemeCodes, targetDate)` which queries `nps_daily_navs` in Supabase before touching Protean CRA, eliminating redundant ZIP downloads when all schemes are already captured for the current trading day.
+- **Date-Verified Protean Scraper**:
+  - `fetchProteanNpsNavBatch` now reads the NAV date embedded in the ZIP's `.out` CSV content (not assumed from the filename or current date).
+  - If the ZIP's embedded date does not match the last trading day, Supabase upsert is skipped to prevent stale data pollution, and the cache is marked stale.
+  - Protean scraper logs explicit WARN when no ZIP links are found or the ZIP does not contain a `.out` file.
+- **npsnav.in as Dated Fallback Only**:
+  - `syncAllMissingNavs` now uses `npsnav.in` only when Protean ZIP is confirmed stale AND `npsnav.in` returns a NAV matching the last trading date. If `npsnav.in` also does not have today's date, the carry-forward from Protean's last-known NAV is used for live display without Supabase upsert.
+
+### Fixed
+- **Non-Trading Day Skip in GitHub Actions**:
+  - `syncAllMissingNavs` exits immediately on weekends and NSE holidays with an informational log and `skipped: true`, preventing unnecessary Protean ZIP downloads, AMFI requests, and Supabase roundtrips.
+  - `scripts/sync_navs_and_sips.mjs` surfaces the skip reason in CI logs and exits with code 0 (not a failure).
+- **GitHub Actions Workflow Timing Refinement**:
+  - Adjusted `daily_nav_sip_sync.yml` cron schedule to include an evening window covering 21:07, 22:07, 23:07 (IST) and a catch-up 23:37 IST run to capture late Protean publications, plus a morning catch-up at 09:07 and 10:07 IST for any schemes missed from the prior night.
+  - Reduced unnecessary runs from 8/day down to 6/day on trading days, and 0 effective runs on non-trading days (script self-exits).
+
 ## [5.19.1] - 2026-09-12
 
 ### Added

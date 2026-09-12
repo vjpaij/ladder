@@ -64,12 +64,29 @@ export default function TopNavbar({
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isQuickBackingUp, setIsQuickBackingUp] = useState(false);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [latestBackup, setLatestBackup] = useState(null);
+
+  const fetchLatestBackupInfo = async () => {
+    try {
+      const res = await axios.get('/api/cloud-backups');
+      if (res.data?.backups?.length > 0) {
+        setLatestBackup(res.data.backups[0]);
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    if (isUserMenuOpen) {
+      fetchLatestBackupInfo();
+    }
+  }, [isUserMenuOpen]);
 
   const handleQuickBackup = async () => {
     setIsQuickBackingUp(true);
     try {
       const res = await axios.post('/api/cloud-backups/create');
       showSuccess(res.data.message || 'Compressed cloud backup saved to Supabase Storage!');
+      await fetchLatestBackupInfo();
       setIsUserMenuOpen(false);
     } catch (err) {
       showError('Backup failed: ' + (err.response?.data?.error || err.message));
@@ -496,11 +513,30 @@ export default function TopNavbar({
                   <button
                     onClick={handleQuickBackup}
                     disabled={isQuickBackingUp}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer disabled:opacity-50"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    <CloudUpload className={`w-4 h-4 text-emerald-400 ${isQuickBackingUp ? 'animate-bounce' : ''}`} />
-                    <span>{isQuickBackingUp ? 'Creating Backup...' : 'Backup Now'}</span>
+                    <div className="flex items-center gap-3">
+                      <CloudUpload className={`w-4 h-4 text-emerald-400 ${isQuickBackingUp ? 'animate-bounce' : ''}`} />
+                      <span>{isQuickBackingUp ? 'Creating Backup...' : 'Backup Now'}</span>
+                    </div>
+                    {latestBackup && (
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {(latestBackup.size / (1024 * 1024)).toFixed(1)}MB
+                      </span>
+                    )}
                   </button>
+
+                  {latestBackup && (
+                    <div className="px-3 py-1 text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-slate-800/40 pb-2 mb-1">
+                      <span>Last Backup</span>
+                      <span className="text-slate-500">
+                        {(() => {
+                          const m = latestBackup.name?.match(/ladder_backup_(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
+                          return m ? `${m[3]}-${m[2]}-${m[1]} ${m[4]}:${m[5]}` : (latestBackup.created_at?.slice(0, 10) || 'Recent');
+                        })()}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Restore */}
                   <button

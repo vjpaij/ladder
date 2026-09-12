@@ -1,3 +1,4 @@
+import fs from 'fs';
 import axios from 'axios';
 import AdmZip from 'adm-zip';
 import db from '../db.js';
@@ -160,26 +161,117 @@ export async function fetchMutualFundNav(schemeCode) {
 }
 
 // ---------------------------------------------------------------------------
-// NPS NAV: Primary source = Protean CRA official ZIP, Fallback = npsnav.in
-// In-memory cache for Protean NPS NAV batch: { navMap, cachedAt }
+// NPS NAV Pipeline — Robust Protean CRA scraper with holiday awareness,
+// already-synced detection, and npsnav.in as a dated fallback.
+// ---------------------------------------------------------------------------
+
+// NSE/RBI trading holidays for 2026 (ISO format YYYY-MM-DD)
+// Update this list annually at the start of each calendar year.
+const NSE_HOLIDAYS_2026 = new Set([
+  '2026-01-26', // Republic Day
+  '2026-02-19', // Chhatrapati Shivaji Maharaj Jayanti
+  '2026-03-20', // Holi
+  '2026-04-02', // Ram Navami
+  '2026-04-06', // Mahavir Jayanti / Good Friday
+  '2026-04-14', // Dr. Ambedkar Jayanti
+  '2026-05-01', // Maharashtra Day
+  '2026-06-02', // Eid ul-Adha (Bakri Eid) (tentative)
+  '2026-08-15', // Independence Day
+  '2026-08-27', // Ganesh Chaturthi
+  '2026-10-02', // Gandhi Jayanti / Dussehra (tentative)
+  '2026-10-20', // Diwali Laxmi Pujan (tentative)
+  '2026-10-21', // Diwali Balipratipada (tentative)
+  '2026-11-04', // Guru Nanak Jayanti (tentative)
+  '2026-11-27', // Christmas Eve (tentative)
+  '2026-12-25', // Christmas
+]);
+
+/**
+ * Returns today's date in IST as YYYY-MM-DD string.
+ */
+function getTodayIST() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // 'en-CA' gives YYYY-MM-DD
+}
+
+/**
+ * Returns true if the given YYYY-MM-DD date is a trading day
+ * (not a Saturday, Sunday, or known NSE holiday).
+ */
+export function isTradingDay(dateISO) {
+  const d = new Date(dateISO + 'T00:00:00+05:30');
+  const dow = d.getDay(); // 0=Sun, 6=Sat
+  if (dow === 0 || dow === 6) return false;
+  if (NSE_HOLIDAYS_2026.has(dateISO)) return false;
+  return true;
+}
+
+/**
+ * Returns the most recent trading day on or before today (IST).
+ */
+function getLastTradingDay() {
+  const today = getTodayIST();
+  if (isTradingDay(today)) return today;
+  // Walk back up to 5 days (never more than Mon seeking last Fri)
+  for (let i = 1; i <= 5; i++) {
+    const d = new Date(today + 'T00:00:00+05:30');
+    d.setDate(d.getDate() - i);
+    const prev = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    if (isTradingDay(prev)) return prev;
+  }
+  return today;
+}
+
+// In-memory cache for the Protean NAV batch: { navMap, navDate, cachedAt }
 let proteanBatchCache = null;
 const PROTEAN_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
+/**
+ * Checks whether today's NAVs are already persisted in Supabase nps_daily_navs
+ * for all provided scheme codes. Returns true if every scheme has a row for today.
+ */
+async function areTodayNavsAlreadySynced(schemeCodes, targetDate) {
+  if (!schemeCodes || schemeCodes.length === 0) return false;
+  try {
+    const { data, error } = await supabase
+      .from('nps_daily_navs')
+      .select('scheme_code')
+      .in('scheme_code', schemeCodes)
+      .eq('nav_date', targetDate);
+    if (error || !data) return false;
+    return data.length >= schemeCodes.length;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Scrapes the latest Protean CRA NAV ZIP.
+ * - Reads the embedded NAV date from the ZIP content (not the filename).
+ * - Only upserts to Supabase if the NAV date matches the expected trading day.
+ * - Returns { navMap, navDate } or null on failure.
+ */
 export async function fetchProteanNpsNavBatch() {
-  if (proteanBatchCache && (Date.now() - proteanBatchCache.cachedAt < PROTEAN_CACHE_TTL_MS)) {
+  // Serve from in-memory cache if fresh and nav date is still the latest trading day
+  const lastTradingDay = getLastTradingDay();
+  if (
+    proteanBatchCache &&
+    proteanBatchCache.navDate === lastTradingDay &&
+    (Date.now() - proteanBatchCache.cachedAt < PROTEAN_CACHE_TTL_MS)
+  ) {
     return proteanBatchCache.navMap;
   }
 
   try {
     const pageRes = await axios.get('https://www.npscra.proteantech.in/nav-search.php', {
-      timeout: 8000,
+      timeout: 10000,
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
     const html = pageRes.data;
 
-    // Find all NAV_File_DDMMYYYY.zip links and sort by date descending
+    // Find all NAV_File_DDMMYYYY.zip links and sort by embedded date descending
     const zipMatches = [...html.matchAll(/(?:href=["'])?([^"'\s<>]+\/NAV_File_(\d{2})(\d{2})(\d{4})\.zip)/gi)];
     if (!zipMatches || zipMatches.length === 0) {
+      console.warn('[Protean Scraper] No ZIP links found on nav-search.php');
       return null;
     }
 
@@ -195,7 +287,7 @@ export async function fetchProteanNpsNavBatch() {
     }
 
     const zipRes = await axios.get(zipUrl, {
-      timeout: 15000,
+      timeout: 20000,
       responseType: 'arraybuffer',
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
@@ -204,6 +296,7 @@ export async function fetchProteanNpsNavBatch() {
     const entries = zip.getEntries();
     const outEntry = entries.find(e => e.entryName.endsWith('.out'));
     if (!outEntry) {
+      console.warn('[Protean Scraper] No .out file found inside ZIP');
       return null;
     }
 
@@ -212,6 +305,7 @@ export async function fetchProteanNpsNavBatch() {
 
     const navMap = new Map();
     const dbRows = [];
+    let zipNavDate = null; // The actual NAV date embedded in the CSV data
 
     for (const line of lines) {
       const parts = line.split(',');
@@ -225,6 +319,11 @@ export async function fetchProteanNpsNavBatch() {
         const dParts = rawDate.split('/');
         if (dParts.length === 3) {
           isoDate = `${dParts[2]}-${dParts[0].padStart(2, '0')}-${dParts[1].padStart(2, '0')}`;
+        }
+
+        // Capture the NAV date from the first valid row
+        if (!zipNavDate && isoDate && isoDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          zipNavDate = isoDate;
         }
 
         if (schemeCode && !isNaN(nav) && nav > 0) {
@@ -244,26 +343,50 @@ export async function fetchProteanNpsNavBatch() {
       }
     }
 
-    // Persist the batch before the worker exits so the next dashboard request can use it.
+    // Verify the ZIP's NAV date matches the last trading day.
+    // If Protean hasn't published today yet, the ZIP will contain yesterday's date.
+    if (zipNavDate && zipNavDate !== lastTradingDay) {
+      console.warn(
+        `[Protean Scraper] ZIP NAV date is ${zipNavDate}, expected ${lastTradingDay}. ` +
+        'Protean has not published today yet — skipping Supabase upsert to avoid stale data.'
+      );
+      // Return the map anyway so live quotes can use the latest available NAV,
+      // but mark it as stale so the caller knows not to treat it as today's data.
+      proteanBatchCache = { navMap, navDate: zipNavDate, cachedAt: Date.now() };
+      return navMap; // Callers check navDate via the stale flag below
+    }
+
+    // Persist confirmed-fresh NAV batch to Supabase
     if (dbRows.length > 0) {
       try {
         const batchSize = 100;
         for (let i = 0; i < dbRows.length; i += batchSize) {
           const chunk = dbRows.slice(i, i + batchSize);
-          const { error } = await supabase.from('nps_daily_navs').upsert(chunk, { onConflict: 'scheme_code,nav_date' });
+          const { error } = await supabase
+            .from('nps_daily_navs')
+            .upsert(chunk, { onConflict: 'scheme_code,nav_date' });
           if (error) throw error;
         }
+        console.log(`[Protean Scraper] Persisted ${dbRows.length} NAV rows for ${zipNavDate} to Supabase.`);
       } catch (e) {
         console.warn('[NPS DB Upsert Warning]:', e.message);
       }
     }
 
-    proteanBatchCache = { navMap, cachedAt: Date.now() };
+    proteanBatchCache = { navMap, navDate: zipNavDate || lastTradingDay, cachedAt: Date.now() };
     return navMap;
   } catch (err) {
     console.warn('[Protean Scraper Warning]:', err.message);
     return null;
   }
+}
+
+/**
+ * Returns true if the last in-memory Protean batch is stale (not today's trading date).
+ */
+export function isProteanNavStale() {
+  if (!proteanBatchCache) return true;
+  return proteanBatchCache.navDate !== getLastTradingDay();
 }
 
 /**
@@ -275,59 +398,122 @@ export async function syncDailyNpsNavs() {
 }
 
 /**
- * Continuous Gap-Filling Engine for Mutual Funds and NPS Schemes
- * Sweeps active schemes and brings them up to date with zero schemes left behind.
+ * Continuous Gap-Filling Engine for Mutual Funds and NPS Schemes.
+ * Features:
+ * - Trading-day awareness: skips weekends and NSE holidays.
+ * - Already-synced detection: skips Supabase upsert if today's NAVs are all present.
+ * - Date-verified Protean fetch: uses npsnav.in only when Protean ZIP is confirmed stale.
  */
 export async function syncAllMissingNavs() {
-  const results = { npsUpdated: 0, mfUpdated: 0, totalChecked: 0 };
-  
-  // 1. Sync NPS schemes via Protean
-  const navMap = await fetchProteanNpsNavBatch();
-  results.npsUpdated = navMap ? navMap.size : 0;
+  const results = { npsUpdated: 0, mfUpdated: 0, totalChecked: 0, skipped: false, skipReason: null };
 
-  // 2. Fetch active Mutual Funds & NPS holdings in parallel to update liveQuoteCache
+  const today = getTodayIST();
+  const lastTradingDay = getLastTradingDay();
+
+  // Skip entirely on weekends/holidays — no NAVs will be published
+  if (!isTradingDay(today)) {
+    results.skipped = true;
+    results.skipReason = `Non-trading day (${today}). Last trading day was ${lastTradingDay}.`;
+    console.log(`[syncAllMissingNavs] ${results.skipReason} Skipping.`);
+    return results;
+  }
+
+  // 1. Fetch active MF & NPS holdings
   const { data: holdings } = await supabase
     .from('holdings')
     .select('*')
     .in('category_id', ['mutual_funds', 'nps'])
     .gt('quantity', 0);
 
-  if (holdings && holdings.length > 0) {
-    results.totalChecked = holdings.length;
-    await Promise.all(holdings.map(async (h) => {
-      if (h.category_id === 'mutual_funds' && h.symbol) {
-        try {
-          const q = await fetchMutualFundNav(h.symbol);
-          if (q) {
-            liveQuoteCache.set(h.symbol, q);
-            await db.update('holdings', h.id, {
-              current_price: q.nav,
-              updated_at: new Date().toISOString()
-            });
-            results.mfUpdated++;
-          }
-        } catch (e) {}
-      } else if (h.category_id === 'nps' && h.symbol) {
+  if (!holdings || holdings.length === 0) return results;
+  results.totalChecked = holdings.length;
+
+  const npsHoldings = holdings.filter(h => h.category_id === 'nps' && h.symbol);
+  const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && h.symbol);
+
+  // 2. Sync NPS via Protean — but first check if today is already in Supabase
+  if (npsHoldings.length > 0) {
+    const npsSchemeCodes = npsHoldings.map(h => h.symbol);
+    const alreadySynced = await areTodayNavsAlreadySynced(npsSchemeCodes, lastTradingDay);
+
+    if (alreadySynced) {
+      console.log(`[syncAllMissingNavs] NPS NAVs for ${lastTradingDay} already in Supabase. Loading from DB.`);
+      // Load from Supabase into liveQuoteCache without hitting Protean
+      const { data: navRows } = await supabase
+        .from('nps_daily_navs')
+        .select('scheme_code,nav,nav_date')
+        .in('scheme_code', npsSchemeCodes)
+        .eq('nav_date', lastTradingDay);
+      if (navRows) {
+        for (const row of navRows) {
+          liveQuoteCache.set(row.scheme_code, {
+            price: row.nav,
+            quoteDate: formatCleanQuoteDate(row.nav_date)
+          });
+        }
+        results.npsUpdated = navRows.length;
+      }
+    } else {
+      // Fetch from Protean CRA
+      const navMap = await fetchProteanNpsNavBatch();
+      const isStale = isProteanNavStale();
+
+      await Promise.all(npsHoldings.map(async (h) => {
         try {
           let item = navMap?.get(h.symbol);
-          if (!item) {
+
+          // If Protean ZIP is stale (today's NAV not yet published), try npsnav.in
+          // npsnav.in is acceptable as a dated fallback, not as primary truth
+          if (!item || isStale) {
             const fallback = await fetchNpsNavFallback(h.symbol);
-            if (fallback) item = { nav: fallback.nav, date: fallback.date, quoteDate: fallback.quoteDate };
+            if (fallback && fallback.date === lastTradingDay) {
+              // npsnav.in has today's NAV — persist it
+              item = { nav: fallback.nav, date: fallback.date, quoteDate: fallback.quoteDate };
+              console.log(`[syncAllMissingNavs] NPS ${h.symbol}: Protean stale, using npsnav.in NAV ${fallback.nav} for ${fallback.date}`);
+              try {
+                await supabase.from('nps_daily_navs').upsert({
+                  scheme_code: h.symbol,
+                  nav: fallback.nav,
+                  nav_date: fallback.date
+                }, { onConflict: 'scheme_code,nav_date' });
+              } catch (e) {}
+            } else if (item && isStale) {
+              // Protean has latest-known (yesterday's), use it for live display but don't mark as today's
+              console.log(`[syncAllMissingNavs] NPS ${h.symbol}: Using Protean carry-forward NAV ${item.nav} (${item.date})`);
+            }
           }
+
           if (item) {
-            liveQuoteCache.set(h.symbol, {
-              price: item.nav,
-              quoteDate: item.quoteDate
-            });
+            liveQuoteCache.set(h.symbol, { price: item.nav, quoteDate: item.quoteDate });
             await db.update('holdings', h.id, {
               current_price: item.nav,
               updated_at: new Date().toISOString()
             });
+            results.npsUpdated++;
           }
-        } catch (e) {}
-      }
-    }));
+        } catch (e) {
+          console.warn(`[syncAllMissingNavs] NPS ${h.symbol} error:`, e.message);
+        }
+      }));
+    }
   }
+
+  // 3. Sync Mutual Funds in parallel
+  await Promise.all(mfHoldings.map(async (h) => {
+    try {
+      const q = await fetchMutualFundNav(h.symbol);
+      if (q) {
+        liveQuoteCache.set(h.symbol, q);
+        await db.update('holdings', h.id, {
+          current_price: q.nav,
+          updated_at: new Date().toISOString()
+        });
+        results.mfUpdated++;
+      }
+    } catch (e) {
+      console.warn(`[syncAllMissingNavs] MF ${h.symbol} error:`, e.message);
+    }
+  }));
 
   return results;
 }
@@ -379,16 +565,59 @@ export async function fetchNpsHistoricalNav(schemeCode) {
     return cached.navMap;
   }
 
+  const navMap = new Map();
+
+  // 1. Seed from local historical_prices.json if available
+  const hpPath = './data/historical_prices.json';
+  if (fs.existsSync(hpPath)) {
+    try {
+      const hp = JSON.parse(fs.readFileSync(hpPath, 'utf8'));
+      if (hp[schemeCode]) {
+        Object.entries(hp[schemeCode]).forEach(([d, p]) => {
+          if (p != null && !isNaN(p)) navMap.set(d, Number(p));
+        });
+      }
+    } catch (e) {}
+  }
+
+  // 2. Fetch authoritative Protean CRA NAVs from Supabase with pagination safety
+  try {
+    let from = 0;
+    const batch = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('nps_daily_navs')
+        .select('nav_date, nav')
+        .eq('scheme_code', schemeCode)
+        .range(from, from + batch - 1);
+      if (error || !data || data.length === 0) break;
+      data.forEach(r => {
+        if (r.nav_date && r.nav != null) {
+          navMap.set(r.nav_date, parseFloat(r.nav));
+        }
+      });
+      if (data.length < batch) break;
+      from += batch;
+    }
+
+    if (navMap.size > 0) {
+      npsHistoricalCache.set(schemeCode, { navMap, cachedAt: Date.now() });
+      return navMap;
+    }
+  } catch (err) {
+    console.warn(`[NPS Historical Supabase Fetch] Failed for ${schemeCode}:`, err.message);
+  }
+
+  // Fallback to npsnav.in only if completely missing
   try {
     const res = await axios.get(`https://npsnav.in/api/historical/${schemeCode}`, { timeout: 10000 });
     if (res.data && Array.isArray(res.data.data)) {
-      const navMap = new Map();
       for (const item of res.data.data) {
         if (!item.date || item.nav == null) continue;
         const parts = item.date.split('-');
         if (parts.length === 3) {
           const iso = `${parts[2]}-${parts[1]}-${parts[0]}`;
-          navMap.set(iso, parseFloat(item.nav));
+          if (!navMap.has(iso)) navMap.set(iso, parseFloat(item.nav));
         }
       }
       npsHistoricalCache.set(schemeCode, { navMap, cachedAt: Date.now() });
@@ -397,7 +626,8 @@ export async function fetchNpsHistoricalNav(schemeCode) {
   } catch (err) {
     console.warn(`[NPS Historical API] Failed to fetch history for ${schemeCode}:`, err.message);
   }
-  return null;
+
+  return navMap.size > 0 ? navMap : null;
 }
 
 // In-memory live quotes cache: symbol -> quote object (declared at top of module)

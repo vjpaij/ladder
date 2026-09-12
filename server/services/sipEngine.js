@@ -1,24 +1,56 @@
+import fs from 'fs';
+import path from 'path';
 import { supabase } from '../supabaseClient.js';
 import db from '../db.js';
-import { fetchMutualFundNav } from './priceEngine.js';
+import { fetchMutualFundNav, isTradingDay } from './priceEngine.js';
 import { recalculateHoldingState } from './recalculator.js';
+
+const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');
+
+/**
+ * Returns recorded SIP execution and skip history (latest first)
+ */
+export function getSipExecutionHistory() {
+  try {
+    if (fs.existsSync(SIP_HISTORY_FILE)) {
+      return JSON.parse(fs.readFileSync(SIP_HISTORY_FILE, 'utf-8'));
+    }
+  } catch (e) {
+    console.warn('[SIP Engine] Failed reading sip history:', e.message);
+  }
+  return [];
+}
+
+/**
+ * Appends execution records to data/sip_history.json, keeping last 200 events
+ */
+function appendSipHistory(records) {
+  if (!records || records.length === 0) return;
+  try {
+    const existing = getSipExecutionHistory();
+    const updated = [...records, ...existing].slice(0, 200);
+    fs.writeFileSync(SIP_HISTORY_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[SIP Engine] Failed writing sip history:', e.message);
+  }
+}
 
 /**
  * Sweeps and executes all due recurring SIPs
  * 
- * Improvements over initial version:
- * 1. Handles end_date auto-closure: if a SIP reaches its end date, auto-closes it.
- * 2. Skips execution if NAV cannot be fetched (prevents incorrect unit allocation).
- * 3. Logs skipped SIPs for debugging.
+ * Improvements:
+ * 1. Holiday & weekend awareness: defer execution on non-trading days using isTradingDay().
+ * 2. Handles end_date auto-closure: if a SIP reaches its end date, auto-closes it.
+ * 3. Skips execution safely if NAV cannot be fetched (prevents incorrect unit allocation).
+ * 4. Logs executed, skipped, and auto-closed events into data/sip_history.json for full UI transparency.
  */
 export async function processDueSips() {
   const today = new Date().toISOString().split('T')[0];
-  const dayOfWeek = new Date().getDay(); // 0 = Sunday, 6 = Saturday
 
-  // If today is a weekend, defer execution until the next open market day (Monday)
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    console.log(`[SIP Engine] Today (${today}) is a weekend session. Execution will automatically process on the next open market business day.`);
-    return { processedCount: 0, processedSips: [], skippedSips: [], reason: 'Weekend deferral' };
+  // If today is a non-trading day (weekend or NSE market holiday), defer execution
+  if (!isTradingDay(today)) {
+    console.log(`[SIP Engine] Today (${today}) is a non-trading session (weekend or NSE holiday). Execution deferred to next open business day.`);
+    return { processedCount: 0, processedSips: [], skippedSips: [], reason: 'Non-trading day deferral' };
   }
 
   console.log(`[SIP Engine] Checking for due SIPs as of ${today}...`);
@@ -42,6 +74,7 @@ export async function processDueSips() {
   console.log(`[SIP Engine] Found ${dueSips.length} due SIPs to execute.`);
   const processedSips = [];
   const skippedSips = [];
+  const historyEvents = [];
 
   for (const sip of dueSips) {
     try {
@@ -52,7 +85,19 @@ export async function processDueSips() {
           .update({ status: 'CLOSED', updated_at: new Date().toISOString() })
           .eq('id', sip.id);
         console.log(`[SIP Engine] Auto-closed SIP for ${sip.name} -- end date ${sip.end_date} reached.`);
-        skippedSips.push({ sipId: sip.id, name: sip.name, reason: `End date ${sip.end_date} reached` });
+        const skipItem = { sipId: sip.id, name: sip.name, symbol: sip.symbol, amount: Number(sip.amount), reason: `End date ${sip.end_date} reached` };
+        skippedSips.push(skipItem);
+        historyEvents.push({
+          id: `${sip.id}-${today}-closed-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          date: today,
+          sipId: sip.id,
+          name: sip.name,
+          symbol: sip.symbol,
+          amount: Number(sip.amount),
+          status: 'CLOSED',
+          reason: `End date ${sip.end_date} reached`
+        });
         continue;
       }
 
@@ -62,7 +107,19 @@ export async function processDueSips() {
       // Safety: do NOT execute if fresh market NAV is unavailable
       if (!nav || nav <= 0) {
         console.warn(`[SIP Engine] Skipping SIP for ${sip.name}: could not fetch valid NAV (got ${nav}). Will retry on next market session.`);
-        skippedSips.push({ sipId: sip.id, name: sip.name, reason: 'NAV unavailable or market closed' });
+        const skipItem = { sipId: sip.id, name: sip.name, symbol: sip.symbol, amount: Number(sip.amount), reason: 'NAV unavailable or market closed' };
+        skippedSips.push(skipItem);
+        historyEvents.push({
+          id: `${sip.id}-${today}-skip-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          date: today,
+          sipId: sip.id,
+          name: sip.name,
+          symbol: sip.symbol,
+          amount: Number(sip.amount),
+          status: 'SKIPPED',
+          reason: 'NAV unavailable or market closed'
+        });
         continue;
       }
 
@@ -122,7 +179,7 @@ export async function processDueSips() {
         .update(sipUpdates)
         .eq('id', sip.id);
 
-      processedSips.push({
+      const processedItem = {
         sipId: sip.id,
         name: sip.name,
         amount: totalAmount,
@@ -131,14 +188,43 @@ export async function processDueSips() {
         executedDate: sip.next_run_date,
         newNextRunDate,
         autoClosed: sipUpdates.status === 'CLOSED'
+      };
+      processedSips.push(processedItem);
+
+      historyEvents.push({
+        id: `${sip.id}-${today}-success-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        date: today,
+        sipId: sip.id,
+        name: sip.name,
+        symbol: sip.symbol,
+        amount: totalAmount,
+        status: 'SUCCESS',
+        nav,
+        units,
+        autoClosed: sipUpdates.status === 'CLOSED'
       });
 
       console.log(`[SIP Engine] Successfully executed SIP for ${sip.name}: Rs.${totalAmount} (${units} units). Next: ${sipUpdates.status === 'CLOSED' ? 'CLOSED' : newNextRunDate}`);
     } catch (sipErr) {
       console.error(`[SIP Engine Error executing SIP ${sip.id}]:`, sipErr.message);
-      skippedSips.push({ sipId: sip.id, name: sip.name, reason: sipErr.message });
+      skippedSips.push({ sipId: sip.id, name: sip.name, symbol: sip.symbol, amount: Number(sip.amount), reason: sipErr.message });
+      historyEvents.push({
+        id: `${sip.id}-${today}-failed-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        date: today,
+        sipId: sip.id,
+        name: sip.name,
+        symbol: sip.symbol,
+        amount: Number(sip.amount),
+        status: 'FAILED',
+        reason: sipErr.message
+      });
     }
   }
+
+  // Persist history records
+  appendSipHistory(historyEvents);
 
   return { processedCount: processedSips.length, processedSips, skippedCount: skippedSips.length, skippedSips };
 }
