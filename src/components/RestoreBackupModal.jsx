@@ -66,7 +66,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
     setIsRestoring(true);
     try {
       const res = await axios.post('/api/cloud-backups/restore', { filename });
-      showSuccess(res.data.message || 'Database restored successfully from cloud backup!');
+      showSuccess(res.data?.message || 'Database restored successfully! Background EOD valuation rebuild initiated.');
       if (onRefresh) onRefresh();
       onClose();
     } catch (err) {

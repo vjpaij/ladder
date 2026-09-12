@@ -24,9 +24,10 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Over 4,900 historical balance adjustments from 2007 through 2026 are modeled as discrete delta transactions (`CREDIT`, `DEBIT`, `CONTRIBUTION`, `WITHDRAWAL`, `BORROW`, `EMI_PAYMENT`, `CHARGE`, `BILL_PAYMENT`).
    - Any historical adjustment or deletion automatically recalculates downstream balances accurately.
 
-4. **Automated Recurring SIP Engine**
+4. **Automated Recurring SIP Engine & Execution History**
    - In-app SIP manager (`src/components/SipManagerModal.jsx`) allowing users to schedule, edit, pause, resume, or close recurring investments.
-   - Automated cloud background runner (`server/services/sipEngine.js`) executes due SIPs at the latest NAV, allocates units with 0.015% stamp duty charges, and advances the next schedule by one month.
+   - Dedicated **Execution & Skips** tab tracking every execution attempt, units purchased, NAV pricing, and specific skip reasons (market closures, NSE holidays, end-date expirations).
+   - Automated cloud background runner (`server/services/sipEngine.js`) executes due SIPs at the latest NAV, allocates units with 0.015% stamp duty charges, logs events to `data/sip_history.json`, and advances schedules with market holiday awareness (`isTradingDay`).
 
 5. **Historical Time-Series & Real-Time Multi-Granularity Calendar**
    - Daily, monthly, and yearly portfolio valuation history spanning 19 years (2007-2026) across 18 asset and liability columns (`data/portfolio_eod_logs.json`).
@@ -34,7 +35,8 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Interactive color-coded heatmap grid and tabular view with period P&L and ROI metrics.
 
 6. **High-Performance Growth Benchmark & Reports Suite**
-   - Dedicated service (`server/services/benchmarkEngine.js`) calculating true money-weighted performance vs Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ with binary search index lookups.
+   - Dedicated service (`server/services/benchmarkEngine.js`) calculating true money-weighted performance vs Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ with binary search index lookups and live sync staleness badge ("Synced: DD-MM-YYYY").
+   - **Contextual Holding Transaction Drawer**: "+ Add Transaction" button inside `HoldingDetailModal.jsx` pre-filled with holding metadata for instant ledger additions across all asset categories.
    - Comprehensive Reports Hub with Asset Allocation, Market Cap look-through, Sector drill-downs, and a dedicated **Consolidated Performance** view analyzing Active vs Realized vs Lifetime returns across all portfolio categories.
    - High-density, clutter-free metric box architecture across all asset classes with vertical label-metric hierarchy, zero-overflow secondary grids, and clean tabular alignment.
    - Universal Border Integrity & Complete Box Containment: Replaced outset rings with inset borders and container scrollbar padding, eliminating border-clipping artifacts across all themes and viewports.
@@ -155,8 +157,15 @@ node scripts/restore_db_snapshot.mjs data/backups/snapshot_latest.json --dry-run
 node scripts/restore_db_snapshot.mjs data/backups/snapshot_latest.json
 ```
 
-### 3. Rebuilding Historical Portfolio EOD Logs
-Rebuilds the 19-year daily valuation logs from transactions and holdings into `data/portfolio_eod_logs.json` and syncs with Supabase `pnl_history`:
+### 3. Unified Daily Sync Orchestrator
+Sequences the complete end-of-day workflow in a single command (Price Ingestion -> Historical EOD Rebuild -> Financial Invariance Audit -> Gzip Cloud Backup):
+
+```bash
+node scripts/daily_sync.mjs
+```
+
+### 4. Rebuilding Historical Portfolio EOD Logs
+Rebuilds the 19-year daily valuation logs from transactions and holdings into `data/portfolio_eod_logs.json` and syncs with Supabase `pnl_history`, replaying bank, EPF, and liability delta transactions chronologically:
 
 ```bash
 node scripts/rebuild_portfolio_eod.mjs

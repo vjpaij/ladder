@@ -139,4 +139,17 @@ export const db = {
   }
 };
 
+// Preload high-frequency tables into the in-memory cache on server startup
+export async function warmCache() {
+  const tables = ['categories', 'holdings', 'liabilities', 'dividends', 'transactions'];
+  const start = Date.now();
+  let totalRows = 0;
+  for (const table of tables) {
+    const rows = await db.select(table);
+    totalRows += rows.length;
+  }
+  const duration = Date.now() - start;
+  console.log(`[DB Cache] Warmed ${tables.length} tables in ${duration}ms with ${totalRows} total rows.`);
+}
+
 export default db;

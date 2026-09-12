@@ -5,7 +5,7 @@ import axios from 'axios';
 import {
   X, TrendingUp, TrendingDown, DollarSign, BarChart2, ArrowDownCircle,
   ArrowUpCircle, Gift, Percent, Calendar, ChevronDown, ChevronUp, Activity, Globe, Search,
-  Edit3, Trash2, Save, XCircle
+  Edit3, Trash2, Save, XCircle, Plus, Check, PlusCircle
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -154,7 +154,7 @@ function formatAxisValue(value, isUSD) {
 }
 
 export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
-  const { currency, theme, fxRate, formatMoney, showError } = useThemeAuth();
+  const { currency, theme, fxRate, formatMoney, showError, showSuccess } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -175,6 +175,70 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const [txActionLoading, setTxActionLoading] = useState(null);
   const [deleteConfirmTx, setDeleteConfirmTx] = useState(null);
   const [isDeletingTx, setIsDeletingTx] = useState(false);
+
+  // Quick Add Transaction state
+  const [isAddingTx, setIsAddingTx] = useState(false);
+  const [newTxType, setNewTxType] = useState(() => {
+    if (holding?.category_id === 'bank') return 'DEPOSIT';
+    if (holding?.category_id === 'epf') return 'CONTRIBUTION';
+    if (holding?.category_id === 'loans') return 'EMI_PAYMENT';
+    if (holding?.category_id === 'credit_cards') return 'EXPENSE';
+    return 'BUY';
+  });
+  const [newTxDate, setNewTxDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [newTxQty, setNewTxQty] = useState('');
+  const [newTxPrice, setNewTxPrice] = useState(() => String(holding?.current_price || ''));
+  const [newTxAmount, setNewTxAmount] = useState('');
+  const [newTxCharges, setNewTxCharges] = useState('0');
+  const [newTxNotes, setNewTxNotes] = useState('');
+  const [isSavingTx, setIsSavingTx] = useState(false);
+
+  const handleSaveNewTransaction = async (e) => {
+    e.preventDefault();
+    setIsSavingTx(true);
+    try {
+      const isBankOrEpf = holding?.category_id === 'bank' || holding?.category_id === 'epf';
+      const isLiability = holding?.category_id === 'loans' || holding?.category_id === 'credit_cards';
+
+      let payloadData = {
+        symbol: holding.symbol || holding.name,
+        name: holding.name,
+        date: newTxDate,
+        type: newTxType,
+        charges: Number(newTxCharges) || 0,
+        notes: newTxNotes || `Added via Holding Detail Modal`
+      };
+
+      if (isBankOrEpf || isLiability) {
+        payloadData.amount = Number(newTxAmount);
+        payloadData.holdingId = holding.id;
+        payloadData.liabilityId = holding.id;
+      } else {
+        payloadData.quantity = Number(newTxQty);
+        payloadData.price = Number(newTxPrice);
+        payloadData.amount = (Number(newTxQty) || 0) * (Number(newTxPrice) || 0);
+      }
+
+      await axios.post('/api/add-investment', {
+        portfolio: holding.category_id,
+        data: payloadData
+      });
+
+      if (showSuccess) showSuccess('Transaction added successfully!');
+      setIsAddingTx(false);
+      setNewTxQty('');
+      setNewTxAmount('');
+      setNewTxNotes('');
+      // Reload holding details
+      const detailRes = await axios.get(`/api/holding/${holding.id}/detail`);
+      setDetail(detailRes.data);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      if (showError) showError('Failed to add transaction: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsSavingTx(false);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -989,6 +1053,19 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                       </p>
 
                       <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingTx(!isAddingTx)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            isAddingTx
+                              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                              : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                          }`}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{isAddingTx ? 'Close' : 'Add Transaction'}</span>
+                        </button>
+
                         {availableTxTypes.length > 1 && (
                           <div className="flex flex-wrap items-center gap-1 p-0.5 bg-slate-900/80 border border-slate-800 rounded-xl text-[10px] font-bold">
                             {availableTxTypes.map(type => (
@@ -1027,6 +1104,153 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                         </div>
                       </div>
                     </div>
+
+                    {/* Quick Add Transaction Drawer */}
+                    <AnimatePresence>
+                      {isAddingTx && (
+                        <motion.form
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          onSubmit={handleSaveNewTransaction}
+                          className="reports-subcard border border-inherit rounded-2xl p-4 shadow-xl space-y-3 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between border-b border-inherit pb-2">
+                            <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-400">
+                              <PlusCircle className="w-4 h-4" />
+                              Add Transaction for {holding.symbol || holding.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingTx(false)}
+                              className="p-1 rounded-lg opacity-70 hover:opacity-100 hover:bg-slate-500/10 cursor-pointer"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-[10px] opacity-70 font-medium block mb-1">Transaction Type</label>
+                              <select
+                                value={newTxType}
+                                onChange={(e) => setNewTxType(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500"
+                              >
+                                {(() => {
+                                  let types = ['BUY', 'SELL', 'BONUS', 'DIVIDEND', 'SPLIT'];
+                                  if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
+                                    types = ['BUY', 'REDEEM'];
+                                  } else if (holding.category_id === 'bank') {
+                                    types = ['DEPOSIT', 'WITHDRAWAL', 'INTEREST'];
+                                  } else if (holding.category_id === 'epf') {
+                                    types = ['CONTRIBUTION', 'WITHDRAWAL', 'INTEREST'];
+                                  } else if (holding.category_id === 'loans') {
+                                    types = ['EMI_PAYMENT', 'PREPAYMENT', 'BORROW', 'CHARGE'];
+                                  } else if (holding.category_id === 'credit_cards') {
+                                    types = ['EXPENSE', 'PAYMENT'];
+                                  }
+                                  return types.map(t => (
+                                    <option key={t} value={t} className="bg-slate-900 text-white">{t}</option>
+                                  ));
+                                })()}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] opacity-70 font-medium block mb-1">Date</label>
+                              <input
+                                type="date"
+                                value={newTxDate}
+                                onChange={(e) => setNewTxDate(e.target.value)}
+                                required
+                                className="w-full px-3 py-1.5 [color-scheme:dark] bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                              />
+                            </div>
+
+                            {!isEodAsset ? (
+                              <>
+                                <div>
+                                  <label className="text-[10px] opacity-70 font-medium block mb-1">Quantity / Units</label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={newTxQty}
+                                    onChange={(e) => setNewTxQty(e.target.value)}
+                                    placeholder="Units"
+                                    required
+                                    className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] opacity-70 font-medium block mb-1">Price / NAV ({holding.currency === 'USD' ? '$' : '₹'})</label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={newTxPrice}
+                                    onChange={(e) => setNewTxPrice(e.target.value)}
+                                    placeholder="Price"
+                                    required
+                                    className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] opacity-70 font-medium block mb-1">Total Amount ({holding.currency === 'USD' ? '$' : '₹'})</label>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    value={((Number(newTxQty) || 0) * (Number(newTxPrice) || 0)).toFixed(2)}
+                                    className="w-full px-3 py-1.5 bg-inherit border border-inherit/40 rounded-xl text-xs font-mono opacity-80"
+                                  />
+                                </div>
+                              </>
+                            ) : (
+                              <div>
+                                <label className="text-[10px] opacity-70 font-medium block mb-1">Amount (₹)</label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={newTxAmount}
+                                  onChange={(e) => setNewTxAmount(e.target.value)}
+                                  placeholder="Amount in ₹"
+                                  required
+                                  className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                                />
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="text-[10px] opacity-70 font-medium block mb-1">Notes / Description (Optional)</label>
+                              <input
+                                type="text"
+                                value={newTxNotes}
+                                onChange={(e) => setNewTxNotes(e.target.value)}
+                                placeholder="Transaction note..."
+                                className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-inherit">
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingTx(false)}
+                              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold opacity-70 hover:opacity-100 hover:bg-slate-500/10 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isSavingTx}
+                              className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                            >
+                              {isSavingTx ? 'Saving...' : 'Save Transaction'}
+                            </button>
+                          </div>
+                        </motion.form>
+                      )}
+                    </AnimatePresence>
+
                     <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse text-xs">

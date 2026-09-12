@@ -29,6 +29,7 @@ async function fetchYahooFinanceHistorical(symbol, startDate = '2015-01-01') {
         let val = adjclose[i] !== null && adjclose[i] !== undefined ? adjclose[i] : quote.close[i];
         if ((val === null || val === undefined || isNaN(val) || val <= 0) && i === timestamps.length - 2 && (meta.chartPreviousClose || meta.previousClose)) {
           val = meta.chartPreviousClose || meta.previousClose;
+          console.warn(`[WARN] Equity fallback used for ${symbol} on ${dStr}: substituted previous close ${val}`);
         }
         if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
           prices[dStr] = Number(Number(val).toFixed(2));

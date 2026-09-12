@@ -2360,6 +2360,20 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                   <option value="SP_500">S&P 500</option>
                   <option value="NASDAQ">NASDAQ</option>
                 </select>
+
+                {/* Benchmark Sync Staleness Badge */}
+                {growthData?.series?.length > 0 && (() => {
+                  const lastDate = growthData.series[growthData.series.length - 1]?.date;
+                  if (!lastDate) return null;
+                  const parts = lastDate.split('-');
+                  const formattedDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : lastDate;
+                  return (
+                    <span className="text-[10px] font-mono px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-semibold flex items-center gap-1.5 shadow-sm">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Synced: {formattedDate}
+                    </span>
+                  );
+                })()}
               </div>
 
               <ChartRangeSelector
