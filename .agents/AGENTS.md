@@ -51,6 +51,31 @@
    - **UNIFIED DESIGN SYSTEM PARITY**: Every modal, dialog, and popup in the project MUST use the exact project theme tokens: `modal-surface reports-card` for the outer container, `border border-inherit`, `reports-subcard` for internal cards/forms, `text-inherit` or `--text-primary` for typography, and React `createPortal(..., document.body)` for true viewport centering and scroll isolation.
    - **ZERO HARDCODED GREY OVERLAYS & SILLY BUTTON CLUTTER**: Never use hardcoded dark grey slabs (`bg-slate-900`, `bg-slate-800`), saturated solid blocks, or redundant cancel buttons (e.g. displaying "+ Cancel" in headers beside "X"). Keep header controls minimal (clean title icon, primary action trigger if applicable, and standard "X" close button). Form actions (Save/Cancel) must live strictly within the form action footer.
 
+8. **NPS SOURCE OF TRUTH & PROTEAN CRA EXCLUSIVITY**:
+   - The system MUST strictly use the official Protean CRA scraper (`https://www.npscra.proteantech.in`) and the `nps_daily_navs` table in Supabase as the primary, authoritative source of truth for all live and historical NPS valuations.
+   - Third-party aggregators like `npsnav.in` must NEVER override, replace, or be used in lieu of official Protean CRA records.
+
+9. **STRICT TRADE/TRANSACTION DATE PARITY (NEVER ENTRY TIMESTAMP)**:
+   - All financial valuations, EOD snapshots, P&L calculations, and ledger balances MUST strictly compute based on the **actual trade/transaction date** (`transaction.date` or `log_date`), NEVER the system entry timestamp (`created_at`).
+   - **PREMATURE SNAPSHOT BAN**: No EOD snapshot may EVER be recorded in `pnl_history` for date $D$ before date $D$'s market session has completed and official prices/NAVs have been published and verified. Current day metrics must strictly remain dynamic in real-time.
+
+10. **MANDATORY PAST-DATE TRANSACTION CASCADE & CONTINUOUS VIEW SYNCHRONIZATION**:
+   - When any transaction, balance adjustment, corporate action, or holding entry is added, modified, or deleted for a past date ($T < \text{Today}$):
+     - **Holdings & Current State**: The holding's entire chronological history from inception to present MUST be re-simulated via `recalculateHoldingState` (FIFO lots, buy quantity, sell quantity, average cost, net bank balance).
+     - **Calendar & Historical EOD Logs**: All intermediate historical EOD logs in `pnl_history` and `data/portfolio_eod_logs.json` between date $T$ and yesterday MUST be synchronized (via `rebuild_portfolio_eod.mjs`), ensuring that EVERY historical day on the Calendar heatmap and every subsequent date correctly reflects the change.
+     - **Universal View Synchronization**: All views (Dashboard, Calendar, Indian Equity, US Equity, Mutual Funds, NPS, Fixed Income, Liabilities, Reports, and Holding Detail Modals) MUST maintain 100% mathematical parity down to the cent with zero discrepancy.
+
+11. **MANDATORY IN-MEMORY REACTIVE CACHING & EGRESS PROTECTION PROTOCOL**:
+    - **ZERO REDUNDANT CLOUD NETWORK SWEEPS**: To strictly protect free cloud database tier limits (5 GB monthly egress), all read-heavy repetitive operations (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`) MUST read from the server-side in-memory cache (`db.select` with `dbCache`).
+    - **IMMEDIATE MUTATION INVALIDATION**: Whenever any transaction, holding, dividend, or liability record is inserted, updated, or deleted, the in-memory cache MUST immediately be invalidated via `db.invalidateCache()`, ensuring real-time UI responsiveness without wasteful network egress.
+    - **ZERO RUNAWAY AUDIT TRIGGERS**: Never introduce database triggers that serialize full JSON row snapshots on high-frequency tables (such as holdings or transactions), preventing database disk bloat.
+
+12. **CLOUD COMPRESSED BACKUP & 10-DAY RETENTION PROTOCOL**:
+    - Complete database snapshots MUST be compressed losslessly with gzip (`.json.gz`, shrinking storage by ~93%) and stored in Supabase Cloud Storage (`ladder_backups` bucket).
+    - Retention policy: **Unlimited backups within 10 days**. Any backup snapshots older than 10 days MUST automatically be pruned.
+    - Automated daily execution: Daily backup runs automatically at 08:25 AM IST (just before 08:30 AM IST) via Express server scheduler and GitHub Actions (`daily_backup.yml`).
+    - Manual backup & restoration: Supported directly via the user Profile dropdown menu ("Backup Database Now", "Restore Database" modal), `ExcelToolsView.jsx`, and CLI scripts (`scripts/backup_manager.mjs`, `scripts/restore_backup.mjs`), with explicit safety confirmations before executing any database overwrite.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:

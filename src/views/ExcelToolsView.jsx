@@ -1,13 +1,91 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FileSpreadsheet, Upload, Download, CheckCircle2, FileText, Database } from 'lucide-react';
+import { FileSpreadsheet, Upload, Download, CheckCircle2, FileText, Database, Cloud, RefreshCw, ShieldCheck, History, ArrowRight } from 'lucide-react';
+import axios from 'axios';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
 export default function ExcelToolsView({ onRefresh }) {
-  const { showSuccess } = useThemeAuth();
+  const { showSuccess, showError, showConfirm } = useThemeAuth();
   const [fileUploaded, setFileUploaded] = useState(false);
   const [fileName, setFileName] = useState('');
+
+  // Cloud Backups state
+  const [backups, setBackups] = useState([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const fetchCloudBackups = async () => {
+    setIsLoadingBackups(true);
+    try {
+      const res = await axios.get('/api/cloud-backups');
+      if (res.data && res.data.backups) {
+        setBackups(res.data.backups);
+      }
+    } catch (err) {
+      console.warn('[Cloud Backups] Failed to fetch list:', err.message);
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCloudBackups();
+  }, []);
+
+  const handleCreateCloudBackup = async () => {
+    setIsCreatingBackup(true);
+    try {
+      const res = await axios.post('/api/cloud-backups/create');
+      showSuccess(res.data.message || 'Cloud backup successfully saved to Supabase Storage!');
+      await fetchCloudBackups();
+    } catch (err) {
+      showError('Failed to create cloud backup: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
+  const handleRestoreCloudBackup = async (filename) => {
+    const confirmed = await showConfirm(
+      `Are you sure you want to restore the complete database from snapshot "${filename}"? All tables will sync to this point in time.`
+    );
+    if (!confirmed) return;
+
+    setIsRestoring(true);
+    try {
+      const res = await axios.post('/api/cloud-backups/restore', { filename });
+      showSuccess(res.data.message || 'Database restored successfully from cloud backup!');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      showError('Failed to restore backup: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '—';
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(2)} MB`;
+  };
+
+  const formatDateDisplay = (dateStr) => {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        return `${day}-${month}-${year} ${hours}:${mins}`;
+      }
+    } catch (e) {}
+    return dateStr;
+  };
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -41,7 +119,7 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
   };
 
   return (
-    <AnimatedPage className="space-y-5">
+    <AnimatedPage className="space-y-6">
       
       {/* Banner */}
       <AnimatedItem>
@@ -49,10 +127,10 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
           <div>
             <h2 className="text-xl font-black text-white flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-              Spreadsheet Data Hub & Import Templates
+              Spreadsheet Data Hub & Cloud Backup Manager
             </h2>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Load and manage Indian Stocks, US Equity, and Mutual Funds datasets into Supabase PostgreSQL database tables.
+              Manage investment datasets, import broker statements, and synchronize automated 3-tier rolling cloud backups.
             </p>
           </div>
           <motion.button
@@ -62,28 +140,101 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
             className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold rounded-xl text-xs flex items-center gap-2 transition-all"
           >
             <FileText className="w-4 h-4" />
-            Download Universal Template CSV
+            Download Template CSV
           </motion.button>
         </div>
       </AnimatedItem>
 
-      {/* Dataset Summary Banner */}
-      <AnimatedItem>
-        <div className="glass-card p-4 rounded-2xl border border-indigo-500/20 bg-indigo-950/20 flex items-center justify-between">
+      {/* Cloud 3-Tier Rolling Backup & Snapshot Sync Tool */}
+      <AnimatedCard className="glass-card p-6 rounded-3xl border border-indigo-500/20 bg-indigo-950/10 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-              <Database className="w-4 h-4" />
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+              <Cloud className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white">Supabase Loaded Portfolios Status</p>
-              <p className="text-[10px] text-slate-400">376 Holdings | 5,459 Transactions | 404 Dividends Logged</p>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                Supabase Cloud Backups (3 Rolling Snapshots)
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                  Supabase Storage
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Maintains exactly the 3 most recent complete database snapshots in Supabase Storage with zero impact on database quotas.
+              </p>
             </div>
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
-            Active & Synced
-          </span>
+
+          <div className="flex items-center gap-2">
+            <motion.button
+              onClick={fetchCloudBackups}
+              disabled={isLoadingBackups}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-slate-300 text-xs transition-all disabled:opacity-50"
+              title="Refresh Backups List"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBackups ? 'animate-spin' : ''}`} />
+            </motion.button>
+            <motion.button
+              onClick={handleCreateCloudBackup}
+              disabled={isCreatingBackup}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all disabled:opacity-50"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              {isCreatingBackup ? 'Creating Backup...' : 'Backup Now'}
+            </motion.button>
+          </div>
         </div>
-      </AnimatedItem>
+
+        {/* Snapshots List */}
+        <div className="space-y-2 mt-2">
+          {backups.length === 0 ? (
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-500">
+              {isLoadingBackups ? 'Checking Supabase Cloud Storage...' : 'No cloud snapshots recorded yet. Click "Backup Now" to create your first snapshot.'}
+            </div>
+          ) : (
+            backups.map((b, idx) => (
+              <div 
+                key={b.name || idx}
+                className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                    <History className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-white flex items-center gap-2 font-mono">
+                      {b.name}
+                      {idx === 0 && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 border border-indigo-500/40 text-indigo-300">
+                          Latest
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Recorded: {formatDateDisplay(b.created_at)} &bull; Size: {formatFileSize(b.metadata?.size)}
+                    </p>
+                  </div>
+                </div>
+
+                <motion.button
+                  onClick={() => handleRestoreCloudBackup(b.name)}
+                  disabled={isRestoring}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 self-end sm:self-auto"
+                >
+                  <ArrowRight className="w-3 h-3" />
+                  {isRestoring ? 'Restoring...' : 'Restore to this Backup'}
+                </motion.button>
+              </div>
+            ))
+          )}
+        </div>
+      </AnimatedCard>
 
       {/* Action Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -132,7 +283,7 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
           </p>
 
           <motion.button
-            onClick={() => showSuccess('Database backup exported!')}
+            onClick={() => handleCreateCloudBackup()}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-white"

@@ -23,10 +23,13 @@ async function fetchYahooFinanceHistorical(symbol, startDate = '2015-01-01') {
     if (result && result.timestamp && result.indicators?.quote?.[0]) {
       const timestamps = result.timestamp;
       const quote = result.indicators.quote[0];
-      const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close;
+      const meta = result.meta || {};
       timestamps.forEach((t, i) => {
         const dStr = new Date(t * 1000).toISOString().split('T')[0];
-        const val = adjclose[i] !== null && adjclose[i] !== undefined ? adjclose[i] : quote.close[i];
+        let val = adjclose[i] !== null && adjclose[i] !== undefined ? adjclose[i] : quote.close[i];
+        if ((val === null || val === undefined || isNaN(val) || val <= 0) && i === timestamps.length - 2 && (meta.chartPreviousClose || meta.previousClose)) {
+          val = meta.chartPreviousClose || meta.previousClose;
+        }
         if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
           prices[dStr] = Number(Number(val).toFixed(2));
         }

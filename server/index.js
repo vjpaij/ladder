@@ -14,7 +14,10 @@ import { recalculateHoldingState } from './services/recalculator.js';
 import { processDueSips } from './services/sipEngine.js';
 import { computeGrowthBenchmarks, invalidateBenchmarkCache } from './services/benchmarkEngine.js';
 import { getLoanAmortizationData, addLoanAmortizationEntry, updateLoanAmortizationEntry, deleteLoanAmortizationEntry } from './services/loanEngine.js';
+import { fork } from 'child_process';
 import axios from 'axios';
+import { createCloudBackup, listCloudBackups } from '../scripts/backup_manager.mjs';
+import { restoreCloudBackup } from '../scripts/restore_backup.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,9 +38,20 @@ process.on('uncaughtException', (err) => {
   console.warn('[Server Warning] Uncaught Exception:', err?.message || err);
 });
 
-process.on('uncaughtException', (err) => {
-  console.error('[Server Error] Uncaught Exception:', err?.message || err);
-});
+// Automatic background EOD rebuild trigger when any past-dated transaction is added, updated, or removed
+export function triggerEodRebuildIfPastDate(txDate) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (txDate && String(txDate).slice(0, 10) < todayStr) {
+    console.log(`[EOD Auto-Sync] Past-dated transaction detected (${txDate} < ${todayStr}). Triggering background EOD rebuild...`);
+    try {
+      const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
+      const child = fork(scriptPath, [], { detached: true, stdio: 'ignore' });
+      child.unref();
+    } catch (e) {
+      console.warn('[EOD Auto-Sync Warning]:', e.message);
+    }
+  }
+}
 
 // Initialize DB engine connection
 initDatabase();
@@ -2225,10 +2239,47 @@ app.post('/api/refresh-prices', authenticateToken, async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// Supabase Cloud 3-Tier Rolling Backup & Restore API
+// -------------------------------------------------------------
+app.get('/api/cloud-backups', authenticateToken, async (req, res) => {
+  try {
+    const backups = await listCloudBackups();
+    res.json({ success: true, backups });
+  } catch (err) {
+    console.error('[API Cloud Backups List Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cloud-backups/create', authenticateToken, async (req, res) => {
+  try {
+    const result = await createCloudBackup();
+    res.json({ success: true, message: 'Cloud backup created successfully in Supabase Storage!', result });
+  } catch (err) {
+    console.error('[API Cloud Backup Create Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cloud-backups/restore', authenticateToken, async (req, res) => {
+  const { filename } = req.body;
+  try {
+    const result = await restoreCloudBackup(filename);
+    db.invalidateCache();
+    // Auto-sync EOD logs after full restore
+    triggerEodRebuildIfPastDate(new Date(Date.now() - 86400000).toISOString().slice(0, 10));
+    res.json({ success: true, message: `Database successfully restored from ${result.snapshotFile}!`, result });
+  } catch (err) {
+    console.error('[API Cloud Backup Restore Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // DB Visual Manager API (Relational Editor with Name & Symbol Enriched)
 // -------------------------------------------------------------
 app.get('/api/db-tables', authenticateToken, (req, res) => {
-  res.json(['categories', 'holdings', 'transactions', 'liabilities', 'dividends', 'pnl_history', 'fx_rates', 'audit_logs']);
+  res.json(['categories', 'holdings', 'transactions', 'liabilities', 'dividends', 'pnl_history', 'fx_rates']);
 });
 
 app.get('/api/db-table-data/:tableName', authenticateToken, async (req, res) => {
@@ -2333,6 +2384,7 @@ app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
     if (parentId) {
       await recalculateHoldingState(parentId);
     }
+    triggerEodRebuildIfPastDate(txs[0].date);
 
     res.json({ success: true, message: 'Transaction deleted and holding position automatically recalculated.' });
   } catch (err) {
@@ -2355,6 +2407,7 @@ app.put('/api/transactions/:id', authenticateToken, async (req, res) => {
     if (parentId) {
       await recalculateHoldingState(parentId);
     }
+    triggerEodRebuildIfPastDate(updates.date || txs[0].date);
 
     res.json({ success: true, message: 'Transaction updated and holding position automatically recalculated.' });
   } catch (err) {
@@ -2997,6 +3050,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       await db.insert('transactions', txRecord);
       await recalculateHoldingState(holdingId);
       invalidateBenchmarkCache();
+      triggerEodRebuildIfPastDate(txDate);
 
       // If a new stock holding was created, sync its metadata in background
       if (existingHoldings.length === 0 && (portfolio === 'in_stocks' || portfolio === 'us_stocks')) {
@@ -3089,6 +3143,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       }
 
       await recalculateHoldingState(holdingId);
+      triggerEodRebuildIfPastDate(txDate);
       return res.json({ success: true, holdingId, action: 'ledger_updated' });
     }
 
@@ -3158,6 +3213,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       }
 
       await recalculateHoldingState(liabilityId);
+      triggerEodRebuildIfPastDate(txDate);
       return res.json({ success: true, liabilityId, action: 'loan_ledger_updated' });
     }
 
@@ -3227,6 +3283,7 @@ app.post('/api/add-investment', authenticateToken, async (req, res) => {
       }
 
       await recalculateHoldingState(cardId);
+      triggerEodRebuildIfPastDate(txDate);
       return res.json({ success: true, cardId, action: 'card_ledger_updated' });
     }
 
@@ -3417,4 +3474,43 @@ app.listen(PORT, () => {
       await refreshAllHoldingsPrices();
     } catch (err) { }
   }, 10 * 60 * 1000);
+
+  // Automated daily cloud backup scheduler: runs everyday at 08:25 AM IST (02:55 UTC)
+  const scheduleDailyCloudBackup = () => {
+    const getNextBackupDelay = () => {
+      const now = new Date();
+      // 02:55:00 UTC is exactly 08:25:00 AM IST (UTC + 5:30)
+      const nextTarget = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        2, 55, 0, 0
+      ));
+      if (nextTarget.getTime() <= now.getTime()) {
+        nextTarget.setUTCDate(nextTarget.getUTCDate() + 1);
+      }
+      return nextTarget.getTime() - now.getTime();
+    };
+
+    const armNext = () => {
+      const delay = getNextBackupDelay();
+      const targetTime = new Date(Date.now() + delay);
+      console.log(`[Backup Scheduler] Next automated 08:25 AM IST cloud backup scheduled for ${targetTime.toISOString()} (in ${(delay / 3600000).toFixed(2)}h)`);
+      setTimeout(async () => {
+        console.log('[Backup Scheduler] Running daily 08:25 AM IST cloud backup...');
+        try {
+          await createCloudBackup();
+          console.log('[Backup Scheduler] Daily backup finished successfully.');
+        } catch (err) {
+          console.error('[Backup Scheduler] Daily backup error:', err.message);
+        } finally {
+          armNext();
+        }
+      }, delay);
+    };
+
+    armNext();
+  };
+
+  scheduleDailyCloudBackup();
 });

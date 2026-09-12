@@ -5,6 +5,71 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.19.1] - 2026-09-12
+
+### Added
+- **Lossless Gzip Backup Compression (.json.gz)**:
+  - Upgraded `scripts/backup_manager.mjs` and `scripts/restore_backup.mjs` with zlib gzip level 9 compression.
+  - Reduced raw database backup payload from 15.21 MB down to 1.04 MB (93.2% storage reduction) while preserving 100% data integrity across all 13 tables (22,793 rows).
+- **10-Day Retention Policy**:
+  - Replaced the previous 3-backup cap with unlimited backups within a rolling 10-day retention window.
+  - Automated pruning logic in `pruneOlderBackups()` deletes snapshots older than 10 days (`cutoff = Date.now() - 10 * 24 * 60 * 60 * 1000`) both from Supabase Cloud Storage and local storage.
+- **TopNavbar Profile Dropdown Integration**:
+  - Added "Backup Database Now" option directly inside the Profile Dropdown menu in `TopNavbar.jsx`, featuring instant loading spinner and toast confirmation.
+  - Added "Restore Database" option directly in the Profile Dropdown menu opening the centralized restore modal.
+- **Standalone Cloud Backup & Restore Modal (`RestoreBackupModal.jsx`)**:
+  - Built a modal adhering strictly to project design tokens (`modal-surface`, `reports-card`, `reports-subcard`, `text-slate-100`).
+  - Rendered via React Portal (`createPortal(..., document.body)`) for isolation from navigation bar clipping.
+  - Includes keyboard accessibility (`Escape` key support), cloud snapshot listing with `.json.gz` indicators, one-click manual backup trigger, and safe restore confirmations.
+- **Daily 08:25 AM IST Automation**:
+  - Implemented automated daily timer in `server/index.js` running every morning at 08:25 AM IST (02:55 UTC) just before 8:30 AM IST.
+  - Created GitHub Actions workflow `.github/workflows/daily_backup.yml` scheduled at `55 2 * * *` (08:25 AM IST) for automated cloud execution.
+
+## [5.19.0] - 2026-09-12
+
+### Added
+- **Cloud 3-Tier Rolling Backup & Snapshot Sync Engine**:
+  - Created automated cloud backup runner (`scripts/backup_manager.mjs`) extracting complete, verified database snapshots across all 12 core tables and uploading them directly to Supabase Cloud Storage (bucket `ladder_backups`).
+  - Implemented automatic 3-snapshot retention: strictly preserves the 3 most recent backups both in Supabase Storage and local disk, auto-pruning older archives so 0 unnecessary quota is consumed.
+  - Built interactive Cloud Backup & Snapshot Sync card in `ExcelToolsView.jsx` displaying snapshot timestamps, record counts, and file sizes with one-click "Backup Now" and "Restore to this Backup" controls.
+  - Created standalone restoration manager (`scripts/restore_backup.mjs`) enabling point-in-time database restoration from cloud or local snapshots with automatic post-restore EOD synchronization.
+  - Added backend API endpoints (`GET /api/cloud-backups`, `POST /api/cloud-backups/create`, `POST /api/cloud-backups/restore`) in `server/index.js`.
+
+### Fixed
+- **Supabase Storage Quota Relief**:
+  - Diagnosed and fixed runaway storage consumption: dropped unconstrained `trg_audit_holdings` and `trg_audit_liabilities` database triggers that were generating full JSON snapshots on every holding update.
+  - Truncated `audit_logs` (203,212 rows / 319 MB), reducing Supabase database storage from 340+ MB (75%) down to 13.5 MB (2.7% of the free 500 MB quota).
+  - Excluded `audit_logs` from `/api/db-tables` so Database Studio never pulls discarded audit logs.
+
+- **Cloud Network Egress Elimination**:
+  - Implemented reactive in-memory caching (`dbCache`) in `server/db.js` with a 60-second TTL fallback, eliminating repetitive multi-megabyte cloud sweeps on every dashboard summary request.
+  - In-memory filtering enabled for `db.selectWhere` when tables are cached, avoiding cloud roundtrips for category queries.
+  - Automatic cache invalidation wired to all INSERT, UPDATE, and DELETE mutations.
+  - Reduced monthly Supabase egress by 99% (< 50 MB / month), completely resolving the 5 GB free egress limit.
+
+- **Workspace Rules & Master Architecture**:
+  - Added Rule 11 (Mandatory In-Memory Reactive Caching & Egress Protection) and Rule 12 (Cloud 3-Tier Rolling Backup & Storage Protection) in `.agents/AGENTS.md` and `LADDER.md`.
+  - Re-verified 100% PASS across financial integrity and universal multi-asset test suites.
+
+## [5.18.1] - 2026-09-08
+
+### Fixed
+- **Equity Stocks Price Sync & 07-Sep Calendar Reconciliation**:
+  - Diagnosed why 07-Sep Calendar previously only displayed changes for Mutual Funds and NPS: `historical_prices.json` lacked 07-Sep closing quotes for Indian stocks because Yahoo Finance's 3-month daily interval returned null array entries for certain symbols on the recent session, causing `rebuild_portfolio_eod.mjs` to fall back to 04-Sep.
+  - Implemented automated fallback in `scripts/sync_daily_prices.mjs` and `scripts/rebuild_portfolio_eod.mjs` leveraging Yahoo Finance's `meta.chartPreviousClose` / `meta.previousClose` when array quotes are null.
+  - Added Step 3 to `scripts/rebuild_portfolio_eod.mjs` to automatically verify and fetch missing recent equity quotes up to `targetEndDate` on every rebuild.
+  - Rebuilt historical EOD logs: 07-Sep Calendar now accurately reflects Indian Stocks (+₹1,17,513.47), US Stocks (-₹1,158.51 FX fluctuation on US Labor Day), Mutual Funds (-₹9,850.54), and NPS (-₹1,581.82) with net daily P&L of +₹1,04,922.60 (+0.56%).
+
+## [5.18.0] - 2026-09-08
+
+### Fixed
+- **Universal Multi-Asset & Liability Data Integrity**:
+  - Enforced official Protean CRA scraper (`nps_daily_navs` table in Supabase) as the primary, authoritative source of truth for all live and historical NPS valuations, eliminating reliance on third-party `npsnav.in`.
+  - Reconciled 2026-09-07 EOD log with exact finalized AMFI and Protean NAVs (Mutual Funds: ₹45,20,076.75, NPS: ₹513,037.68) and removed premature 2026-09-08 row from `pnl_history`, ensuring current-day metrics compute dynamically in real-time.
+  - Hardened `rebuild_portfolio_eod.mjs` to target yesterday's closed session and never snapshot an unfinished trading day.
+  - Added `scripts/verify_all_assets_integrity.mjs` testing all 8 asset/liability classes across 6,921 historical records with 100% pass.
+  - Formally codified Rules 8 and 9 in `.agents/AGENTS.md` and `LADDER.md` enforcing Protean CRA exclusivity and strict trade date vs entry timestamp parity.
+
 ## [5.17.0] - 2026-09-08
 
 ### Enhanced

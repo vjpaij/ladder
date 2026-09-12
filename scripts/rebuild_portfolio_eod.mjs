@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
+import axios from 'axios';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
@@ -159,11 +160,92 @@ async function rebuildEod() {
   const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && (Number(h.quantity) || 0) > 0);
   const npsHoldings = holdings.filter(h => h.category_id === 'nps' && (Number(h.quantity) || 0) > 0);
 
+  // 1. Fetch official Protean CRA NAVs directly from Supabase nps_daily_navs table
+  const { data: proteanDbNavs } = await supabase
+    .from('nps_daily_navs')
+    .select('scheme_code, nav, nav_date');
+  
+  const proteanMap = {};
+  (proteanDbNavs || []).forEach(r => {
+    if (!proteanMap[r.scheme_code]) proteanMap[r.scheme_code] = {};
+    proteanMap[r.scheme_code][r.nav_date] = Number(r.nav);
+  });
+
   const npsHistoricalPrices = {};
   await Promise.all(npsHoldings.map(async (holding) => {
-    const prices = await fetchNpsHistoricalNav(holding.symbol);
-    if (prices) npsHistoricalPrices[holding.symbol] = prices;
+    const fallbackPrices = await fetchNpsHistoricalNav(holding.symbol);
+    const fallbackObj = fallbackPrices instanceof Map ? Object.fromEntries(fallbackPrices) : (fallbackPrices || {});
+    // Protean CRA official scraped NAVs strictly take priority over any third-party fallback
+    npsHistoricalPrices[holding.symbol] = { ...fallbackObj, ...(proteanMap[holding.symbol] || {}) };
   }));
+
+  // 2. Fetch latest official AMFI Mutual Fund historical NAVs in parallel
+  const mfHistoricalPrices = {};
+  await Promise.all(mfHoldings.map(async (holding) => {
+    try {
+      const res = await axios.get(`https://api.mfapi.in/mf/${holding.symbol}`, { timeout: 8000 });
+      if (res.data && res.data.data) {
+        const map = {};
+        res.data.data.forEach(item => {
+          const parts = item.date.split('-');
+          if (parts.length === 3) map[`${parts[2]}-${parts[1]}-${parts[0]}`] = parseFloat(item.nav);
+        });
+        mfHistoricalPrices[holding.symbol] = map;
+      }
+    } catch (e) {
+      console.warn(`[MF EOD Fetch Warning] ${holding.symbol}:`, e.message);
+    }
+  }));
+
+  // Target end date: EOD logs strictly represent finalized, closed trading sessions.
+  // Today's current day is actively trading and MUST compute dynamically in real-time.
+  // Target end date for batch historical EOD logs is strictly yesterday.
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const targetEndDate = yesterdayStr;
+
+  // 3. Ensure active Indian and US stocks have prices up to targetEndDate
+  const symbolMap = { 'TATAMOTORS': 'TMPV.NS', 'TATAMTRDVR': 'TMPV.NS', 'SWANENERGY': '503310.BO' };
+  const allEquityHoldings = [...inHoldings, ...usHoldings];
+  const missingEquity = allEquityHoldings.filter(h => !historicalPrices[h.symbol] || historicalPrices[h.symbol][targetEndDate] === undefined);
+
+  if (missingEquity.length > 0) {
+    console.log(`[EOD] Fetching latest market quotes for ${missingEquity.length} equity positions missing ${targetEndDate}...`);
+    for (const h of missingEquity) {
+      let sym = h.symbol;
+      if (h.category_id === 'in_stocks') {
+        sym = symbolMap[h.symbol] || h.symbol;
+        if (!sym.endsWith('.NS') && !sym.endsWith('.BO')) sym += '.NS';
+      }
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
+        const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000 });
+        const result = res.data?.chart?.result?.[0];
+        if (result && result.timestamp) {
+          const timestamps = result.timestamp;
+          const quote = result.indicators?.quote?.[0] || {};
+          const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
+          const meta = result.meta || {};
+
+          historicalPrices[h.symbol] = historicalPrices[h.symbol] || {};
+          timestamps.forEach((t, idx) => {
+            const dStr = new Date(t * 1000).toISOString().split('T')[0];
+            let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+            if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
+              val = meta.chartPreviousClose || meta.previousClose;
+            }
+            if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
+              historicalPrices[h.symbol][dStr] = Number(Number(val).toFixed(2));
+            }
+          });
+        }
+      } catch (err) {
+        // Silently continue
+      }
+    }
+    try {
+      fs.writeFileSync(HISTORICAL_FILE, JSON.stringify(historicalPrices, null, 2), 'utf-8');
+    } catch (e) {}
+  }
 
   const lastExcelLog = baseLogs[baseLogs.length - 1] || {
     date: '2026-08-07',
@@ -179,10 +261,6 @@ async function rebuildEod() {
     credits: 1862.16,
     debt: 4498620.16
   };
-
-  // Determine current system date
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const targetEndDate = todayStr;
 
   let curDate = new Date(`${lastExcelLog.date}T00:00:00Z`);
   const endDate = new Date(`${targetEndDate}T00:00:00Z`);
@@ -248,6 +326,8 @@ async function rebuildEod() {
           } else if (historicalPrices[h.symbol]) {
             prices = historicalPrices[h.symbol];
           }
+        } else if (h.category_id === 'mutual_funds') {
+          prices = mfHistoricalPrices[h.symbol] || historicalPrices[h.symbol] || {};
         } else {
           prices = historicalPrices[h.symbol] || {};
         }

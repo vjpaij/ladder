@@ -6,14 +6,58 @@ function getSupabaseTableName(tableName) {
   return tableName;
 }
 
+// In-memory reactive cache with TTL & instant invalidation
+const dbCache = new Map();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+
 export function initDatabase() {
-  console.log('[Database] Connected to Supabase Cloud PostgreSQL engine.');
+  console.log('[Database] Connected to Supabase Cloud PostgreSQL engine with In-Memory Egress Guard.');
 }
 
-// Supabase Async Database Interface with Mandatory Pagination Guard
+function getCacheEntry(tableName) {
+  const entry = dbCache.get(tableName);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    dbCache.delete(tableName);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCacheEntry(tableName, data) {
+  dbCache.set(tableName, { data, timestamp: Date.now() });
+}
+
+export function invalidateCache(tableName) {
+  if (!tableName) {
+    dbCache.clear();
+    console.log('[DB Cache] Invalidated entire in-memory cache.');
+    return;
+  }
+  const sTable = getSupabaseTableName(tableName);
+  dbCache.delete(sTable);
+  // Cross-invalidation for related tables
+  if (sTable === 'transactions' || sTable === 'dividends') {
+    dbCache.delete('holdings');
+  }
+  if (sTable === 'holdings') {
+    dbCache.delete('transactions');
+  }
+}
+
+// Supabase Async Database Interface with Mandatory Pagination Guard & In-Memory Cache
 export const db = {
-  select: async (tableName) => {
+  select: async (tableName, options = {}) => {
+    const { forceRefresh = false } = options;
     const sTable = getSupabaseTableName(tableName);
+
+    // Check in-memory cache first
+    const cached = getCacheEntry(sTable);
+    if (cached !== null && !forceRefresh) {
+      return cached;
+    }
+
+    // Fetch from Supabase with pagination safety
     let allRows = [];
     let from = 0;
     const batchSize = 1000;
@@ -31,30 +75,30 @@ export const db = {
       if (data.length < batchSize) break;
       from += batchSize;
     }
+
+    setCacheEntry(sTable, allRows);
     return allRows;
   },
 
-  selectWhere: async (tableName, matchObj) => {
+  selectWhere: async (tableName, matchObj, options = {}) => {
+    const { forceRefresh = false } = options;
     const sTable = getSupabaseTableName(tableName);
-    let allRows = [];
-    let from = 0;
-    const batchSize = 1000;
-    while (true) {
-      let query = supabase.from(sTable).select('*').range(from, from + batchSize - 1);
-      if (matchObj && typeof matchObj === 'object') {
-        query = query.match(matchObj);
-      }
-      const { data, error } = await query;
-      if (error) {
-        console.error(`[DB SelectWhere Error - ${sTable}]:`, error.message);
-        return allRows.length > 0 ? allRows : [];
-      }
-      if (!data || data.length === 0) break;
-      allRows.push(...data);
-      if (data.length < batchSize) break;
-      from += batchSize;
+
+    // If table is cached, filter in-memory with 0 network egress
+    const cached = getCacheEntry(sTable);
+    if (cached !== null && !forceRefresh) {
+      if (!matchObj || Object.keys(matchObj).length === 0) return cached;
+      return cached.filter(row => {
+        return Object.entries(matchObj).every(([k, v]) => row[k] === v);
+      });
     }
-    return allRows;
+
+    // Otherwise fetch table into cache and filter
+    const allRows = await db.select(sTable, { forceRefresh });
+    if (!matchObj || Object.keys(matchObj).length === 0) return allRows;
+    return allRows.filter(row => {
+      return Object.entries(matchObj).every(([k, v]) => row[k] === v);
+    });
   },
 
   insert: async (tableName, row) => {
@@ -64,6 +108,7 @@ export const db = {
       console.error(`[DB Insert Error - ${sTable}]:`, error.message);
       throw new Error(error.message);
     }
+    invalidateCache(sTable);
     return data;
   },
 
@@ -74,6 +119,7 @@ export const db = {
       console.error(`[DB Update Error - ${sTable}]:`, error.message);
       throw new Error(error.message);
     }
+    invalidateCache(sTable);
     return data?.[0] || null;
   },
 
@@ -84,7 +130,12 @@ export const db = {
       console.error(`[DB Delete Error - ${sTable}]:`, error.message);
       return false;
     }
+    invalidateCache(sTable);
     return true;
+  },
+
+  invalidateCache: (tableName) => {
+    invalidateCache(tableName);
   }
 };
 

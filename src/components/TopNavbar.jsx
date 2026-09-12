@@ -19,10 +19,14 @@ import {
   Clock, 
   PlusCircle, 
   Edit3, 
-  ArrowLeft 
+  ArrowLeft,
+  CloudUpload,
+  History 
 } from 'lucide-react';
+import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import FxRateModal from './FxRateModal';
+import RestoreBackupModal from './RestoreBackupModal';
 
 export default function TopNavbar({ 
   currentView,
@@ -47,6 +51,7 @@ export default function TopNavbar({
     logout,
     formatMoney,
     fxRate,
+    showSuccess,
     showError,
     showConfirm
   } = useThemeAuth();
@@ -57,6 +62,21 @@ export default function TopNavbar({
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [isFxModalOpen, setIsFxModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isQuickBackingUp, setIsQuickBackingUp] = useState(false);
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+
+  const handleQuickBackup = async () => {
+    setIsQuickBackingUp(true);
+    try {
+      const res = await axios.post('/api/cloud-backups/create');
+      showSuccess(res.data.message || 'Compressed cloud backup saved to Supabase Storage!');
+      setIsUserMenuOpen(false);
+    } catch (err) {
+      showError('Backup failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsQuickBackingUp(false);
+    }
+  };
 
   const [isSyncSuccess, setIsSyncSuccess] = useState(false);
   const prevIsRefreshing = useRef(isRefreshing);
@@ -471,6 +491,28 @@ export default function TopNavbar({
                       <span>Data Import / Export</span>
                     </button>
                   )}
+
+                  {/* Backup Now */}
+                  <button
+                    onClick={handleQuickBackup}
+                    disabled={isQuickBackingUp}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <CloudUpload className={`w-4 h-4 text-emerald-400 ${isQuickBackingUp ? 'animate-bounce' : ''}`} />
+                    <span>{isQuickBackingUp ? 'Creating Backup...' : 'Backup Now'}</span>
+                  </button>
+
+                  {/* Restore */}
+                  <button
+                    onClick={() => {
+                      setIsRestoreModalOpen(true);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                  >
+                    <History className="w-4 h-4 text-cyan-400" />
+                    <span>Restore</span>
+                  </button>
                 </div>
 
                 {/* Logout / Session Control */}
@@ -501,6 +543,13 @@ export default function TopNavbar({
       <FxRateModal 
         isOpen={isFxModalOpen} 
         onClose={() => setIsFxModalOpen(false)} 
+      />
+
+      {/* Cloud Backup & Restore Management Modal */}
+      <RestoreBackupModal
+        isOpen={isRestoreModalOpen}
+        onClose={() => setIsRestoreModalOpen(false)}
+        onRefresh={onRefreshPrices}
       />
     </header>
   );
