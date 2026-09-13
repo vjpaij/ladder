@@ -11,7 +11,7 @@
 **Ladder** is an institutional-grade, highly modern, personal finance and investment management dashboard. It consolidates a user's entire wealth portfolio across multiple asset classes and debt instruments into a single interactive web application.
 
 - **Primary Currency**: INR (₹) default with real-time USD/INR live conversion ($1 = ₹X) and instant header currency toggle.
-- **Authentication**: Built-in local JWT authentication (`admin@ladder.com` / `admin123`).
+- **Authentication**: Local JWT authentication with validated sign-in and registration, bcrypt password hashes, required environment-managed `JWT_SECRET`, bearer-token API protection, and a branded responsive auth screen. A development seed account is available as `admin@ladder.com` / `admin123`.
 - **Data Persistence**: In-memory & JSON-backed relational database engine (`server/db.js`) supporting full CRUD operations, cascade updates, and cross-table synchronization.
 
 ---
@@ -61,11 +61,18 @@
 - Real-time automatic cascade updates synchronizing Dashboard Net Worth, Asset Allocations, and Reports.
 
 ### 6. Relational Database Studio (`DatabaseStudioView.jsx`)
-- Visual table inspector browsing all 8 database tables (`users`, `categories`, `holdings`, `transactions`, `liabilities`, `dividends`, `daily_pnl_logs`, `fx_rates`).
-- **Visual CRUD**: Click any cell in the grid to edit and amend inline; saves directly to backend via `/api/db-table-update`.
+- Visual table inspector browsing approved portfolio tables (`categories`, `holdings`, `transactions`, `liabilities`, `dividends`, `pnl_history`, `fx_rates`). User credentials are not exposed through the editor.
+- **Controlled Visual CRUD**: Click approved editable cells in the grid to amend inline; the backend validates both table and column before saving via `/api/db-table-update`.
 - Direct table JSON exporter.
 
-### 7. Excel & CSV Import / Export Hub (`ExcelToolsView.jsx`)
+### 7. Authentication & Branded Entry Experience (`App.jsx`)
+- Responsive Ladder login and registration screen using `src/assets/logo.png` as the primary visual identity.
+- Sign-in endpoint: `POST /api/auth/login`.
+- Registration endpoint: `POST /api/auth/register`, requiring a valid email, 2-80 character name, and 8-128 character password.
+- Frontend bearer-token attachment and automatic recovery from expired or invalid stored sessions.
+- Required server configuration: `JWT_SECRET` with at least 32 characters and optional `CORS_ORIGINS`.
+
+### 8. Excel & CSV Import / Export Hub (`ExcelToolsView.jsx`)
 - Import holdings from `portfolio.xlsx`, `charges.xlsx`, or standard broker CSV files (Zerodha, Groww, INDmoney, Charles Schwab).
 - Export complete database snapshot backups as JSON or Excel.
 
@@ -310,6 +317,7 @@ ladder/
 | **v5.24.0** | 2026-09-12 | Dynamic Multi-Asset & Multi-Year Market Calendar Engine: Built dynamic trading day and market holiday engine (server/services/marketCalendar.js) evaluating NSE/BSE/AMFI/NPS and NYSE/NASDAQ across arbitrary future years without hardcoding. Codified Rule 13 (Strict Anti-Hardcoding Protocol). | Antigravity AI |
 | **v5.25.0** | 2026-09-12 | Mutual Funds and NPS 4-Decimal NAV Precision Upgrade: Upgraded database, server endpoints, and frontend UI to store, calculate, and display NAVs and unit prices with 4 decimal places for Mutual Funds and NPS. Extended formatMoney and added formatNAV in ThemeAuthContext.jsx. Updated MutualFundsView, NpsView, HoldingDetailModal, and HoldingsTable. Re-synchronized 4-decimal avg_buy_price across 47 fund holdings. | Antigravity AI |
 | **v5.26.0** | 2026-09-13 | Reliability Hardening, Code Splitting, NPS Backfill, and Restore Lifecycle Tracking: (1) EOD Rebuild: Removed 90-row upsert cap in rebuild_portfolio_eod.mjs; all rebuilt logs now upserted to Supabase pnl_history in full 500-row batches with gap detection logging for any missing trading days; (2) DB Cache Warmup: Added pnl_history (last 365 records) to server/db.js warmCache() preventing cold-start Supabase egress on Dashboard and Calendar; (3) Integrity Script: Overhauled verify_all_assets_integrity.mjs with paginated future-row query, full NPS scan (no limit), dynamic date boundary from first record (no hardcoded dates), and smart NPS delta assertion that correctly skips pre-16:00 IST and weekend sessions; (4) Restore Job Lifecycle: Added in-memory restoreJobs Map to server/index.js with GET /api/cloud-backups/restore/status polling endpoint; RestoreBackupModal.jsx now shows live status banner (Restoring -> Rebuilding EOD -> Succeeded/Failed) instead of closing immediately; (5) Code Splitting: Converted all 14 view components to React.lazy() imports with Suspense boundary and ViewLoader fallback in App.jsx, splitting the monolithic 1.3 MB bundle into 14+ independent async chunks; (6) NPS Historical Backfill: Created scripts/backfill_nps_navs.mjs to fetch complete historic NAV series for all 14 Direct NPS scheme codes from npsnav.in and upsert to nps_daily_navs table with deduplication; (7) Dependency Cleanup: Removed Rule 8 npsnav.in restriction; npsnav.in is now an allowed and documented fallback source for historical NPS NAVs when Protean CRA data is unavailable; (8) Master Plan: Replaced stale data/implementation_plan.md (v5.19.1) with consolidated v5.25.0+ master implementation plan. | Antigravity AI |
+| **v5.27.0** | 2026-09-13 | Security, Authentication, Branding, and Operational Safety: enforced JWT authentication with environment-managed secrets, removed demo and empty-password fallbacks, added validated account registration, added a responsive Ladder-branded login/register experience using the project logo, protected loan/report routes, restricted Database Studio table and column access, fixed mutation cache invalidation, made backup reads fail closed, validated restore snapshots, blocked concurrent restores, and reduced aggressive frontend polling. | GitHub Copilot |
 
 
 

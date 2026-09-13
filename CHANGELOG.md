@@ -5,6 +5,28 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.27.0] - 2026-09-13
+
+### Added
+- **Secure Authentication & Registration**:
+  - Added validated `POST /api/auth/register` account creation with bcrypt password hashing.
+  - Added a responsive branded Ladder login/register screen using the project logo artwork.
+  - Added automatic clearing of expired or invalid browser sessions.
+
+### Changed
+- **Authentication Hardening**:
+  - Removed demo-token and empty-password fallbacks.
+  - Required a configured `JWT_SECRET` with a minimum length of 32 characters.
+  - Added configurable CORS origins and attached bearer tokens to frontend API requests.
+- **Database and Backup Safety**:
+  - Restricted Database Studio to approved tables and editable columns.
+  - Added cache invalidation after direct transaction, holding, and liability mutations.
+  - Backups now fail on read errors, while restores validate filenames and snapshot structure and abort on database errors.
+  - Prevented concurrent restore operations.
+- **UI Load and Presentation**:
+  - Reduced dashboard and FX polling frequency.
+  - Simplified authentication copy and enlarged the Ladder visual mark for a cleaner first impression.
+
 ## [5.26.0] - 2026-09-13
 
 ### Added

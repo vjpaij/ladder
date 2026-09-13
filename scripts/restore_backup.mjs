@@ -19,6 +19,14 @@ export async function restoreCloudBackup(specificFilename = null) {
     targetFile = backups[0].name;
   }
 
+  if (
+    typeof targetFile !== 'string' ||
+    targetFile !== path.basename(targetFile) ||
+    !/^ladder_backup_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.json(?:\.gz)?$/.test(targetFile)
+  ) {
+    throw new Error('Invalid backup filename.');
+  }
+
   console.log(`[Restore Manager] Restoring from snapshot: ${targetFile}...`);
 
   let rawJson = null;
@@ -54,6 +62,12 @@ export async function restoreCloudBackup(specificFilename = null) {
     throw new Error('Invalid snapshot structure: missing tables object.');
   }
 
+  for (const table of CORE_TABLES) {
+    if (!Array.isArray(snapshot.tables[table])) {
+      throw new Error(`Invalid snapshot structure: missing table '${table}'.`);
+    }
+  }
+
   console.log(`[Restore Manager] Snapshot timestamp: ${snapshot.timestamp}, total rows recorded: ${snapshot.totalRows}`);
 
   // Restore tables in foreign key / dependency order
@@ -77,18 +91,13 @@ export async function restoreCloudBackup(specificFilename = null) {
 
   for (const table of restoreOrder) {
     const rows = snapshot.tables[table];
-    if (!rows || !Array.isArray(rows)) {
-      console.log(`  - Skipping ${table} (no data in snapshot)`);
-      continue;
-    }
 
     console.log(`  - Restoring ${table} (${rows.length} rows)...`);
     
     // Clear existing data safely
-    const { error: delErr } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    const { error: delErr } = await supabase.from(table).delete().not('id', 'is', null);
     if (delErr) {
-      // In case table uses non-uuid id
-      await supabase.from(table).delete().gte('created_at', '1970-01-01');
+      throw new Error(`Failed to clear ${table}: ${delErr.message}`);
     }
 
     // Insert rows in batches of 500
@@ -97,7 +106,7 @@ export async function restoreCloudBackup(specificFilename = null) {
       const chunk = rows.slice(i, i + batchSize);
       const { error: insErr } = await supabase.from(table).insert(chunk);
       if (insErr) {
-        console.warn(`    [Warning] Batch insert error in ${table}:`, insErr.message);
+        throw new Error(`Failed to restore ${table}: ${insErr.message}`);
       }
     }
     restoredCounts[table] = rows.length;

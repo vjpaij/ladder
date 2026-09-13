@@ -40,8 +40,7 @@ export async function fetchAllRows(tableName) {
       .range(from, from + batchSize - 1);
 
     if (error) {
-      console.warn(`[Backup Warning] Error reading ${tableName}:`, error.message);
-      break;
+      throw new Error(`Failed to read ${tableName}: ${error.message}`);
     }
     if (!data || data.length === 0) break;
     allRows.push(...data);

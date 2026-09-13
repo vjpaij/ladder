@@ -114,6 +114,8 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-supabase-anon-key
+JWT_SECRET=replace-with-a-random-secret-at-least-32-characters-long
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 ### Step 3: Run the Application Locally
@@ -131,8 +133,26 @@ npm run dev
 Open your browser and navigate to `http://localhost:5173` (or the URL displayed in the terminal).
 
 ### Default Authentication Credentials
-- **Email**: `admin@ladder.com`
-- **Password**: `admin123`
+- A local seed account is available for development:
+   - **Email**: `admin@ladder.com`
+   - **Password**: `admin123`
+- The login screen also supports registering additional accounts. Passwords are stored as bcrypt hashes; change or remove the seed account before deploying beyond a private development environment.
+- The API requires a valid JWT for portfolio, report, database, backup, loan, and mutation endpoints. `JWT_SECRET` is mandatory and must be at least 32 characters.
+
+### Authentication & Branding
+
+Unauthenticated users see the branded Ladder authentication screen using the project artwork from `src/assets/logo.png`. The screen supports:
+
+- Existing account sign-in with expired-session recovery.
+- New account registration with name, email, password confirmation, and server-side validation.
+- Responsive desktop and mobile layouts with concise portfolio-oriented branding.
+
+Authentication endpoints:
+
+```text
+POST /api/auth/login
+POST /api/auth/register
+```
 
 ---
 

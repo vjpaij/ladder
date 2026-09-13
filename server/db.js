@@ -68,7 +68,7 @@ export const db = {
         .range(from, from + batchSize - 1);
       if (error) {
         console.error(`[DB Select Error - ${sTable}]:`, error.message);
-        return allRows.length > 0 ? allRows : [];
+        throw new Error(`Failed to read ${sTable}: ${error.message}`);
       }
       if (!data || data.length === 0) break;
       allRows.push(...data);

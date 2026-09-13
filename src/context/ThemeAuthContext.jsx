@@ -39,8 +39,14 @@ const THEMES = [
 export function ThemeAuthProvider({ children }) {
   const [theme, setTheme] = useState(localStorage.getItem('ladder_theme') || 'dark');
   const [currency, setCurrency] = useState(localStorage.getItem('ladder_currency') || 'INR');
-  const [token, setToken] = useState(localStorage.getItem('ladder_token') || 'demo_token');
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('ladder_user') || '{"name":"Vijay Pai","email":"admin@ladder.com","avatar":"VP"}'));
+  const [token, setToken] = useState(localStorage.getItem('ladder_token'));
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('ladder_user') || 'null');
+    } catch {
+      return null;
+    }
+  });
   const [fxRate, setFxRate] = useState(87.25);
 
   // Global UI states for Modals
@@ -100,6 +106,27 @@ export function ThemeAuthProvider({ children }) {
     localStorage.setItem('ladder_currency', currency);
   }, [currency]);
 
+  useEffect(() => {
+    if (token) axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+    else delete axios.defaults.headers.common.Authorization;
+  }, [token]);
+
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      response => response,
+      error => {
+        if (error.response?.status === 401 && token) {
+          localStorage.removeItem('ladder_token');
+          localStorage.removeItem('ladder_user');
+          setToken(null);
+          setUser(null);
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptorId);
+  }, [token]);
+
   // Live real-time USD/INR Forex stream
   useEffect(() => {
     const fetchLiveFx = async () => {
@@ -116,7 +143,7 @@ export function ThemeAuthProvider({ children }) {
       }
     };
     fetchLiveFx();
-    const interval = setInterval(fetchLiveFx, 3000);
+    const interval = setInterval(fetchLiveFx, 30000);
     return () => clearInterval(interval);
   }, []);
 
