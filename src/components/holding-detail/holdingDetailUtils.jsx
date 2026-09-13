@@ -4,8 +4,6 @@ import formatDateDDMMYYYY from '../../utils/dateFormatter';
 
 export function fmtINR(val) {
   const n = Number(val) || 0;
-  if (Math.abs(n) >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
-  if (Math.abs(n) >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`;
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -26,8 +24,6 @@ export function formatTxDate(dateStr) {
 export function formatAxisValue(value, isUSD) {
   const n = Number(value) || 0;
   if (isUSD) return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  if (Math.abs(n) >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
-  if (Math.abs(n) >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`;
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -124,13 +120,30 @@ export function ActualChartTooltip({ active, payload, label, isUSD, isFundOrNps,
             if (isBonus) badgeColor = 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
             if (isDiv) badgeColor = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
 
+            const qty = ev.quantity ?? ev.qty ?? 0;
+            const price = isUSD ? (ev.priceUSD ?? ev.price ?? 0) : (ev.priceINR ?? ev.price ?? 0);
+            const divAmount = isUSD
+              ? (ev.amountUSD ?? ev.amount ?? ev.priceUSD ?? ev.price ?? 0)
+              : (ev.amountINR ?? ev.amount ?? ev.priceINR ?? ev.price ?? 0);
+
+            let detailText;
+            if (isSplit) {
+              detailText = ev.notes || 'Split';
+            } else if (isBonus) {
+              detailText = qty > 0 ? `+${qty} Shares` : (ev.notes || 'Bonus Issue');
+            } else if (isDiv) {
+              detailText = `+${fmt(divAmount)}`;
+            } else {
+              detailText = `${qty} @ ${fmt(price)}`;
+            }
+
             return (
               <div key={idx} className="flex items-center justify-between text-[11px] gap-2">
                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${badgeColor}`}>
                   {ev.type}
                 </span>
                 <span className="font-mono font-bold text-slate-200">
-                  {isSplit ? (ev.notes || 'Split') : isBonus ? `+${ev.quantity} Shares` : `${ev.quantity} @ ${fmt(ev.price)}`}
+                  {detailText}
                 </span>
               </div>
             );

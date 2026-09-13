@@ -87,6 +87,36 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
     const historicalPricesCache = getHistoricalPricesMap();
 
+    const allDivs = await db.select('dividends');
+    const divStatsMap = {};
+    allDivs.forEach(d => {
+      const key = d.holding_id || d.symbol;
+      if (!divStatsMap[key]) divStatsMap[key] = { inr: 0, orig: 0 };
+      divStatsMap[key].inr += Number(d.amount_inr) || 0;
+      divStatsMap[key].orig += Number(d.amount_original) || (Number(d.amount_inr) / (Number(d.fx_rate) || 1));
+    });
+
+    const sellStatsMap = {};
+    allTxs.forEach(t => {
+      if (t.type === 'SELL' || t.type === 'REDEEM' || t.type === 'REDEMPTION') {
+        const key = t.holding_id || t.symbol;
+        if (!sellStatsMap[key]) sellStatsMap[key] = { qty: 0, grossUSD: 0, grossINR: 0, chargesUSD: 0, chargesINR: 0, netUSD: 0, netINR: 0 };
+        const q = Number(t.quantity) || 0;
+        const p = Number(t.price) || 0;
+        const amt = Number(t.total_amount) || (q * p);
+        const chg = Number(t.charges) || 0;
+        const r = (t.currency === 'USD') ? (Number(t.fx_rate) || getHistoricalFxRate(t.date) || fxRate || 1.0) : 1.0;
+
+        sellStatsMap[key].qty += q;
+        sellStatsMap[key].grossUSD += (t.currency === 'USD' ? amt : amt / r);
+        sellStatsMap[key].grossINR += (t.currency === 'USD' ? amt * r : amt);
+        sellStatsMap[key].chargesUSD += (t.currency === 'USD' ? chg : chg / r);
+        sellStatsMap[key].chargesINR += (t.currency === 'USD' ? chg * r : chg);
+        sellStatsMap[key].netUSD += (t.currency === 'USD' ? (amt - chg) : (amt - chg) / r);
+        sellStatsMap[key].netINR += (t.currency === 'USD' ? (amt - chg) * r : (amt - chg));
+      }
+    });
+
     const formatted = holdings.map(h => {
       const liveRate = h.currency === 'USD' ? fxRate : 1.0;
       let txRate = 1.0;
@@ -94,6 +124,19 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         const m = usFxMap[h.id] || usFxMap[h.symbol];
         txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : (getHistoricalFxRate(h.created_at) || getPersistedRate('USD_INR') || fxRate || 1.0);
       }
+
+      const sStats = sellStatsMap[h.id] || sellStatsMap[h.symbol] || { qty: 0, grossUSD: 0, grossINR: 0, netUSD: 0, netINR: 0 };
+      const dStats = divStatsMap[h.id] || divStatsMap[h.symbol] || { inr: 0, orig: 0 };
+      const isUSD = h.currency === 'USD';
+      const isFundOrNps = h.category_id === 'mutual_funds' || h.category_id === 'nps';
+
+      const soldQty = Number(h.sell_qty) || sStats.qty || Number(h.buy_qty) || 0;
+      const avgSellPrice = sStats.qty > 0 
+        ? Number((isUSD ? (sStats.grossUSD / sStats.qty) : (sStats.grossINR / sStats.qty)).toFixed(isFundOrNps ? 4 : 2))
+        : 0;
+      const redeemedValue = Number((isUSD ? sStats.netUSD : sStats.netINR).toFixed(2));
+      const grossRedeemed = Number((isUSD ? sStats.grossUSD : sStats.grossINR).toFixed(2));
+      const totalDividends = Number((isUSD ? dStats.orig : dStats.inr).toFixed(2));
 
       const liveQuote = liveQuoteCache.get(h.symbol);
       const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
@@ -165,7 +208,12 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         currentValueINR: Number(currentValueINR.toFixed(2)),
         investedValueINR: Number(investedValueINR.toFixed(2)),
         gainINR: Number(gainINR.toFixed(2)),
-        gainPct: Number(gainPct)
+        gainPct: Number(gainPct),
+        sold_qty: soldQty,
+        avg_sell_price: avgSellPrice,
+        redeemed_value: redeemedValue,
+        gross_redeemed: grossRedeemed,
+        total_dividends: totalDividends
       };
     }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
@@ -523,11 +571,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         totalBuyChargesINR += chargesINR;
         totalInvestedUSD += amountUSD + chargesUSD;
         totalInvestedINR += amountINR + chargesINR;
-        buyLotsUSD.push({ qty, price, rem: qty });
-        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, rem: qty });
+        buyLotsUSD.push({ qty, price, charges: chargesUSD, rem: qty });
+        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, charges: chargesINR, rem: qty });
       } else if (tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
-        buyLotsUSD.push({ qty, price, rem: qty });
-        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, rem: qty });
+        buyLotsUSD.push({ qty, price, charges: 0, rem: qty });
+        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, charges: 0, rem: qty });
       } else if (tx.type === 'SPLIT') {
         let ratio = 1;
         const match = (tx.notes || '').match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
@@ -560,11 +608,15 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         totalRedeemedUSD += amountUSD - chargesUSD;
         totalRedeemedINR += amountINR - chargesINR;
 
+        realizedPnlUSD -= chargesUSD;
+        realizedPnlINR -= chargesINR;
+
         let remUSD = qty;
         while (remUSD > 0 && buyLotsUSD.length > 0) {
           const lot = buyLotsUSD[0];
           const used = Math.min(lot.rem, remUSD);
-          realizedPnlUSD += used * (price - lot.price);
+          const lotChargesUSD = lot.qty > 0 ? (used / lot.qty) * (lot.charges || 0) : 0;
+          realizedPnlUSD += (used * (price - lot.price)) - lotChargesUSD;
           lot.rem -= used;
           remUSD -= used;
           if (lot.rem <= 0) buyLotsUSD.shift();
@@ -574,7 +626,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         while (remINR > 0 && buyLotsINR.length > 0) {
           const lot = buyLotsINR[0];
           const used = Math.min(lot.rem, remINR);
-          realizedPnlINR += (used * price * txRate) - (used * lot.priceUSD * lot.fxRate);
+          const lotChargesINR = lot.qty > 0 ? (used / lot.qty) * (lot.charges || 0) : 0;
+          realizedPnlINR += ((used * price * txRate) - (used * lot.priceUSD * lot.fxRate)) - lotChargesINR;
           lot.rem -= used;
           remINR -= used;
           if (lot.rem <= 0) buyLotsINR.shift();
@@ -686,8 +739,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
               dayEvents.push({
                 type: tx.type,
                 qty: qty,
+                quantity: qty,
+                price: Number(tx.price) || 0,
                 priceUSD: Number(tx.price) || 0,
                 priceINR: Number(tx.price) || 0,
+                amount: amt,
                 amountUSD: amt,
                 amountINR: amt,
                 notes: tx.notes
@@ -706,13 +762,18 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
           if (divsByDate[d]) {
             for (const div of divsByDate[d]) {
+              const divAmtUSD = Number(div.amount_original) || 0;
+              const divAmtINR = Number(div.amount_inr) || divAmtUSD;
               dayEvents.push({
                 type: 'DIVIDEND',
                 qty: 0,
-                priceUSD: Number(div.amount_original) || 0,
-                priceINR: Number(div.amount_inr) || 0,
-                amountUSD: Number(div.amount_original) || 0,
-                amountINR: Number(div.amount_inr) || 0,
+                quantity: 0,
+                price: divAmtINR,
+                priceUSD: divAmtUSD,
+                priceINR: divAmtINR,
+                amount: divAmtINR,
+                amountUSD: divAmtUSD,
+                amountINR: divAmtINR,
                 notes: 'Dividend payout'
               });
             }
@@ -780,8 +841,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             dayEvents.push({
               type: tx.type,
               qty: qty,
+              quantity: qty,
+              price: isUSStock ? price : (price * txRate),
               priceUSD: price,
               priceINR: price * txRate,
+              amount: isUSStock ? amtUSD : amtINR,
               amountUSD: amtUSD,
               amountINR: amtINR,
               notes: tx.notes
@@ -815,13 +879,18 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
         if (divsByDate[dStr]) {
           for (const d of divsByDate[dStr]) {
+            const divAmtUSD = Number(d.amount_original) || (Number(d.amount_inr) / (Number(d.fx_rate) || 1));
+            const divAmtINR = Number(d.amount_inr) || (divAmtUSD * (Number(d.fx_rate) || liveRate));
             dayEvents.push({
               type: 'DIVIDEND',
               qty: 0,
-              priceUSD: Number(d.amount_original) || 0,
-              priceINR: Number(d.amount_inr) || 0,
-              amountUSD: Number(d.amount_original) || 0,
-              amountINR: Number(d.amount_inr) || 0,
+              quantity: 0,
+              price: isUSStock ? divAmtUSD : divAmtINR,
+              priceUSD: divAmtUSD,
+              priceINR: divAmtINR,
+              amount: isUSStock ? divAmtUSD : divAmtINR,
+              amountUSD: divAmtUSD,
+              amountINR: divAmtINR,
               notes: 'Dividend payout'
             });
           }
@@ -945,13 +1014,30 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const dayChange = quotePrice - prevClose;
     const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
 
+    const nonDivTxs = txs.filter(t => t.type !== 'DIVIDEND');
+    const divTxs = txs.filter(t => t.type === 'DIVIDEND');
+
+    const matchedDivTxIds = new Set();
     const formattedDivs = (divs || []).map(d => {
       const dDate = d.payment_date || d.ex_date || '';
       const amtUSD = Number(d.amount_original) || (Number(d.amount_inr) / (Number(d.fx_rate) || 1));
       const amtINR = Number(d.amount_inr) || (amtUSD * (Number(d.fx_rate) || liveRate));
       const dRate = Number(d.fx_rate) || (isUSStock ? (getHistoricalFxRate(dDate) || liveRate) : 1.0);
+      const targetAmt = isUSStock ? amtUSD : amtINR;
+
+      // Check if a corresponding dividend transaction exists in transactions table
+      const matchedTx = divTxs.find(t =>
+        !matchedDivTxIds.has(t.id) &&
+        t.date === dDate &&
+        Math.abs(Number(t.total_amount || 0) - targetAmt) < 0.05
+      );
+      if (matchedTx) {
+        matchedDivTxIds.add(matchedTx.id);
+      }
+
       return {
-        id: `div-${d.id}`,
+        id: matchedTx ? matchedTx.id : `div-${d.id}`,
+        div_id: d.id,
         holding_id: d.holding_id || holding.id,
         user_id: d.user_id,
         symbol: d.symbol || holding.symbol,
@@ -964,12 +1050,15 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         fx_rate: Number(dRate.toFixed(4)),
         charges: 0,
         date: dDate,
-        notes: `Dividend: ${isUSStock ? '$' + amtUSD.toFixed(2) : '₹' + amtINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        notes: matchedTx?.notes || `Dividend: ${isUSStock ? '$' + amtUSD.toFixed(2) : '₹' + amtINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       };
     });
 
+    // If there are any dividend transactions in transactions table that were not in dividends table, include them
+    const orphanDivTxs = divTxs.filter(t => !matchedDivTxIds.has(t.id));
+
     const txTypePriority = { BUY: 1, BONUS: 1, DIVIDEND_REINVEST: 1, SPLIT: 2, SELL: 3, DIVIDEND: 4 };
-    const mergedTransactions = [...txs, ...formattedDivs].sort((a, b) => {
+    const mergedTransactions = [...nonDivTxs, ...formattedDivs, ...orphanDivTxs].sort((a, b) => {
       const da = a.date || '';
       const db = b.date || '';
       if (da !== db) return da.localeCompare(db);

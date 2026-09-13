@@ -79,15 +79,14 @@ router.get('/summary', async (req, res) => {
     const netWorthINR = valuation.netWorth ?? valuation.total_wealth;
 
     holdings.forEach(h => {
-      // Realized P&L — sum across ALL holdings (including closed) + DIVIDENDS
-      const capitalGain = Number(h.realized_pnl) || 0;
-      const divIncome = divMap[h.id] || 0;
+      // Realized P&L — sum across ALL holdings (including closed) which already strictly includes dividends
+      const pnl = Number(h.realized_pnl) || 0;
       if (h.currency === 'USD') {
-        totalRealizedPnlUSD += capitalGain + (divIncome / fxRate);
-        totalRealizedPnlINR += (capitalGain * fxRate) + divIncome;
+        totalRealizedPnlUSD += pnl;
+        totalRealizedPnlINR += (pnl * fxRate);
       } else {
-        totalRealizedPnlINR += capitalGain + divIncome;
-        totalRealizedPnlUSD += (capitalGain + divIncome) / fxRate;
+        totalRealizedPnlINR += pnl;
+        totalRealizedPnlUSD += (pnl / fxRate);
       }
 
       // Active holdings only for invested computation
@@ -136,9 +135,8 @@ router.get('/summary', async (req, res) => {
       if (!cat) return;
 
       // Realized (capital gain + dividends) for this holding
-      const capitalGain = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? fxRate : 1.0);
-      const divIncome = divMap[h.id] || 0;
-      cat.realizedINR += capitalGain + divIncome;
+      const pnl = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? fxRate : 1.0);
+      cat.realizedINR += pnl;
 
       // Active holdings
       if ((Number(h.quantity) || 0) > 0) {
@@ -166,10 +164,13 @@ router.get('/summary', async (req, res) => {
 
     // 2. Build Category Cashflows from actual transactions
     txs.forEach(t => {
+      if (t.type !== 'BUY' && t.type !== 'SELL') return;
       const h = holdings.find(item => item.id === t.holding_id);
       if (!h) return;
       const rate = (h.currency === 'USD') ? (getHistoricalFxRate(t.date) || fxRate) : 1.0;
-      const amount = (t.type === 'BUY' ? -1 : 1) * (Number(t.total_amount) || 0) * rate;
+      const amt = (Number(t.total_amount) || 0) * rate;
+      const charges = (Number(t.charges) || 0) * rate;
+      const amount = (t.type === 'BUY') ? -(amt + charges) : (amt - charges);
       const flow = { date: t.date, amount };
 
       if (categoryMetricsMap[h.category_id]) {
@@ -256,11 +257,19 @@ router.get('/summary', async (req, res) => {
         // Calculate Active XIRR
         let activeCost = 0, activeWeightedXirr = 0;
         activeHoldings.forEach(h => {
-          const hTxs = txs.filter(t => t.holding_id === h.id);
+          const hTxs = txs.filter(t => t.holding_id === h.id && (t.type === 'BUY' || t.type === 'SELL'));
           const hDivs = dividends.filter(d => d.holding_id === h.id);
           const flows = [];
           if (hTxs.length > 0) {
-            hTxs.forEach(t => flows.push({ date: t.date, amount: (t.type === 'BUY' ? -1 : 1) * Number(t.total_amount || 0) * (h.currency === 'USD' ? (getHistoricalFxRate(t.date) || fxRate) : 1.0) }));
+            hTxs.forEach(t => {
+              const r = (h.currency === 'USD') ? (getHistoricalFxRate(t.date) || fxRate) : 1.0;
+              const amt = (Number(t.total_amount) || 0) * r;
+              const charges = (Number(t.charges) || 0) * r;
+              flows.push({
+                date: t.date,
+                amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
+              });
+            });
           } else {
             let earliestDivDate = null;
             hDivs.forEach(d => {
@@ -301,18 +310,30 @@ router.get('/summary', async (req, res) => {
           const pnl = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? fxRate : 1.0);
           const proceeds = cost + pnl;
 
-          const hTxs = txs.filter(t => t.holding_id === h.id);
+          const hTxs = txs.filter(t => t.holding_id === h.id && (t.type === 'BUY' || t.type === 'SELL'));
           const hDivs = dividends.filter(d => d.holding_id === h.id);
           const flows = [];
+          const hasSellTx = hTxs.some(t => t.type === 'SELL');
+
           if (hTxs.length > 0) {
-            hTxs.forEach(t => flows.push({ date: t.date, amount: (t.type === 'BUY' ? -1 : 1) * Number(t.total_amount || 0) * (h.currency === 'USD' ? (getHistoricalFxRate(t.date) || fxRate) : 1.0) }));
+            hTxs.forEach(t => {
+              const r = (h.currency === 'USD') ? (getHistoricalFxRate(t.date) || fxRate) : 1.0;
+              const amt = (Number(t.total_amount) || 0) * r;
+              const charges = (Number(t.charges) || 0) * r;
+              flows.push({
+                date: t.date,
+                amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
+              });
+            });
           } else {
             const dynamicBuyDate = h.created_at?.split('T')[0] || earliestTxDate || new Date().toISOString().split('T')[0];
             flows.push({ date: dynamicBuyDate, amount: -cost });
           }
           hDivs.forEach(d => flows.push({ date: d.ex_date || d.payment_date, amount: Number(d.amount_inr || 0) }));
-          const dynamicSellDate = h.updated_at?.split('T')[0] || new Date().toISOString().split('T')[0];
-          flows.push({ date: dynamicSellDate, amount: proceeds });
+          if (!hasSellTx) {
+            const dynamicSellDate = h.updated_at?.split('T')[0] || new Date().toISOString().split('T')[0];
+            flows.push({ date: dynamicSellDate, amount: proceeds });
+          }
 
           const xirr = calculateXirr(flows);
           closedCost += cost;

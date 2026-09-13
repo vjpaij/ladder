@@ -119,6 +119,7 @@ export async function recalculateHoldingState(holdingId) {
           totalSellQty += qty;
           let remToSell = qty;
           let costOfSoldLots = 0;
+          let buyChargesOfSoldLots = 0;
 
           // FIFO lot matching
           for (const lot of openLots) {
@@ -127,12 +128,15 @@ export async function recalculateHoldingState(holdingId) {
               const take = Math.min(lot.rem, remToSell);
               lot.rem -= take;
               costOfSoldLots += take * lot.price;
+              if (lot.qty > 0 && (lot.charges || 0) > 0) {
+                buyChargesOfSoldLots += (take / lot.qty) * lot.charges;
+              }
               remToSell -= take;
             }
           }
 
           const proceeds = (qty * price) - charges;
-          const pnl = proceeds - costOfSoldLots;
+          const pnl = proceeds - costOfSoldLots - buyChargesOfSoldLots;
           totalRealizedPnl += pnl;
           runningQty = Math.max(0, runningQty - qty);
         }
@@ -157,6 +161,26 @@ export async function recalculateHoldingState(holdingId) {
         ? (totalCostBasis / totalOpenShares) 
         : (totalBuyQty > 0 ? (totalBuyAmount / totalBuyQty) : 0);
       const status = runningQty > 0.0001 ? 'ACTIVE' : 'REDEEMED';
+
+      // Fetch and add credited dividends for this holding to strictly enforce:
+      // Realized P&L = Sell - Buy - Charges + Dividends
+      let totalDividends = 0;
+      const { data: divRows } = await supabase
+        .from('dividends')
+        .select('amount_inr, amount_original, fx_rate')
+        .or(`holding_id.eq.${holdingId},symbol.eq.${holding.symbol}`);
+
+      if (divRows && divRows.length > 0) {
+        for (const d of divRows) {
+          if (holding.currency === 'USD') {
+            totalDividends += Number(d.amount_original || (Number(d.amount_inr) / (Number(d.fx_rate) || 1)) || 0);
+          } else {
+            totalDividends += Number(d.amount_inr || d.amount_original || 0);
+          }
+        }
+      }
+
+      totalRealizedPnl += totalDividends;
 
       await db.update('holdings', holdingId, {
         quantity: parseFloat(runningQty.toFixed(4)),

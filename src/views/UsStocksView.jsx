@@ -141,15 +141,15 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
     let totalRealizedPnlINR = 0;
 
     statusFiltered.forEach(h => {
-      const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
+      const soldQty = Number(h.sell_qty) || Number(h.sold_qty) || Number(h.buy_qty) || 0;
       const avgBuyUSD = Number(h.avg_buy_price) || 0;
       const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : 0;
       const txRate = h.txFxRate || (investedUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / investedUSD : fxRate) || 1.0;
       const investedINR = Number(h.investedValueINR) || (investedUSD * txRate);
       const realizedPnlUSD = Number(h.realized_pnl) || 0;
       const realizedPnlINR = realizedPnlUSD * fxRate;
-      const redeemedUSD = investedUSD + realizedPnlUSD;
-      const redeemedINR = investedINR + realizedPnlINR;
+      const redeemedUSD = Number(h.redeemed_value) > 0 ? Number(h.redeemed_value) : (investedUSD + realizedPnlUSD);
+      const redeemedINR = redeemedUSD * fxRate;
 
       totalCostUSD += investedUSD;
       totalRedeemedUSD += redeemedUSD;
@@ -458,17 +458,17 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                   const isClosed = qty === 0;
 
                   // Closed derived position metrics
-                  const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
+                  const soldQty = Number(h.sell_qty) || Number(h.sold_qty) || Number(h.buy_qty) || 0;
                   const avgBuyUSD = Number(h.avg_buy_price) || 0;
                   const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : 0;
                   const txRate = h.txFxRate || (investedUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / investedUSD : fxRate) || 1.0;
                   const investedINR = Number(h.investedValueINR) || (investedUSD * txRate);
                   const realizedPnlUSD = Number(h.realized_pnl) || 0;
                   const realizedPnlINR = realizedPnlUSD * fxRate;
-                  const redeemedUSD = investedUSD + realizedPnlUSD;
-                  const redeemedINR = investedINR + realizedPnlINR;
-                  const avgSellUSD = soldQty > 0 ? (redeemedUSD / soldQty) : 0;
-                  const avgSellINR = soldQty > 0 ? (redeemedINR / soldQty) : 0;
+                  const redeemedUSD = Number(h.redeemed_value) > 0 ? Number(h.redeemed_value) : (investedUSD + realizedPnlUSD);
+                  const redeemedINR = redeemedUSD * fxRate;
+                  const avgSellUSD = Number(h.avg_sell_price) > 0 ? Number(h.avg_sell_price) : (soldQty > 0 ? (redeemedUSD / soldQty) : 0);
+                  const avgSellINR = avgSellUSD * fxRate;
                   const realizedPnlPct = investedUSD > 0 ? ((realizedPnlUSD / investedUSD) * 100).toFixed(2) : 0;
                   const isRealizedPos = realizedPnlUSD >= 0;
 

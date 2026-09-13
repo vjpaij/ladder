@@ -215,7 +215,9 @@ async function run() {
       } else if (rawType === "Dividend") {
         const rawAmt = parseFloat(r["Cost Per Share"]) || 0;
         const sharesVal = parseFloat(r["Shares Owned"]) || 0;
-        const amount = rawAmt > 0 ? rawAmt : sharesVal;
+        // In Book1.xlsx / MSP exports, "Shares Owned" holds the actual dividend cash payout in INR.
+        // "Cost Per Share" holds the market price quote of the stock on the dividend ex/record date.
+        const amount = sharesVal > 0 ? sharesVal : rawAmt;
 
         processedDivs.push({
           amount_original: amount,

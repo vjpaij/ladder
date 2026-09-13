@@ -5,6 +5,61 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.30.7] - 2026-09-14
+
+### Fixed
+- **Universal Table and Holding Detail Modal P&L and Value Synchronization**:
+  - Diagnosed discrepancy where closed position tables (e.g. `IndianStocksView.jsx`, `UsStocksView.jsx`, `MutualFundsView.jsx`, `NpsView.jsx`) showed Realized P&L differing from the holding detail modal ("inside this scrip") — e.g. Acme Solar Holdings Ltd (`ACMESOLAR`) displayed `+₹7,821.36` in the table vs `+₹8,091.76` in the detail modal.
+  - Root Cause: `recalculateHoldingState` in `server/services/recalculator.js` was saving capital gains without dividends to `holdings.realized_pnl`, while the detail modal independently added dividends to capital gains (`7,821.36 + 270.40 = 8,091.76`). Furthermore, the table was estimating `redeemedVal` as `investedVal + realizedPnl` (`₹5,96,391.84` instead of actual proceeds `₹5,97,100.30`) and calculating a synthetic `avgSell` (`₹214.14` instead of actual execution price `₹214.65`).
+  - Updated `server/services/recalculator.js` to strictly include credited dividends in `totalRealizedPnl` (`Sell - Buy - Charges + Dividends`) before updating `holdings.realized_pnl` in Supabase.
+  - Recalculated all 398 holdings in Supabase to bring stored `realized_pnl` into 100% mathematical parity across the database.
+  - Enriched `GET /api/holdings` (`server/routes/holdings.js`) with true execution metrics: `sold_qty`, `avg_sell_price` (actual execution sell average), `redeemed_value` (actual net sell proceeds matching detail modal), `gross_redeemed`, and `total_dividends`.
+  - Updated `server/routes/summary.js` to consume `holdings.realized_pnl` directly, eliminating redundant double-addition of `divIncome` while preserving exact portfolio realized P&L parity (`₹13,41,923.48`).
+  - Updated closed position tables across `IndianStocksView.jsx`, `UsStocksView.jsx`, `MutualFundsView.jsx`, and `NpsView.jsx` to render the enriched `avg_sell_price`, `redeemed_value`, and unified `realized_pnl`.
+  - Verified exact 100% parity for `ACMESOLAR` down to the cent: Table Realized P&L = Detail Modal Realized P&L = `₹8,091.76`; Table Redeemed Value = Detail Modal Total Redeemed = `₹5,97,100.30`; Table Avg Sell Price = `₹214.65`.
+  - Verified 100% PASS on `node scripts/verify_financial_integrity.mjs` and clean Vite production build.
+
+## [5.30.6] - 2026-09-14
+
+### Fixed
+- **Dividend Inversion Correction Across Indian Stocks**:
+  - Diagnosed root cause of inverted dividend figures (e.g. Acme Solar Holdings Ltd `ACMESOLAR` displaying `₹235.51` instead of `₹170.40`): the initial ingestion script (`scripts/ingestion/load_all_indian_stocks.mjs`) erroneously selected `Cost Per Share` (which recorded the stock's market quote on the ex/record date) instead of `Shares Owned` (which recorded the true dividend cash payout in INR).
+  - Fixed `scripts/ingestion/load_all_indian_stocks.mjs` to correctly select `Shares Owned` as the dividend payout amount.
+  - Developed and executed one-off migration script correcting all 90 affected dividend records in both the `dividends` and `transactions` Supabase tables, and cleanly removed the one-off script to keep the repository clean.
+  - Recalculated holding state and synchronized FIFO lots across all 66 affected holdings via `recalculateHoldingState`.
+  - Invalidate in-memory database cache and restarted the Express backend daemon on port 5000.
+  - Verified exact dividend parity for `ACMESOLAR` (02-05-2025 dividend payout is now exact `₹170.40`, total dividends `₹270.40`) as well as other affected stocks (`COFORGE`, `PERSISTENT`, `CANBK`, `COCHINSHIP`).
+  - Passed 100% of financial invariance tests via `node scripts/verify_financial_integrity.mjs` and verified zero-error Vite production build.
+
+## [5.30.5] - 2026-09-14
+
+### Fixed
+- **Realized and Total P&L Net Calculation Formula**:
+  - Updated Realized and Total P&L calculations everywhere across the application to follow the net formula: `Sell - Buy - Charges + Dividends`.
+  - In `server/routes/holdings.js`, updated FIFO lot matching for `SELL` transactions to deduct both transaction sell charges and proportional buy charges from matched lots before adding credited dividends.
+  - In `server/services/recalculator.js`, updated the FIFO matching replay in `recalculateHoldingState` to account for proportional buy charges of sold lots in net capital gain (`proceeds - costOfSoldLots - buyChargesOfSoldLots`).
+  - Executed batch recalculation across all holdings in Supabase to synchronize `holdings.realized_pnl` with the net formula.
+  - Verified exact parity for Aarti Pharmalabs Limited (`AARTIPHARM`) matching `₹26,819.82` (Gross Sell ₹53,486.60 - Buy ₹27,132.65 - Total Charges ₹103.13 + Dividends ₹569.00).
+- **Universal XIRR Cashflow Net Charges & Flow Deduplication**:
+  - In `server/routes/summary.js`, updated category cashflows and holding-level XIRR computations to strictly deduct charges on `BUY` outflows (`-(amt + charges)`) and `SELL` inflows (`+(amt - charges)`).
+  - Fixed closed holdings XIRR loop to prevent double counting proceeds when sell transactions are already present in the transaction ledger.
+  - Confirmed holding detail modal XIRR was already net-aligned (Aarti Pharmalabs XIRR = `39.98%` net vs `40.14%` gross).
+- **Full Unabbreviated Currency Precision Everywhere**:
+  - Removed all `L` (Lakh) and `Cr` (Crore) abbreviations from `fmtINR` and `formatAxisValue` in `src/components/holding-detail/holdingDetailUtils.jsx` and `src/views/EpfView.jsx`.
+  - Holding Detail Performance Summary KPI cards (Total Bought, Total Sold, Current Cost, Current Value, Dividends, Charges) and EPF cards now display the exact full rupee amount with 2-decimal precision (e.g. `₹5,89,123.45` and `₹5,97,280.32` instead of `₹5.89L` and `₹5.97L`).
+
+## [5.30.4] - 2026-09-14
+
+### Fixed
+- **Holding Detail Actual Chart Tooltip Formatting**:
+  - Fixed issue where BUY, SELL, BONUS, and DIVIDEND events displayed `undefined @ ₹0.00` in the chart event tooltip (`ActualChartTooltip`).
+  - Added safe fallbacks for both `quantity` / `qty` and `price` / `priceUSD` / `priceINR`.
+  - Formatted DIVIDEND events to display the exact credited payout amount (`+₹X.XX` or `+$X.XX`) rather than share quantity and price.
+- **Transaction Ledger Dividend Deduplication**:
+  - Resolved bug where dividends appeared twice in the holding transaction ledger table.
+  - Updated `/api/holding/:id/detail` in `server/routes/holdings.js` to deduplicate dividends between the `transactions` table and `dividends` table into a single unified row.
+  - Enhanced `server/routes/transactions.js` with `div-` prefixed ID routing and synchronized two-way updates/deletes between `transactions` and `dividends` tables.
+
 ## [5.30.3] - 2026-09-13
 
 ### Changed

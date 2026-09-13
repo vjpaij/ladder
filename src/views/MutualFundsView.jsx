@@ -134,16 +134,16 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
     let totalRedeemed = 0;
     let totalRealizedPnl = 0;
     statusFiltered.forEach(h => {
-      const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
+      const soldQty = Number(h.sell_qty) || Number(h.sold_qty) || Number(h.buy_qty) || 0;
       const avgBuy = Number(h.avg_buy_price) || 0;
       const realizedPnl = Number(h.realized_pnl) || 0;
       const investedVal = soldQty > 0 ? (soldQty * avgBuy) : (Number(h.investedValueINR) || 0);
-      const redeemedVal = investedVal + realizedPnl;
+      const redeemedVal = Number(h.redeemed_value) > 0 ? Number(h.redeemed_value) : (investedVal + realizedPnl);
       totalCost += investedVal;
       totalRedeemed += redeemedVal;
       totalRealizedPnl += realizedPnl;
     });
-    const netPnl = totalRedeemed - totalCost;
+    const netPnl = totalRealizedPnl;
     const netRoiPct = totalCost > 0 ? ((netPnl / totalCost) * 100).toFixed(2) : 0;
     return { totalCost, totalRedeemed, netPnl, netRoiPct };
   }, [statusFiltered, statusFilter]);
@@ -417,12 +417,12 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                   const isClosed = qty === 0;
 
                   // Closed derived metrics
-                  const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
+                  const soldQty = Number(h.sell_qty) || Number(h.sold_qty) || Number(h.buy_qty) || 0;
                   const avgBuy = Number(h.avg_buy_price) || 0;
                   const investedVal = soldQty > 0 ? (soldQty * avgBuy) : (Number(h.investedValueINR) || 0);
                   const realizedPnl = Number(h.realized_pnl) || 0;
-                  const redeemedVal = investedVal + realizedPnl;
-                  const avgSell = soldQty > 0 ? (redeemedVal / soldQty) : 0;
+                  const redeemedVal = Number(h.redeemed_value) > 0 ? Number(h.redeemed_value) : (investedVal + realizedPnl);
+                  const avgSell = Number(h.avg_sell_price) > 0 ? Number(h.avg_sell_price) : (soldQty > 0 ? (redeemedVal / soldQty) : 0);
                   const realizedPnlPct = investedVal > 0 ? ((realizedPnl / investedVal) * 100).toFixed(2) : 0;
                   const isRealizedPos = realizedPnl >= 0;
 
