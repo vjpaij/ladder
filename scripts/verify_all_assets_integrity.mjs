@@ -21,7 +21,7 @@ async function verifyAllAssetsIntegrity() {
   const dayOfWeek = nowUtc.getUTCDay(); // 0 = Sunday, 6 = Saturday
   const isTodayWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  // Check 1: Future / premature rows — PAGINATED (fixes H5)
+  // Check 1: Future / premature rows - PAGINATED (fixes H5)
   console.log(`[Check 1] Checking for Premature Snapshots (Current day: ${todayStr})...`);
   let futureTotalCount = 0;
   let futureFrom = 0;
@@ -82,7 +82,7 @@ async function verifyAllAssetsIntegrity() {
   if (equationMismatches === 0) console.log('  PASS: Assets - Liabilities = Net Worth matches across all rows.'); else { console.error(`  FAIL: ${equationMismatches} balance sheet equation mismatches.`); failureCount++; }
   if (weekendViolations === 0) console.log('  PASS: Zero weekend P&L violations.'); else { console.error(`  FAIL: ${weekendViolations} weekend violations.`); failureCount++; }
 
-  // Check 3: NPS Protean CRA source — full scan, no limit (fixes H5)
+  // Check 3: NPS Protean CRA source - full scan, no limit (fixes H5)
   console.log('\n[Check 3] Verifying Protean CRA Official Source for NPS (full scan)...');
   let npsRowCount = 0, npsLatestDate = null;
   const npsSchemes = new Set();
@@ -118,21 +118,31 @@ async function verifyAllAssetsIntegrity() {
     else { console.error(`  FAIL: Latest settled session (${latest.log_date}) missing asset classes!`); failureCount++; }
   }
 
-  // Check 5: Live API parity — NPS delta correctly skipped before NAV publication (fixes H3)
+  // Check 5: Live API parity - NPS delta correctly skipped before NAV publication (fixes H3)
   console.log('\n[Check 5] Verifying Today Live Dynamic Parity (/api/daily-pnl)...');
   try {
-    const res = await axios.get('http://127.0.0.1:5000/api/daily-pnl?range=10D');
+    let authHeaders = {};
+    try {
+      const authRes = await axios.post('http://127.0.0.1:5000/api/auth/login', {
+        email: 'admin@ladder.com',
+        password: 'admin123'
+      });
+      if (authRes.data && authRes.data.token) {
+        authHeaders = { Authorization: 'Bearer ' + authRes.data.token };
+      }
+    } catch (authErr) {}
+    const res = await axios.get('http://127.0.0.1:5000/api/daily-pnl?range=10D', { headers: authHeaders });
     const todayRecord = res.data.find(d => d.log_date === todayStr);
     if (!todayRecord) { console.error(`  FAIL: /api/daily-pnl missing today (${todayStr})`); failureCount++; }
     else {
       const mfDelta = Math.abs((todayRecord.breakdown?.mutual_funds || 0) - (todayRecord.prev_breakdown?.mutual_funds || 0));
       const npsDelta = Math.abs((todayRecord.breakdown?.nps || 0) - (todayRecord.prev_breakdown?.nps || 0));
       if (isTodayWeekend) {
-        console.log(`  SKIP: Weekend — no NAV publication expected. Checking market assets carry-forward...`);
+        console.log(`  SKIP: Weekend - no NAV publication expected. Checking market assets carry-forward...`);
         if (mfDelta > 0.05 || npsDelta > 0.05) { console.error(`  FAIL: Weekend market delta non-zero (MF:${mfDelta.toFixed(2)}, NPS:${npsDelta.toFixed(2)})`); failureCount++; }
         else console.log(`  PASS: Weekend carry-forward correct (MF delta: Rs.${mfDelta.toFixed(2)}, NPS delta: Rs.${npsDelta.toFixed(2)}).`);
       } else if (!navsPublishedToday) {
-        console.log(`  INFO: Before 16:00 IST (${istHour}:xx) — NAVs not yet published. Checking pre-publication zero-delta...`);
+        console.log(`  INFO: Before 16:00 IST (${istHour}:xx) - NAVs not yet published. Checking pre-publication zero-delta...`);
         if (mfDelta > 0.05) { console.error(`  FAIL: MF delta non-zero before publication: delta=${mfDelta}`); failureCount++; }
         else console.log(`  PASS: MF delta Rs.0.00 pre-publication (delta: Rs.${mfDelta.toFixed(2)}).`);
         if (npsDelta > 0.05) { console.error(`  FAIL: NPS delta non-zero before publication: delta=${npsDelta}`); failureCount++; }

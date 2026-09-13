@@ -52,7 +52,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **10-Day Retention Policy**: Unlimited backups within 10 days. Automatically prunes snapshots older than 10 days both in Supabase Cloud Storage and local disk storage.
    - **Automated Daily Schedule (08:25 AM IST)**: Executes automatically every morning just before 8:30 AM IST (08:25 AM IST / 02:55 UTC) via the Express server scheduler and GitHub Actions (`.github/workflows/daily_backup.yml`).
    - **Profile Menu Integration**: Instant 1-click 'Backup Database Now' (with active feedback) and 'Restore Database' buttons directly accessible from the user Profile Dropdown menu in the top navigation bar.
-   - **Point-in-Time Restoration Modal**: Themed, keyboard-accessible restore modal (`RestoreBackupModal.jsx`) and dedicated restoration script (`scripts/restore_backup.mjs`) enabling instantaneous recovery with auto-decompression, database overwrite protections, and cache invalidation.
+   - **Point-in-Time Restoration Modal**: Themed, keyboard-accessible restore modal (`RestoreBackupModal.jsx`) with asynchronous job polling (`GET /api/cloud-backups/restore/status`), background historical EOD recalculation with 5-minute timeout protections, unmount cleanup, and failure circuit breakers.
 
 8. **Dynamic Housing Loan Amortization & Prepayment Engine**
    - Ingests verified historical loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest) from Excel into Supabase `loan_amortization`.
@@ -77,6 +77,12 @@ Ladder is an institutional-grade personal finance and investment management dash
     - All read-heavy operations (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`) serve responses in sub-milliseconds from local RAM.
     - Automatic reactive cache invalidation across interdependent tables on all INSERT, UPDATE, and DELETE mutations.
     - Cuts monthly Supabase cloud egress by 99% (< 50 MB / month), guaranteeing the application never exceeds free cloud tier allowances.
+
+11. **Modular Architecture, Security & Production Performance**
+    - Dedicated authentication screen (`src/views/LoginView.jsx`) decoupled from `App.jsx`, strictly adhering to Rule 6 minimalist fintech aesthetics without verbose filler.
+    - Validated user registration and sign-in (`POST /api/auth/register` and `POST /api/auth/login`) with case-insensitive email normalization and bcrypt hashing.
+    - Resilient local JSON data store (`data/users.json`) integrated with `server/db.js` eliminating external schema table dependencies.
+    - Optimized production build using Vite `manualChunks` code-splitting (React, Recharts, Lucide, Framer Motion), shrinking main bundle from 937 kB to 222 kB.
 
 ---
 

@@ -69,11 +69,34 @@ async function backfillScheme(scheme) {
   return inserted;
 }
 
+async function getDynamicNpsSchemes() {
+  const schemeMap = new Map();
+  ALL_NPS_SCHEMES.forEach(s => schemeMap.set(s.code, s));
+  try {
+    const { data, error } = await supabase
+      .from('holdings')
+      .select('symbol, name')
+      .eq('category_id', 'nps');
+    if (!error && Array.isArray(data)) {
+      data.forEach(h => {
+        if (h.symbol && !schemeMap.has(h.symbol)) {
+          schemeMap.set(h.symbol, { code: h.symbol, name: h.name || h.symbol });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('  [Dynamic Scheme Discovery] Warning:', e.message);
+  }
+  return Array.from(schemeMap.values());
+}
+
 async function main() {
   console.log('=== NPS HISTORICAL NAV BACKFILL ===');
   console.log('Source: npsnav.in | Target: Supabase nps_daily_navs');
+  const schemes = await getDynamicNpsSchemes();
+  console.log(`Discovered ${schemes.length} NPS schemes to verify/backfill.`);
   let total = 0;
-  for (const scheme of ALL_NPS_SCHEMES) {
+  for (const scheme of schemes) {
     total += await backfillScheme(scheme);
     await delay(800);
   }

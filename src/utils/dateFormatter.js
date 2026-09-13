@@ -67,4 +67,59 @@ export function formatQuoteBadgeDate(dateStr) {
   return str;
 }
 
+/**
+ * Unified Quote Badge Status Evaluator
+ * Evaluates whether a quote date matches today or the latest completed trading session
+ * and returns the appropriate styling flag (isUpToDate) and label (Today / Latest / As of).
+ */
+export function getQuoteBadgeStatus(dateInput) {
+  if (!dateInput) return { isUpToDate: false, isToday: false, isLastTradingDay: false, label: '', formattedDate: '' };
+
+  const formattedDate = formatQuoteBadgeDate(dateInput) || String(dateInput);
+  const now = new Date();
+  const todayISO = now.toISOString().split('T')[0];
+  const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+  const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  // Most recent completed trading day (walking back weekend)
+  const dow = now.getDay();
+  const lastTradingDate = new Date(now);
+  if (dow === 6) lastTradingDate.setDate(lastTradingDate.getDate() - 1);
+  else if (dow === 0) lastTradingDate.setDate(lastTradingDate.getDate() - 2);
+
+  const lastISO = lastTradingDate.toISOString().split('T')[0];
+  const lastFormatted = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+  const lastShort = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  // Normalize strings for matching (e.g. Sept vs Sep, dashes vs slashes)
+  const normalize = (s) => (s || '').toLowerCase().replace(/sept/g, 'sep').replace(/[^a-z0-9]/g, '');
+
+  const nInput = normalize(String(dateInput));
+  const nFormatted = normalize(formattedDate);
+
+  const matchesAny = (...targets) => targets.some(t => {
+    const nt = normalize(t);
+    return nt === nInput || nt === nFormatted;
+  });
+
+  const isToday = matchesAny(todayISO, todayFormatted, todayShort);
+  const isLastTradingDay = matchesAny(lastISO, lastFormatted, lastShort);
+  const isUpToDate = isToday || isLastTradingDay;
+
+  let label = `As of ${formattedDate}`;
+  if (isToday) {
+    label = `Today (${formattedDate})`;
+  } else if (isLastTradingDay) {
+    label = `Latest (${formattedDate})`;
+  }
+
+  return {
+    isUpToDate,
+    isToday,
+    isLastTradingDay,
+    label,
+    formattedDate
+  };
+}
+
 export default formatDateDDMMYYYY;

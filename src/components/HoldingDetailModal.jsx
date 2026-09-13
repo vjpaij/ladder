@@ -15,7 +15,7 @@ import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
 import LoanAmortizationSection from './LoanAmortizationSection';
 import { CalendarDays } from 'lucide-react';
-import formatDateDDMMYYYY, { formatQuoteBadgeDate } from '../utils/dateFormatter';
+import formatDateDDMMYYYY, { formatQuoteBadgeDate, getQuoteBadgeStatus } from '../utils/dateFormatter';
 import ChartRangeSelector from './ChartRangeSelector';
 
 function fmtINR(val) {
@@ -264,23 +264,14 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       setDetail(null);
     }
     try {
-      const r = await fetch(`/api/holding/${encodeURIComponent(holding.id)}/detail`);
-      const contentType = r.headers.get('content-type') || '';
-      const text = await r.text();
-      let data;
-      if (contentType.includes('application/json')) {
-        try { data = JSON.parse(text); } catch (e) { /* ignore */ }
-      }
-      if (!r.ok) {
-        throw new Error(data?.error || `Server error (${r.status})`);
-      }
-      if (data) {
-        setDetail(data);
+      const res = await axios.get(`/api/holding/${encodeURIComponent(holding.id)}/detail`);
+      if (res.data) {
+        setDetail(res.data);
         if (isInitial) setLoading(false);
       }
     } catch (err) {
       if (isInitial) {
-        setError(err.message);
+        setError(err.response?.data?.error || err.message);
         setLoading(false);
       }
     }
@@ -679,19 +670,18 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                     </div>
                     <div className="mt-1 flex items-center justify-end">
                       {(() => {
-                        const rawQuoteDate = detail?.quote?.quoteDate || holding?.quoteDate || detail?.quote?.updated || new Date();
-                        const formattedDate = formatQuoteBadgeDate(rawQuoteDate);
-                        const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-                        const isToday = formattedDate === todayStr || formattedDate.includes('Today');
+                        const rawQuoteDate = detail?.quote?.quoteDate || holding?.quote_date || holding?.quoteDate || detail?.quote?.updated;
+                        const status = getQuoteBadgeStatus(rawQuoteDate);
+                        if (!status.formattedDate && !status.label) return null;
                         
                         return (
                           <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border ${
-                            isToday
+                            status.isUpToDate
                               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
                               : 'bg-amber-500/10 text-amber-400/90 border-amber-500/20'
                           }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${isToday ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                            {isToday ? `Today (${formattedDate})` : `As of ${formattedDate}`}
+                            <span className={`w-1.5 h-1.5 rounded-full ${status.isUpToDate ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                            {status.label}
                           </div>
                         );
                       })()}

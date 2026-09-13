@@ -6,6 +6,30 @@ import { CheckCircle2, XCircle, AlertTriangle, Edit3 } from 'lucide-react';
 
 const ThemeAuthContext = createContext();
 
+// Synchronously initialize axios default authorization header on module evaluation
+const initialSavedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('ladder_token') : null;
+if (initialSavedToken) {
+  axios.defaults.headers.common.Authorization = `Bearer ${initialSavedToken}`;
+}
+
+// Global fetch interceptor ensuring any native fetch('/api/...') passes JWT authorization
+if (typeof window !== 'undefined' && !window.__ladderFetchIntercepted) {
+  window.__ladderFetchIntercepted = true;
+  const rawFetch = window.fetch.bind(window);
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : (input?.url || '');
+    const currentToken = localStorage.getItem('ladder_token');
+    if (currentToken && typeof url === 'string' && (url.startsWith('/api') || url.includes('/api/'))) {
+      const headers = new Headers(init.headers || (typeof input === 'object' && input.headers ? input.headers : {}));
+      if (!headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${currentToken}`);
+      }
+      init = { ...init, headers };
+    }
+    return rawFetch(input, init);
+  };
+}
+
 // Helper component for dialog keydown handling without re-rendering the whole tree
 function DialogKeyHandler({ successMsg, errorMsg, confirmState, hideSuccess, hideError, handleConfirmClose }) {
   useEffect(() => {

@@ -68,9 +68,23 @@ async function runIntegrityAudit() {
   // 4. Live API Endpoint Verification
   console.log('[Test 3] Testing Live API Endpoint Parity (Port 5000)...');
   try {
+    let authHeaders = {};
+    try {
+      const authRes = await fetch('http://127.0.0.1:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@ladder.com', password: 'admin123' })
+      }).then(r => r.json());
+      if (authRes && authRes.token) {
+        authHeaders = { Authorization: `Bearer ${authRes.token}` };
+      }
+    } catch (authErr) {
+      // Proceed without token if auth not configured
+    }
+
     const [sumRes, pnlRes] = await Promise.all([
-      fetch('http://127.0.0.1:5000/api/summary').then(r => r.json()),
-      fetch('http://127.0.0.1:5000/api/daily-pnl?range=1M').then(r => r.json())
+      fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json()),
+      fetch('http://127.0.0.1:5000/api/daily-pnl?range=1M', { headers: authHeaders }).then(r => r.json())
     ]);
 
     const latestCalendarLog = pnlRes[pnlRes.length - 1];
@@ -92,7 +106,7 @@ async function runIntegrityAudit() {
     assert.strictEqual(sumRes.dayPnlPct, latestCalendarLog.pnl_percentage, 'Dashboard Day PnL % and Calendar Day PnL % must match exactly');
 
     // 4b. Holdings Level Individual Valuation & Zero-Quantity Invariance
-    const holdingsRes = await fetch('http://127.0.0.1:5000/api/holdings').then(r => r.json());
+    const holdingsRes = await fetch('http://127.0.0.1:5000/api/holdings', { headers: authHeaders }).then(r => r.json());
     holdingsRes.forEach(h => {
       const isUnitBased = ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id);
       if (isUnitBased && Number(h.quantity) <= 0) {
@@ -117,7 +131,18 @@ async function runIntegrityAudit() {
   const today = new Date();
   const dayOfWeek = today.getUTCDay(); // 0 is Sunday, 6 is Saturday
   if (dayOfWeek === 0 || dayOfWeek === 6) {
-    const sumRes = await fetch('http://127.0.0.1:5000/api/summary').then(r => r.json());
+    let authHeaders = {};
+    try {
+      const authRes = await fetch('http://127.0.0.1:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@ladder.com', password: 'admin123' })
+      }).then(r => r.json());
+      if (authRes && authRes.token) {
+        authHeaders = { Authorization: `Bearer ${authRes.token}` };
+      }
+    } catch (e) {}
+    const sumRes = await fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json());
     assert.strictEqual(sumRes.dayPnlINR, 0, 'On weekend non-trading days, Day PnL must strictly equal 0.00 unless manual transactions occurred');
     assert.strictEqual(sumRes.dayPnlPct, 0, 'On weekend non-trading days, Day PnL % must strictly equal 0.00%');
     console.log(`✓ Weekend Invariance Verified: Current Day is ${dayOfWeek === 0 ? 'Sunday' : 'Saturday'} -> Day PnL = ₹0.00 (0.00%).\n`);

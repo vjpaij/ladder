@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cloud, History, ArrowRight, X, ShieldCheck, RefreshCw, Archive, CheckCircle2, AlertTriangle } from 'lucide-react';
@@ -11,6 +11,15 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const pollRef = useRef(null);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const fetchBackups = async () => {
     setIsLoading(true);
@@ -60,6 +69,8 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
   const [restoreStatus, setRestoreStatus] = useState(null); // null | { status, message }
 
   const handleRestore = async (filename) => {
+    if (isRestoring) return;
+
     const confirmed = await showConfirm(
       `Restore the complete database from snapshot "${filename}"? All current tables will be synchronized to this point in time.`
     );
@@ -76,27 +87,50 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
         setRestoreStatus({ status: 'succeeded', message: message || 'Database restored and EOD history rebuilt.' });
         showSuccess(message || 'Database fully restored!');
         if (onRefresh) onRefresh();
-        setTimeout(() => { setIsRestoring(false); setRestoreStatus(null); onClose(); }, 2500);
+        timerRef.current = setTimeout(() => {
+          setIsRestoring(false);
+          setRestoreStatus(null);
+          onClose();
+        }, 2500);
       } else if (jobId) {
         // Poll for completion
         setRestoreStatus({ status: 'running', message: 'Rebuilding historical EOD valuation records...' });
-        const poll = setInterval(async () => {
+        let consecutiveErrors = 0;
+        if (pollRef.current) clearInterval(pollRef.current);
+
+        pollRef.current = setInterval(async () => {
           try {
             const statusRes = await axios.get(`/api/cloud-backups/restore/status?jobId=${jobId}`);
+            consecutiveErrors = 0;
             const job = statusRes.data.job;
             setRestoreStatus({ status: job.status, message: job.message });
             if (job.status === 'succeeded') {
-              clearInterval(poll);
+              clearInterval(pollRef.current);
+              pollRef.current = null;
               showSuccess(job.message || 'Database fully restored!');
               if (onRefresh) onRefresh();
-              setTimeout(() => { setIsRestoring(false); setRestoreStatus(null); onClose(); }, 2500);
+              timerRef.current = setTimeout(() => {
+                setIsRestoring(false);
+                setRestoreStatus(null);
+                onClose();
+              }, 2500);
             } else if (job.status === 'failed') {
-              clearInterval(poll);
+              clearInterval(pollRef.current);
+              pollRef.current = null;
               setIsRestoring(false);
               showError('Restore failed: ' + (job.error || 'Unknown error during EOD rebuild.'));
               setRestoreStatus(null);
             }
-          } catch (e) { /* keep polling */ }
+          } catch (e) {
+            consecutiveErrors++;
+            if (consecutiveErrors >= 5) {
+              clearInterval(pollRef.current);
+              pollRef.current = null;
+              setIsRestoring(false);
+              showError('Lost connection while polling restore status. Please refresh.');
+              setRestoreStatus(null);
+            }
+          }
         }, 3000);
       } else {
         setRestoreStatus(null);

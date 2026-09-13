@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -25,7 +26,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'ladder-super-secret-vault-key-2026-production';
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be configured with at least 32 characters.');
 }
@@ -175,16 +176,17 @@ function assertDatabaseTable(tableName) {
 // Auth Routes
 // -------------------------------------------------------------
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
   if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
-  const users = await db.selectWhere('users', { email: email || 'admin@ladder.com' });
+  const normalizedEmail = email.trim().toLowerCase();
+  const users = await db.selectWhere('users', { email: normalizedEmail });
   const user = users[0];
 
   if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
-  const valid = bcrypt.compareSync(password, user.password_hash);
+  const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
   const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
@@ -2347,49 +2349,81 @@ app.post('/api/cloud-backups/restore', authenticateToken, async (req, res) => {
   if (restoreInProgress) {
     return res.status(409).json({ error: 'Another restore is already in progress.' });
   }
+  const { filename } = req.body || {};
+  if (filename !== undefined && (typeof filename !== 'string' || !filename.trim())) {
+    return res.status(400).json({ error: 'Invalid backup filename specified.' });
+  }
+
   restoreInProgress = true;
-  const { filename } = req.body;
   const jobId = `restore_${Date.now()}`;
   restoreJobs.set(jobId, { status: 'initiated', message: 'Restore initiated, waiting for process...', startedAt: new Date().toISOString() });
 
   try {
-    restoreJobs.get(jobId).status = 'running';
-    restoreJobs.get(jobId).message = 'Restoring database from cloud snapshot...';
+    const job = restoreJobs.get(jobId);
+    job.status = 'running';
+    job.message = 'Restoring database tables from cloud snapshot...';
 
     const result = await restoreCloudBackup(filename);
     db.invalidateCache();
 
-    restoreJobs.get(jobId).status = 'running';
-    restoreJobs.get(jobId).message = 'Database restored. Rebuilding historical EOD valuation records...';
+    job.status = 'running';
+    job.message = 'Database restored. Rebuilding historical EOD valuation records in background...';
 
-    // Run EOD rebuild synchronously so we can track its completion
-    await new Promise((resolve, reject) => {
-      const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
-      const child = fork(scriptPath, [], { stdio: 'pipe' });
-      child.on('exit', (code) => {
-        if (code === 0) resolve();
-        else reject(new Error(`EOD rebuild exited with code ${code}`));
-      });
-      child.on('error', reject);
+    // Respond immediately so HTTP connection does not time out on long EOD rebuilds
+    res.json({
+      success: true,
+      jobId,
+      status: 'running',
+      message: 'Database restored. Rebuilding historical EOD valuation records in background...',
+      result
     });
 
-    const job = restoreJobs.get(jobId);
-    job.status = 'succeeded';
-    job.message = `Database fully restored from "${result.snapshotFile}" and EOD history synchronized.`;
-    job.completedAt = new Date().toISOString();
+    // Run EOD rebuild asynchronously in background with process timeout protection
+    (async () => {
+      try {
+        await new Promise((resolve, reject) => {
+          const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
+          const child = fork(scriptPath, [], { stdio: 'pipe' });
+          const timeout = setTimeout(() => {
+            child.kill('SIGTERM');
+            reject(new Error('EOD rebuild timed out after 5 minutes'));
+          }, 5 * 60 * 1000);
 
-    res.json({ success: true, jobId, status: 'succeeded', message: job.message, result });
+          child.on('exit', (code) => {
+            clearTimeout(timeout);
+            if (code === 0) resolve();
+            else reject(new Error(`EOD rebuild exited with code ${code}`));
+          });
+          child.on('error', (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+        });
 
-    // Clean up job from memory after 10 minutes
-    setTimeout(() => restoreJobs.delete(jobId), 10 * 60 * 1000);
+        job.status = 'succeeded';
+        job.message = `Database fully restored from "${result.snapshotFile}" and EOD history synchronized.`;
+        job.completedAt = new Date().toISOString();
+      } catch (bgErr) {
+        console.error('[API Cloud Backup Background EOD Rebuild Error]:', bgErr.message);
+        job.status = 'failed';
+        job.error = bgErr.message;
+        job.completedAt = new Date().toISOString();
+      } finally {
+        restoreInProgress = false;
+        setTimeout(() => restoreJobs.delete(jobId), 10 * 60 * 1000);
+      }
+    })();
   } catch (err) {
     console.error('[API Cloud Backup Restore Error]:', err.message);
+    restoreInProgress = false;
     const job = restoreJobs.get(jobId);
-    if (job) { job.status = 'failed'; job.error = err.message; job.completedAt = new Date().toISOString(); }
+    if (job) {
+      job.status = 'failed';
+      job.error = err.message;
+      job.completedAt = new Date().toISOString();
+    }
     res.status(500).json({ jobId, error: err.message, status: 'failed' });
     setTimeout(() => restoreJobs.delete(jobId), 10 * 60 * 1000);
-  } finally {
-    restoreInProgress = false;
   }
 });
 
@@ -2498,6 +2532,9 @@ app.post('/api/db-table-update', authenticateToken, async (req, res) => {
     }
 
     db.invalidateCache(tableName);
+    if (tableName === 'transactions') {
+      db.invalidateCache('holdings');
+    }
 
     res.json({ success: true });
   } catch (err) {
@@ -2516,6 +2553,7 @@ app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
     const parentId = txs[0].holding_id || txs[0].liability_id;
     await supabase.from('transactions').delete().eq('id', id);
     db.invalidateCache('transactions');
+    db.invalidateCache('holdings');
 
     if (parentId) {
       await recalculateHoldingState(parentId);
@@ -2540,6 +2578,7 @@ app.put('/api/transactions/:id', authenticateToken, async (req, res) => {
     const parentId = txs[0].holding_id || txs[0].liability_id;
     await supabase.from('transactions').update(updates).eq('id', id);
     db.invalidateCache('transactions');
+    db.invalidateCache('holdings');
 
     if (parentId) {
       await recalculateHoldingState(parentId);

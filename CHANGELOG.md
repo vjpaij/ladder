@@ -5,6 +5,38 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.28.0] - 2026-09-13
+
+### Added
+- **Dedicated LoginView Component**:
+  - Extracted authentication screen from `src/App.jsx` into `src/views/LoginView.jsx`, strictly decoupling auth logic and layout.
+  - Stripped descriptive marketing and filler subtitle text from auth views to align with Rule 6 fintech minimalism.
+- **Asynchronous Database Restore Worker**:
+  - Decoupled historical EOD rebuild from the synchronous restore HTTP handler in `server/index.js`, executing EOD rebuild in background with 5-minute timeout guard and real-time status reporting.
+  - Hardened `RestoreBackupModal.jsx` with timer cleanup on unmount, duplicate restore submission prevention, and polling failure circuit breaker.
+- **Rule 13 Dynamic Scheme Discovery**:
+  - Enhanced `scripts/backfill_nps_navs.mjs` to dynamically query active NPS scheme codes from Supabase `holdings` instead of static arrays.
+- **Automated Test Suite Authentication**:
+  - Integrated dynamic JWT auth token acquisition in `scripts/verify_financial_integrity.mjs` and `scripts/verify_all_assets_integrity.mjs`.
+
+### Changed
+- **Frontend Bundle Optimization & Vendor Code-Splitting**:
+  - Configured `manualChunks` in `vite.config.js` to split vendor dependencies (React, Recharts, Lucide, Framer Motion) into distinct chunks, shrinking main bundle size from 937 kB to 222 kB.
+- **Local Users Persistence in Database Layer**:
+  - Updated `server/db.js` to route `users` table operations to `data/users.json`, resolving Supabase schema cache lookup errors while keeping user credential hashes secured.
+- **Cross-Table Cache Invalidation**:
+  - Added automatic `holdings` cache invalidation upon transaction mutations (`PUT/DELETE /api/transactions/:id`) and table modifications (`POST /api/db-table-update`).
+- **Dynamic Trading Day Calendar Verification in EOD Rebuild**:
+  - Replaced static day-of-week gap checks with dynamic multi-asset market calendar `isTradingDay(ds, 'NSE')` in `scripts/rebuild_portfolio_eod.mjs`, eliminating false gap warnings on exchange holidays.
+- **Authentication Resilience**:
+  - Implemented case-insensitive email normalization and non-blocking asynchronous `bcrypt.compare` in `POST /api/auth/login`.
+
+### Fixed
+- **Holding Detail Modal Authentication & Quote Badge Status**:
+  - Replaced unauthenticated `window.fetch` in `HoldingDetailModal.jsx` with `axios.get`, resolving HTTP 401 "Authentication required" errors on detail modal loads.
+  - Installed a global `window.fetch` interceptor in `src/context/ThemeAuthContext.jsx` automatically injecting `Authorization: Bearer <token>` to all API fetch requests across the application.
+  - Resolved false-amber badge bug by creating `getQuoteBadgeStatus()` in `src/utils/dateFormatter.js`, aligning multi-format date string comparisons and accurately recognizing both current date and latest completed trading sessions in emerald green.
+
 ## [5.27.0] - 2026-09-13
 
 ### Added

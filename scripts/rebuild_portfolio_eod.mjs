@@ -494,8 +494,7 @@ async function rebuildEod() {
     while (gapCheck < gapEnd) {
       gapCheck.setUTCDate(gapCheck.getUTCDate() + 1);
       const ds = gapCheck.toISOString().slice(0, 10);
-      const dow = gapCheck.getUTCDay();
-      if (dow !== 0 && dow !== 6 && !logDateSet.has(ds) && ds < lastLogDate) {
+      if (isTradingDay(ds, 'NSE') && !logDateSet.has(ds) && ds < lastLogDate) {
         gaps.push(ds);
       }
     }

@@ -1,4 +1,28 @@
+import fs from 'fs';
+import path from 'path';
 import { supabase } from './supabaseClient.js';
+
+const USERS_FILE = path.join(process.cwd(), 'data', 'users.json');
+
+function readLocalUsers() {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const content = fs.readFileSync(USERS_FILE, 'utf-8');
+      return JSON.parse(content || '[]');
+    }
+  } catch (e) {
+    console.warn('[DB Users] Failed to read users.json:', e.message);
+  }
+  return [];
+}
+
+function writeLocalUsers(users) {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[DB Users] Failed to write users.json:', e.message);
+  }
+}
 
 // Table name mapping helper (e.g. daily_pnl_logs -> pnl_history)
 function getSupabaseTableName(tableName) {
@@ -48,6 +72,10 @@ export function invalidateCache(tableName) {
 // Supabase Async Database Interface with Mandatory Pagination Guard & In-Memory Cache
 export const db = {
   select: async (tableName, options = {}) => {
+    if (tableName === 'users') {
+      return readLocalUsers();
+    }
+
     const { forceRefresh = false } = options;
     const sTable = getSupabaseTableName(tableName);
 
@@ -81,6 +109,14 @@ export const db = {
   },
 
   selectWhere: async (tableName, matchObj, options = {}) => {
+    if (tableName === 'users') {
+      const users = readLocalUsers();
+      if (!matchObj || Object.keys(matchObj).length === 0) return users;
+      return users.filter(row => {
+        return Object.entries(matchObj).every(([k, v]) => row[k] === v);
+      });
+    }
+
     const { forceRefresh = false } = options;
     const sTable = getSupabaseTableName(tableName);
 
@@ -102,6 +138,16 @@ export const db = {
   },
 
   insert: async (tableName, row) => {
+    if (tableName === 'users') {
+      const users = readLocalUsers();
+      const nextId = users.length ? Math.max(...users.map(u => Number(u.id) || 0)) + 1 : 1;
+      const newUser = { id: nextId, ...row };
+      users.push(newUser);
+      writeLocalUsers(users);
+      invalidateCache('users');
+      return newUser;
+    }
+
     const sTable = getSupabaseTableName(tableName);
     const { data, error } = await supabase.from(sTable).insert(row).select().single();
     if (error) {
@@ -113,6 +159,18 @@ export const db = {
   },
 
   update: async (tableName, id, updates) => {
+    if (tableName === 'users') {
+      const users = readLocalUsers();
+      const idx = users.findIndex(u => String(u.id) === String(id));
+      if (idx !== -1) {
+        users[idx] = { ...users[idx], ...updates };
+        writeLocalUsers(users);
+        invalidateCache('users');
+        return users[idx];
+      }
+      return null;
+    }
+
     const sTable = getSupabaseTableName(tableName);
     const { data, error } = await supabase.from(sTable).update(updates).eq('id', id).select();
     if (error) {
@@ -124,6 +182,14 @@ export const db = {
   },
 
   delete: async (tableName, id) => {
+    if (tableName === 'users') {
+      let users = readLocalUsers();
+      users = users.filter(u => String(u.id) !== String(id));
+      writeLocalUsers(users);
+      invalidateCache('users');
+      return true;
+    }
+
     const sTable = getSupabaseTableName(tableName);
     const { error } = await supabase.from(sTable).delete().eq('id', id);
     if (error) {
