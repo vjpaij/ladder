@@ -259,7 +259,9 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
         setNpsSchemes(npsRes.data || []);
         setHoldings(hRes.data || []);
         setLiabilities(liabRes.data || []);
-      } catch (err) {}
+      } catch (err) {
+        console.warn('[AddInvestmentView] Failed loading initial options:', err.message);
+      }
     };
     init();
   }, []);

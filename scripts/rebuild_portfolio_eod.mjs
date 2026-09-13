@@ -14,29 +14,40 @@ const EXCEL_FILE = path.join(process.cwd(), 'portfolio.xlsx');
 
 let historicalFxRatesCache = {};
 if (fs.existsSync(FX_FILE)) {
-  historicalFxRatesCache = JSON.parse(fs.readFileSync(FX_FILE, 'utf-8'));
+  try {
+    historicalFxRatesCache = JSON.parse(fs.readFileSync(FX_FILE, 'utf-8'));
+  } catch (e) {
+    historicalFxRatesCache = {};
+  }
+}
+
+const PERSISTENT_FX_FILE = path.join(__dirname, '../data/fx_rates_persistent.json');
+let persistedFxRate = null;
+if (fs.existsSync(PERSISTENT_FX_FILE)) {
+  try {
+    const pData = JSON.parse(fs.readFileSync(PERSISTENT_FX_FILE, 'utf-8'));
+    persistedFxRate = pData?.USD_INR?.rate || null;
+  } catch (e) {
+    console.warn('[EOD Rebuild] Failed reading persistent FX file:', e.message);
+  }
 }
 
 // Helper to get USD/INR rate historically (exact daily if available)
 function getHistoricalFxRate(dateStr) {
-  if (!dateStr) return 87.25;
-  if (historicalFxRatesCache[dateStr]) return historicalFxRatesCache[dateStr];
+  if (dateStr && historicalFxRatesCache[dateStr]) return historicalFxRatesCache[dateStr];
   
-  const prevDates = Object.keys(historicalFxRatesCache).filter(d => d < dateStr).sort().reverse();
-  if (prevDates.length > 0) {
-    return historicalFxRatesCache[prevDates[0]];
+  if (dateStr) {
+    const prevDates = Object.keys(historicalFxRatesCache).filter(d => d < dateStr).sort().reverse();
+    if (prevDates.length > 0) {
+      return historicalFxRatesCache[prevDates[0]];
+    }
+    const futureDates = Object.keys(historicalFxRatesCache).filter(d => d > dateStr).sort();
+    if (futureDates.length > 0) {
+      return historicalFxRatesCache[futureDates[0]];
+    }
   }
 
-  const year = parseInt(String(dateStr).slice(0, 4), 10);
-  if (isNaN(year)) return 87.25;
-  if (year <= 2019) return 70.4;
-  if (year === 2020) return 74.1;
-  if (year === 2021) return 73.9;
-  if (year === 2022) return 79.8;
-  if (year === 2023) return 82.6;
-  if (year === 2024) return 83.5;
-  if (year === 2025) return 85.2;
-  return 87.25;
+  return persistedFxRate || 1.0;
 }
 
 function parseExcelDate(excelDate) {
@@ -250,12 +261,14 @@ async function rebuildEod() {
           });
         }
       } catch (err) {
-        // Silently continue
+        console.warn(`[EOD Rebuild] Yahoo Finance download warning for ${h.symbol}:`, err.message);
       }
     }
     try {
       fs.writeFileSync(HISTORICAL_FILE, JSON.stringify(historicalPrices, null, 2), 'utf-8');
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[EOD Rebuild] Failed writing historical prices cache:', e.message);
+    }
   }
 
   const lastExcelLog = baseLogs[baseLogs.length - 1] || {

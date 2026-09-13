@@ -24,19 +24,42 @@ function generateUuid(str) {
 }
 
 // Historical USD/INR exchange rate lookup for US stocks transaction dates
-function getHistoricalFxRate(dateStr) {
-  if (!dateStr) return 87.25;
-  const year = parseInt(String(dateStr).slice(0, 4), 10);
-  if (isNaN(year)) return 87.25;
+// Dynamic: reads from historical_fx_rates.json (same source as server runtime)
+let _historicalFxCache = null;
+function loadHistoricalFxCache() {
+  if (_historicalFxCache) return _historicalFxCache;
+  try {
+    const fxFile = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, '$1')), '../../data/historical_fx_rates.json');
+    if (fs.existsSync(fxFile)) {
+      _historicalFxCache = JSON.parse(fs.readFileSync(fxFile, 'utf-8'));
+    } else {
+      _historicalFxCache = {};
+    }
+  } catch (e) {
+    console.warn('[load_portfolio_data] Could not load historical FX rates:', e.message);
+    _historicalFxCache = {};
+  }
+  return _historicalFxCache;
+}
 
-  if (year <= 2019) return 70.4;
-  if (year === 2020) return 74.1;
-  if (year === 2021) return 73.9;
-  if (year === 2022) return 79.8;
-  if (year === 2023) return 82.6;
-  if (year === 2024) return 83.5;
-  if (year === 2025) return 85.2;
-  return 87.25; // 2026 / current live rate
+function getHistoricalFxRate(dateStr) {
+  const cache = loadHistoricalFxCache();
+  if (!dateStr) {
+    // Return the most recent rate from the cache
+    const dates = Object.keys(cache).sort();
+    return dates.length > 0 ? cache[dates[dates.length - 1]] : null;
+  }
+  // Exact match
+  if (cache[dateStr]) return cache[dateStr];
+  // Nearest previous date
+  const prev = Object.keys(cache).filter(d => d < dateStr).sort().reverse();
+  if (prev.length > 0) return cache[prev[0]];
+  // Nearest future date
+  const next = Object.keys(cache).filter(d => d > dateStr).sort();
+  if (next.length > 0) return cache[next[0]];
+  
+  console.warn(`[load_portfolio_data] No FX rate found for date ${dateStr}`);
+  return null;
 }
 
 function parseCsv(filePath) {
@@ -289,7 +312,9 @@ async function loadData() {
         if (!isNaN(parsedDate.getTime())) {
           date = parsedDate.toISOString().split('T')[0];
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn(`[LoadPortfolioData] Date parsing error for "${dateStr}":`, e.message);
+      }
 
       // Transaction date exchange rate (for purchase cost basis in INR)
       const txFxRate = getHistoricalFxRate(date);

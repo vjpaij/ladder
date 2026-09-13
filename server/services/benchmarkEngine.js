@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { supabase } from '../supabaseClient.js';
 import db from '../db.js';
+import { getPersistedRate } from './fxRateStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -215,7 +216,8 @@ export async function computeGrowthBenchmarks({ timeframe = '1Y', scope = 'all',
     if (!isCategoryInScope(h.category_id)) continue;
     const buyPrice = Number(h.avg_buy_price) || 0;
     if (h.currency === 'USD') {
-      scopeInvestedCost += qty * buyPrice * 82.5;
+      const persistedFx = getPersistedRate('USD_INR') || 1.0;
+      scopeInvestedCost += qty * buyPrice * persistedFx;
     } else {
       scopeInvestedCost += qty * buyPrice;
     }
@@ -298,7 +300,7 @@ export async function computeGrowthBenchmarks({ timeframe = '1Y', scope = 'all',
       const txn = scopedTxns[txnPtr++];
       let amountInr = Number(txn.total_amount) || 0;
       if ((txn.currency || 'INR') === 'USD') {
-        amountInr *= (Number(txn.fx_rate) || 82.5);
+        amountInr *= (Number(txn.fx_rate) || getPersistedRate('USD_INR') || 1.0);
       }
       if (amountInr <= 0) continue;
       const txnDate = txn.date;

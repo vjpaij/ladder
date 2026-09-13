@@ -130,7 +130,9 @@ async function verifyAllAssetsIntegrity() {
       if (authRes.data && authRes.data.token) {
         authHeaders = { Authorization: 'Bearer ' + authRes.data.token };
       }
-    } catch (authErr) {}
+    } catch (authErr) {
+      console.warn('[Asset Integrity] Local test login attempt warning:', authErr.message);
+    }
     const res = await axios.get('http://127.0.0.1:5000/api/daily-pnl?range=10D', { headers: authHeaders });
     const todayRecord = res.data.find(d => d.log_date === todayStr);
     if (!todayRecord) { console.error(`  FAIL: /api/daily-pnl missing today (${todayStr})`); failureCount++; }

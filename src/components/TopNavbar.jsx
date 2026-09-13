@@ -74,7 +74,9 @@ export default function TopNavbar({
       if (res.data?.backups?.length > 0) {
         setLatestBackup(res.data.backups[0]);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[TopNavbar] Failed fetching latest backup info:', e.message);
+    }
   };
 
   useEffect(() => {
@@ -303,7 +305,7 @@ export default function TopNavbar({
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-500/50 shrink-0 group-hover:scale-125 transition-transform" />
           <span className="text-[10px] font-extrabold text-slate-400 group-hover:text-slate-200 transition-colors">USD/INR</span>
           <span className="font-extrabold text-emerald-400 text-xs group-hover:underline">
-            ₹{(Number(summary?.fxRate || fxRate || 87.25)).toFixed(2)}
+            {(summary?.fxRate || fxRate) ? `₹${Number(summary?.fxRate || fxRate).toFixed(2)}` : '...'}
           </span>
         </div>
 

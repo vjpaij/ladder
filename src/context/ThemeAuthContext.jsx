@@ -12,6 +12,21 @@ if (initialSavedToken) {
   axios.defaults.headers.common.Authorization = `Bearer ${initialSavedToken}`;
 }
 
+// Global axios request interceptor guaranteeing dynamic token attachment on every outgoing request
+if (typeof window !== 'undefined' && !window.__ladderAxiosIntercepted) {
+  window.__ladderAxiosIntercepted = true;
+  axios.interceptors.request.use((config) => {
+    const currentToken = localStorage.getItem('ladder_token');
+    if (currentToken) {
+      config.headers = config.headers || {};
+      if (!config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${currentToken}`;
+      }
+    }
+    return config;
+  }, (error) => Promise.reject(error));
+}
+
 // Global fetch interceptor ensuring any native fetch('/api/...') passes JWT authorization
 if (typeof window !== 'undefined' && !window.__ladderFetchIntercepted) {
   window.__ladderFetchIntercepted = true;
@@ -71,7 +86,7 @@ export function ThemeAuthProvider({ children }) {
       return null;
     }
   });
-  const [fxRate, setFxRate] = useState(87.25);
+  const [fxRate, setFxRate] = useState(null); // Initialized to null; real rate fetched from /api/fx-rate on mount
 
   // Global UI states for Modals
   const [errorMsg, setErrorMsg] = useState(null);
@@ -182,6 +197,7 @@ export function ThemeAuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('ladder_token');
     localStorage.removeItem('ladder_user');
+    delete axios.defaults.headers.common.Authorization;
     setToken(null);
     setUser(null);
   };
@@ -189,6 +205,9 @@ export function ThemeAuthProvider({ children }) {
   const login = (newToken, userData) => {
     localStorage.setItem('ladder_token', newToken);
     localStorage.setItem('ladder_user', JSON.stringify(userData));
+    if (newToken) {
+      axios.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+    }
     setToken(newToken);
     setUser(userData);
   };
@@ -208,7 +227,8 @@ export function ThemeAuthProvider({ children }) {
   const formatMoney = (amountInINR, forceINR = false, decimals = 2) => {
     if (amountInINR === undefined || amountInINR === null) return decimals === 4 ? '₹0.0000' : '₹0.00';
     if (currency === 'USD' && !forceINR) {
-      const usdVal = amountInINR / (fxRate || 87.25);
+      if (!fxRate || fxRate <= 0) return '$—'; // Rate not yet loaded
+      const usdVal = amountInINR / fxRate;
       return '$' + usdVal.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     }
     return '₹' + Number(amountInINR).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });

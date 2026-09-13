@@ -181,7 +181,7 @@ export default function AssetDividendDetailModal({
 
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   const isUS = asset.currency === 'USD' || asset.category_id === 'us_stocks';
-  const effectiveFx = Number(asset.fx_rate || fxRate || 87.25);
+  const effectiveFx = Number(asset.fx_rate || fxRate || 0);
 
   // Determine active display currency
   const activeCurrency = localCurrency === 'DEFAULT' ? (isUS && globalCurrency === 'USD' ? 'USD' : 'INR') : localCurrency;

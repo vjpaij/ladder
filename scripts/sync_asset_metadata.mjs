@@ -89,7 +89,9 @@ export async function fetchStockMetadata(symbol, category_id = 'in_stocks') {
               break;
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          // Attempt next candidate URL quietly
+        }
       }
 
       if (html) {
@@ -122,7 +124,9 @@ export async function fetchStockMetadata(symbol, category_id = 'in_stocks') {
           industry: industry || sector
         };
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`[Asset Metadata Sync] Screener fetch warning for ${cleanSym}:`, e.message);
+    }
   }
 
   // 3. Fallback catalogue

@@ -55,10 +55,6 @@ export default function LoginView() {
               className="w-[min(24rem,80%)] aspect-[628/500] object-cover rounded-[2rem] drop-shadow-[0_28px_45px_rgba(0,0,0,0.42)]"
             />
           </div>
-          <div className="relative z-10 flex items-center gap-3 text-xs text-white/50">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.8)]" />
-            Active Session
-          </div>
         </section>
 
         <section className="flex flex-col justify-center p-7 sm:p-10 xl:p-14 bg-[#0c0e15]/90">

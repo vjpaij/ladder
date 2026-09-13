@@ -113,7 +113,9 @@ async function syncAllPrices() {
   }
 
   console.log('=== 2. Syncing USD/INR FX Rates ===');
-  const freshFx = await fetchYahooFinanceHistorical('INR=X', '2024-01-01');
+  const existingFxDates = Object.keys(fxData).sort();
+  const fxStartDate = existingFxDates.length > 0 ? existingFxDates[existingFxDates.length - 1] : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const freshFx = await fetchYahooFinanceHistorical('INR=X', fxStartDate);
   if (Object.keys(freshFx).length > 0) {
     fxData = { ...fxData, ...freshFx };
     fs.writeFileSync(FX_FILE, JSON.stringify(fxData, null, 2));

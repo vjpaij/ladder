@@ -67,6 +67,18 @@ export function invalidateCache(tableName) {
   if (sTable === 'holdings') {
     dbCache.delete('transactions');
   }
+  if (sTable === 'liabilities' || sTable === 'loan_amortization') {
+    dbCache.delete('liabilities');
+    dbCache.delete('loan_amortization');
+  }
+  if (sTable === 'pnl_history' || sTable === 'daily_pnl_logs') {
+    dbCache.delete('pnl_history');
+  }
+  if (sTable === 'sips' || sTable === 'recurring_sips' || sTable === 'sip_history') {
+    dbCache.delete('sips');
+    dbCache.delete('recurring_sips');
+    dbCache.delete('sip_history');
+  }
 }
 
 // Supabase Async Database Interface with Mandatory Pagination Guard & In-Memory Cache

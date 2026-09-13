@@ -3,31 +3,69 @@ import axios from 'axios';
 import AdmZip from 'adm-zip';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
+import { storeRate, getPersistedRate, scheduleRetry, registerFetchFunction } from './fxRateStore.js';
 
 export const liveQuoteCache = new Map();
 
+/**
+ * Helper to delay execution for exponential backoff
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Fetches the live USD/INR FX rate with retry, exponential backoff, and self-healing persistence.
+ * On success: persists the rate to disk so future failures use it.
+ * On failure: returns the last persisted rate. Never returns a hardcoded number.
+ * If no rate has ever been persisted (first-ever boot with no connectivity),
+ * logs a critical warning and returns null -- callers must handle this gracefully.
+ */
 export async function fetchFxRate() {
-  try {
-    const quote = await fetchStockQuote('INR=X');
-    if (quote && quote.price > 0) {
-      liveQuoteCache.set('USDINR', quote);
-      return quote.price;
+  // Attempt 1: Yahoo Finance (primary) with retry & exponential backoff
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const quote = await fetchStockQuote('INR=X');
+      if (quote && quote.price > 0) {
+        liveQuoteCache.set('USDINR', quote);
+        storeRate('USD_INR', quote.price, 'yahoo-finance');
+        return quote.price;
+      }
+    } catch (err) {
+      console.warn(`[FX Rate] Yahoo Finance USD/INR attempt ${attempt} failed:`, err.message);
     }
-  } catch (err) {
-    // Yahoo Finance FX fallback
+    if (attempt < 2) await sleep(attempt * 300);
   }
 
-  try {
-    const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 4000 });
-    if (res.data && res.data.rates && res.data.rates.INR) {
-      const rate = res.data.rates.INR;
-      return rate;
+  // Attempt 2: Open Exchange Rates API (secondary) with retry & exponential backoff
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 4000 });
+      if (res.data && res.data.rates && res.data.rates.INR) {
+        const rate = res.data.rates.INR;
+        storeRate('USD_INR', rate, 'open-exchange-rates');
+        return rate;
+      }
+    } catch (err) {
+      console.warn(`[FX Rate] Open Exchange Rates API attempt ${attempt} failed:`, err.message);
     }
-  } catch (err) {
-    // API fallback
+    if (attempt < 2) await sleep(attempt * 500);
   }
-  return 87.25;
+
+  // Fallback: Last known good persisted rate (no hardcoded values)
+  const persisted = getPersistedRate('USD_INR');
+  if (persisted) {
+    console.warn(`[FX Rate] All live sources failed. Using last persisted rate: ${persisted}`);
+    scheduleRetry('USD_INR');
+    return persisted;
+  }
+
+  // Critical: No rate has ever been persisted (first boot with no internet)
+  console.error('[FX Rate] CRITICAL: No live FX rate available and no persisted rate found. USD valuations will be unavailable.');
+  scheduleRetry('USD_INR');
+  return null;
 }
+
+// Register the fetch function for background retry
+registerFetchFunction('USD_INR', fetchFxRate);
 
 export function formatCleanQuoteDate(dateStr, timeZone) {
   if (!dateStr) return null;
@@ -66,60 +104,121 @@ export function formatCleanQuoteDate(dateStr, timeZone) {
   return dateStr;
 }
 
-export async function fetchStockQuote(symbol) {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-    const res = await axios.get(url, {
-      timeout: 5000,
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    });
-    const result = res.data?.chart?.result?.[0];
-    if (result && result.meta && result.meta.regularMarketPrice) {
-      const price = Number(result.meta.regularMarketPrice) || 0;
-      const prevClose = Number(result.meta.chartPreviousClose || result.meta.previousClose || price);
-      const dayChange = price - prevClose;
-      const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
-      const quoteObj = result.indicators?.quote?.[0] || {};
-      const openPrice = Number(quoteObj.open?.[0] || result.meta.regularMarketPrice);
-      const dayHigh = Number(result.meta.regularMarketDayHigh || quoteObj.high?.[0] || price);
-      const dayLow = Number(result.meta.regularMarketDayLow || quoteObj.low?.[0] || price);
-      const closePrice = Number(quoteObj.close?.[0] || price);
-      const fiftyTwoWeekHigh = Number(result.meta.fiftyTwoWeekHigh || dayHigh * 1.15);
-      const fiftyTwoWeekLow = Number(result.meta.fiftyTwoWeekLow || dayLow * 0.85);
-
-      // Derive exchange timezone so US stocks reflect US trading date (e.g. 27 Aug 2026) and Indian stocks reflect Indian date (28 Aug 2026)
-      const exchangeTz = result.meta.exchangeTimezoneName || (symbol.endsWith('.NS') || symbol.endsWith('.BO') ? 'Asia/Kolkata' : 'America/New_York');
-      const quoteTime = result.meta.regularMarketTime || Math.floor(Date.now() / 1000);
-      const d = new Date(quoteTime * 1000);
-      const quoteDate = d.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        timeZone: exchangeTz
-      });
-
-      return {
-        price,
-        adjustedClose: (result.indicators?.quote?.[0]?.adjclose?.[0]) || price,
-        previousClose: prevClose,
-        dayChange: Number(dayChange.toFixed(2)),
-        dayChangePct,
-        open: Number(openPrice.toFixed(2)),
-        high: Number(dayHigh.toFixed(2)),
-        low: Number(dayLow.toFixed(2)),
-        close: Number(closePrice.toFixed(2)),
-        fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(2)),
-        fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(2)),
-        currency: result.meta.currency || 'INR',
-        quoteDate,
-        exchangeTimezone: exchangeTz,
-        updated: new Date().toISOString()
-      };
+// -------------------------------------------------------------
+// Yahoo Finance Circuit Breaker & Resilient Fetching
+// -------------------------------------------------------------
+const yfCircuitBreaker = {
+  state: 'CLOSED', // 'CLOSED' | 'OPEN' | 'HALF_OPEN'
+  failureCount: 0,
+  failureThreshold: 5,
+  cooldownPeriodMs: 30000,
+  nextAttemptTime: 0,
+  recordSuccess() {
+    if (this.state !== 'CLOSED') {
+      console.log('[Yahoo Finance Circuit Breaker] Service recovered. Resetting circuit to CLOSED.');
     }
-  } catch (err) {
-    // Yahoo Finance quote fallback
+    this.failureCount = 0;
+    this.state = 'CLOSED';
+  },
+  recordFailure() {
+    this.failureCount++;
+    if (this.failureCount >= this.failureThreshold && this.state !== 'OPEN') {
+      this.state = 'OPEN';
+      this.nextAttemptTime = Date.now() + this.cooldownPeriodMs;
+      console.warn(`[Yahoo Finance Circuit Breaker] Circuit tripped to OPEN (${this.failureCount} consecutive failures). Backing off for ${this.cooldownPeriodMs / 1000}s.`);
+    }
+  },
+  canAttempt() {
+    if (this.state === 'CLOSED') return true;
+    if (this.state === 'OPEN') {
+      if (Date.now() >= this.nextAttemptTime) {
+        this.state = 'HALF_OPEN';
+        console.log('[Yahoo Finance Circuit Breaker] Cooldown elapsed. Entering HALF_OPEN state to probe service.');
+        return true;
+      }
+      return false;
+    }
+    // HALF_OPEN allows single probe
+    return true;
   }
-  return null;
+};
+
+export async function fetchStockQuote(symbol) {
+  if (!symbol) return null;
+
+  // If circuit breaker is OPEN, serve from cache if available or bail early
+  if (!yfCircuitBreaker.canAttempt()) {
+    const cached = liveQuoteCache.get(symbol);
+    if (cached) return cached;
+    return null;
+  }
+
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+      const res = await axios.get(url, {
+        timeout: 5000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      });
+      const result = res.data?.chart?.result?.[0];
+      if (result && result.meta && result.meta.regularMarketPrice) {
+        const price = Number(result.meta.regularMarketPrice) || 0;
+        const prevClose = Number(result.meta.chartPreviousClose || result.meta.previousClose || price);
+        const dayChange = price - prevClose;
+        const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
+        const quoteObj = result.indicators?.quote?.[0] || {};
+        const openPrice = Number(quoteObj.open?.[0] || result.meta.regularMarketPrice);
+        const dayHigh = Number(result.meta.regularMarketDayHigh || quoteObj.high?.[0] || price);
+        const dayLow = Number(result.meta.regularMarketDayLow || quoteObj.low?.[0] || price);
+        const closePrice = Number(quoteObj.close?.[0] || price);
+        const fiftyTwoWeekHigh = Number(result.meta.fiftyTwoWeekHigh || dayHigh * 1.15);
+        const fiftyTwoWeekLow = Number(result.meta.fiftyTwoWeekLow || dayLow * 0.85);
+
+        // Derive exchange timezone so US stocks reflect US trading date and Indian stocks reflect Indian date
+        const exchangeTz = result.meta.exchangeTimezoneName || (symbol.endsWith('.NS') || symbol.endsWith('.BO') ? 'Asia/Kolkata' : 'America/New_York');
+        const quoteTime = result.meta.regularMarketTime || Math.floor(Date.now() / 1000);
+        const d = new Date(quoteTime * 1000);
+        const quoteDate = d.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          timeZone: exchangeTz
+        });
+
+        const quote = {
+          price,
+          adjustedClose: (result.indicators?.quote?.[0]?.adjclose?.[0]) || price,
+          previousClose: prevClose,
+          dayChange: Number(dayChange.toFixed(2)),
+          dayChangePct,
+          open: Number(openPrice.toFixed(2)),
+          high: Number(dayHigh.toFixed(2)),
+          low: Number(dayLow.toFixed(2)),
+          close: Number(closePrice.toFixed(2)),
+          fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(2)),
+          fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(2)),
+          currency: result.meta.currency || 'INR',
+          quoteDate,
+          exchangeTimezone: exchangeTz,
+          updated: new Date().toISOString()
+        };
+
+        yfCircuitBreaker.recordSuccess();
+        return quote;
+      }
+    } catch (err) {
+      if (attempt === maxRetries) {
+        yfCircuitBreaker.recordFailure();
+        console.warn(`[Yahoo Finance] Quote error for ${symbol} (attempt ${attempt}/${maxRetries}):`, err.message);
+      } else {
+        await sleep(250 * attempt);
+      }
+    }
+  }
+
+  // Fallback to cache if available
+  return liveQuoteCache.get(symbol) || null;
 }
 
 export async function fetchMutualFundNav(schemeCode) {
@@ -155,7 +254,7 @@ export async function fetchMutualFundNav(schemeCode) {
       };
     }
   } catch (err) {
-    // AMFI NAV fallback
+    console.warn(`[AMFI NAV] Fetch error for ${schemeCode}:`, err.message);
   }
   return null;
 }
@@ -493,7 +592,9 @@ export async function fetchNpsNav(schemeCode) {
         close: item.nav
       };
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn(`[NPS Nav] Protean batch lookup error for ${schemeCode}:`, e.message);
+  }
   return await fetchNpsNavFallback(schemeCode);
 }
 
@@ -518,7 +619,7 @@ export async function fetchNpsNavFallback(schemeCode) {
       }
     }
   } catch (err) {
-    // fallback
+    console.warn(`[NPS Nav Fallback] Error fetching fallback NAV for ${schemeCode}:`, err.message);
   }
   return null;
 }
@@ -545,7 +646,9 @@ export async function fetchNpsHistoricalNav(schemeCode) {
           if (p != null && !isNaN(p)) navMap.set(d, Number(p));
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`[NPS Historical] Local historical prices parse error for ${schemeCode}:`, e.message);
+    }
   }
 
   // 2. Fetch authoritative Protean CRA NAVs from Supabase with pagination safety
@@ -601,160 +704,20 @@ export async function fetchNpsHistoricalNav(schemeCode) {
 
 // In-memory live quotes cache: symbol -> quote object (declared at top of module)
 
+// -------------------------------------------------------------
+// Unified High-Speed Parallel Live Quote Engine
+// -------------------------------------------------------------
+
 /**
- * High-speed parallel live quote engine for active portfolio holdings.
- * Refreshes US stocks, active Indian stocks, MFs & NPS schemes in parallel.
+ * Universal holdings price refresh engine.
+ * Supports active-only fast loop or full portfolio refresh.
+ * 
+ * @param {Object} [options]
+ * @param {boolean} [options.activeOnly=true] - If true, only holdings with quantity > 0 are refreshed
  */
-export async function refreshActiveHoldingsPrices() {
-  const holdings = await db.select('holdings');
-  const activeHoldings = holdings.filter(h => Number(h.quantity) > 0);
-  const fxRate = await fetchFxRate();
-  let updatedCount = 0;
-
-  // 1. Refresh active US stocks in parallel
-  const usHoldings = activeHoldings.filter(h => h.category_id === 'us_stocks');
-  await Promise.all(usHoldings.map(async (h) => {
-    try {
-      const q = await fetchStockQuote(h.symbol);
-      if (q && q.price > 0) {
-        liveQuoteCache.set(h.symbol, q);
-        if (q.price !== Number(h.current_price)) {
-          await db.update('holdings', h.id, {
-            current_price: q.price,
-            updated_at: new Date().toISOString()
-          });
-          updatedCount++;
-        }
-      }
-    } catch (e) {}
-  }));
-
-  // 2. Refresh active Indian stocks in concurrent batches
-  const inHoldings = activeHoldings.filter(h => h.category_id === 'in_stocks');
-  const batchSize = 15;
-  for (let i = 0; i < inHoldings.length; i += batchSize) {
-    const batch = inHoldings.slice(i, i + batchSize);
-    await Promise.all(batch.map(async (h) => {
-      try {
-        const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
-        let bestQ = await fetchStockQuote(`${baseSymbol}.NS`);
-        let nseP = bestQ?.price || 0;
-        let bseP = 0;
-
-        // Fallback to BSE only if NSE is unavailable
-        if (!bestQ || nseP <= 0) {
-          const bseQ = await fetchStockQuote(`${baseSymbol}.BO`);
-          if (bseQ && bseQ.price > 0) {
-            bestQ = bseQ;
-            bseP = bseQ.price;
-          }
-        }
-
-        const newPrice = nseP || bseP || bestQ?.price || 0;
-
-        if (bestQ) {
-          liveQuoteCache.set(h.symbol, {
-            price: newPrice || bestQ.price,
-            dayChange: bestQ.dayChange,
-            dayChangePct: bestQ.dayChangePct,
-            open: bestQ.open,
-            high: bestQ.high,
-            low: bestQ.low,
-            fiftyTwoWeekHigh: bestQ.fiftyTwoWeekHigh,
-            fiftyTwoWeekLow: bestQ.fiftyTwoWeekLow,
-            quoteDate: bestQ.quoteDate
-          });
-        }
-
-        if (newPrice > 0 && newPrice !== Number(h.current_price)) {
-          await db.update('holdings', h.id, {
-            current_price: newPrice,
-            nse_price: nseP,
-            bse_price: bseP,
-            updated_at: new Date().toISOString()
-          });
-          updatedCount++;
-        }
-      } catch (e) {}
-    }));
-  }
-
-  // 3. Refresh active Mutual Funds in parallel
-  const mfHoldings = activeHoldings.filter(h => h.category_id === 'mutual_funds');
-  await Promise.all(mfHoldings.map(async (h) => {
-    try {
-      const q = await fetchMutualFundNav(h.symbol);
-      if (q && q.nav > 0) {
-        liveQuoteCache.set(h.symbol, {
-          price: q.nav,
-          dayChange: q.dayChange,
-          dayChangePct: q.dayChangePct,
-          open: q.open,
-          high: q.high,
-          low: q.low,
-          fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
-          fiftyTwoWeekLow: q.fiftyTwoWeekLow,
-          quoteDate: q.quoteDate
-        });
-        if (q.nav !== Number(h.current_price)) {
-          await db.update('holdings', h.id, {
-            current_price: q.nav,
-            updated_at: new Date().toISOString()
-          });
-          updatedCount++;
-        }
-      }
-    } catch (e) {}
-  }));
-
-  // 4. Refresh active NPS schemes in parallel
-  const npsHoldings = activeHoldings.filter(h => h.category_id === 'nps');
-  if (npsHoldings.length > 0) {
-    const proteanMap = await fetchProteanNpsNavBatch();
-    const isStale = isProteanNavStale();
-    const lastTradingDay = getLastTradingDay();
-    await Promise.all(npsHoldings.map(async (h) => {
-      try {
-        let q = (!isStale && proteanMap) ? proteanMap.get(h.symbol) : null;
-        if (!q || isStale) {
-          const fallback = await fetchNpsNavFallback(h.symbol);
-          if (fallback && (fallback.date === lastTradingDay || fallback.date > (q?.date || ''))) {
-            q = fallback;
-            try {
-              await supabase.from('nps_daily_navs').upsert({
-                scheme_code: h.symbol,
-                scheme_name: h.name,
-                nav: fallback.nav,
-                nav_date: fallback.date
-              }, { onConflict: 'scheme_code,nav_date' });
-            } catch (e) {}
-          } else if (!q && proteanMap?.get(h.symbol)) {
-            q = proteanMap.get(h.symbol);
-          }
-        }
-        if (q && q.nav > 0) {
-          const qDate = q.quoteDate || formatCleanQuoteDate(q.date);
-          liveQuoteCache.set(h.symbol, {
-            price: q.nav,
-            quoteDate: qDate
-          });
-          if (q.nav !== Number(h.current_price)) {
-            await db.update('holdings', h.id, {
-              current_price: q.nav,
-              updated_at: new Date().toISOString()
-            });
-            updatedCount++;
-          }
-        }
-      } catch (e) {}
-    }));
-  }
-
-  return { updatedCount, fxRate, activeCount: activeHoldings.length };
-}
-
-export async function refreshAllHoldingsPrices() {
-  const holdings = await db.select('holdings');
+export async function refreshHoldingsPrices({ activeOnly = true } = {}) {
+  const allHoldings = await db.select('holdings');
+  const holdings = activeOnly ? allHoldings.filter(h => Number(h.quantity) > 0) : allHoldings;
   const fxRate = await fetchFxRate();
   let updatedCount = 0;
 
@@ -790,6 +753,7 @@ export async function refreshAllHoldingsPrices() {
         let nseP = bestQ?.price || 0;
         let bseP = 0;
 
+        // Fallback to BSE only if NSE is unavailable
         if (!bestQ || nseP <= 0) {
           const bseQ = await fetchStockQuote(`${baseSymbol}.BO`);
           if (bseQ && bseQ.price > 0) {
@@ -879,7 +843,9 @@ export async function refreshAllHoldingsPrices() {
                 nav: fallback.nav,
                 nav_date: fallback.date
               }, { onConflict: 'scheme_code,nav_date' });
-            } catch (e) {}
+            } catch (e) {
+              console.warn(`[Sync] Failed to upsert NPS fallback NAV for ${h.symbol}:`, e.message);
+            }
           } else if (!q && proteanMap?.get(h.symbol)) {
             q = proteanMap.get(h.symbol);
           }
@@ -904,5 +870,19 @@ export async function refreshAllHoldingsPrices() {
     }));
   }
 
-  return { updatedCount, fxRate };
+  return { updatedCount, fxRate, activeCount: holdings.length };
+}
+
+/**
+ * Fast loop: refreshes only actively held assets (quantity > 0)
+ */
+export async function refreshActiveHoldingsPrices() {
+  return refreshHoldingsPrices({ activeOnly: true });
+}
+
+/**
+ * Comprehensive sync: refreshes all holdings across database
+ */
+export async function refreshAllHoldingsPrices() {
+  return refreshHoldingsPrices({ activeOnly: false });
 }

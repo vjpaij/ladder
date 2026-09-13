@@ -215,18 +215,33 @@ export function getIndianMarketHolidays(year) {
   const y = parseInt(year, 10);
   const fixed = [
     { name: 'Republic Day', date: `${y}-01-26`, market: 'NSE' },
+    { name: 'Dr. Ambedkar Jayanti', date: `${y}-04-14`, market: 'NSE' },
     { name: 'Maharashtra Day', date: `${y}-05-01`, market: 'NSE' },
     { name: 'Independence Day', date: `${y}-08-15`, market: 'NSE' },
     { name: 'Mahatma Gandhi Jayanti', date: `${y}-10-02`, market: 'NSE' },
     { name: 'Christmas', date: `${y}-12-25`, market: 'NSE' }
   ];
 
-  // Algorithmic Good Friday
+  // Algorithmic Good Friday (Easter minus 2 days)
   const goodFriday = computeGoodFriday(y);
   fixed.push({ name: 'Good Friday', date: goodFriday, market: 'NSE' });
 
-  // Add gazetted festival calendar if present
-  const festivals = (INDIAN_FESTIVAL_CALENDAR[y] || []).map(f => ({
+  // Add gazetted festival calendar if present, or dynamic festival projection for future years
+  let festivalList = INDIAN_FESTIVAL_CALENDAR[y];
+  if (!festivalList || festivalList.length === 0) {
+    // Dynamic projection for years beyond pre-registered table:
+    // Uses lunar cycle offsets (~11 days earlier each solar year) to estimate primary festivals
+    const baseYear = 2028;
+    const diff = y - baseYear;
+    const shiftDays = (diff * 11) % 30;
+    festivalList = [
+      { name: 'Holi', date: `${y}-03-${String(Math.max(1, 15 - shiftDays)).padStart(2, '0')}` },
+      { name: 'Diwali Laxmi Pujan', date: `${y}-10-${String(Math.min(28, 20 + shiftDays)).padStart(2, '0')}` },
+      { name: 'Dussehra', date: `${y}-10-${String(Math.max(1, 10 - shiftDays)).padStart(2, '0')}` }
+    ];
+  }
+
+  const festivals = festivalList.map(f => ({
     name: f.name,
     date: f.date,
     market: 'NSE'
@@ -324,13 +339,14 @@ export function getLastTradingDay(dateISO, market = 'NSE') {
   let cur = dateISO || getTodayIST();
   if (isTradingDay(cur, market)) return cur;
 
-  // Walk back up to 10 calendar days to bridge long festival holiday clusters
-  for (let i = 1; i <= 10; i++) {
+  // Walk back up to 15 calendar days to bridge long festival holiday clusters
+  for (let i = 1; i <= 15; i++) {
     const d = new Date(cur + 'T00:00:00+05:30');
     d.setDate(d.getDate() - i);
     const prev = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     if (isTradingDay(prev, market)) return prev;
   }
+  console.warn(`[marketCalendar] Warning: No trading day found within 15-day lookback for ${cur} (${market}). Returning original date.`);
   return cur;
 }
 
@@ -345,12 +361,13 @@ export function getLastTradingDay(dateISO, market = 'NSE') {
 export function getNextTradingDay(dateISO, market = 'NSE') {
   let cur = dateISO || getTodayIST();
   // If current day is not open, walk forward until next open session
-  for (let i = (isTradingDay(cur, market) ? 0 : 1); i <= 10; i++) {
+  for (let i = (isTradingDay(cur, market) ? 0 : 1); i <= 15; i++) {
     const d = new Date(cur + 'T00:00:00+05:30');
     d.setDate(d.getDate() + i);
     const next = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     if (isTradingDay(next, market)) return next;
   }
+  console.warn(`[marketCalendar] Warning: No trading day found within 15-day lookahead for ${cur} (${market}). Returning original date.`);
   return cur;
 }
 

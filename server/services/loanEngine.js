@@ -6,9 +6,18 @@ import { supabase } from '../supabaseClient.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_JSON_PATH = path.join(__dirname, '../../data/loan_amortization.json');
-const DEFAULT_LIABILITY_ID = '00000000-0000-0000-0000-000000000010';
 
-export async function getLoanAmortizationData(liabilityId = DEFAULT_LIABILITY_ID) {
+export async function getLoanAmortizationData(liabilityId) {
+  if (!liabilityId) {
+    return {
+      error: 'Liability ID is required. No default liability is assumed.',
+      historicalSummary: {},
+      currentOutstanding: 0,
+      futureSchedule: [],
+      chartTimeline: []
+    };
+  }
+
   let entries = [];
 
   // 1. Attempt to fetch from Supabase
@@ -29,10 +38,29 @@ export async function getLoanAmortizationData(liabilityId = DEFAULT_LIABILITY_ID
   // Fallback to local JSON if DB empty or unavailable
   if (entries.length === 0 && fs.existsSync(DATA_JSON_PATH)) {
     try {
-      entries = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
+      const allEntries = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
+      // Filter by liability_id if the JSON contains mixed entries
+      entries = Array.isArray(allEntries) ? allEntries.filter(e => e.liability_id === liabilityId) : [];
     } catch (e) {
       console.error('[loanEngine] Failed reading fallback JSON:', e.message);
     }
+  }
+
+  // If no data exists at all, return empty schedule (never fabricate data)
+  if (entries.length === 0) {
+    return {
+      historicalSummary: { totalDisbursed: 0, totalEmiPaid: 0, totalBulkPaid: 0, totalInterestPaid: 0, totalPrincipalPaid: 0 },
+      currentOutstanding: 0,
+      currentInterestRate: 0,
+      standardEmi: 0,
+      futureSchedule: [],
+      chartTimeline: [],
+      projectedPayoffDate: null,
+      projectedTotalInterest: 0,
+      projectedTotalPrincipal: 0,
+      historicalEntries: [],
+      isEmpty: true
+    };
   }
 
   // Split into settled (historical) vs custom future entries
@@ -54,18 +82,12 @@ export async function getLoanAmortizationData(liabilityId = DEFAULT_LIABILITY_ID
     totalPrincipalPaid += Number(e.principal_amount) || 0;
   });
 
-  const latestSettled = settledEntries.length > 0
-    ? settledEntries[settledEntries.length - 1]
-    : {
-        date: '2026-09-01',
-        closing_balance: 4464447,
-        interest_rate: 7.25,
-        emi_amount: 60000
-      };
+  // Use the actual latest settled entry (never fabricate defaults)
+  const latestSettled = settledEntries[settledEntries.length - 1];
 
   const currentOutstanding = Number(latestSettled.closing_balance) || 0;
-  const currentInterestRate = Number(latestSettled.interest_rate) || 7.25;
-  const standardEmi = Number(latestSettled.emi_amount) || 60000;
+  const currentInterestRate = Number(latestSettled.interest_rate) || 0;
+  const standardEmi = Number(latestSettled.emi_amount) || 0;
 
   // 2. Generate Dynamic Future Monthly Amortization Schedule
   let currentBal = currentOutstanding;
@@ -225,12 +247,15 @@ export async function getLoanAmortizationData(liabilityId = DEFAULT_LIABILITY_ID
 }
 
 export async function addLoanAmortizationEntry(entry) {
-  const liabilityId = entry.liability_id || DEFAULT_LIABILITY_ID;
+  if (!entry.liability_id) {
+    throw new Error('liability_id is required to record a loan amortization entry.');
+  }
+  const liabilityId = entry.liability_id;
   const date = entry.date;
-  const entryType = entry.entry_type || (entry.bulk_payment > 0 ? 'PREPAYMENT' : 'EMI');
-  const rate = Number(entry.interest_rate) || 7.25;
+  const entryType = entry.entry_type || (Number(entry.bulk_payment) > 0 ? 'PREPAYMENT' : 'EMI');
+  const rate = Number(entry.interest_rate) || 0;
   const bulk = Number(entry.bulk_payment) || 0;
-  const emi = Number(entry.emi_amount) || 60000;
+  const emi = Number(entry.emi_amount) || 0;
   const disbursed = Number(entry.disbursed_amount) || 0;
   const isSettled = entry.is_settled !== undefined ? Boolean(entry.is_settled) : (date <= new Date().toISOString().slice(0, 10));
   const notes = entry.notes || null;

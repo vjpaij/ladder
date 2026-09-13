@@ -18,7 +18,9 @@ export function formatDateDDMMYYYY(dateStr) {
       const year = d.getFullYear();
       return `${day}-${month}-${year}`;
     }
-  } catch (e) {}
+  } catch (e) {
+    // Proceed to string-split fallback
+  }
 
   // Manual fallback for YYYY-MM-DD strings
   const parts = str.split(/[-T /]/);
@@ -63,7 +65,9 @@ export function formatQuoteBadgeDate(dateStr) {
     if (!isNaN(d.getTime())) {
       return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     }
-  } catch (e) {}
+  } catch (e) {
+    // Return original string on unparseable date
+  }
   return str;
 }
 

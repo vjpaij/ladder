@@ -158596,15 +158596,15 @@
     "mutual_funds": 4525024.37,
     "indian_stocks": 9829320.72,
     "us_stocks": 1845543.29,
-    "nps": 525406.73,
+    "nps": 525547.24,
     "epf": 4606949,
     "loan": 4496758,
     "credits": 1862.16,
     "debt": 4498620.16,
-    "total_assets": 23173332.23,
-    "wealth": 18674712.07,
-    "total_wealth": 18674712.07,
-    "daily_pnl": 47541.54,
+    "total_assets": 23173472.74,
+    "wealth": 18674852.58,
+    "total_wealth": 18674852.58,
+    "daily_pnl": 47682.05,
     "pnl_pct": 0.26
   },
   {
@@ -158627,7 +158627,7 @@
     "total_assets": 23095400.21,
     "wealth": 18596780.05,
     "total_wealth": 18596780.05,
-    "daily_pnl": -77932.02,
+    "daily_pnl": -78072.53,
     "pnl_pct": -0.42
   },
   {
@@ -159033,16 +159033,16 @@
     "mutual_funds": 4526916.08,
     "indian_stocks": 9697507.27,
     "us_stocks": 1807330.98,
-    "nps": 520633.99,
+    "nps": 518478.01,
     "epf": 4606949,
     "loan": 4496758,
     "credits": 1862.16,
     "debt": 4498620.16,
-    "total_assets": 23000425.44,
-    "wealth": 18501805.28,
-    "total_wealth": 18501805.28,
-    "daily_pnl": -120098.42,
-    "pnl_pct": -0.64
+    "total_assets": 22998269.46,
+    "wealth": 18499649.3,
+    "total_wealth": 18499649.3,
+    "daily_pnl": -122254.4,
+    "pnl_pct": -0.66
   },
   {
     "date": "2026-09-02",
@@ -159064,8 +159064,8 @@
     "total_assets": 22889043.22,
     "wealth": 18390423.06,
     "total_wealth": 18390423.06,
-    "daily_pnl": -111382.22,
-    "pnl_pct": -0.6
+    "daily_pnl": -109226.24,
+    "pnl_pct": -0.59
   },
   {
     "date": "2026-09-03",

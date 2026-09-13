@@ -32,10 +32,10 @@ export default function AddDividendModal({ isOpen, onClose, onSuccess, holdings 
             }
           })
           .catch(() => {
-            setCustomFxRate(fxRate ? String(fxRate) : '87.25');
+            setCustomFxRate(fxRate ? String(fxRate) : '');
           });
       } else {
-        setCustomFxRate(fxRate ? String(fxRate) : '87.25');
+        setCustomFxRate(fxRate ? String(fxRate) : '');
       }
     }
   }, [category, paymentDate, fxRate]);
@@ -101,7 +101,7 @@ export default function AddDividendModal({ isOpen, onClose, onSuccess, holdings 
     setIsSubmitting(true);
     try {
       const isUS = category === 'us_stocks';
-      const effectiveFx = isUS ? (Number(customFxRate) || fxRate || 87.25) : 1.0;
+      const effectiveFx = isUS ? (Number(customFxRate) || fxRate || 0) : 1.0;
 
       await axios.post('/api/add-investment', {
         portfolio: category,
@@ -134,7 +134,7 @@ export default function AddDividendModal({ isOpen, onClose, onSuccess, holdings 
 
   const isUS = category === 'us_stocks';
   const currSymbol = isUS ? '$' : '₹';
-  const effectiveFx = Number(customFxRate) || fxRate || 87.25;
+  const effectiveFx = Number(customFxRate) || fxRate || 0;
   const numAmt = Number(dividendAmount) || 0;
   const convertedINR = isUS ? (numAmt * effectiveFx) : numAmt;
 
@@ -335,7 +335,7 @@ export default function AddDividendModal({ isOpen, onClose, onSuccess, holdings 
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   USD/INR Exchange Rate
                 </label>
-                <span className="text-[9.5px] font-mono text-slate-500">Live: ₹{Number(fxRate || 87.25).toFixed(2)}</span>
+                {fxRate ? <span className="text-[9.5px] font-mono text-slate-500">Live: ₹{Number(fxRate).toFixed(2)}</span> : null}
               </div>
               <input
                 type="number"

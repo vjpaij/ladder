@@ -171,7 +171,9 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
         const mins = String(d.getMinutes()).padStart(2, '0');
         return `${day}-${month}-${year} ${hours}:${mins}`;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[RestoreBackupModal] Date format warning:', e.message);
+    }
     return dateStr;
   };
 

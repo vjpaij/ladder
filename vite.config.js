@@ -9,6 +9,21 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
+    watch: {
+      ignored: [
+        '**/data/**',
+        '**/server/**',
+        '**/scripts/**',
+        '**/Indian Stocks/**',
+        '**/scratch/**',
+        '**/.agents/**',
+        '**/*.json',
+        '**/*.csv',
+        '**/*.xlsx',
+        '**/*.xls',
+        '**/*.log'
+      ],
+    },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5000',

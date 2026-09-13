@@ -253,7 +253,7 @@ export default function ChartRangeSelector({
             onChange={handleCountChange}
             onBlur={handleCountBlur}
             onFocus={(e) => {
-              try { e.target.select(); } catch (err) {}
+              try { e.target.select(); } catch (err) { /* quiet select */ }
               if (!isRelativeActive) {
                 const safeCount = count === '' ? 1 : Math.max(1, count);
                 setRangeType('RELATIVE');

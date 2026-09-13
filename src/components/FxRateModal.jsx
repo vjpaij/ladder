@@ -217,7 +217,7 @@ export default function FxRateModal({ isOpen, onClose }) {
               <div className="p-3.5 reports-subcard rounded-2xl">
                 <span className="text-[10px] uppercase font-bold opacity-70 block">Current Exchange Rate</span>
                 <p className="text-lg font-black font-mono mt-1 text-emerald-600 dark:text-emerald-400">
-                  ₹{Number(data?.currentRate || 87.25).toFixed(2)}
+                  {data?.currentRate ? `₹${Number(data.currentRate).toFixed(2)}` : '...'}
                 </p>
                 <span className="text-[10px] opacity-60 font-mono">Per 1.00 USD</span>
               </div>

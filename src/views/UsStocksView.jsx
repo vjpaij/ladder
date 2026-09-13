@@ -144,7 +144,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
       const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
       const avgBuyUSD = Number(h.avg_buy_price) || 0;
       const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : 0;
-      const txRate = h.txFxRate || 82.5;
+      const txRate = h.txFxRate || (investedUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / investedUSD : fxRate) || 1.0;
       const investedINR = Number(h.investedValueINR) || (investedUSD * txRate);
       const realizedPnlUSD = Number(h.realized_pnl) || 0;
       const realizedPnlINR = realizedPnlUSD * fxRate;
@@ -181,7 +181,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
       // Active cost
       const activeQty = Number(h.quantity) || 0;
       const avgBuyUSD = Number(h.avg_buy_price) || 0;
-      const txRate = h.txFxRate || 82.5;
+      const txRate = h.txFxRate || (activeQty * avgBuyUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / (activeQty * avgBuyUSD) : fxRate) || 1.0;
       
       const activeInvestedUSD = activeQty * avgBuyUSD;
       const activeInvestedINR = Number(h.investedValueINR) || (activeInvestedUSD * txRate);
@@ -200,7 +200,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
     });
 
     const pnlINR = metrics ? (metrics.realizedINR + metrics.unrealizedINR) : 0;
-    const pnlUSD = pnlINR / (fxRate || 82.5);
+    const pnlUSD = fxRate ? (pnlINR / fxRate) : 0;
     const absPct = totalCostINR > 0 ? (pnlINR / totalCostINR) * 100 : 0;
     const xirr = metrics ? metrics.xirrPct : 0;
     const activeXirr = metrics ? metrics.activeXirrPct : 0;
@@ -461,7 +461,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                   const soldQty = Number(h.sell_qty) || Number(h.buy_qty) || 0;
                   const avgBuyUSD = Number(h.avg_buy_price) || 0;
                   const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : 0;
-                  const txRate = h.txFxRate || 82.5;
+                  const txRate = h.txFxRate || (investedUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / investedUSD : fxRate) || 1.0;
                   const investedINR = Number(h.investedValueINR) || (investedUSD * txRate);
                   const realizedPnlUSD = Number(h.realized_pnl) || 0;
                   const realizedPnlINR = realizedPnlUSD * fxRate;

@@ -5,6 +5,88 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.30.2] - 2026-09-13
+
+### Fixed
+- **Authentication Race Condition on Initial Login**:
+  - Registered a global Axios request interceptor in `ThemeAuthContext.jsx` that dynamically resolves and attaches `Authorization: Bearer <token>` from `localStorage` to 100% of outgoing requests.
+  - Synchronously configured `axios.defaults.headers.common.Authorization` inside `login()` and `logout()` handlers, eliminating child component mount race conditions on initial login and permanently eradicating the transient 401 "Database connection failed: Authentication required" toast error.
+
+### Added
+- **Workspace Agent Rules 14, 15, and 16**:
+  - Added Rule 14 (Mandatory Client-Side Auth Synchronization & Interceptor Architecture), Rule 15 (Vite Dev Server Watcher & Persistence Isolation Protocol), and Rule 16 (Automated Background Self-Healing & Missing Data Recovery Protocol) to `.agents/AGENTS.md`.
+
+## [5.30.1] - 2026-09-13
+
+### Fixed
+- **Vite Dev Server Full-Page Reload & Flickering Loop**:
+  - Configured `server.watch.ignored` in `vite.config.js` to ignore background data directories (`data/`, `server/`, `scripts/`, `Indian Stocks/`, `scratch/`, and data file extensions `.json`, `.csv`, `.xlsx`, `.xls`, `.log`).
+  - Completely resolved the issue where backend price engines or self-healing persistence wrote data files and triggered automatic Vite full-page reloads, eliminating screen flickering and input focus loss.
+
+### Changed
+- **Login View UI Cleanup**:
+  - Removed the redundant 'Active Session' tag from `src/views/LoginView.jsx`.
+
+## [5.30.0] - 2026-09-13
+
+### Added
+- **Background Self-Healing Service**:
+  - Implemented `server/services/selfHealingService.js` with `healTransactionFxRates()`, `healMissingHoldingPrices()`, and `runComprehensiveSelfHealing()`.
+  - Automatically identifies missing transaction FX rates and unpriced holdings, queries authoritative feeds, updates Supabase records, and recalculates holding positions.
+- **On-Demand Self-Healing API**:
+  - Added authenticated endpoint `POST /api/self-heal` in `server/routes/search.js` enabling manual or automated trigger of full portfolio gap healing.
+  - Integrated comprehensive self-healing into server boot (5-second delay) and periodic 10-minute maintenance cycle.
+
+### Changed
+- **Silent Catch Block Eradication**:
+  - Audited and purged 100% of silent empty catch blocks across the repository, replacing them with informative warning logs and resilient fallback handling.
+- **Loan Engine Sanitation**:
+  - Removed undefined `DEFAULT_LIABILITY_ID` reference and replaced hardcoded EMI and interest rate fallbacks with explicit validation in `server/services/loanEngine.js`.
+- **US Stock Transaction Date-Aware FX**:
+  - Updated `server/routes/holdings.js` to automatically look up historical exchange rates corresponding to transaction dates for past US stock purchases.
+
+## [5.29.0] - 2026-09-13
+
+### Added
+- **Persistent Self-Healing FX Rate Store**:
+  - Implemented `server/services/fxRateStore.js` and `data/fx_rates_persistent.json` to store last-known-good exchange rates with automatic background retry and historical rate resolution.
+  - Purged all hardcoded 87.25 and 82.5 values across backend routes, price engines, and frontend views.
+- **Modular Server Route Architecture**:
+  - Split monolithic 3,837-line `server/index.js` into 13 modular route controllers in `server/routes/` (`auth.js`, `backup.js`, `calendar.js`, `database.js`, `dividends.js`, `fx.js`, `holdings.js`, `liabilities.js`, `reports.js`, `search.js`, `sips.js`, `summary.js`, `transactions.js`) and middleware `server/middleware/auth.js`.
+  - Slimmed `server/index.js` to 229 lines handling mounting, schedulers, and background daemon lifecycles.
+- **Yahoo Finance Circuit Breaker & API Retry Logic**:
+  - Built `yfCircuitBreaker` in `server/services/priceEngine.js` with CLOSED, OPEN, and HALF_OPEN states (5-failure trip threshold and 30-second cooldown).
+  - Added retry with exponential backoff for `fetchStockQuote()` and `fetchFxRate()`.
+- **Persistent Cloud SIP History**:
+  - Migrated SIP execution and skip logs from local files to Supabase `public.sip_history` table with API route `GET /api/sips/history`.
+- **Dynamic Category Registry Engine**:
+  - Enhanced Supabase `categories` schema with `valuation_model`, `default_currency`, `default_exchange`, `price_fetcher`, and `has_dividends` columns.
+  - Implemented `server/services/categoryRegistry.js` supporting dynamic behavior resolution (`isUnitBased`, `isBalanceBased`, `getDefaultCurrency`, `getPriceFetcher`, `hasDividends`) and API endpoint `GET /api/categories/registry`.
+- **Supabase Vault Secrets Integration**:
+  - Created `server/services/vaultService.js` supporting encrypted secrets retrieval from Supabase Vault with seamless fallback to environment variables.
+- **Frontend Sub-Component Extractions**:
+  - Decomposed monolithic `HoldingDetailModal.jsx` (1,723 lines) into modular subcomponents in `src/components/holding-detail/` (`HoldingDetailHeader.jsx`, `HoldingMarketStats.jsx`, `HoldingMetricCards.jsx`, `HoldingChartsSection.jsx`, `HoldingTransactionLedger.jsx`, `holdingDetailUtils.jsx`).
+  - Decomposed monolithic `ReportsView.jsx` (2,640 lines) into modular subcomponents in `src/components/reports/` (`reportsConstants.js`, `ReportsTooltips.jsx`, `RankedBarList.jsx`, `CleanBarChartView.jsx`, `CompanyMfBreakdownModal.jsx`).
+
+### Changed
+- **Async 38 MB Historical Price Parsing**:
+  - Converted synchronous startup parse of `data/historical_prices.json` to non-blocking asynchronous streaming load via `server/services/historicalPriceStore.js`.
+- **Comprehensive Cache Invalidation**:
+  - Expanded `server/db.js` `invalidateCache` to cover `liabilities`, `loan_amortization`, `pnl_history`, `sips`, and `sip_history`.
+- **Unified Portfolio Valuation Engine**:
+  - Synchronized `/api/summary` to calculate totals directly via canonical `computePortfolioValuation()`, guaranteeing 1-to-1 cent parity between Dashboard, Calendar, and Database.
+- **Dynamic Multi-Year Calendar Lookbacks & Holidays**:
+  - Extended `getLastTradingDay` and `getNextTradingDay` lookbacks in `server/services/marketCalendar.js` from 10 to 15 days with warning telemetry.
+  - Added Dr. Ambedkar Jayanti (Apr 14) and algorithmic lunar cycle offsets for future years (>2028).
+
+### Fixed
+- **Silent Catch Blocks Elimination**:
+  - Added informative logging to all previously empty catch blocks across price engines, historical stores, and routes.
+- **Duplicate Price Refresh Engines**:
+  - Deduplicated `refreshActiveHoldingsPrices` and `refreshAllHoldingsPrices` into a unified `refreshHoldingsPrices({ activeOnly })` engine.
+- **Clean Ingestion & Scratch Directory Organization**:
+  - Organized root-level ingestion scripts into `scripts/ingestion/` and moved response dumps to `scratch/`.
+
 ## [5.28.0] - 2026-09-13
 
 ### Added

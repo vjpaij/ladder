@@ -141,7 +141,9 @@ async function runIntegrityAudit() {
       if (authRes && authRes.token) {
         authHeaders = { Authorization: `Bearer ${authRes.token}` };
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Integrity Audit] Local test login attempt warning:', e.message);
+    }
     const sumRes = await fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json());
     assert.strictEqual(sumRes.dayPnlINR, 0, 'On weekend non-trading days, Day PnL must strictly equal 0.00 unless manual transactions occurred');
     assert.strictEqual(sumRes.dayPnlPct, 0, 'On weekend non-trading days, Day PnL % must strictly equal 0.00%');

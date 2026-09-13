@@ -53,87 +53,17 @@ import {
   ArrowDown
 } from 'lucide-react';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
-
-const PALETTE = [
-  '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#06B6D4', 
-  '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#A855F7', 
-  '#64748B', '#E11D48', '#0284C7', '#84CC16'
-];
-
-const CAP_COLORS = {
-  'Mega Cap': '#10B981',     // Emerald
-  'Large Cap': '#3B82F6',    // Blue
-  'Mid Cap': '#F59E0B',      // Amber
-  'Small Cap': '#8B5CF6',    // Purple
-  'Micro Cap': '#EC4899',    // Pink / Rose
-  'Cash': '#64748B',         // Slate
-  'Unknown': '#94A3B8'
-};
-
-const BENCHMARK_COLORS = {
-  'NIFTY_50': '#3B82F6',
-  'NIFTY_MIDCAP_150': '#F59E0B',
-  'NIFTY_SMALLCAP_250': '#8B5CF6',
-  'SP_500': '#EC4899',
-  'NASDAQ': '#06B6D4'
-};
-
-const BENCHMARK_LABELS = {
-  'NIFTY_50': 'Nifty 50',
-  'NIFTY_MIDCAP_150': 'Nifty Midcap 150',
-  'NIFTY_SMALLCAP_250': 'Nifty Smallcap 250',
-  'SP_500': 'S&P 500',
-  'NASDAQ': 'NASDAQ'
-};
-
-/**
- * Standard Unified Sector Normalization
- */
-function normalizeSector(raw) {
-  if (!raw) return 'Diversified & Other';
-  const s = raw.trim().toLowerCase();
-  
-  if (s.includes('tech') || s.includes('information') || s.includes('software') || s.includes('semiconductor') || s.includes('cloud') || s.includes('it ') || s === 'it') {
-    return 'Information Technology';
-  }
-  if (s.includes('bank') || s.includes('finance') || s.includes('financial') || s.includes('insurance') || s.includes('capital market') || s.includes('amc') || s.includes('housing fin')) {
-    return 'Financial Services';
-  }
-  if (s.includes('health') || s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('hospital') || s.includes('diagnostic')) {
-    return 'Healthcare & Pharmaceuticals';
-  }
-  if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('ancillar') || s.includes('motor')) {
-    return 'Automobiles & Auto Components';
-  }
-  if (s.includes('fmcg') || s.includes('consumer good') || s.includes('food') || s.includes('beverage') || s.includes('tobacco') || s.includes('personal care') || s.includes('household') || s.includes('staple')) {
-    return 'Consumer Staples & FMCG';
-  }
-  if (s.includes('consumer disc') || s.includes('retail') || s.includes('apparel') || s.includes('footwear') || s.includes('hotel') || s.includes('restaurant') || s.includes('travel') || s.includes('leisure') || s.includes('luxury')) {
-    return 'Consumer Discretionary';
-  }
-  if (s.includes('industrial') || s.includes('capital good') || s.includes('engineering') || s.includes('machiner') || s.includes('defence') || s.includes('equipment') || s.includes('electrical')) {
-    return 'Capital Goods & Industrials';
-  }
-  if (s.includes('infra') || s.includes('construction') || s.includes('cement') || s.includes('building') || s.includes('realty') || s.includes('real estate') || s.includes('road') || s.includes('port') || s.includes('transport')) {
-    return 'Infrastructure & Real Estate';
-  }
-  if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('petroleum') || s.includes('refin') || s.includes('power') || s.includes('renewable') || s.includes('solar') || s.includes('green energy') || s.includes('utilit')) {
-    return 'Energy, Power & Utilities';
-  }
-  if (s.includes('metal') || s.includes('mining') || s.includes('steel') || s.includes('aluminum') || s.includes('copper') || s.includes('zinc') || s.includes('iron') || s.includes('commodity') || s.includes('commodities')) {
-    return 'Metals & Mining';
-  }
-  if (s.includes('chemical') || s.includes('fertilizer') || s.includes('agrochem') || s.includes('specialty chem') || s.includes('material')) {
-    return 'Chemicals & Materials';
-  }
-  if (s.includes('telecom') || s.includes('media') || s.includes('entertainment') || s.includes('broadcasting') || s.includes('communication')) {
-    return 'Telecommunication & Media';
-  }
-  if (s.includes('cash') || s.includes('debt') || s.includes('treps') || s.includes('repo') || s.includes('reverse repo') || s.includes('debenture') || s.includes('commercial paper') || s.includes('money market') || s.includes('gilt') || s.includes('treasury')) {
-    return 'Cash, Debt & Other';
-  }
-  return 'Diversified & Other';
-}
+import {
+  PALETTE,
+  CAP_COLORS,
+  BENCHMARK_COLORS,
+  BENCHMARK_LABELS,
+  normalizeSector
+} from './reports/reportsConstants';
+import { CustomChartTooltip as ExtCustomChartTooltip, TrajectoryTooltip as ExtTrajectoryTooltip } from './reports/ReportsTooltips';
+import ExtRankedBarList from './reports/RankedBarList';
+import ExtCleanBarChartView from './reports/CleanBarChartView';
+import CompanyMfBreakdownModal from './reports/CompanyMfBreakdownModal';
 
 export default function ReportsView({ summary, holdings, registerBackHandler }) {
   const { formatMoney, isUSD } = useThemeAuth();
@@ -859,188 +789,11 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
     };
   }, [companyDetailTarget, mfData, holdings]);
 
-  // Universal Custom Tooltip with Theme Adaptive Styling
-  const CustomChartTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0];
-      const name = data.payload?.name || data.payload?.sector || (data.name !== 'value' ? data.name : '') || 'Asset';
-      const value = data.value !== undefined ? data.value : data.payload?.value;
-      const percentage = data.payload?.percentage;
-      const color = data.color || data.payload?.fill || PALETTE[0];
-
-      return (
-        <div className="reports-card p-3 rounded-2xl shadow-xl text-xs space-y-1.5 z-50 pointer-events-none min-w-[180px]">
-          <p className="font-extrabold flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }}></span>
-            <span className="truncate">{name}</span>
-          </p>
-          <div className="pt-1 text-[11px] font-mono space-y-1 border-t border-inherit opacity-90">
-            <p className="flex justify-between gap-4">
-              <span className="opacity-70">Value:</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(value)}</span>
-            </p>
-            {percentage !== undefined && (
-              <p className="flex justify-between gap-4">
-                <span className="opacity-70">Allocation:</span>
-                <span className="font-bold">{Number(percentage).toFixed(2)}%</span>
-              </p>
-            )}
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Trajectory Benchmark Tooltip
-  const TrajectoryTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const point = payload[0].payload;
-      const portVal = point.Portfolio;
-      const portGrowth = point.PortfolioGrowthPct;
-      const benchVal = point[`${benchmark}_Normalized`];
-      const benchGrowth = point[`${benchmark}_GrowthPct`];
-      const alpha = (portGrowth !== undefined && benchGrowth !== undefined) ? Number((portGrowth - benchGrowth).toFixed(2)) : 0;
-
-      return (
-        <div className="reports-card p-3.5 rounded-2xl shadow-xl text-xs space-y-2 z-50 pointer-events-none min-w-[220px]">
-          <p className="font-mono font-bold opacity-75 text-[11px] border-b border-inherit pb-1 flex items-center justify-between">
-            <span>{label}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${alpha >= 0 ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/20 text-rose-600 dark:text-rose-400'}`}>
-              Alpha: {alpha >= 0 ? `+${alpha}%` : `${alpha}%`}
-            </span>
-          </p>
-          <div className="space-y-1 font-mono text-[11px]">
-            <div className="flex justify-between gap-4">
-              <span className="flex items-center gap-1.5 opacity-80">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                Portfolio:
-              </span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                {formatMoney(portVal)} ({portGrowth >= 0 ? `+${portGrowth}%` : `${portGrowth}%`})
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="flex items-center gap-1.5 opacity-80">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: BENCHMARK_COLORS[benchmark] }}></span>
-                {BENCHMARK_LABELS[benchmark]}:
-              </span>
-              <span className="font-bold" style={{ color: BENCHMARK_COLORS[benchmark] }}>
-                {benchVal !== undefined ? `${formatMoney(benchVal)} ` : ''}({benchGrowth >= 0 ? `+${benchGrowth}%` : `${benchGrowth}%`})
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Modern Ranked List Component (100% Theme-Adaptive)
-  const RankedBarList = ({ items, onItemClick, activeIndex, onHoverIndex }) => {
-    return (
-      <div className="space-y-2 pt-1">
-        {items.map((item, index) => {
-          const isSelected = activeIndex === index;
-          const color = item.color || PALETTE[index % PALETTE.length];
-          return (
-            <div
-              key={item.name}
-              onClick={() => {
-                if (onItemClick) onItemClick(item);
-                if (onHoverIndex) onHoverIndex(isSelected ? null : index);
-              }}
-              onMouseEnter={() => {
-                if (onHoverIndex) onHoverIndex(index);
-              }}
-              onMouseLeave={() => {
-                if (onHoverIndex) onHoverIndex(null);
-              }}
-              className={`group relative overflow-hidden p-3 rounded-2xl border transition-all duration-150 cursor-pointer reports-subcard ${
-                isSelected ? 'is-selected ring-2 ring-inset ring-emerald-500' : ''
-              }`}
-            >
-              {/* Subtle Progress Fill Bar */}
-              <div 
-                className="absolute inset-y-0 left-0 opacity-15 group-hover:opacity-25 transition-all duration-300 rounded-2xl pointer-events-none"
-                style={{ 
-                  width: `${Math.max(2, item.percentage)}%`, 
-                  backgroundColor: color 
-                }}
-              />
-
-              <div className="relative flex items-center justify-between gap-3 min-w-0">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: color }} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-extrabold truncate">
-                      {item.name}
-                    </p>
-                    {item.symbol && item.symbol !== 'OTHER' && (
-                      <p className="text-[10px] opacity-60 font-mono font-semibold truncate">{item.symbol}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0 font-mono">
-                  <p className="text-xs font-black group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                    {formatMoney(item.value)}
-                  </p>
-                  <p className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400">{item.percentage}%</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // Crisp Institutional Bar Chart View with Clear X-Axis Values
-  const CleanBarChartView = ({ items, onItemClick }) => {
-    return (
-      <div className="h-[380px] w-full pt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <ReBarChart data={items} margin={{ top: 10, right: 15, left: 10, bottom: 45 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#94A3B833" vertical={false} />
-            <XAxis 
-              dataKey="name" 
-              stroke="#64748B" 
-              tick={{ fill: 'currentColor', fontSize: 10, fontWeight: 700 }}
-              tickFormatter={(str) => {
-                if (!str) return '';
-                return str.length > 15 ? `${str.substring(0, 13)}...` : str;
-              }}
-              interval={0}
-              angle={-20}
-              textAnchor="end"
-              height={55}
-            />
-            <YAxis 
-              stroke="#64748B" 
-              tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 600 }} 
-              tickFormatter={(v) => `₹${(v/100000).toFixed(1)}L`} 
-            />
-            <Tooltip content={<CustomChartTooltip />} />
-            <Bar 
-              dataKey="value" 
-              radius={[8, 8, 0, 0]}
-              isAnimationActive={false}
-              onClick={(entry) => onItemClick && onItemClick(entry)}
-            >
-              {items.map((entry, index) => (
-                <Cell 
-                  key={`bar-cell-${index}`} 
-                  fill={entry.color || PALETTE[index % PALETTE.length]} 
-                  style={{ cursor: 'pointer' }}
-                />
-              ))}
-            </Bar>
-          </ReBarChart>
-        </ResponsiveContainer>
-      </div>
-    );
-  };
+  // Tooltip & Chart Components (Extracted to ./reports/)
+  const CustomChartTooltip = (props) => <ExtCustomChartTooltip {...props} formatMoney={formatMoney} />;
+  const TrajectoryTooltip = (props) => <ExtTrajectoryTooltip {...props} benchmark={benchmark} formatMoney={formatMoney} />;
+  const RankedBarList = (props) => <ExtRankedBarList {...props} formatMoney={formatMoney} />;
+  const CleanBarChartView = (props) => <ExtCleanBarChartView {...props} formatMoney={formatMoney} />;
 
   return (
     <AnimatedPage className="space-y-4">
@@ -2465,175 +2218,18 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
 
 
       {/* ─── COMPANY MUTUAL FUND BREAKDOWN MODAL ───────────────────── */}
-      <AnimatePresence>
-        {companyDetailTarget && companyMfBreakdown && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative w-full max-w-2xl modal-surface reports-card rounded-3xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
-            >
-              {/* Modal Header */}
-              <div className="flex items-start justify-between gap-4 border-b border-inherit opacity-95 pb-4">
-                <div>
-                  <h3 className="text-lg font-black flex items-center gap-2">
-                    <span>{companyMfBreakdown.name}</span>
-                    {companyMfBreakdown.symbol && (
-                      <span className="text-xs px-2 py-0.5 rounded-md reports-subcard font-mono font-bold opacity-80">
-                        {companyMfBreakdown.symbol}
-                      </span>
-                    )}
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-2 pt-1.5 text-xs opacity-75 font-medium">
-                    <span>{companyMfBreakdown.sector}</span>
-                    <span>•</span>
-                    <span className="font-bold">{companyMfBreakdown.capTier}</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setCompanyDetailTarget(null)}
-                  className="p-2 rounded-xl opacity-60 hover:opacity-100 hover:bg-slate-500/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Total Holding Stat Banner */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3.5 reports-subcard rounded-2xl">
-                  <p className="text-[10px] uppercase font-bold opacity-75">Total Portfolio Value</p>
-                  <p className="text-base font-black font-mono mt-1 text-emerald-600 dark:text-emerald-400">
-                    {formatMoney(companyMfBreakdown.totalGrandVal)}
-                  </p>
-                </div>
-                <div className="p-3.5 reports-subcard rounded-2xl">
-                  <p className="text-[10px] uppercase font-bold opacity-75">Via Mutual Funds</p>
-                  <p className="text-base font-black font-mono mt-1 text-purple-600 dark:text-purple-400">
-                    {formatMoney(companyMfBreakdown.totalMfAllocated)}
-                  </p>
-                </div>
-                <div className="p-3.5 reports-subcard rounded-2xl">
-                  <p className="text-[10px] uppercase font-bold opacity-75">Direct Equity Holding</p>
-                  <p className="text-base font-black font-mono mt-1 text-blue-600 dark:text-blue-400">
-                    {formatMoney(companyMfBreakdown.directVal)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Mutual Funds Scheme Breakdown Table */}
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <p className="text-xs font-black uppercase tracking-wider opacity-80">
-                    Mutual Fund Schemes Breakdown ({companyMfBreakdown.schemes.length})
-                  </p>
-
-                  {companyMfBreakdown.schemes.length > 0 && (
-                    <div className="relative w-full sm:w-64">
-                      <Search className="w-3.5 h-3.5 opacity-50 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="Filter schemes..."
-                        value={companyModalSearch}
-                        onChange={(e) => setCompanyModalSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs bg-slate-900/60 border border-inherit opacity-90 focus:opacity-100 outline-none focus:border-emerald-500 font-medium"
-                      />
-                      {companyModalSearch && (
-                        <button 
-                          onClick={() => setCompanyModalSearch('')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 p-0.5"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {companyMfBreakdown.schemes.length > 0 ? (
-                  <div className="overflow-x-auto rounded-2xl reports-table-container">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
-                          <th 
-                            onClick={() => handleSortClick(setCompanyModalSort, 'scheme_name')} 
-                            className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
-                          >
-                            Mutual Fund Scheme {renderSortIcon(companyModalSort, 'scheme_name')}
-                          </th>
-                          <th 
-                            onClick={() => handleSortClick(setCompanyModalSort, 'fund_weight_pct')} 
-                            className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
-                          >
-                            Fund Weight {renderSortIcon(companyModalSort, 'fund_weight_pct')}
-                          </th>
-                          <th 
-                            onClick={() => handleSortClick(setCompanyModalSort, 'allocatedINR')} 
-                            className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
-                          >
-                            Allocated Value {renderSortIcon(companyModalSort, 'allocatedINR')}
-                          </th>
-                          <th 
-                            onClick={() => handleSortClick(setCompanyModalSort, 'shareOfStockPct')} 
-                            className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
-                          >
-                            Share of Holding {renderSortIcon(companyModalSort, 'shareOfStockPct')}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-inherit font-mono">
-                        {(() => {
-                          let list = [...companyMfBreakdown.schemes];
-                          if (companyModalSearch.trim()) {
-                            const q = companyModalSearch.toLowerCase().trim();
-                            list = list.filter(s =>
-                              (s.scheme_name || '').toLowerCase().includes(q) ||
-                              (s.scheme_code || '').toString().includes(q)
-                            );
-                          }
-                          if (companyModalSort.field) {
-                            list.sort((a, b) => {
-                              let valA = a[companyModalSort.field];
-                              let valB = b[companyModalSort.field];
-                              if (typeof valA === 'string') {
-                                return companyModalSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-                              }
-                              valA = Number(valA) || 0;
-                              valB = Number(valB) || 0;
-                              return companyModalSort.direction === 'asc' ? valA - valB : valB - valA;
-                            });
-                          }
-                          return list.map((s, idx) => (
-                            <tr key={`${s.scheme_code}-${idx}`} className="reports-table-row transition-colors">
-                              <td className="py-3 pl-4 font-sans font-bold">
-                                {s.scheme_name}
-                              </td>
-                              <td className="py-3 text-right opacity-80 font-bold">
-                                {s.fund_weight_pct}%
-                              </td>
-                              <td className="py-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">
-                                {formatMoney(s.allocatedINR)}
-                              </td>
-                              <td className="py-3 text-right pr-4 text-purple-600 dark:text-purple-400 font-black">
-                                {s.shareOfStockPct}%
-                              </td>
-                            </tr>
-                          ));
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-xs opacity-70 reports-subcard rounded-2xl">
-                    This company is held directly as equity shares in your portfolio.
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <CompanyMfBreakdownModal
+        companyDetailTarget={companyDetailTarget}
+        companyMfBreakdown={companyMfBreakdown}
+        setCompanyDetailTarget={setCompanyDetailTarget}
+        companyModalSearch={companyModalSearch}
+        setCompanyModalSearch={setCompanyModalSearch}
+        companyModalSort={companyModalSort}
+        handleSortClick={handleSortClick}
+        setCompanyModalSort={setCompanyModalSort}
+        renderSortIcon={renderSortIcon}
+        formatMoney={formatMoney}
+      />
 
     </AnimatedPage>
   );

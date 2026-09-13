@@ -83,7 +83,9 @@ export default function ExcelToolsView({ onRefresh }) {
         const mins = String(d.getMinutes()).padStart(2, '0');
         return `${day}-${month}-${year} ${hours}:${mins}`;
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[ExcelToolsView] Date format warning:', e.message);
+    }
     return dateStr;
   };
 

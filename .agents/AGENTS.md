@@ -81,6 +81,18 @@
     - **ZERO HARDCODED DATES, YEARS, OR HEURISTICS**: Never hardcode static calendar years, time-locked dates, single-year arrays/sets, or static assumptions in application code or backend services.
     - **DYNAMIC ALGORITHMIC IMPLEMENTATION**: Any functionality that is dynamic in nature (market trading schedules, exchange holidays, calendar dates, tax brackets, date arithmetic, recurring intervals) MUST be implemented algorithmically or through extensible multi-year dynamic registries (such as `server/services/marketCalendar.js`) capable of seamlessly evaluating across arbitrary future years (e.g. 2026, 2027, 2028, and beyond) without code modifications.
 
+14. **MANDATORY CLIENT-SIDE AUTH SYNCHRONIZATION & INTERCEPTOR ARCHITECTURE**:
+    - Axios and native `fetch` MUST implement synchronous token propagation and global request interceptors to guarantee that zero HTTP requests are dispatched without `Authorization: Bearer <token>` when a token exists in `localStorage`.
+    - `login()` and `logout()` handlers in `ThemeAuthContext.jsx` MUST immediately and synchronously update `axios.defaults.headers.common.Authorization` prior to triggering component state changes, preventing child component `useEffect` race conditions on initial login and eliminating transient 401 "Authentication required" connection errors.
+
+15. **VITE DEV SERVER WATCHER & PERSISTENCE ISOLATION PROTOCOL**:
+    - All server-side data, cache, and script persistence files (`data/**`, `scripts/**`, `scratch/**`, `server/**`, `.json`, `.csv`, `.log`) MUST strictly be ignored by the Vite file watcher in `vite.config.js` via `server.watch.ignored`.
+    - Prevents unwanted Vite full-page reloads, input focus resets, and UI flickering during automated background data syncing, price polling, and self-healing execution.
+
+16. **AUTOMATED BACKGROUND SELF-HEALING & MISSING DATA RECOVERY PROTOCOL**:
+    - The backend Express server MUST run background self-healing routines (`server/services/selfHealingService.js`) to continuously detect and heal missing historical FX rates, equity quotes, and mutual fund/NPS NAVs across past transactions and holdings.
+    - If a market rate or NAV is temporarily unavailable, the system must persist the last-known quote and automatically correct it once upstream data becomes available, ensuring permanent financial ledger integrity without manual script execution.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:

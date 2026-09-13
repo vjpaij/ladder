@@ -10,29 +10,67 @@ const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');
 
 /**
  * Returns recorded SIP execution and skip history (latest first)
+ * Reads from Supabase sip_history table with local JSON file fallback.
  */
-export function getSipExecutionHistory() {
+export async function getSipExecutionHistory() {
+  try {
+    const { data, error } = await supabase
+      .from('sip_history')
+      .select('*')
+      .order('executed_at', { ascending: false })
+      .limit(200);
+    if (!error && data && data.length > 0) {
+      return data;
+    }
+  } catch (e) {
+    console.warn('[SIP Engine] Failed reading from Supabase sip_history:', e.message);
+  }
+
+  // Fallback to local JSON file
   try {
     if (fs.existsSync(SIP_HISTORY_FILE)) {
       return JSON.parse(fs.readFileSync(SIP_HISTORY_FILE, 'utf-8'));
     }
   } catch (e) {
-    console.warn('[SIP Engine] Failed reading sip history:', e.message);
+    console.warn('[SIP Engine] Failed reading sip history from file:', e.message);
   }
   return [];
 }
 
 /**
- * Appends execution records to data/sip_history.json, keeping last 200 events
+ * Appends execution records to Supabase sip_history table and local JSON file
  */
-function appendSipHistory(records) {
+async function appendSipHistory(records) {
   if (!records || records.length === 0) return;
+
+  // Persist to Supabase
   try {
-    const existing = getSipExecutionHistory();
+    const dbRecords = records.map(r => ({
+      sip_id: r.sipId || null,
+      symbol: r.symbol || '',
+      name: r.name || '',
+      action: r.status || 'EXECUTED',
+      units: r.units ? Number(r.units) : null,
+      nav: r.nav ? Number(r.nav) : null,
+      amount: r.amount ? Number(r.amount) : null,
+      notes: r.reason || (r.autoClosed ? 'Auto-closed: reached end date' : 'SIP executed successfully'),
+      executed_at: r.timestamp || new Date().toISOString()
+    }));
+    await supabase.from('sip_history').insert(dbRecords);
+  } catch (e) {
+    console.warn('[SIP Engine] Failed inserting to Supabase sip_history:', e.message);
+  }
+
+  // Maintain local JSON cache
+  try {
+    let existing = [];
+    if (fs.existsSync(SIP_HISTORY_FILE)) {
+      existing = JSON.parse(fs.readFileSync(SIP_HISTORY_FILE, 'utf-8'));
+    }
     const updated = [...records, ...existing].slice(0, 200);
     fs.writeFileSync(SIP_HISTORY_FILE, JSON.stringify(updated, null, 2), 'utf-8');
   } catch (e) {
-    console.warn('[SIP Engine] Failed writing sip history:', e.message);
+    console.warn('[SIP Engine] Failed writing sip history to file:', e.message);
   }
 }
 

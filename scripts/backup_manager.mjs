@@ -205,7 +205,9 @@ export async function pruneOlderBackups() {
             fs.unlinkSync(filePath);
             console.log(`[Backup Manager] Pruned old local backup: ${f}`);
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn(`[Backup Manager] Warning pruning local backup ${f}:`, e.message);
+        }
       });
     }
   } catch (err) {

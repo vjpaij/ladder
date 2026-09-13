@@ -121,7 +121,9 @@ function AuthenticatedApp() {
               if (document.activeElement === target && typeof target.select === 'function') {
                 target.select();
               }
-            } catch (err) {}
+            } catch (err) {
+              // Ignore if element type does not support text selection range
+            }
           }, 0);
         }
       }

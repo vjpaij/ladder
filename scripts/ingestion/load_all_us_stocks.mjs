@@ -26,18 +26,18 @@ function parseUsOrderDate(str) {
   return iso ? iso[1] : null;
 }
 
-function getFallbackFxRate(dateStr) {
-  if (!dateStr) return 82.5;
-  const y = parseInt(dateStr.slice(0, 4), 10);
-  if (y <= 2019) return 70.4;
-  if (y === 2020) return 74.1;
-  if (y === 2021) return 73.9;
-  if (y === 2022) return 79.8;
-  if (y === 2023) return 82.6;
-  if (y === 2024) return 83.5;
-  if (y === 2025) return 85.8;
-  if (y === 2026) return 92.5;
-  return 87.25;
+function getFallbackFxRate(dateStr, historicalFxMap = {}) {
+  if (dateStr && historicalFxMap[dateStr]) return historicalFxMap[dateStr];
+  try {
+    const pPath = './data/fx_rates_persistent.json';
+    if (fs.existsSync(pPath)) {
+      const pData = JSON.parse(fs.readFileSync(pPath, 'utf-8'));
+      if (pData?.USD_INR?.rate) return pData.USD_INR.rate;
+    }
+  } catch (e) {
+    console.warn('[Load US Stocks] Failed reading persistent FX file:', e.message);
+  }
+  return 1.0;
 }
 
 const nameToTicker = {
@@ -308,7 +308,7 @@ async function run() {
     }
 
     const avgBuyPriceUSD = totalBuyQty > 0 ? totalBuyCostUSD / totalBuyQty : 0;
-    const avgTxFxRate = totalBuyCostUSD > 0 ? totalBuyCostINR / totalBuyCostUSD : (historicalFxMap[processedTxs[0]?.date] || 82.5);
+    const avgTxFxRate = totalBuyCostUSD > 0 ? totalBuyCostINR / totalBuyCostUSD : (historicalFxMap[processedTxs[0]?.date] || getFallbackFxRate(processedTxs[0]?.date, historicalFxMap));
     const status = currentQty <= 0.000001 ? "REDEEMED" : "ACTIVE";
 
     if (status === "ACTIVE") totalActive++;
@@ -379,7 +379,7 @@ async function run() {
 
     if (matchingDivs.length > 0) {
       const divInserts = matchingDivs.map(d => {
-        const dateStr = parseUsOrderDate(d["Transaction Date"]) || "2024-01-01";
+        const dateStr = parseUsOrderDate(d["Transaction Date"]) || new Date().toISOString().split('T')[0];
         const rawAmt = parseFloat(d["Cost Per Share"]) || 0;
         const sharesVal = parseFloat(d["Shares Owned"]) || 0;
         const amtUSD = rawAmt > 0 ? rawAmt : sharesVal;

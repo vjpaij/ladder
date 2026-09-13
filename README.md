@@ -78,11 +78,15 @@ Ladder is an institutional-grade personal finance and investment management dash
     - Automatic reactive cache invalidation across interdependent tables on all INSERT, UPDATE, and DELETE mutations.
     - Cuts monthly Supabase cloud egress by 99% (< 50 MB / month), guaranteeing the application never exceeds free cloud tier allowances.
 
-11. **Modular Architecture, Security & Production Performance**
-    - Dedicated authentication screen (`src/views/LoginView.jsx`) decoupled from `App.jsx`, strictly adhering to Rule 6 minimalist fintech aesthetics without verbose filler.
-    - Validated user registration and sign-in (`POST /api/auth/register` and `POST /api/auth/login`) with case-insensitive email normalization and bcrypt hashing.
-    - Resilient local JSON data store (`data/users.json`) integrated with `server/db.js` eliminating external schema table dependencies.
-    - Optimized production build using Vite `manualChunks` code-splitting (React, Recharts, Lucide, Framer Motion), shrinking main bundle from 937 kB to 222 kB.
+11. **Modular Architecture, Resilience & Full Production Readiness**
+    - **Server Architecture Split**: Express API split into 13 modular route controllers in `server/routes/` (`auth.js`, `backup.js`, `calendar.js`, `database.js`, `dividends.js`, `fx.js`, `holdings.js`, `liabilities.js`, `reports.js`, `search.js`, `sips.js`, `summary.js`, `transactions.js`) and middleware `server/middleware/auth.js`. `server/index.js` is reduced to 229 lines mounting routers, schedulers, and background engines.
+    - **Zero Hardcoding & Self-Healing Rates**: Built persistent self-healing FX rate store (`data/fx_rates_persistent.json`, `server/services/fxRateStore.js`) with background retry scheduler and historical FX resolution; purged all hardcoded 87.25 and 82.5 values across frontend and backend; dynamicized bank names and removed loan heuristics.
+    - **Background Self-Healing Service**: Built `server/services/selfHealingService.js` with `POST /api/self-heal` endpoint, which automatically detects missing transaction FX rates, missing quotes, or stale NAVs and backfills them, running at boot and during 10-minute sync cycles.
+    - **System Resilience & Circuit Breakers**: Eliminated 100% of silent empty catch blocks across the repository with warning logs and fallbacks; implemented Yahoo Finance circuit breaker (`yfCircuitBreaker`) with 5-failure threshold and 30-second cooldown; added retry with exponential backoff for price and FX fetchers; extended calendar lookbacks to 15 days; added Dr. Ambedkar Jayanti and dynamic algorithmic projections for future years in `marketCalendar.js`.
+    - **Persistent Cloud SIP History**: Migrated SIP execution and skip records from local JSON to Supabase table `public.sip_history` with API endpoint `GET /api/sips/history`.
+    - **Sub-Component Decomposition**: Decomposed monolithic `HoldingDetailModal.jsx` (1,723 lines) into modular subcomponents in `src/components/holding-detail/` (`HoldingDetailHeader.jsx`, `HoldingMarketStats.jsx`, `HoldingMetricCards.jsx`, `HoldingChartsSection.jsx`, `HoldingTransactionLedger.jsx`, `holdingDetailUtils.jsx`); decomposed `ReportsView.jsx` (2,640 lines) into modular subcomponents in `src/components/reports/` (`reportsConstants.js`, `ReportsTooltips.jsx`, `RankedBarList.jsx`, `CleanBarChartView.jsx`, `CompanyMfBreakdownModal.jsx`).
+    - **Dynamic Category Registry**: Database-driven category capabilities in Supabase `categories` schema (`valuation_model`, `default_currency`, `default_exchange`, `price_fetcher`, `has_dividends`) and `server/services/categoryRegistry.js` with endpoint `GET /api/categories/registry`.
+    - **Auth & Performance**: Dedicated authentication screen (`src/views/LoginView.jsx`) decoupled from `App.jsx`; validated sign-in and registration with bcrypt password hashing; strict >=32 character `JWT_SECRET` requirement; Vite `manualChunks` vendor code-splitting (React, Recharts, Lucide, Framer Motion), shrinking main bundle from 937 kB to 222 kB.
 
 ---
 

@@ -193,7 +193,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
   if (!data) return null;
 
   const isUSDMode = currency === 'USD';
-  const effectiveFx = fxRate || 87.25;
+  const effectiveFx = fxRate || 0;
 
   return (
     <>
