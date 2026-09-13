@@ -2279,24 +2279,62 @@ app.post('/api/cloud-backups/create', authenticateToken, async (req, res) => {
   }
 });
 
+// In-process restore job ledger: jobId -> { status, message, startedAt, completedAt, error? }
+const restoreJobs = new Map();
+
 app.post('/api/cloud-backups/restore', authenticateToken, async (req, res) => {
   const { filename } = req.body;
+  const jobId = `restore_${Date.now()}`;
+  restoreJobs.set(jobId, { status: 'initiated', message: 'Restore initiated, waiting for process...', startedAt: new Date().toISOString() });
+
   try {
+    restoreJobs.get(jobId).status = 'running';
+    restoreJobs.get(jobId).message = 'Restoring database from cloud snapshot...';
+
     const result = await restoreCloudBackup(filename);
     db.invalidateCache();
-    // Auto-sync EOD logs after full restore
-    triggerEodRebuildIfPastDate(new Date(Date.now() - 86400000).toISOString().slice(0, 10));
-    res.json({
-      success: true,
-      message: `Database successfully restored from ${result.snapshotFile}! Background EOD valuation rebuild initiated.`,
-      rebuildStatus: 'initiated',
-      result
+
+    restoreJobs.get(jobId).status = 'running';
+    restoreJobs.get(jobId).message = 'Database restored. Rebuilding historical EOD valuation records...';
+
+    // Run EOD rebuild synchronously so we can track its completion
+    await new Promise((resolve, reject) => {
+      const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
+      const child = fork(scriptPath, [], { stdio: 'pipe' });
+      child.on('exit', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`EOD rebuild exited with code ${code}`));
+      });
+      child.on('error', reject);
     });
+
+    const job = restoreJobs.get(jobId);
+    job.status = 'succeeded';
+    job.message = `Database fully restored from "${result.snapshotFile}" and EOD history synchronized.`;
+    job.completedAt = new Date().toISOString();
+
+    res.json({ success: true, jobId, status: 'succeeded', message: job.message, result });
+
+    // Clean up job from memory after 10 minutes
+    setTimeout(() => restoreJobs.delete(jobId), 10 * 60 * 1000);
   } catch (err) {
     console.error('[API Cloud Backup Restore Error]:', err.message);
-    res.status(500).json({ error: err.message });
+    const job = restoreJobs.get(jobId);
+    if (job) { job.status = 'failed'; job.error = err.message; job.completedAt = new Date().toISOString(); }
+    res.status(500).json({ jobId, error: err.message, status: 'failed' });
+    setTimeout(() => restoreJobs.delete(jobId), 10 * 60 * 1000);
   }
 });
+
+// Polling endpoint: clients check job progress after initiating restore
+app.get('/api/cloud-backups/restore/status', authenticateToken, (req, res) => {
+  const { jobId } = req.query;
+  if (!jobId || !restoreJobs.has(jobId)) {
+    return res.status(404).json({ error: 'Job not found or already expired.' });
+  }
+  res.json({ success: true, job: restoreJobs.get(jobId) });
+});
+
 
 // -------------------------------------------------------------
 // DB Visual Manager API (Relational Editor with Name & Symbol Enriched)
@@ -3615,6 +3653,47 @@ app.listen(PORT, () => {
   };
 
   scheduleDailyEodRebuild();
+
+  // Check on boot if yesterday's EOD log was missed (e.g. server was stopped)
+  const checkMissedEodRebuild = async () => {
+    try {
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+      const { data, error } = await supabase
+        .from('pnl_history')
+        .select('log_date')
+        .order('log_date', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.warn('[Startup EOD Check] Query error:', error.message);
+        return;
+      }
+
+      const latestLogDate = data?.[0]?.log_date;
+      if (!latestLogDate) return;
+
+      if (latestLogDate < yesterdayStr) {
+        console.log(`[Startup EOD Check] Latest EOD log is ${latestLogDate}, but yesterday was ${yesterdayStr}. Triggering catch-up rebuild...`);
+        const child = fork('./scripts/rebuild_portfolio_eod.mjs');
+        child.on('exit', (code) => {
+          console.log(`[Startup EOD Check] Catch-up rebuild finished with code ${code}`);
+        });
+        child.on('error', (err) => {
+          console.error('[Startup EOD Check] Error starting catch-up rebuild:', err.message);
+        });
+      } else {
+        console.log(`[Startup EOD Check] EOD logs are up to date (latest: ${latestLogDate}).`);
+      }
+    } catch (e) {
+      console.warn('[Startup EOD Check] Failed to check missed rebuild:', e.message);
+    }
+  };
+
+  checkMissedEodRebuild();
 
   // Pre-warm database cache on boot to eliminate cold starts and protect egress
   warmCache().catch(err => console.warn('[WarmCache Error]:', err.message));

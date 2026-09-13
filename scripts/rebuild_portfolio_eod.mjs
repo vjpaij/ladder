@@ -480,10 +480,41 @@ async function rebuildEod() {
   fs.writeFileSync(EOD_FILE, JSON.stringify(baseLogs, null, 2), 'utf-8');
   console.log(`Saved ${baseLogs.length} total EOD logs to ${EOD_FILE}. Inception: ${baseLogs[0]?.date}, Latest: ${baseLogs[baseLogs.length - 1]?.date}`);
 
-  // Upsert the recent 90 daily records directly to Supabase pnl_history
+  // ---------------------------------------------------------------
+  // Gap Detection: flag any trading day between first and last record
+  // that has no corresponding log entry.
+  // ---------------------------------------------------------------
+  const logDateSet = new Set(baseLogs.map(l => l.date));
+  const firstLogDate = baseLogs[0]?.date;
+  const lastLogDate = baseLogs[baseLogs.length - 1]?.date;
+  if (firstLogDate && lastLogDate) {
+    const gapCheck = new Date(`${firstLogDate}T00:00:00Z`);
+    const gapEnd = new Date(`${lastLogDate}T00:00:00Z`);
+    const gaps = [];
+    while (gapCheck < gapEnd) {
+      gapCheck.setUTCDate(gapCheck.getUTCDate() + 1);
+      const ds = gapCheck.toISOString().slice(0, 10);
+      const dow = gapCheck.getUTCDay();
+      if (dow !== 0 && dow !== 6 && !logDateSet.has(ds) && ds < lastLogDate) {
+        gaps.push(ds);
+      }
+    }
+    if (gaps.length > 0) {
+      console.warn(`[EOD Gap Detection] Found ${gaps.length} trading day(s) missing from pnl_history. First few: ${gaps.slice(0, 5).join(', ')}`);
+    } else {
+      console.log('[EOD Gap Detection] No gaps detected. All trading days covered.');
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Upsert ALL rebuilt records to Supabase pnl_history in batches
+  // of 500 to prevent payload limits. Previous 90-row cap removed.
+  // ---------------------------------------------------------------
   try {
-    const recentLogs = baseLogs.slice(-90);
-    const dbRecords = recentLogs.map(l => {
+    const UPSERT_BATCH = 500;
+    let totalUpserted = 0;
+
+    const mapLogToDbRecord = (l) => {
       const breakdown = {
         savings: Number((l.savings || 0).toFixed(2)),
         epf: Number((l.epf || 0).toFixed(2)),
@@ -495,9 +526,8 @@ async function rebuildEod() {
         credits: Number((l.credits || 0).toFixed(2))
       };
       const debt = Number((l.debt !== undefined ? l.debt : ((l.loan || 0) + (l.credits || 0))).toFixed(2));
-      const totalAssets = Number((l.total_assets || (l.wealth + debt)).toFixed(2));
+      const totalAssets = Number((l.total_assets || ((l.total_wealth !== undefined ? l.total_wealth : l.wealth) + debt)).toFixed(2));
       const wealth = Number((l.total_wealth !== undefined ? l.total_wealth : l.wealth).toFixed(2));
-
       return {
         log_date: l.date,
         total_assets_inr: totalAssets,
@@ -519,18 +549,23 @@ async function rebuildEod() {
         epf: Number((l.epf || 0).toFixed(2)),
         loan: Number((l.loan || 0).toFixed(2)),
         credits: Number((l.credits || 0).toFixed(2)),
-        debt: debt,
-        wealth: wealth,
-        breakdown: breakdown
+        debt,
+        wealth,
+        breakdown
       };
-    });
+    };
 
-    const { error } = await supabase.from('pnl_history').upsert(dbRecords, { onConflict: 'log_date' });
-    if (error) {
-      console.warn('[Supabase Sync Warning]:', error.message);
-    } else {
-      console.log(`[Supabase Sync] Successfully synchronized ${dbRecords.length} latest daily logs to Supabase pnl_history.`);
+    for (let i = 0; i < baseLogs.length; i += UPSERT_BATCH) {
+      const chunk = baseLogs.slice(i, i + UPSERT_BATCH);
+      const dbRecords = chunk.map(mapLogToDbRecord);
+      const { error } = await supabase.from('pnl_history').upsert(dbRecords, { onConflict: 'log_date' });
+      if (error) {
+        console.warn(`[Supabase Sync Warning] Batch ${Math.floor(i / UPSERT_BATCH) + 1}:`, error.message);
+      } else {
+        totalUpserted += dbRecords.length;
+      }
     }
+    console.log(`[Supabase Sync] Successfully synchronized ${totalUpserted} of ${baseLogs.length} daily logs to Supabase pnl_history.`);
   } catch (syncErr) {
     console.warn('[Supabase Sync Exception]:', syncErr.message);
   }

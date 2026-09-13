@@ -139,17 +139,37 @@ export const db = {
   }
 };
 
-// Preload high-frequency tables into the in-memory cache on server startup
+// Preload high-frequency tables into the in-memory cache on server startup.
+// pnl_history is included (last 365 days) to protect Dashboard and Calendar from cold-start egress.
 export async function warmCache() {
   const tables = ['categories', 'holdings', 'liabilities', 'dividends', 'transactions'];
   const start = Date.now();
   let totalRows = 0;
+
+  // Warm standard tables via paginated db.select
   for (const table of tables) {
     const rows = await db.select(table);
     totalRows += rows.length;
   }
+
+  // Warm pnl_history separately — fetch latest 365 records only (avoids loading 6,900+ rows)
+  try {
+    const { data: recentEod } = await supabase
+      .from('pnl_history')
+      .select('*')
+      .order('log_date', { ascending: false })
+      .limit(365);
+    if (recentEod && recentEod.length > 0) {
+      // Store in cache sorted ascending for consumer consistency
+      setCacheEntry('pnl_history', recentEod.slice().reverse());
+      totalRows += recentEod.length;
+    }
+  } catch (e) {
+    console.warn('[DB Cache] pnl_history warm-up failed:', e.message);
+  }
+
   const duration = Date.now() - start;
-  console.log(`[DB Cache] Warmed ${tables.length} tables in ${duration}ms with ${totalRows} total rows.`);
+  console.log(`[DB Cache] Warmed ${tables.length + 1} tables in ${duration}ms with ${totalRows} total rows.`);
 }
 
 export default db;

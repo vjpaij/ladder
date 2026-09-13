@@ -1,28 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash2, Loader2 } from 'lucide-react';
 import { ThemeAuthProvider } from './context/ThemeAuthContext';
 import { useThemeAuth } from './context/ThemeAuthContext';
 import Sidebar from './components/Sidebar';
 import TopNavbar from './components/TopNavbar';
-import OverviewView from './views/OverviewView';
-import CalendarView from './views/CalendarView';
-import IndianStocksView from './views/IndianStocksView';
-import UsStocksView from './views/UsStocksView';
-import MutualFundsView from './views/MutualFundsView';
-import NpsView from './views/NpsView';
-import BankView from './views/BankView';
-import EpfView from './views/EpfView';
-import LiabilitiesView from './views/LiabilitiesView';
-import DividendsView from './views/DividendsView';
-import ReportsView from './components/ReportsView';
-import DatabaseStudioView from './views/DatabaseStudioView';
-import ExcelToolsView from './views/ExcelToolsView';
 import HoldingDetailModal from './components/HoldingDetailModal';
 import EditProfileModal from './components/EditProfileModal';
-import AddInvestmentView from './views/AddInvestmentView';
 import ErrorBoundary from './components/ErrorBoundary';
+
+// Code-split: each view is loaded on demand to reduce initial bundle size
+const OverviewView = lazy(() => import('./views/OverviewView'));
+const CalendarView = lazy(() => import('./views/CalendarView'));
+const IndianStocksView = lazy(() => import('./views/IndianStocksView'));
+const UsStocksView = lazy(() => import('./views/UsStocksView'));
+const MutualFundsView = lazy(() => import('./views/MutualFundsView'));
+const NpsView = lazy(() => import('./views/NpsView'));
+const BankView = lazy(() => import('./views/BankView'));
+const EpfView = lazy(() => import('./views/EpfView'));
+const LiabilitiesView = lazy(() => import('./views/LiabilitiesView'));
+const DividendsView = lazy(() => import('./views/DividendsView'));
+const ReportsView = lazy(() => import('./components/ReportsView'));
+const DatabaseStudioView = lazy(() => import('./views/DatabaseStudioView'));
+const ExcelToolsView = lazy(() => import('./views/ExcelToolsView'));
+const AddInvestmentView = lazy(() => import('./views/AddInvestmentView'));
+
+// Minimal loading fallback shown while a lazy chunk is fetching
+function ViewLoader() {
+  return (
+    <div className="flex items-center justify-center w-full h-64">
+      <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -351,9 +362,11 @@ function AppInner() {
         <main className="flex-1 glass-card border border-slate-800 rounded-3xl overflow-y-auto w-full relative">
           <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
             <ErrorBoundary>
-              <AnimatePresence mode="wait">
-                {renderView()}
-              </AnimatePresence>
+              <Suspense fallback={<ViewLoader />}>
+                <AnimatePresence mode="wait">
+                  {renderView()}
+                </AnimatePresence>
+              </Suspense>
             </ErrorBoundary>
           </div>
         </main>

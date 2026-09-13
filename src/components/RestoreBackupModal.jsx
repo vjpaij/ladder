@@ -57,6 +57,8 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
     }
   };
 
+  const [restoreStatus, setRestoreStatus] = useState(null); // null | { status, message }
+
   const handleRestore = async (filename) => {
     const confirmed = await showConfirm(
       `Restore the complete database from snapshot "${filename}"? All current tables will be synchronized to this point in time.`
@@ -64,17 +66,51 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
     if (!confirmed) return;
 
     setIsRestoring(true);
+    setRestoreStatus({ status: 'running', message: 'Restoring database from cloud snapshot...' });
+
     try {
       const res = await axios.post('/api/cloud-backups/restore', { filename });
-      showSuccess(res.data?.message || 'Database restored successfully! Background EOD valuation rebuild initiated.');
-      if (onRefresh) onRefresh();
-      onClose();
+      const { jobId, status, message } = res.data;
+
+      if (status === 'succeeded') {
+        setRestoreStatus({ status: 'succeeded', message: message || 'Database restored and EOD history rebuilt.' });
+        showSuccess(message || 'Database fully restored!');
+        if (onRefresh) onRefresh();
+        setTimeout(() => { setIsRestoring(false); setRestoreStatus(null); onClose(); }, 2500);
+      } else if (jobId) {
+        // Poll for completion
+        setRestoreStatus({ status: 'running', message: 'Rebuilding historical EOD valuation records...' });
+        const poll = setInterval(async () => {
+          try {
+            const statusRes = await axios.get(`/api/cloud-backups/restore/status?jobId=${jobId}`);
+            const job = statusRes.data.job;
+            setRestoreStatus({ status: job.status, message: job.message });
+            if (job.status === 'succeeded') {
+              clearInterval(poll);
+              showSuccess(job.message || 'Database fully restored!');
+              if (onRefresh) onRefresh();
+              setTimeout(() => { setIsRestoring(false); setRestoreStatus(null); onClose(); }, 2500);
+            } else if (job.status === 'failed') {
+              clearInterval(poll);
+              setIsRestoring(false);
+              showError('Restore failed: ' + (job.error || 'Unknown error during EOD rebuild.'));
+              setRestoreStatus(null);
+            }
+          } catch (e) { /* keep polling */ }
+        }, 3000);
+      } else {
+        setRestoreStatus(null);
+        showSuccess(res.data?.message || 'Restore initiated.');
+        if (onRefresh) onRefresh();
+        onClose();
+      }
     } catch (err) {
-      showError('Restore failed: ' + (err.response?.data?.error || err.message));
-    } finally {
       setIsRestoring(false);
+      setRestoreStatus(null);
+      showError('Restore failed: ' + (err.response?.data?.error || err.message));
     }
   };
+
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '—';
@@ -169,7 +205,30 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
             </button>
           </div>
 
+          {/* Restore Progress Banner */}
+          {restoreStatus && (
+            <div className={`px-5 py-3 border-b flex items-center gap-3 text-sm ${
+              restoreStatus.status === 'succeeded'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : restoreStatus.status === 'failed'
+                ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            }`}>
+              {restoreStatus.status === 'running' && (
+                <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+              )}
+              {restoreStatus.status === 'succeeded' && (
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              )}
+              {restoreStatus.status === 'failed' && (
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+              )}
+              <span className="text-xs font-semibold">{restoreStatus.message}</span>
+            </div>
+          )}
+
           {/* Snapshots List */}
+
           <div className="p-5 overflow-y-auto space-y-2.5 flex-1 custom-scrollbar">
             {backups.length === 0 ? (
               <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 text-center space-y-2">

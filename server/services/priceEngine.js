@@ -302,20 +302,8 @@ export async function fetchProteanNpsNavBatch() {
       }
     }
 
-    // Verify the ZIP's NAV date matches the last trading day.
-    // If Protean hasn't published today yet, the ZIP will contain yesterday's date.
-    if (zipNavDate && zipNavDate !== lastTradingDay) {
-      console.warn(
-        `[Protean Scraper] ZIP NAV date is ${zipNavDate}, expected ${lastTradingDay}. ` +
-        'Protean has not published today yet — skipping Supabase upsert to avoid stale data.'
-      );
-      // Return the map anyway so live quotes can use the latest available NAV,
-      // but mark it as stale so the caller knows not to treat it as today's data.
-      proteanBatchCache = { navMap, navDate: zipNavDate, cachedAt: Date.now() };
-      return navMap; // Callers check navDate via the stale flag below
-    }
-
-    // Persist confirmed-fresh NAV batch to Supabase
+    // Always persist valid downloaded Protean NAV rows to Supabase.
+    // Each row is keyed by (scheme_code, nav_date) so past/recent dates never overwrite other dates.
     if (dbRows.length > 0) {
       try {
         const batchSize = 100;
@@ -330,6 +318,13 @@ export async function fetchProteanNpsNavBatch() {
       } catch (e) {
         console.warn('[NPS DB Upsert Warning]:', e.message);
       }
+    }
+
+    if (zipNavDate && zipNavDate !== lastTradingDay) {
+      console.log(
+        `[Protean Scraper] Latest ZIP NAV date is ${zipNavDate} (expected today/latest session: ${lastTradingDay}). ` +
+        'Protean has not published today yet; cached for live quote use.'
+      );
     }
 
     proteanBatchCache = { navMap, navDate: zipNavDate || lastTradingDay, cachedAt: Date.now() };
@@ -581,7 +576,8 @@ export async function fetchNpsHistoricalNav(schemeCode) {
     console.warn(`[NPS Historical Supabase Fetch] Failed for ${schemeCode}:`, err.message);
   }
 
-  // Fallback to npsnav.in only if completely missing
+  // Fallback to npsnav.in only if completely missing from Supabase
+  console.warn(`[NPS Historical Fallback] Scheme ${schemeCode} missing or incomplete in Supabase; querying npsnav.in fallback...`);
   try {
     const res = await axios.get(`https://npsnav.in/api/historical/${schemeCode}`, { timeout: 10000 });
     if (res.data && Array.isArray(res.data.data)) {

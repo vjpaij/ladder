@@ -51,9 +51,10 @@
    - **UNIFIED DESIGN SYSTEM PARITY**: Every modal, dialog, and popup in the project MUST use the exact project theme tokens: `modal-surface reports-card` for the outer container, `border border-inherit`, `reports-subcard` for internal cards/forms, `text-inherit` or `--text-primary` for typography, and React `createPortal(..., document.body)` for true viewport centering and scroll isolation.
    - **ZERO HARDCODED GREY OVERLAYS & SILLY BUTTON CLUTTER**: Never use hardcoded dark grey slabs (`bg-slate-900`, `bg-slate-800`), saturated solid blocks, or redundant cancel buttons (e.g. displaying "+ Cancel" in headers beside "X"). Keep header controls minimal (clean title icon, primary action trigger if applicable, and standard "X" close button). Form actions (Save/Cancel) must live strictly within the form action footer.
 
-8. **NPS SOURCE OF TRUTH & PROTEAN CRA EXCLUSIVITY**:
-   - The system MUST strictly use the official Protean CRA scraper (`https://www.npscra.proteantech.in`) and the `nps_daily_navs` table in Supabase as the primary, authoritative source of truth for all live and historical NPS valuations.
-   - Third-party aggregators like `npsnav.in` must NEVER override, replace, or be used in lieu of official Protean CRA records.
+8. **NPS DAILY SCRAPING & RESILIENT FALLBACK PROTOCOL**:
+   - The system uses the official Protean CRA scraper (`https://www.npscra.proteantech.in`) and the `nps_daily_navs` table in Supabase as the primary source of truth for daily NPS NAVs.
+   - Scheduled workflows and server routines MUST run automatically to scrape and persist daily NAV files into Supabase to prevent data gaps.
+   - For missing past dates or when official Protean archives are temporarily unavailable, secondary aggregators like `npsnav.in` are permitted and documented fallbacks/backfills to ensure historical valuations remain complete and uninterrupted.
 
 9. **STRICT TRADE/TRANSACTION DATE PARITY (NEVER ENTRY TIMESTAMP)**:
    - All financial valuations, EOD snapshots, P&L calculations, and ledger balances MUST strictly compute based on the **actual trade/transaction date** (`transaction.date` or `log_date`), NEVER the system entry timestamp (`created_at`).
