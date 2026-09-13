@@ -21,7 +21,8 @@ export default defineConfig({
         '**/*.csv',
         '**/*.xlsx',
         '**/*.xls',
-        '**/*.log'
+        '**/*.log',
+        (file) => /[\\/](data|server|scripts|scratch|\.agents)[\\/]|\.(json|csv|xlsx|xls|log)$/i.test(file)
       ],
     },
     proxy: {

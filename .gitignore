@@ -17,4 +17,5 @@ check_symbols.mjs
 summary_response*.json
 data/backups/*.json
 data/backups/*.json.gz
+data/fx_rates_persistent.json
 scratch/

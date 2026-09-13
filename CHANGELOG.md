@@ -5,6 +5,16 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.30.3] - 2026-09-13
+
+### Changed
+- **Runtime Data Untracking**:
+  - Removed `data/fx_rates_persistent.json` from git tracking and added it to `.gitignore` so periodic background price engine and self-healing cycles do not dirty the git status or appear on the commit page.
+
+### Fixed
+- **Cross-Platform Vite Watcher Ignore Matching**:
+  - Hardened `server.watch.ignored` in `vite.config.js` with a cross-platform matcher function and regular expression ensuring Windows backslash path separators (`\`) are ignored alongside Unix forward slashes (`/`).
+
 ## [5.30.2] - 2026-09-13
 
 ### Fixed
