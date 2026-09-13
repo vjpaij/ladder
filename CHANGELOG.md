@@ -5,6 +5,32 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.26.0] - 2026-09-13
+
+### Added
+- **Asynchronous Restore Job Lifecycle & Polling**:
+  - Added in-process `restoreJobs` registry to `server/index.js` with `GET /api/cloud-backups/restore/status` polling endpoint.
+  - Upgraded `RestoreBackupModal.jsx` to poll live restore lifecycle progress (`Restoring...` -> `Rebuilding Historical EOD...` -> `Succeeded` / `Failed`) with live progress alerts instead of premature closure.
+- **Server Startup Missed-Run EOD Detection**:
+  - Implemented `checkMissedEodRebuild()` in `server/index.js` triggering automatic catch-up EOD rebuilds on boot if yesterday's record is missing from `pnl_history`.
+- **UI & Dashboard Refinements**:
+  - Refined dashboard headers to reduce text redundancy: changed 'Net Worth' history chart to 'Trend' and 'TOTAL NET WORTH (ASSETS - LIABILITIES)' to 'TOTAL WEALTH'.
+- **NPS Historical Full-Series Backfill Engine**:
+  - Created `scripts/backfill_nps_navs.mjs` backfilling 47,109 historical daily NAV records across all 14 NPS schemes into `nps_daily_navs` table in Supabase.
+- **Multi-Asset Code Splitting**:
+  - Implemented `React.lazy()` and `<Suspense fallback={<ViewLoader />}>` dynamic chunking in `src/App.jsx` across all 14 portfolio views, converting monolithic bundle into on-demand asynchronous modules.
+
+### Changed
+- **EOD Rebuild Upsert Uncapped & Gap Logging**:
+  - Removed 90-row upsert cap in `scripts/rebuild_portfolio_eod.mjs`; all historical logs now upserted to Supabase `pnl_history` in full 500-record chunks with automated trading day gap detection.
+- **Startup In-Memory Cache Pre-Warming (`warmCache()`)**:
+  - Added `pnl_history` (last 365 days) pre-population in `server/db.js` `warmCache()` to protect Dashboard and Calendar from cold-start Supabase query storms.
+- **Multi-Asset Financial Integrity Suite Upgrades**:
+  - Updated `scripts/verify_all_assets_integrity.mjs` with paginated future-row checks, full NPS database scan, dynamic date boundaries, and weekend carry-forward assertions.
+- **Protean Scraper & Secondary Fallback Protocol**:
+  - Hardened Protean scraper in `server/services/priceEngine.js` to persist all downloaded valid NAV rows to Supabase regardless of whether `zipNavDate` equals `lastTradingDay`, preventing data drops.
+  - Updated Rule 8 in `.agents/AGENTS.md` to document automated daily scraping with `npsnav.in` as an approved resilient fallback/backfill source.
+
 ## [5.25.0] - 2026-09-12
 
 ### Changed

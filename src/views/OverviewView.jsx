@@ -631,7 +631,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-400" />
-                Net Worth
+                Trend
               </h3>
               
               <ChartRangeSelector

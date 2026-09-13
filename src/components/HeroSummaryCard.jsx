@@ -35,7 +35,7 @@ export default function HeroSummaryCard({ summary }) {
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
-                TOTAL NET WORTH (ASSETS - LIABILITIES)
+                TOTAL WEALTH
               </span>
 
               {/* FX Rate Badge */}
