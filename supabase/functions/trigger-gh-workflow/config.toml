@@ -1,0 +1,2 @@
+[functions.trigger-gh-workflow]
+verify_jwt = false
