@@ -238,7 +238,7 @@ async function rebuildEod() {
         if (!sym.endsWith('.NS') && !sym.endsWith('.BO')) sym += '.NS';
       }
       try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=3mo`;
         const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000 });
         const result = res.data?.chart?.result?.[0];
         if (result && result.timestamp) {

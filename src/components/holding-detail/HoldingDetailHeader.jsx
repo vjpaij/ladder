@@ -49,9 +49,9 @@ export default function HoldingDetailHeader({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             {holding.category_id !== 'bank' && holding.category_id !== 'epf' && (
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[11px] font-semibold text-slate-400">
                 {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                   : holding.category_id === 'us_stocks' ? 'US Equity'
                   : holding.category_id === 'nps' ? 'NPS Scheme'
@@ -61,12 +61,21 @@ export default function HoldingDetailHeader({
               </span>
             )}
             {!isEodAsset && (Number(holding.quantity) || 0) > 0 && (
-              <span className="text-[10px] text-slate-500 font-mono">
-                {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })} units
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-mono border shadow-sm ${
+                isLight
+                  ? 'bg-slate-100 text-slate-900 border-slate-300'
+                  : 'bg-slate-800/90 text-white border-slate-700'
+              }`}>
+                <span className="text-[10px] uppercase font-bold text-emerald-400">
+                  {holding.category_id === 'mutual_funds' || holding.category_id === 'nps' ? 'Units' : 'Shares'}:
+                </span>
+                <span className="text-sm font-black text-slate-900 dark:text-emerald-300">
+                  {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })}
+                </span>
               </span>
             )}
             {isEodAsset && (
-              <span className="text-[10px] text-slate-400 font-mono font-bold">
+              <span className="text-xs text-slate-300 font-mono font-bold">
                 Current Balance: {formatMoney(m?.currentValue ?? holding.current_price ?? 0)}
               </span>
             )}

@@ -14,7 +14,7 @@ import {
   formatCleanQuoteDate 
 } from '../services/priceEngine.js';
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
-import { getHistoricalPricesMap, formatDateDDMMYYYY } from '../services/historicalPriceStore.js';
+import { getHistoricalPricesMap, ensureHistoricalPricesForSymbol, formatDateDDMMYYYY } from '../services/historicalPriceStore.js';
 import { computeHoldingValueINR } from '../services/portfolioCalculator.js';
 import { recalculateHoldingState } from '../services/recalculator.js';
 import { calculateXirr } from '../services/xirrCalculator.js';
@@ -22,6 +22,8 @@ import { invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 import { getLoanAmortizationData } from '../services/loanEngine.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { recordDividend, getHoldingDividends } from '../services/dividendService.js';
+import { applyStockSplit } from '../services/corporateActionService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -560,53 +562,35 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     for (const tx of txs) {
       const qty = Number(tx.quantity) || 0;
       const price = Number(tx.price) || 0;
-      const amountUSD = Number(tx.total_amount) || (qty * price);
+      const rawPrincipalUSD = qty * price;
       const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
-      const amountINR = amountUSD * txRate;
+      const rawPrincipalINR = rawPrincipalUSD * txRate;
       const chargesUSD = Number(tx.charges) || 0;
       const chargesINR = chargesUSD * txRate;
 
       if (tx.type === 'BUY') {
         totalBuyChargesUSD += chargesUSD;
         totalBuyChargesINR += chargesINR;
-        totalInvestedUSD += amountUSD + chargesUSD;
-        totalInvestedINR += amountINR + chargesINR;
+        totalInvestedUSD += rawPrincipalUSD + chargesUSD;
+        totalInvestedINR += rawPrincipalINR + chargesINR;
         buyLotsUSD.push({ qty, price, charges: chargesUSD, rem: qty });
         buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, charges: chargesINR, rem: qty });
       } else if (tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
         buyLotsUSD.push({ qty, price, charges: 0, rem: qty });
         buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, charges: 0, rem: qty });
       } else if (tx.type === 'SPLIT') {
-        let ratio = 1;
-        const match = (tx.notes || '').match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
-        if (match) {
-          const o = parseFloat(match[1]);
-          const n = parseFloat(match[2]);
-          if (o > 0 && n > 0) ratio = n / o;
-        } else if (tx.notes && tx.notes.includes('Multiplier')) {
-          const m = tx.notes.match(/Multiplier\s+(\d+(?:\.\d+)?)x/i);
-          if (m) ratio = parseFloat(m[1]);
-        } else if (Number(tx.quantity) > 0) {
-          const curLots = buyLotsINR.reduce((s, l) => s + l.rem, 0);
-          if (curLots > 0) ratio = (curLots + Number(tx.quantity)) / curLots;
-        }
-        if (ratio > 0 && ratio !== 1) {
-          for (const lot of buyLotsUSD) {
-            lot.rem *= ratio;
-            lot.qty *= ratio;
-            lot.price /= ratio;
-          }
-          for (const lot of buyLotsINR) {
-            lot.rem *= ratio;
-            lot.qty *= ratio;
-            lot.priceUSD /= ratio;
-          }
+        const splitQty = Number(tx.quantity) || 0;
+        if (splitQty > 0) {
+          buyLotsUSD.push({ qty: splitQty, price: 0, charges: 0, rem: splitQty });
+          buyLotsINR.push({ qty: splitQty, priceUSD: 0, fxRate: txRate, charges: 0, rem: splitQty });
         }
       } else if (tx.type === 'SELL') {
         totalSellChargesUSD += chargesUSD;
         totalSellChargesINR += chargesINR;
-        totalRedeemedUSD += amountUSD - chargesUSD;
-        totalRedeemedINR += amountINR - chargesINR;
+        const netProceedsUSD = Math.max(0, rawPrincipalUSD - chargesUSD);
+        const netProceedsINR = Math.max(0, rawPrincipalINR - chargesINR);
+        totalRedeemedUSD += netProceedsUSD;
+        totalRedeemedINR += netProceedsINR;
 
         realizedPnlUSD -= chargesUSD;
         realizedPnlINR -= chargesINR;
@@ -636,17 +620,29 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     }
 
     const liveQuote = liveQuoteCache.get(holding.symbol);
-    const currentQty = Number(holding.quantity) || 0;
+    const activeLotsINR = buyLotsINR.filter(l => l.rem > 0);
+    const dynamicOpenShares = activeLotsINR.reduce((s, l) => s + l.rem, 0);
+    const currentQty = (txs.length > 0) ? dynamicOpenShares : (Number(holding.quantity) || 0);
+
+    const activeLotsUSD = buyLotsUSD.filter(l => l.rem > 0);
+    let dynamicCostBasisUSD = 0;
+    for (const lot of activeLotsUSD) {
+      const lotCost = lot.rem * lot.price;
+      const lotCharge = lot.qty > 0 ? (lot.rem / lot.qty) * (lot.charges || 0) : 0;
+      dynamicCostBasisUSD += lotCost + lotCharge;
+    }
+    const avgBuyPriceUSD = (dynamicOpenShares > 0 && txs.length > 0)
+      ? (dynamicCostBasisUSD / dynamicOpenShares)
+      : (Number(holding.avg_buy_price) || 0);
+
     const currentPriceUSD = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(holding.current_price) || 0);
-    const avgBuyPriceUSD = Number(holding.avg_buy_price) || 0;
 
     const currentValueUSD = currentQty * currentPriceUSD;
-    const costBasisUSD = currentQty * avgBuyPriceUSD;
+    const costBasisUSD = dynamicCostBasisUSD > 0 ? dynamicCostBasisUSD : (currentQty * avgBuyPriceUSD);
     const unrealizedPnlUSD = currentValueUSD - costBasisUSD;
     const unrealizedPctUSD = costBasisUSD > 0 ? Number(((unrealizedPnlUSD / costBasisUSD) * 100).toFixed(2)) : 0;
 
     const currentValueINR = currentValueUSD * liveRate;
-    const activeLotsINR = buyLotsINR.filter(l => l.rem > 0);
     const costBasisINR = activeLotsINR.length > 0
       ? activeLotsINR.reduce((s, l) => {
           const lotCost = l.rem * l.priceUSD * l.fxRate;
@@ -658,10 +654,15 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const unrealizedPnlINR = currentValueINR - costBasisINR;
     const unrealizedPctINR = costBasisINR > 0 ? Number(((unrealizedPnlINR / costBasisINR) * 100).toFixed(2)) : 0;
 
+    // Unify all dividends for the holding via canonical dividend domain service
+    const nonDivTxs = txs.filter(t => t.type !== 'DIVIDEND');
+    const holdingDivData = await getHoldingDividends(holding.id);
+    const allHoldingDividends = holdingDivData.dividends;
+
     const totalDividendsUSD = isUSStock
-      ? divs.reduce((s, d) => s + (Number(d.amount_original) || 0), 0)
+      ? allHoldingDividends.reduce((s, d) => s + (Number(d.amount_usd || d.amount_original) || 0), 0)
       : 0;
-    const totalDividendsINR = divs.reduce((s, d) => s + (Number(d.amount_inr) || 0), 0);
+    const totalDividendsINR = allHoldingDividends.reduce((s, d) => s + (Number(d.amount_inr) || 0), 0);
 
     realizedPnlUSD += totalDividendsUSD;
     realizedPnlINR += totalDividendsINR;
@@ -808,10 +809,26 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     }
 
     // Dense Timeline Construction (for stocks, MFs, and fallback)
-    const historicalPricesCache = getHistoricalPricesMap();
+    let historicalPricesCache = getHistoricalPricesMap();
     if (timelineINR.length === 0 && txs.length > 0) {
-      const histPrices = historicalPricesCache[holding.symbol] || {};
+      const cleanSym = (holding.symbol || '').replace(/\.(NS|BO)$/i, '');
+      let histPrices = historicalPricesCache[holding.symbol] || 
+                       historicalPricesCache[cleanSym] || 
+                       historicalPricesCache[`${cleanSym}.NS`] || 
+                       historicalPricesCache[`${cleanSym}.BO`] || {};
       const firstTxDate = txs[0].date;
+
+      // Automatically fetch and cache historical prices if missing or incomplete
+      if (Object.keys(histPrices).length === 0 || !histPrices[firstTxDate]) {
+        try {
+          const freshPrices = await ensureHistoricalPricesForSymbol(holding.symbol, holding.category_id, firstTxDate);
+          if (freshPrices && Object.keys(freshPrices).length > 0) {
+            histPrices = freshPrices;
+          }
+        } catch (e) {
+          console.warn(`[Detail API] Auto-fetch historical prices error for ${holding.symbol}:`, e.message);
+        }
+      }
       const lastTxDate = txs[txs.length - 1].date;
       const isExited = (Number(holding.quantity) || 0) <= 0;
       const endLimitStr = isExited ? lastTxDate : today;
@@ -823,6 +840,75 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       let lastKnownPriceUSD = avgBuyPriceUSD || (Number(holding.current_price) || 0);
       let lastKnownPriceINR = lastKnownPriceUSD * liveRate;
 
+      // Dynamically detect corporate action / split scale checkpoints from trade history
+      // When stocks undergo a split, Yahoo Finance quotes and trade prices may be pre or post split.
+      // We detect the ratio between trade prices and Yahoo quotes and adapt the multiplier dynamically.
+      const standardSplitMultipliers = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 10.0, 0.5, 0.4, 0.2, 0.1];
+      const tradeScaleCheckpoints = [];
+
+      for (const t of txs) {
+        if ((t.type === 'BUY' || t.type === 'SELL') && Number(t.price) > 0) {
+          const tDate = t.date;
+          let hp = histPrices[tDate];
+          if (!hp) {
+            const tTime = new Date(tDate).getTime();
+            let minDiff = Infinity;
+            for (const [hdStr, hVal] of Object.entries(histPrices)) {
+              const diff = Math.abs(new Date(hdStr).getTime() - tTime);
+              if (diff <= 5 * 86400 * 1000 && diff < minDiff && hVal > 0) {
+                minDiff = diff;
+                hp = hVal;
+              }
+            }
+          }
+          if (hp && hp > 0) {
+            const rawRatio = Number(t.price) / hp;
+            let bestRatio = 1.0;
+            let minDev = Infinity;
+            for (const sm of standardSplitMultipliers) {
+              const dev = Math.abs(rawRatio - sm) / sm;
+              if (dev <= 0.20 && dev < minDev) {
+                minDev = dev;
+                bestRatio = sm;
+              }
+            }
+            tradeScaleCheckpoints.push({ date: tDate, scale: bestRatio });
+          }
+        } else if (t.type === 'SPLIT') {
+          // If a split transaction exists, identify the market ex-date where historical prices dropped
+          let splitMultiplier = 1;
+          const match = (t.notes || '').match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+          if (match) {
+            const o = parseFloat(match[1]);
+            const n = parseFloat(match[2]);
+            if (o > 0 && n > 0) splitMultiplier = n / o;
+          }
+          let exDate = t.date;
+          if (splitMultiplier > 1) {
+            const hpDates = Object.keys(histPrices).sort();
+            for (let i = 1; i < hpDates.length; i++) {
+              if (hpDates[i] > t.date) break;
+              const prevP = Number(histPrices[hpDates[i - 1]]) || 0;
+              const curP = Number(histPrices[hpDates[i]]) || 0;
+              if (prevP > 0 && curP > 0) {
+                const dropRatio = curP / prevP;
+                const expectedDrop = 1 / splitMultiplier;
+                if (Math.abs(dropRatio - expectedDrop) / expectedDrop <= 0.20) {
+                  exDate = hpDates[i];
+                  break;
+                }
+              }
+            }
+          }
+          tradeScaleCheckpoints.push({ date: exDate, scale: 1.0 });
+        }
+      }
+
+      tradeScaleCheckpoints.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+      let currentTradeScale = tradeScaleCheckpoints.length > 0 ? tradeScaleCheckpoints[0].scale : 1.0;
+      let scaleIdx = 0;
+
       const startDate = new Date(firstTxDate);
       const endDate = new Date(endLimitStr);
       if (endDate > new Date(today)) endDate.setTime(new Date(today).getTime());
@@ -833,13 +919,22 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         const dStr = currentDate.toISOString().split('T')[0];
         let dayEvents = [];
 
+        while (scaleIdx < tradeScaleCheckpoints.length && tradeScaleCheckpoints[scaleIdx].date <= dStr) {
+          currentTradeScale = tradeScaleCheckpoints[scaleIdx].scale;
+          scaleIdx++;
+        }
+
         while (txIdx < txs.length && txs[txIdx].date <= dStr) {
           const tx = txs[txIdx];
           const qty = Number(tx.quantity) || 0;
           const price = Number(tx.price) || 0;
-          const amtUSD = Number(tx.total_amount) || qty * price;
+          const rawPrincipalUSD = qty * price;
           const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
-          const amtINR = amtUSD * txRate;
+          const rawPrincipalINR = rawPrincipalUSD * txRate;
+          const txChargesUSD = Number(tx.charges) || 0;
+          const txChargesINR = txChargesUSD * txRate;
+          const amtUSD = tx.type === 'SELL' ? Math.max(0, rawPrincipalUSD - txChargesUSD) : (rawPrincipalUSD + txChargesUSD);
+          const amtINR = tx.type === 'SELL' ? Math.max(0, rawPrincipalINR - txChargesINR) : (rawPrincipalINR + txChargesINR);
 
           if (tx.date === dStr && tx.type !== 'DIVIDEND') {
             dayEvents.push({
@@ -858,13 +953,22 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
           if (tx.type === 'BUY') {
             runningQ += qty;
-            const txChargesUSD = Number(tx.charges) || 0;
-            const txChargesINR = txChargesUSD * txRate;
-            runningInvUSD += amtUSD + txChargesUSD;
-            runningInvINR += amtINR + txChargesINR;
+            runningInvUSD += rawPrincipalUSD + txChargesUSD;
+            runningInvINR += rawPrincipalINR + txChargesINR;
             if (qty > 0) {
               lastKnownPriceUSD = price;
               lastKnownPriceINR = price * txRate;
+            }
+          } else if (tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
+            runningQ += qty;
+            const txChargesUSD = Number(tx.charges) || 0;
+            const txChargesINR = txChargesUSD * txRate;
+            runningInvUSD += txChargesUSD;
+            runningInvINR += txChargesINR;
+          } else if (tx.type === 'SPLIT') {
+            const splitQty = Number(tx.quantity) || 0;
+            if (splitQty > 0) {
+              runningQ += splitQty;
             }
           } else if (tx.type === 'SELL') {
             const sellCostUSD = runningQ > 0 ? (qty * (runningInvUSD / runningQ)) : 0;
@@ -904,8 +1008,10 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           lastKnownPriceUSD = currentPriceUSD;
           lastKnownPriceINR = isUSStock ? currentPriceUSD * liveRate : currentPriceUSD;
         } else if (histPrices[dStr] !== undefined) {
-          lastKnownPriceUSD = isUSStock ? histPrices[dStr] : histPrices[dStr] / getHistoricalFxRate(dStr);
-          lastKnownPriceINR = isUSStock ? histPrices[dStr] * getHistoricalFxRate(dStr) : histPrices[dStr];
+          const rawPrice = Number(histPrices[dStr]) || 0;
+          const scaledPrice = rawPrice * (currentTradeScale || 1.0);
+          lastKnownPriceUSD = isUSStock ? scaledPrice : scaledPrice / getHistoricalFxRate(dStr);
+          lastKnownPriceINR = isUSStock ? scaledPrice * getHistoricalFxRate(dStr) : scaledPrice;
         }
 
         const valUSD = Math.max(0, runningQ * lastKnownPriceUSD);
@@ -1018,51 +1124,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const dayChange = quotePrice - prevClose;
     const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
 
-    const nonDivTxs = txs.filter(t => t.type !== 'DIVIDEND');
-    const divTxs = txs.filter(t => t.type === 'DIVIDEND');
-
-    const matchedDivTxIds = new Set();
-    const formattedDivs = (divs || []).map(d => {
-      const dDate = d.payment_date || d.ex_date || '';
-      const amtUSD = Number(d.amount_original) || (Number(d.amount_inr) / (Number(d.fx_rate) || 1));
-      const amtINR = Number(d.amount_inr) || (amtUSD * (Number(d.fx_rate) || liveRate));
-      const dRate = Number(d.fx_rate) || (isUSStock ? (getHistoricalFxRate(dDate) || liveRate) : 1.0);
-      const targetAmt = isUSStock ? amtUSD : amtINR;
-
-      // Check if a corresponding dividend transaction exists in transactions table
-      const matchedTx = divTxs.find(t =>
-        !matchedDivTxIds.has(t.id) &&
-        t.date === dDate &&
-        Math.abs(Number(t.total_amount || 0) - targetAmt) < 0.05
-      );
-      if (matchedTx) {
-        matchedDivTxIds.add(matchedTx.id);
-      }
-
-      return {
-        id: matchedTx ? matchedTx.id : `div-${d.id}`,
-        div_id: d.id,
-        holding_id: d.holding_id || holding.id,
-        user_id: d.user_id,
-        symbol: d.symbol || holding.symbol,
-        name: d.name || holding.name,
-        type: 'DIVIDEND',
-        quantity: 0,
-        price: 0,
-        total_amount: isUSStock ? Number(amtUSD.toFixed(2)) : Number(amtINR.toFixed(2)),
-        currency: isUSStock ? 'USD' : 'INR',
-        fx_rate: Number(dRate.toFixed(4)),
-        charges: 0,
-        date: dDate,
-        notes: matchedTx?.notes || `Dividend: ${isUSStock ? '$' + amtUSD.toFixed(2) : '₹' + amtINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      };
-    });
-
-    // If there are any dividend transactions in transactions table that were not in dividends table, include them
-    const orphanDivTxs = divTxs.filter(t => !matchedDivTxIds.has(t.id));
-
     const txTypePriority = { BUY: 1, BONUS: 1, DIVIDEND_REINVEST: 1, SPLIT: 2, SELL: 3, DIVIDEND: 4 };
-    const mergedTransactions = [...nonDivTxs, ...formattedDivs, ...orphanDivTxs].sort((a, b) => {
+    const mergedTransactions = [...nonDivTxs, ...allHoldingDividends].sort((a, b) => {
       const da = a.date || '';
       const db = b.date || '';
       if (da !== db) return da.localeCompare(db);
@@ -1072,8 +1135,14 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const isFundOrNps = holding.category_id === 'mutual_funds' || holding.category_id === 'nps';
     const quoteDigits = isFundOrNps ? 4 : 2;
 
+    const updatedHolding = {
+      ...holding,
+      quantity: Number(currentQty.toFixed(4)),
+      avg_buy_price: Number((isUSStock ? avgBuyPriceUSD : (activeLotsINR.length > 0 && currentQty > 0 ? (costBasisINR / currentQty) : avgBuyPriceUSD)).toFixed(4))
+    };
+
     res.json({
-      holding,
+      holding: updatedHolding,
       quote: {
         price: Number(quotePrice.toFixed(quoteDigits)),
         previousClose: Number(prevClose.toFixed(quoteDigits)),
@@ -1090,7 +1159,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       },
       fxRate: liveRate,
       transactions: mergedTransactions,
-      dividends: divs,
+      dividends: allHoldingDividends,
       timelineUSD,
       timelineINR,
       metricsUSD: {
@@ -1105,7 +1174,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         unrealizedPct: unrealizedPctUSD,
         realizedPnl: Number(realizedPnlUSD.toFixed(2)),
         totalDividends: Number(totalDividendsUSD.toFixed(2)),
-        dividendCount: divs.length,
+        dividendCount: allHoldingDividends.length,
         totalXirr: totalXirrUSD
       },
       metricsINR: {
@@ -1120,7 +1189,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         unrealizedPct: unrealizedPctINR,
         realizedPnl: Number(realizedPnlINR.toFixed(2)),
         totalDividends: Number(totalDividendsINR.toFixed(2)),
-        dividendCount: divs.length,
+        dividendCount: allHoldingDividends.length,
         totalXirr: totalXirrINR
       },
       timeline: isUSStock ? timelineUSD : timelineINR,
@@ -1136,7 +1205,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         unrealizedPct: isUSStock ? unrealizedPctUSD : unrealizedPctINR,
         realizedPnl: Number((isUSStock ? realizedPnlUSD : realizedPnlINR).toFixed(2)),
         totalDividends: Number((isUSStock ? totalDividendsUSD : totalDividendsINR).toFixed(2)),
-        dividendCount: divs.length,
+        dividendCount: allHoldingDividends.length,
         totalXirr: isUSStock ? totalXirrUSD : totalXirrINR
       }
     });
@@ -1255,20 +1324,20 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       }
 
       if (txType === 'DIVIDEND') {
-        const divAmount = Number(data.dividendAmount) || txAmount;
+        const divAmount = Number(data.dividendAmount) || Number(data.amount) || txAmount;
         if (isNaN(divAmount) || divAmount <= 0) {
           return res.status(400).json({ error: 'Dividend amount must be a positive number.' });
         }
 
-        await db.insert('dividends', {
-          holding_id: holdingId,
+        await recordDividend({
+          holdingId,
+          date: txDate,
+          amount: divAmount,
+          currency,
+          fxRate: txFxRate || fxRate,
+          notes: data.notes || '',
           symbol: symbolKey,
-          name: name.trim(),
-          amount_original: divAmount,
-          currency: currency,
-          fx_rate: txFxRate || 1.0,
-          amount_inr: isUS ? divAmount * (txFxRate || fxRate) : divAmount,
-          payment_date: txDate
+          name: name.trim()
         });
 
         return res.json({ success: true, holdingId, action: 'dividend_recorded' });
@@ -1285,38 +1354,17 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           return res.status(400).json({ error: `Cannot perform stock split on ${symbolKey}: no active shares found in portfolio.` });
         }
 
-        const splitRatio = newQtyRatio / oldQty;
-        const holding = existingHoldings[0];
-        const preSplitQty = Number(holding.quantity) || 0;
-        const preSplitAvg = Number(holding.avg_buy_price) || 0;
-
-        const newQty = preSplitQty * splitRatio;
-        const newAvg = preSplitAvg / splitRatio;
-        const newBuyQty = (Number(holding.buy_qty) || preSplitQty) * splitRatio;
-        const addedShares = newQty - preSplitQty;
-
-        await db.update('holdings', holdingId, {
-          quantity: parseFloat(newQty.toFixed(4)),
-          buy_qty: parseFloat(newBuyQty.toFixed(4)),
-          avg_buy_price: parseFloat(newAvg.toFixed(4)),
-          updated_at: new Date().toISOString()
-        });
-
-        await db.insert('transactions', {
-          holding_id: holdingId,
-          type: 'SPLIT',
-          quantity: parseFloat(addedShares.toFixed(4)),
-          price: 0,
-          total_amount: 0,
-          charges: 0,
-          currency: currency,
+        await applyStockSplit({
+          holdingId,
+          splitOld: oldQty,
+          splitNew: newQtyRatio,
           date: txDate,
+          notes: data.notes || '',
           symbol: symbolKey,
           name: name.trim(),
-          notes: `Stock split ${oldQty}:${newQtyRatio} — holding scaled from ${preSplitQty} to ${newQty} shares, avg cost adjusted from ₹${preSplitAvg.toFixed(2)} to ₹${newAvg.toFixed(2)}`
+          currency
         });
 
-        await recalculateHoldingState(holdingId);
         return res.json({ success: true, holdingId, action: 'split_applied' });
       }
 
@@ -1355,10 +1403,11 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           date: txDate,
           symbol: symbolKey,
           name: name.trim(),
-          notes: `Bonus issue (+${txQty} shares credited at ₹0 cost, avg cost diluted from ₹${preBonusAvg.toFixed(2)} to ₹${newAvg.toFixed(2)})`
+          notes: data.notes || `Bonus issue (+${txQty} shares credited at ₹0 cost, avg cost diluted from ₹${preBonusAvg.toFixed(2)} to ₹${newAvg.toFixed(2)})`
         });
 
         await recalculateHoldingState(holdingId);
+        triggerEodRebuildIfPastDate(txDate);
         return res.json({ success: true, holdingId, action: 'bonus_applied' });
       }
 
@@ -1373,10 +1422,19 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
         date: txDate,
         symbol: symbolKey,
         name: name.trim(),
-        notes: data.notes || `${txType} ${txQty} units of ${name} @ ${currency === 'USD' ? '$' : '₹'}${txPrice}`
+        notes: data.notes || ''
       };
 
       if (txFxRate) txRecord.fx_rate = txFxRate;
+
+      // Automatically populate historical daily prices for new or existing holdings
+      if (['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(portfolio)) {
+        try {
+          await ensureHistoricalPricesForSymbol(symbolKey, portfolio, txDate);
+        } catch (e) {
+          console.warn(`[Auto-Price Sync] Failed to ensure historical prices for ${symbolKey}:`, e.message);
+        }
+      }
 
       await db.insert('transactions', txRecord);
       await recalculateHoldingState(holdingId);
@@ -1440,7 +1498,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           date: txDate,
           symbol: symbolKey,
           name: accName,
-          notes: notes || `${portfolio === 'epf' ? 'EPF' : 'Bank'} ${txType}: ₹${amt.toFixed(2)}`
+          notes: notes || ''
         });
       } else if (balance !== undefined) {
         const currentBal = existing.length > 0 ? (Number(existing[0].current_price) || 0) : 0;
@@ -1515,7 +1573,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           date: txDate,
           symbol: 'LOAN',
           name: loanName,
-          notes: notes || `Loan ${txType}: ₹${amt.toFixed(2)}`
+          notes: notes || ''
         });
       } else if (balance !== undefined) {
         const currentBal = existing.length > 0 ? (Number(existing[0].outstanding_balance) || 0) : 0;
@@ -1585,7 +1643,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           date: txDate,
           symbol: 'CARD',
           name: cardName,
-          notes: notes || `Card ${txType}: ₹${amt.toFixed(2)}`
+          notes: notes || ''
         });
       } else if (balance !== undefined) {
         const currentBal = existing.length > 0 ? (Number(existing[0].outstanding_balance) || 0) : 0;

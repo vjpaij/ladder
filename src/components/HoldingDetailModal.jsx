@@ -56,6 +56,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const [newTxCharges, setNewTxCharges] = useState('0.00');
   const [newTxFxRate, setNewTxFxRate] = useState('');
   const [newTxNotes, setNewTxNotes] = useState('');
+  const [newTxSplitOld, setNewTxSplitOld] = useState('1');
+  const [newTxSplitNew, setNewTxSplitNew] = useState('10');
   const [isSavingTx, setIsSavingTx] = useState(false);
 
   // Synchronize price precision if holding or current_price updates
@@ -93,7 +95,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
         date: newTxDate,
         type: newTxType,
         charges: Number(newTxCharges) || 0,
-        notes: newTxNotes || `Added via Holding Detail Modal`
+        notes: newTxNotes || ''
       };
 
       if (isUSStock && newTxFxRate) {
@@ -101,7 +103,43 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
         payloadData.fx_rate = Number(newTxFxRate);
       }
 
-      if (isBankOrEpf || isLiability) {
+      if (newTxType === 'DIVIDEND') {
+        const divAmt = Number(newTxAmount) || 0;
+        if (divAmt <= 0) {
+          if (showError) showError('Dividend amount must be greater than zero.');
+          setIsSavingTx(false);
+          return;
+        }
+        payloadData.dividendAmount = divAmt;
+        payloadData.amount = divAmt;
+        payloadData.quantity = 0;
+        payloadData.price = 0;
+        payloadData.charges = 0;
+      } else if (newTxType === 'SPLIT') {
+        const oldR = Number(newTxSplitOld) || 1;
+        const newR = Number(newTxSplitNew) || 1;
+        if (oldR <= 0 || newR <= 0) {
+          if (showError) showError('Split ratio values must be greater than zero.');
+          setIsSavingTx(false);
+          return;
+        }
+        payloadData.splitOldQty = oldR;
+        payloadData.splitNewQty = newR;
+        payloadData.quantity = 0;
+        payloadData.price = 0;
+        payloadData.charges = 0;
+      } else if (newTxType === 'BONUS') {
+        const bonusQty = Number(newTxQty) || 0;
+        if (bonusQty <= 0) {
+          if (showError) showError('Bonus shares quantity must be greater than zero.');
+          setIsSavingTx(false);
+          return;
+        }
+        payloadData.quantity = bonusQty;
+        payloadData.price = 0;
+        payloadData.amount = 0;
+        payloadData.charges = Number(newTxCharges) || 0;
+      } else if (isBankOrEpf || isLiability) {
         payloadData.amount = Number(newTxAmount);
         payloadData.charges = Number(newTxCharges) || 0;
         payloadData.holdingId = holding.id;
@@ -126,6 +164,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       setNewTxAmount('');
       setNewTxCharges('0.00');
       setNewTxNotes('');
+      setNewTxSplitOld('1');
+      setNewTxSplitNew('10');
       // Reload holding details
       const detailRes = await axios.get(`/api/holding/${holding.id}/detail`);
       setDetail(detailRes.data);
@@ -186,6 +226,15 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
 
   const startEditTx = (tx) => {
     setEditingTxId(tx.id);
+    let splitOld = '1';
+    let splitNew = '2';
+    if (tx.type === 'SPLIT') {
+      const match = (tx.notes || '').match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+      if (match) {
+        splitOld = match[1];
+        splitNew = match[2];
+      }
+    }
     const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
     const priceDigits = isFund ? 4 : 2;
     const priceVal = tx.price !== undefined && tx.price !== null && tx.price !== ''
@@ -206,7 +255,9 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       total_amount: totalAmtVal,
       charges: chargesVal,
       fx_rate: tx.fx_rate !== undefined && tx.fx_rate !== null && tx.fx_rate !== '' ? Number(tx.fx_rate).toFixed(2) : '',
-      notes: tx.notes ?? ''
+      notes: tx.notes ?? '',
+      splitOld,
+      splitNew
     });
   };
 
@@ -218,19 +269,42 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const saveEditTx = async (txId) => {
     setTxActionLoading(txId);
     try {
-      const amountVal = Number(editForm.total_amount) || Number(editForm.price) || 0;
-      const qtyVal = Number(editForm.quantity) || (isEodAsset ? 1 : 0);
-      const priceVal = isEodAsset ? amountVal : (Number(editForm.price) || (qtyVal > 0 ? amountVal / qtyVal : 0));
-      const payload = {
-        date: editForm.date,
-        type: editForm.type,
-        quantity: qtyVal,
-        price: priceVal,
-        total_amount: amountVal,
-        charges: Number(editForm.charges) || 0,
-        fx_rate: editForm.fx_rate ? Number(editForm.fx_rate) : null,
-        notes: editForm.notes || ''
-      };
+      let payload;
+      if (editForm.type === 'SPLIT') {
+        const oldR = Number(editForm.splitOld) || 1;
+        const newR = Number(editForm.splitNew) || 1;
+        payload = {
+          date: editForm.date,
+          type: 'SPLIT',
+          splitOld: oldR,
+          splitNew: newR,
+          notes: editForm.notes || `Stock split ${oldR}:${newR}`
+        };
+      } else if (editForm.type === 'BONUS') {
+        payload = {
+          date: editForm.date,
+          type: 'BONUS',
+          quantity: Number(editForm.quantity) || 0,
+          price: 0,
+          total_amount: 0,
+          charges: Number(editForm.charges) || 0,
+          notes: editForm.notes || `Bonus issue: +${editForm.quantity} shares`
+        };
+      } else {
+        const amountVal = Number(editForm.total_amount) || Number(editForm.price) || 0;
+        const qtyVal = Number(editForm.quantity) || (isEodAsset ? 1 : 0);
+        const priceVal = isEodAsset ? amountVal : (Number(editForm.price) || (qtyVal > 0 ? amountVal / qtyVal : 0));
+        payload = {
+          date: editForm.date,
+          type: editForm.type,
+          quantity: qtyVal,
+          price: priceVal,
+          total_amount: amountVal,
+          charges: Number(editForm.charges) || 0,
+          fx_rate: editForm.fx_rate ? Number(editForm.fx_rate) : null,
+          notes: editForm.notes || ''
+        };
+      }
       await axios.put(`/api/transactions/${txId}`, payload);
       setEditingTxId(null);
       setEditForm({});
@@ -596,6 +670,10 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                         setNewTxFxRate={setNewTxFxRate}
                         newTxNotes={newTxNotes}
                         setNewTxNotes={setNewTxNotes}
+                        newTxSplitOld={newTxSplitOld}
+                        setNewTxSplitOld={setNewTxSplitOld}
+                        newTxSplitNew={newTxSplitNew}
+                        setNewTxSplitNew={setNewTxSplitNew}
                         isSavingTx={isSavingTx}
                         handleSaveNewTransaction={handleSaveNewTransaction}
                         editingTxId={editingTxId}

@@ -68,9 +68,7 @@ router.get('/summary', async (req, res) => {
     const livePriceMap = {};
     holdings.forEach(h => {
       const liveQuote = liveQuoteCache.get(h.symbol);
-      if (liveQuote && liveQuote.price > 0) {
-        livePriceMap[h.symbol] = liveQuote.price;
-      }
+      livePriceMap[h.symbol] = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
     });
 
     const valuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);

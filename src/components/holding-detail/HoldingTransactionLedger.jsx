@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Plus, PlusCircle, Search, X, ChevronUp, ChevronDown,
-  Edit3, Trash2, Save, XCircle
+  Edit3, Trash2, Save, XCircle, Loader2
 } from 'lucide-react';
 import formatDateDDMMYYYY from '../../utils/dateFormatter';
 import { TxBadge, formatTxDate } from './holdingDetailUtils';
@@ -42,6 +42,10 @@ export default function HoldingTransactionLedger({
   setNewTxFxRate,
   newTxNotes,
   setNewTxNotes,
+  newTxSplitOld,
+  setNewTxSplitOld,
+  newTxSplitNew,
+  setNewTxSplitNew,
   isSavingTx,
   handleSaveNewTransaction,
   editingTxId,
@@ -172,7 +176,7 @@ export default function HoldingTransactionLedger({
                   {(() => {
                     let types = ['BUY', 'SELL', 'BONUS', 'DIVIDEND', 'SPLIT'];
                     if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
-                      types = ['BUY', 'REDEEM', 'INVESTMENT', 'INVESTMENT (SIP)'];
+                      types = ['BUY', 'REDEEM', 'INVESTMENT', 'INVESTMENT (SIP)', 'DIVIDEND'];
                     } else if (holding.category_id === 'bank') {
                       types = ['DEPOSIT', 'WITHDRAWAL', 'CREDIT', 'DEBIT', 'INTEREST', 'CHARGE'];
                     } else if (holding.category_id === 'epf') {
@@ -190,7 +194,9 @@ export default function HoldingTransactionLedger({
               </div>
 
               <div>
-                <label className="text-[10px] opacity-70 font-medium block mb-1">Date</label>
+                <label className="text-[10px] opacity-70 font-medium block mb-1">
+                  {newTxType === 'DIVIDEND' ? 'Payment Date' : newTxType === 'SPLIT' ? 'Split Effective Date' : newTxType === 'BONUS' ? 'Bonus Credit Date' : 'Date'}
+                </label>
                 <DatePicker
                   value={newTxDate}
                   onChange={(e) => setNewTxDate(e.target.value)}
@@ -201,101 +207,236 @@ export default function HoldingTransactionLedger({
 
               {!isEodAsset ? (
                 <>
-                  <div>
-                    <label className="text-[10px] opacity-70 font-medium block mb-1">Quantity / Units</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={newTxQty}
-                      onChange={(e) => {
-                        const qty = e.target.value;
-                        setNewTxQty(qty);
-                        if (holding.category_id === 'mutual_funds' && newTxType === 'BUY' && newTxPrice && (!newTxCharges || newTxCharges === '0')) {
-                          const gross = (Number(qty) || 0) * (Number(newTxPrice) || 0);
-                          setNewTxCharges((gross * 0.00015).toFixed(2));
-                        }
-                      }}
-                      placeholder="Units"
-                      required
-                      className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] opacity-70 font-medium block mb-1">Price / NAV ({holding.currency === 'USD' ? '$' : '₹'})</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={newTxPrice}
-                      onChange={(e) => {
-                        const price = e.target.value;
-                        setNewTxPrice(price);
-                        if (holding.category_id === 'mutual_funds' && newTxType === 'BUY' && newTxQty && (!newTxCharges || newTxCharges === '0' || newTxCharges === '0.00')) {
-                          const gross = (Number(newTxQty) || 0) * (Number(price) || 0);
-                          setNewTxCharges((gross * 0.00015).toFixed(2));
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
-                          setNewTxPrice(isFund ? val.toFixed(4) : val.toFixed(2));
-                        }
-                      }}
-                      placeholder="0.00"
-                      required
-                      className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] opacity-70 font-medium block mb-1">Charges ({holding.currency === 'USD' ? '$' : '₹'})</label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={newTxCharges}
-                      onChange={(e) => setNewTxCharges(e.target.value)}
-                      onBlur={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          setNewTxCharges(val.toFixed(2));
-                        } else if (e.target.value === '') {
-                          setNewTxCharges('0.00');
-                        }
-                      }}
-                      placeholder="0.00"
-                      className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] opacity-70 font-medium block mb-1">
-                      Total Amount ({holding.currency === 'USD' ? '$' : '₹'}) {newTxType === 'SELL' ? '(Net)' : '(Incl. Charges)'}
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={(() => {
-                        const q = Number(newTxQty) || 0;
-                        const p = Number(newTxPrice) || 0;
-                        const c = Number(newTxCharges) || 0;
-                        const gross = q * p;
-                        const net = newTxType === 'SELL' ? Math.max(0, gross - c) : (gross + c);
-                        return net.toFixed(2);
-                      })()}
-                      className="w-full px-3 py-1.5 bg-inherit border border-inherit/40 rounded-xl text-xs font-mono font-bold opacity-90"
-                    />
-                  </div>
-                  {isUSStock && (
-                    <div>
-                      <label className="text-[10px] opacity-70 font-medium block mb-1 text-purple-400 font-bold">USD/INR Rate (₹)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={newTxFxRate || ''}
-                        onChange={(e) => setNewTxFxRate(e.target.value)}
-                        placeholder={String(fxRate || 95.5)}
-                        className="w-full px-3 py-1.5 bg-inherit border border-purple-500/40 rounded-xl text-xs outline-none focus:border-purple-500 font-mono text-purple-300"
-                      />
-                    </div>
+                  {newTxType === 'DIVIDEND' ? (
+                    <>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">
+                          Dividend Payout ({holding.currency === 'USD' ? '$' : '₹'})
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={newTxAmount}
+                          onChange={(e) => setNewTxAmount(e.target.value)}
+                          placeholder="e.g. 500.00"
+                          required
+                          className="w-full px-3 py-1.5 bg-inherit border border-amber-500/50 rounded-xl text-xs outline-none focus:border-amber-400 font-mono text-amber-300"
+                        />
+                      </div>
+                      {isUSStock && (
+                        <div>
+                          <label className="text-[10px] opacity-70 font-medium block mb-1 text-purple-400 font-bold">USD/INR Rate (₹)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={newTxFxRate || ''}
+                            onChange={(e) => setNewTxFxRate(e.target.value)}
+                            placeholder={String(fxRate || 95.5)}
+                            className="w-full px-3 py-1.5 bg-inherit border border-purple-500/40 rounded-xl text-xs outline-none focus:border-purple-500 font-mono text-purple-300"
+                          />
+                        </div>
+                      )}
+                    </>
+                  ) : newTxType === 'SPLIT' ? (
+                    <>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Split Old Ratio</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="1"
+                          value={newTxSplitOld || ''}
+                          onChange={(e) => setNewTxSplitOld(e.target.value)}
+                          placeholder="1"
+                          required
+                          className="w-full px-3 py-1.5 bg-inherit border border-indigo-500/50 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-indigo-300"
+                        />
+                        <span className="text-[9px] opacity-60 mt-0.5 block">Existing shares ratio (e.g. 1)</span>
+                      </div>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Split New Ratio</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="1"
+                          value={newTxSplitNew || ''}
+                          onChange={(e) => setNewTxSplitNew(e.target.value)}
+                          placeholder="10"
+                          required
+                          className="w-full px-3 py-1.5 bg-inherit border border-indigo-500/50 rounded-xl text-xs outline-none focus:border-indigo-400 font-mono text-indigo-300"
+                        />
+                        <span className="text-[9px] opacity-60 mt-0.5 block">New multiplied ratio (e.g. 10 or 2)</span>
+                      </div>
+                      <div className="col-span-1 sm:col-span-2 md:col-span-3 p-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="opacity-70 font-semibold">Current Position:</span>
+                          <span className="font-mono font-bold">
+                            {Number(holding.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{Number(holding.avg_buy_price || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        {newTxSplitOld && newTxSplitNew && Number(newTxSplitOld) > 0 && Number(newTxSplitNew) > 0 && (
+                          <div className="flex items-center justify-between pt-1.5 border-t border-indigo-500/20">
+                            <span className="text-indigo-400 font-bold">Projected Post-Split:</span>
+                            <span className="font-mono font-black text-indigo-300">
+                              {(Number(holding.quantity || 0) * (Number(newTxSplitNew) / Number(newTxSplitOld))).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{(Number(holding.avg_buy_price || 0) / (Number(newTxSplitNew) / Number(newTxSplitOld))).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : newTxType === 'BONUS' ? (
+                    <>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Bonus Shares Credited</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.0001"
+                          value={newTxQty}
+                          onChange={(e) => setNewTxQty(e.target.value)}
+                          placeholder="Additional shares"
+                          required
+                          className="w-full px-3 py-1.5 bg-inherit border border-cyan-500/50 rounded-xl text-xs outline-none focus:border-cyan-400 font-mono text-cyan-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Price / Cost Basis</label>
+                        <input
+                          type="text"
+                          readOnly
+                          value={holding.currency === 'USD' ? '$0.00 (Free Bonus Shares)' : '₹0.00 (Free Bonus Shares)'}
+                          className="w-full px-3 py-1.5 bg-inherit border border-inherit/40 rounded-xl text-xs font-mono font-bold opacity-80 cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Charges ({holding.currency === 'USD' ? '$' : '₹'})</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={newTxCharges}
+                          onChange={(e) => setNewTxCharges(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                        />
+                      </div>
+                      <div className="col-span-1 sm:col-span-2 md:col-span-3 p-2.5 bg-cyan-500/10 border border-cyan-500/30 rounded-xl space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="opacity-70 font-semibold">Current Position:</span>
+                          <span className="font-mono font-bold">
+                            {Number(holding.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{Number(holding.avg_buy_price || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        {newTxQty && Number(newTxQty) > 0 && (
+                          <div className="flex items-center justify-between pt-1.5 border-t border-cyan-500/20">
+                            <span className="text-cyan-400 font-bold">Projected Post-Bonus:</span>
+                            <span className="font-mono font-black text-cyan-300">
+                              {(Number(holding.quantity || 0) + Number(newTxQty)).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{(((Number(holding.quantity || 0) * Number(holding.avg_buy_price || 0)) + (Number(newTxCharges) || 0)) / (Number(holding.quantity || 0) + Number(newTxQty))).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Quantity / Units</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={newTxQty}
+                          onChange={(e) => {
+                            const qty = e.target.value;
+                            setNewTxQty(qty);
+                            if (holding.category_id === 'mutual_funds' && newTxType === 'BUY' && newTxPrice && (!newTxCharges || newTxCharges === '0')) {
+                              const gross = (Number(qty) || 0) * (Number(newTxPrice) || 0);
+                              setNewTxCharges((gross * 0.00015).toFixed(2));
+                            }
+                          }}
+                          placeholder="Units"
+                          required
+                          className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Price / NAV ({holding.currency === 'USD' ? '$' : '₹'})</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={newTxPrice}
+                          onChange={(e) => {
+                            const price = e.target.value;
+                            setNewTxPrice(price);
+                            if (holding.category_id === 'mutual_funds' && newTxType === 'BUY' && newTxQty && (!newTxCharges || newTxCharges === '0' || newTxCharges === '0.00')) {
+                              const gross = (Number(newTxQty) || 0) * (Number(price) || 0);
+                              setNewTxCharges((gross * 0.00015).toFixed(2));
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+                              setNewTxPrice(isFund ? val.toFixed(4) : val.toFixed(2));
+                            }
+                          }}
+                          placeholder="0.00"
+                          required
+                          className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">Charges ({holding.currency === 'USD' ? '$' : '₹'})</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={newTxCharges}
+                          onChange={(e) => setNewTxCharges(e.target.value)}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              setNewTxCharges(val.toFixed(2));
+                            } else if (e.target.value === '') {
+                              setNewTxCharges('0.00');
+                            }
+                          }}
+                          placeholder="0.00"
+                          className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] opacity-70 font-medium block mb-1">
+                          Total Amount ({holding.currency === 'USD' ? '$' : '₹'}) {newTxType === 'SELL' ? '(Net)' : '(Incl. Charges)'}
+                        </label>
+                        <input
+                          type="text"
+                          readOnly
+                          value={(() => {
+                            const q = Number(newTxQty) || 0;
+                            const p = Number(newTxPrice) || 0;
+                            const c = Number(newTxCharges) || 0;
+                            const gross = q * p;
+                            const net = newTxType === 'SELL' ? Math.max(0, gross - c) : (gross + c);
+                            return net.toFixed(2);
+                          })()}
+                          className="w-full px-3 py-1.5 bg-inherit border border-inherit/40 rounded-xl text-xs font-mono font-bold opacity-90"
+                        />
+                      </div>
+                      {isUSStock && (
+                        <div>
+                          <label className="text-[10px] opacity-70 font-medium block mb-1 text-purple-400 font-bold">USD/INR Rate (₹)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={newTxFxRate || ''}
+                            onChange={(e) => setNewTxFxRate(e.target.value)}
+                            placeholder={String(fxRate || 95.5)}
+                            className="w-full px-3 py-1.5 bg-inherit border border-purple-500/40 rounded-xl text-xs outline-none focus:border-purple-500 font-mono text-purple-300"
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               ) : (
@@ -327,7 +468,7 @@ export default function HoldingTransactionLedger({
                 </>
               )}
 
-              <div className={isUSStock ? 'sm:col-span-2 md:col-span-2' : (!isEodAsset ? 'sm:col-span-2 md:col-span-3' : 'sm:col-span-2 md:col-span-3')}>
+              <div className="col-span-1 sm:col-span-2 md:col-span-3">
                 <label className="text-[10px] opacity-70 font-medium block mb-1">Notes / Description (Optional)</label>
                 <input
                   type="text"
@@ -350,9 +491,18 @@ export default function HoldingTransactionLedger({
               <button
                 type="submit"
                 disabled={isSavingTx}
-                className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                className="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-1.5"
               >
-                {isSavingTx ? 'Saving...' : 'Save Transaction'}
+                {isSavingTx ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>
+                    {newTxType === 'DIVIDEND' ? 'Record Dividend' : newTxType === 'SPLIT' ? 'Apply Stock Split' : newTxType === 'BONUS' ? 'Credit Bonus Shares' : 'Save Transaction'}
+                  </span>
+                )}
               </button>
             </div>
           </motion.form>
@@ -595,6 +745,169 @@ export default function HoldingTransactionLedger({
                   amountDisplay = displayAmt;
                 }
 
+                if (isSplit && editingTxId === tx.id) {
+                  return (
+                    <tr key={tx.id || i} className={`border-y ${isLight ? 'bg-purple-100/90 border-purple-300' : 'bg-purple-950/70 border-purple-500/50'}`}>
+                      <td className={`py-2 px-3 sticky left-0 z-20 border-r border-slate-800 min-w-[140px] ${isLight ? 'bg-purple-100' : 'bg-slate-900'}`}>
+                        <DatePicker
+                          value={editForm.date || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${
+                          isLight ? 'bg-purple-200 text-purple-900 border-purple-300' : 'bg-purple-500/25 text-purple-300 border-purple-500/40'
+                        }`}>
+                          STOCK SPLIT
+                        </span>
+                      </td>
+                      <td colSpan={isUSStock ? 6 : 5} className="py-2 px-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-1.5 font-mono text-xs">
+                            <span className="text-[11px] opacity-70 font-semibold">Ratio:</span>
+                            <input
+                              type="number"
+                              step="any"
+                              min="1"
+                              value={editForm.splitOld || ''}
+                              onChange={(e) => setEditForm(prev => ({ ...prev, splitOld: e.target.value }))}
+                              className={`w-14 px-2 py-1 border rounded-lg text-xs font-mono text-center outline-none ${
+                                isLight ? 'bg-white border-purple-300 text-purple-950 focus:border-purple-600' : 'bg-slate-900 border-purple-500/50 text-purple-200 focus:border-purple-400'
+                              }`}
+                              placeholder="Old"
+                            />
+                            <span className="font-bold opacity-60">:</span>
+                            <input
+                              type="number"
+                              step="any"
+                              min="1"
+                              value={editForm.splitNew || ''}
+                              onChange={(e) => setEditForm(prev => ({ ...prev, splitNew: e.target.value }))}
+                              className={`w-14 px-2 py-1 border rounded-lg text-xs font-mono text-center outline-none ${
+                                isLight ? 'bg-white border-purple-300 text-purple-950 focus:border-purple-600' : 'bg-slate-900 border-purple-500/50 text-purple-200 focus:border-purple-400'
+                              }`}
+                              placeholder="New"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={editForm.notes || ''}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                            className={`flex-1 min-w-[200px] px-2 py-1 border rounded-lg text-xs outline-none ${
+                              isLight ? 'bg-white border-slate-300 text-slate-900 focus:border-purple-500' : 'bg-slate-900 border-slate-700 text-slate-200 focus:border-purple-500'
+                            }`}
+                            placeholder="Split notes (e.g. Stock split 1:2)"
+                          />
+                        </div>
+                      </td>
+                      <td className={`py-2 px-3 text-center whitespace-nowrap sticky right-0 z-20 ${isLight ? 'bg-purple-100' : 'bg-slate-900'}`}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => saveEditTx(tx.id)}
+                            disabled={txActionLoading === tx.id}
+                            className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors cursor-pointer"
+                            title="Save Split"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={cancelEditTx}
+                            className="p-1 hover:bg-slate-700/60 text-slate-400 rounded-lg transition-colors cursor-pointer"
+                            title="Cancel"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                if (isBonus && editingTxId === tx.id) {
+                  return (
+                    <tr key={tx.id || i} className={`border-y ${isLight ? 'bg-amber-100/90 border-amber-300' : 'bg-amber-950/70 border-amber-500/50'}`}>
+                      <td className={`py-2 px-3 sticky left-0 z-20 border-r border-slate-800 min-w-[140px] ${isLight ? 'bg-amber-100' : 'bg-slate-900'}`}>
+                        <DatePicker
+                          value={editForm.date || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${
+                          isLight ? 'bg-amber-200 text-amber-950 border-amber-400' : 'bg-amber-500/25 text-amber-300 border-amber-500/40'
+                        }`}>
+                          BONUS ISSUE
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <input
+                          type="number"
+                          step="any"
+                          min="1"
+                          value={editForm.quantity || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, quantity: e.target.value }))}
+                          className={`w-20 px-2 py-1 border rounded-lg text-xs font-mono text-right outline-none ${
+                            isLight ? 'bg-white border-amber-400 text-amber-950 focus:border-amber-600' : 'bg-slate-900 border-amber-500/50 text-amber-200 focus:border-amber-400'
+                          }`}
+                          placeholder="Shares"
+                        />
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-xs opacity-60">
+                        {isUSStock ? '$0.00' : '₹0.00'}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono text-xs opacity-60">
+                        {isUSStock ? '$0.00' : '₹0.00'}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={editForm.charges || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, charges: e.target.value }))}
+                          className={`w-16 px-2 py-1 border rounded-lg text-xs font-mono text-right outline-none ${
+                            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-200'
+                          }`}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      {isUSStock && (
+                        <td className="py-2 px-3 text-right font-mono text-xs opacity-60">—</td>
+                      )}
+                      <td className="py-2 px-3">
+                        <input
+                          type="text"
+                          value={editForm.notes || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                          className={`w-full px-2 py-1 border rounded-lg text-xs outline-none ${
+                            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-slate-200'
+                          }`}
+                          placeholder="Bonus notes"
+                        />
+                      </td>
+                      <td className={`py-2 px-3 text-center whitespace-nowrap sticky right-0 z-20 ${isLight ? 'bg-amber-100' : 'bg-slate-900'}`}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => saveEditTx(tx.id)}
+                            disabled={txActionLoading === tx.id}
+                            className="p-1 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors cursor-pointer"
+                            title="Save Bonus"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={cancelEditTx}
+                            className="p-1 hover:bg-slate-700/60 text-slate-400 rounded-lg transition-colors cursor-pointer"
+                            title="Cancel"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 if (isSplit || isBonus) {
                   let actionText = '';
                   if (isSplit) {
@@ -602,26 +915,31 @@ export default function HoldingTransactionLedger({
                     actionText = ratioMatch ? `Ratio ${ratioMatch[1]}` : '';
                   } else if (isBonus) {
                     const sharesMatch = (tx.notes || '').match(/\+(\d+(?:\.\d+)?)/);
-                    actionText = sharesMatch ? `+${sharesMatch[1]} Shares Credited` : '+Shares Credited';
+                    actionText = sharesMatch ? `+${sharesMatch[1]} Shares Credited` : (Number(tx.quantity) > 0 ? `+${tx.quantity} Shares Credited` : '+Shares Credited');
                   }
+
+                  const rowBg = isSplit
+                    ? (isLight ? 'bg-purple-50/90' : 'bg-purple-950/60')
+                    : (isLight ? 'bg-amber-100/60' : 'bg-amber-950/60');
+                  const stickyDateBg = isSplit
+                    ? (isLight ? 'bg-purple-100 text-purple-950' : 'bg-purple-950/95 text-purple-200')
+                    : (isLight ? 'bg-amber-100 text-amber-950' : 'bg-amber-950/95 text-amber-200');
+                  const stickyActionBg = isSplit
+                    ? (isLight ? 'bg-purple-100/90' : 'bg-purple-950/95')
+                    : (isLight ? 'bg-amber-100/90' : 'bg-amber-950/95');
+                  const borderColor = isSplit
+                    ? (isLight ? 'border-purple-200' : 'border-purple-500/40')
+                    : (isLight ? 'border-amber-300/80' : 'border-amber-600/40');
 
                   return (
                     <tr
                       key={tx.id || i}
-                      className={`border-y transition-colors ${
-                        isSplit
-                          ? (isLight
-                              ? 'bg-purple-50/90 border-purple-200 shadow-sm'
-                              : 'bg-purple-950/60 border-purple-500/40')
-                          : (isLight
-                              ? 'bg-amber-100/60 border-amber-300/80 shadow-sm'
-                              : 'bg-amber-950/60 border-amber-600/40')
-                      }`}
+                      className={`border-y transition-colors ${rowBg} ${borderColor} shadow-sm`}
                     >
-                      <td className={`py-2.5 px-4 font-mono font-bold whitespace-nowrap sticky left-0 z-20 ${isLight ? 'bg-purple-100 text-slate-700' : 'bg-slate-900/95 text-slate-300'} border-r border-slate-800 min-w-[130px]`}>
+                      <td className={`py-2.5 px-4 font-mono font-bold whitespace-nowrap sticky left-0 z-20 border-r border-slate-800 min-w-[130px] ${stickyDateBg}`}>
                         {formatDateDDMMYYYY(tx.date)}
                       </td>
-                      <td colSpan={isUSStock ? 7 : 6} className="py-2.5 px-4 text-center">
+                      <td colSpan={isUSStock ? 7 : 6} className={`py-2.5 px-4 text-center ${rowBg}`}>
                         <div className="flex items-center justify-center gap-2.5 text-xs font-mono">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
                             isSplit
@@ -643,6 +961,31 @@ export default function HoldingTransactionLedger({
                               {actionText}
                             </span>
                           )}
+                        </div>
+                      </td>
+                      <td className={`py-2.5 px-4 text-center whitespace-nowrap sticky right-0 z-20 ${stickyActionBg}`}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); startEditTx(tx); }}
+                            className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                              isSplit
+                                ? (isLight ? 'hover:bg-purple-200 text-purple-700 hover:text-purple-950' : 'hover:bg-purple-800/40 text-purple-400 hover:text-purple-200')
+                                : (isLight ? 'hover:bg-amber-200 text-amber-700 hover:text-amber-950' : 'hover:bg-amber-800/40 text-amber-400 hover:text-amber-200')
+                            }`}
+                            title={isSplit ? 'Edit Stock Split' : 'Edit Bonus Issue'}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteTx(tx); }}
+                            disabled={txActionLoading === tx.id}
+                            className={`p-1 rounded-lg transition-colors disabled:opacity-50 cursor-pointer ${
+                              isLight ? 'hover:bg-rose-200 text-rose-600 hover:text-rose-800' : 'hover:bg-rose-950/50 text-rose-400 hover:text-rose-300'
+                            }`}
+                            title={isSplit ? 'Delete Stock Split' : 'Delete Bonus Issue'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -870,6 +1213,11 @@ export default function HoldingTransactionLedger({
                 {Number(deleteConfirmTx.total_amount) > 0 && (
                   <p className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-bold">
                     Amount: {isUSStock ? '$' : '₹'}{Number(deleteConfirmTx.total_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </p>
+                )}
+                {deleteConfirmTx.notes && (
+                  <p className="text-[11px] font-mono text-purple-600 dark:text-purple-300 font-medium py-0.5">
+                    {deleteConfirmTx.notes}
                   </p>
                 )}
                 <p className="text-[11px] text-slate-500 pt-1">

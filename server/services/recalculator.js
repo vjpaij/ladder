@@ -113,8 +113,18 @@ export async function recalculateHoldingState(holdingId) {
             openLots.push({ qty, price: 0, charges: 0, rem: qty });
           }
         } else if (type === 'SPLIT') {
-          // SPLIT transactions in DB have quantity = 0 as preceding BUY records are already post-split
-          // No action needed during replay
+          // If split has explicit added quantity (user-added or reconstructed split), adjust runningQty and lots
+          if (qty > 0 && runningQty > 0) {
+            const preQty = runningQty;
+            runningQty += qty;
+            totalBuyQty += qty;
+            const ratio = runningQty / preQty;
+            for (const lot of openLots) {
+              lot.rem *= ratio;
+              lot.qty *= ratio;
+              lot.price /= ratio;
+            }
+          }
         } else if (type === 'SELL' || type === 'REDEEM' || type === 'REDEMPTION') {
           totalSellQty += qty;
           let remToSell = qty;
@@ -170,16 +180,36 @@ export async function recalculateHoldingState(holdingId) {
       let totalDividends = 0;
       const { data: divRows } = await supabase
         .from('dividends')
-        .select('amount_inr, amount_original, fx_rate')
+        .select('payment_date, ex_date, amount_inr, amount_original, fx_rate')
         .or(`holding_id.eq.${holdingId},symbol.eq.${holding.symbol}`);
+
+      const divTxs = (txs || []).filter(t => t.type === 'DIVIDEND');
+      const matchedTxIds = new Set();
 
       if (divRows && divRows.length > 0) {
         for (const d of divRows) {
+          const dDate = d.payment_date || d.ex_date;
+          const dAmt = Number(d.amount_original || d.amount_inr || 0);
+          const matched = divTxs.find(t =>
+            !matchedTxIds.has(t.id) &&
+            t.date === dDate &&
+            Math.abs((Number(t.total_amount) || Number(t.price)) - dAmt) < 0.05
+          );
+          if (matched) matchedTxIds.add(matched.id);
+
           if (holding.currency === 'USD') {
             totalDividends += Number(d.amount_original || (Number(d.amount_inr) / (Number(d.fx_rate) || 1)) || 0);
           } else {
             totalDividends += Number(d.amount_inr || d.amount_original || 0);
           }
+        }
+      }
+
+      // Add any orphan dividend transactions from transactions table
+      for (const t of divTxs) {
+        if (!matchedTxIds.has(t.id)) {
+          const amt = Number(t.total_amount) || Number(t.price) || 0;
+          totalDividends += amt;
         }
       }
 

@@ -17,6 +17,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **US Equities**: Real-time quotes from NASDAQ/NYSE with dynamic USD to INR conversion. Entries are strictly in USD ($) with real-time INR preview.
    - **Mutual Funds**: Real-time NAV synchronization via AMFI Scheme API.
    - **NPS (National Pension System)**: Automated daily scraper extracting official NAV files directly from Protean CRA archives (`nps_daily_navs` table in Supabase) with historical backfill fallback.
+   - **Automated Historical Price Population**: Whenever a new or past-dated transaction is recorded for any stock, Mutual Fund, or NPS scheme, historical daily closing quotes/NAVs from the transaction date to present are automatically retrieved and populated into `data/historical_prices.json` and in-memory cache, ensuring holding detail charts immediately track real daily trajectories instead of flat lines.
    - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).
 
 3. **Delta-Ledger Architecture for Cash, EPF & Debt**
@@ -70,7 +71,8 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Dedicated `Add Entry` modal matching equity dividend transaction styling with live stock autocomplete and real-time USD/INR preview.
    - Granular market filters (`All`, `Indian Equity`, `US Equity`), instant search with clear control, and multi-column sorting (Stock Name, Market, Payouts, Total Payout, INR Credited, Latest Date).
    - Historical USD/INR Exchange Rate Auto-Sync: Queries verified daily exchange rate archive and dynamically populates the exact historical rate for past dividend distributions.
-   - Universal view synchronization immediately cascades any dividend changes to Dashboard Net Worth, Asset Allocations, and Reports.
+   - **Canonical Dividend Domain Service Architecture**: Managed exclusively by `server/services/dividendService.js` as the single authoritative domain controller. Any dividend addition, amendment, or deletion from either view (Dividends Hub, Asset Dividend Modal, or Holding Detail Transaction Ledger) executes an atomic dual-write/delete across both `dividends` and `transactions` tables, immediately triggers `recalculateHoldingState`, and invalidates in-memory caches, guaranteeing 100% real-time cross-page parity without ad-hoc background sync scripts.
+   - **Canonical Corporate Actions Domain Service**: Managed by `server/services/corporateActionService.js`, orchestrating stock splits and bonus issues. When a stock split is added via the UI, preceding un-sold open buy lots are adjusted in quantity and price with metadata tags (`[Split orig: Q@P]`) to maintain perfect alignment with split-adjusted market price feeds, with complete reversibility when amended or deleted.
 
 10. **In-Memory Reactive Caching & Cloud Egress Protection**
     - High-performance in-memory cache layer (`dbCache` in `server/db.js`) eliminating repetitive multi-megabyte network sweeps across Supabase Cloud.
@@ -101,6 +103,7 @@ Ladder is an institutional-grade personal finance and investment management dash
     - **Mutual Funds Stamp Duty Automation**: Automatically computes 0.015% stamp duty upon BUY order entry while maintaining full user editability.
     - **Real-Time Net Amount Calculation**: Total investment amount dynamically accounts for charges (`(qty * price) + charges` for BUY and `Math.max(0, (qty * price) - charges)` for SELL).
     - **Full Amendment (Inline Edit) Parity**: Inline ledger editing (`editingTxId === tx.id`) supports editing charges, FX rate, and asset-specific transaction types across Indian Equities, US Equities, Mutual Funds, NPS, Bank Accounts, EPF, and Liabilities.
+    - **Dynamic Reversible Stock Split Recalculation & Chart Alignment**: When stock splits are recorded via the UI, all preceding open (un-sold) buy lots are dynamically recalculated with post-split quantities and adjusted prices (`quantity * splitMultiplier`, `price / splitMultiplier`), embedding non-destructive `[Split orig: Q@P]` metadata tags. The SPLIT corporate action record is stored with `quantity: 0` to prevent double-counting. Deleting or amending a split transaction automatically restores all tagged preceding lots to their original pre-split values with 100% roundtrip fidelity. Furthermore, holding detail chart generation dynamically harmonizes ex-date market prices with pre-split/post-split holding intervals, ensuring smooth continuous valuations without artificial 50% drops or cliffs.
 
 14. **Modern Theme-Adaptive Custom DatePicker Architecture**
     - **Replaced Native Browser Pickers**: Eradicated all default, clunky OS/browser `<input type="date">` widgets project-wide, replacing them with a custom, high-density React date picker (`src/components/common/DatePicker.jsx`).

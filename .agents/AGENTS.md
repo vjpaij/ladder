@@ -93,6 +93,11 @@
     - The backend Express server MUST run background self-healing routines (`server/services/selfHealingService.js`) to continuously detect and heal missing historical FX rates, equity quotes, and mutual fund/NPS NAVs across past transactions and holdings.
     - If a market rate or NAV is temporarily unavailable, the system must persist the last-known quote and automatically correct it once upstream data becomes available, ensuring permanent financial ledger integrity without manual script execution.
 
+17. **STRICT PROHIBITION ON AD-HOC STANDALONE SYNC SCRIPTS & MANDATORY ATOMIC CANONICAL DOMAIN ARCHITECTURE**:
+    - **ZERO AD-HOC STANDALONE SYNC SCRIPTS**: Never create external or standalone reconciliation scripts (`*Sync.js`, ad-hoc batch repairers) to stitch together diverging database tables after the fact. Patching symptoms with disconnected background scripts creates technical debt, hidden race conditions, and maintenance sprawl.
+    - **SINGLE CANONICAL DOMAIN SERVICE CONTRACT**: Any business entity represented across multiple database tables (such as dividends in `dividends` and `transactions`, or corporate actions across holdings and lots) MUST be managed strictly and exclusively through a single canonical domain service (e.g. `server/services/dividendService.js` and `server/services/corporateActionService.js`).
+    - **ATOMIC MUTATIONS & UNIVERSAL VIEW PARITY ON WRITE**: All operations (insert, update, delete) MUST execute atomically across all underlying tables in a single write path, immediately trigger `recalculateHoldingState`, trigger past-date EOD rebuilds when applicable, and invalidate in-memory caches. All reading endpoints and views (Dashboard, KPI cards, Detail Modals, Ledgers, and Domain Hubs) MUST query the exact same canonical service to guarantee 100% real-time mathematical parity down to the cent without requiring background synchronization scripts.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:

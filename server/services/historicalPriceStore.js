@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,13 +11,14 @@ const HISTORICAL_PRICES_FILE = path.join(__dirname, '../../data/historical_price
 let historicalPricesCache = {};
 let isLoaded = false;
 let loadPromise = null;
+let isSaving = false;
 
 /**
- * Asynchronously loads the 38 MB historical prices file without blocking the event loop.
+ * Asynchronously loads the historical prices file without blocking the event loop.
  */
-export async function loadHistoricalPricesAsync() {
-  if (isLoaded) return historicalPricesCache;
-  if (loadPromise) return loadPromise;
+export async function loadHistoricalPricesAsync(forceReload = false) {
+  if (isLoaded && !forceReload) return historicalPricesCache;
+  if (loadPromise && !forceReload) return loadPromise;
 
   loadPromise = (async () => {
     try {
@@ -33,6 +35,8 @@ export async function loadHistoricalPricesAsync() {
       console.error('[Historical Pricing] Failed to async-load cache:', e.message);
       historicalPricesCache = {};
       isLoaded = true;
+    } finally {
+      loadPromise = null;
     }
     return historicalPricesCache;
   })();
@@ -41,10 +45,176 @@ export async function loadHistoricalPricesAsync() {
 }
 
 /**
+ * Force reload cache from disk
+ */
+export async function reloadHistoricalPricesCache() {
+  isLoaded = false;
+  return loadHistoricalPricesAsync(true);
+}
+
+/**
  * Get full cache map (or empty object if not yet loaded)
  */
 export function getHistoricalPricesMap() {
   return historicalPricesCache;
+}
+
+/**
+ * Persist historical prices cache to disk atomically
+ */
+export async function saveHistoricalPricesToFile() {
+  if (isSaving) return;
+  isSaving = true;
+  const tempPath = `${HISTORICAL_PRICES_FILE}.${Date.now()}.tmp`;
+  try {
+    await fs.promises.writeFile(tempPath, JSON.stringify(historicalPricesCache, null, 2), 'utf-8');
+    await fs.promises.rename(tempPath, HISTORICAL_PRICES_FILE);
+  } catch (e) {
+    console.error('[Historical Pricing] Failed to save historical prices to disk:', e.message);
+    try {
+      if (fs.existsSync(tempPath)) await fs.promises.unlink(tempPath);
+    } catch (_) {}
+  } finally {
+    isSaving = false;
+  }
+}
+
+/**
+ * Fetch historical prices for a specific symbol from official sources
+ */
+export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stocks', startDate = null) {
+  if (!symbol) return {};
+  const prices = {};
+
+  try {
+    if (category === 'mutual_funds' || /^\d{5,7}$/.test(String(symbol).trim())) {
+      const res = await axios.get(`https://api.mfapi.in/mf/${symbol}`, { timeout: 10000 });
+      if (res.data && Array.isArray(res.data.data)) {
+        res.data.data.forEach(item => {
+          if (!item.date || item.nav == null) return;
+          const parts = item.date.split('-');
+          if (parts.length === 3) {
+            const dStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            const nav = parseFloat(item.nav);
+            if (!isNaN(nav) && nav > 0) prices[dStr] = nav;
+          }
+        });
+      }
+      return prices;
+    }
+
+    if (category === 'nps' || String(symbol).startsWith('SM') || String(symbol).startsWith('POP')) {
+      const res = await axios.get(`https://npsnav.in/api/historical/${symbol}`, { timeout: 10000 });
+      if (res.data && Array.isArray(res.data.data)) {
+        res.data.data.forEach(item => {
+          if (!item.date || item.nav == null) return;
+          const parts = item.date.split('-');
+          if (parts.length === 3) {
+            const dStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            const nav = parseFloat(item.nav);
+            if (!isNaN(nav) && nav > 0) prices[dStr] = nav;
+          }
+        });
+      }
+      return prices;
+    }
+
+    // Equity (Indian & US stocks)
+    const isIndian = category === 'in_stocks' || (!symbol.includes('.') && !['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'].includes(symbol.toUpperCase()));
+    const symbolMap = {
+      'TATAMOTORS': 'TMPV.NS',
+      'TATAMTRDVR': 'TMPV.NS',
+      'SWANENERGY': '503310.BO'
+    };
+
+    let fetchSym = symbolMap[symbol] || symbol;
+    if (isIndian && !fetchSym.endsWith('.NS') && !fetchSym.endsWith('.BO')) {
+      fetchSym = `${fetchSym}.NS`;
+    }
+
+    const startTimestamp = startDate ? Math.floor(new Date(startDate).getTime() / 1000) - (86400 * 5) : Math.floor(Date.now() / 1000) - (86400 * 90);
+    const endTimestamp = Math.floor(Date.now() / 1000) + 86400;
+
+    let quotesFound = false;
+
+    const fetchYahooUrl = async (s) => {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?interval=1d&period1=${startTimestamp}&period2=${endTimestamp}`;
+      const res = await axios.get(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        timeout: 8000
+      });
+      const result = res.data?.chart?.result?.[0];
+      if (result && Array.isArray(result.timestamp)) {
+        const timestamps = result.timestamp;
+        const quote = result.indicators?.quote?.[0] || {};
+        const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
+        timestamps.forEach((t, idx) => {
+          const dStr = new Date(t * 1000).toISOString().split('T')[0];
+          const val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+          if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
+            prices[dStr] = Number(Number(val).toFixed(2));
+          }
+        });
+        if (Object.keys(prices).length > 0) quotesFound = true;
+      }
+    };
+
+    try {
+      await fetchYahooUrl(fetchSym);
+    } catch (err) {
+      // If .NS failed, fallback to .BO for Indian stocks
+      if (isIndian && fetchSym.endsWith('.NS')) {
+        const boSym = fetchSym.replace(/\.NS$/, '.BO');
+        try {
+          await fetchYahooUrl(boSym);
+        } catch (e2) {
+          console.warn(`[Yahoo Fallback] Failed for ${boSym}:`, e2.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Historical Pricing] Fetch error for ${symbol}:`, err.message);
+  }
+
+  return prices;
+}
+
+/**
+ * Ensure historical prices exist for a symbol, automatically fetching and caching if missing.
+ */
+export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_stocks', startDate = null) {
+  if (!symbol) return {};
+  await loadHistoricalPricesAsync();
+
+  const cleanSym = symbol.replace(/\.(NS|BO)$/i, '');
+  const existingKey = [symbol, cleanSym, `${cleanSym}.NS`, `${cleanSym}.BO`].find(k => historicalPricesCache[k] && Object.keys(historicalPricesCache[k]).length > 0);
+  const existing = existingKey ? historicalPricesCache[existingKey] : {};
+
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const neededStart = startDate ? String(startDate).slice(0, 10) : '2024-01-01';
+
+  const hasCoverage = existing && existing[neededStart] !== undefined && (existing[yesterdayStr] !== undefined || Object.keys(existing).length >= 10);
+
+  if (hasCoverage) {
+    return existing;
+  }
+
+  console.log(`[Historical Pricing] Auto-fetching historical prices for ${symbol} (${category}) from ${neededStart}...`);
+  const fresh = await fetchHistoricalPricesForSymbol(symbol, category, neededStart);
+
+  if (Object.keys(fresh).length > 0) {
+    const targetKey = cleanSym;
+    historicalPricesCache[targetKey] = { ...(historicalPricesCache[targetKey] || {}), ...fresh };
+    if (symbol !== targetKey) {
+      historicalPricesCache[symbol] = historicalPricesCache[targetKey];
+    }
+    console.log(`[Historical Pricing] Auto-populated ${Object.keys(fresh).length} historical quotes for ${symbol}.`);
+    // Save to disk atomically
+    await saveHistoricalPricesToFile();
+    return historicalPricesCache[targetKey];
+  }
+
+  return existing;
 }
 
 /**

@@ -4,6 +4,8 @@ import { supabase } from '../supabaseClient.js';
 import { recalculateHoldingState } from '../services/recalculator.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { deleteDividend, updateDividend } from '../services/dividendService.js';
+import { deleteStockSplit, updateStockSplit } from '../services/corporateActionService.js';
 
 const router = express.Router();
 
@@ -13,35 +15,7 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
 
     if (id.startsWith('div-')) {
-      const divId = id.slice(4);
-      const { data: divs } = await supabase.from('dividends').select('*').eq('id', divId);
-      if (!divs || divs.length === 0) {
-        return res.status(404).json({ error: 'Dividend record not found' });
-      }
-      const parentId = divs[0].holding_id;
-      const date = divs[0].payment_date || divs[0].ex_date;
-
-      await supabase.from('dividends').delete().eq('id', divId);
-
-      // Clean up matching legacy transaction if present
-      if (parentId && date) {
-        await supabase.from('transactions').delete()
-          .eq('holding_id', parentId)
-          .eq('type', 'DIVIDEND')
-          .eq('date', date);
-      }
-
-      db.invalidateCache('dividends');
-      db.invalidateCache('transactions');
-      db.invalidateCache('holdings');
-
-      if (parentId) {
-        await recalculateHoldingState(parentId);
-      }
-      if (date) {
-        triggerEodRebuildIfPastDate(date);
-      }
-
+      await deleteDividend(id);
       return res.json({ success: true, message: 'Dividend deleted and holding position synchronized.' });
     }
 
@@ -50,15 +24,20 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
     const parentId = txs[0].holding_id || txs[0].liability_id;
-    await supabase.from('transactions').delete().eq('id', id);
 
-    // If deleting a DIVIDEND transaction, also delete any corresponding dividend in 'dividends'
-    if (txs[0].type === 'DIVIDEND' && parentId && txs[0].date) {
-      await supabase.from('dividends').delete()
-        .eq('holding_id', parentId)
-        .or(`payment_date.eq.${txs[0].date},ex_date.eq.${txs[0].date}`);
-      db.invalidateCache('dividends');
+    // If deleting a SPLIT transaction, delegate to corporate action service
+    if (txs[0].type === 'SPLIT') {
+      await deleteStockSplit(id);
+      return res.json({ success: true, message: 'Stock split deleted and open shares restored.' });
     }
+
+    // If deleting a DIVIDEND transaction, delegate to dividend service
+    if (txs[0].type === 'DIVIDEND') {
+      await deleteDividend(id);
+      return res.json({ success: true, message: 'Dividend deleted and holding position synchronized.' });
+    }
+
+    await supabase.from('transactions').delete().eq('id', id);
 
     db.invalidateCache('transactions');
     db.invalidateCache('holdings');
@@ -81,50 +60,14 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
-    if (id.startsWith('div-')) {
-      const divId = id.slice(4);
-      const { data: divs } = await supabase.from('dividends').select('*').eq('id', divId);
-      if (!divs || divs.length === 0) {
-        return res.status(404).json({ error: 'Dividend record not found' });
-      }
-      const parentId = divs[0].holding_id;
-      const originalDate = divs[0].payment_date || divs[0].ex_date;
-
-      const amt = Number(updates.total_amount) || Number(updates.price) || 0;
-      const date = updates.date || originalDate;
-      const fxRate = Number(updates.fx_rate) || 1.0;
-      const isUs = updates.currency === 'USD' || divs[0].currency === 'USD';
-      const amountInr = isUs ? Number((amt * fxRate).toFixed(2)) : amt;
-
-      await supabase.from('dividends').update({
-        amount_original: amt,
-        amount_inr: amountInr,
-        payment_date: date,
-        fx_rate: isUs ? fxRate : 1.0
-      }).eq('id', divId);
-
-      // Also update matching legacy transaction if present
-      if (parentId && originalDate) {
-        await supabase.from('transactions').update({
-          total_amount: amt,
-          net_amount: amt,
-          date: date,
-          notes: updates.notes || `Dividend ${isUs ? '$' : '₹'}${amt}`
-        })
-        .eq('holding_id', parentId)
-        .eq('type', 'DIVIDEND')
-        .eq('date', originalDate);
-      }
-
-      db.invalidateCache('dividends');
-      db.invalidateCache('transactions');
-      db.invalidateCache('holdings');
-
-      if (parentId) {
-        await recalculateHoldingState(parentId);
-      }
-      triggerEodRebuildIfPastDate(updates.date || originalDate);
-
+    if (id.startsWith('div-') || updates.type === 'DIVIDEND') {
+      await updateDividend(id, {
+        amount: Number(updates.total_amount) || Number(updates.price) || 0,
+        date: updates.date,
+        currency: updates.currency,
+        fx_rate: updates.fx_rate,
+        notes: updates.notes
+      });
       return res.json({ success: true, message: 'Dividend updated and holding position synchronized.' });
     }
 
@@ -133,19 +76,56 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
     const parentId = txs[0].holding_id || txs[0].liability_id;
+
+    // Handle SPLIT transaction updates via corporate action service
+    if (txs[0].type === 'SPLIT' || updates.type === 'SPLIT') {
+      await updateStockSplit(id, updates);
+      return res.json({ success: true, message: 'Stock split updated and holding position synchronized.' });
+    }
+
+    if (txs[0].type === 'BONUS' || updates.type === 'BONUS') {
+      updates.price = 0;
+      updates.total_amount = 0;
+      if (!updates.notes || updates.notes.startsWith('Bonus issue')) {
+        updates.notes = `Bonus issue: +${updates.quantity} shares credited`;
+      }
+    }
+
     await supabase.from('transactions').update(updates).eq('id', id);
 
     // If updating a DIVIDEND transaction, also sync with 'dividends' table
-    if (txs[0].type === 'DIVIDEND' && parentId && txs[0].date) {
+    if (txs[0].type === 'DIVIDEND' && (parentId || txs[0].symbol)) {
       const amt = Number(updates.total_amount) || Number(updates.price) || Number(txs[0].total_amount);
       const newDate = updates.date || txs[0].date;
-      await supabase.from('dividends').update({
+      const isUs = txs[0].currency === 'USD' || updates.currency === 'USD';
+      const effFx = Number(updates.fx_rate) || Number(txs[0].fx_rate) || 1.0;
+      const amtInr = isUs ? Number((amt * effFx).toFixed(2)) : amt;
+
+      let divUpdateQ = supabase.from('dividends').update({
         amount_original: amt,
-        amount_inr: txs[0].currency === 'USD' ? Number((amt * (Number(updates.fx_rate) || 1)).toFixed(2)) : amt,
-        payment_date: newDate
-      })
-      .eq('holding_id', parentId)
-      .or(`payment_date.eq.${txs[0].date},ex_date.eq.${txs[0].date}`);
+        amount_inr: amtInr,
+        payment_date: newDate,
+        fx_rate: isUs ? effFx : 1.0
+      });
+      if (parentId) divUpdateQ = divUpdateQ.eq('holding_id', parentId);
+      else if (txs[0].symbol) divUpdateQ = divUpdateQ.eq('symbol', txs[0].symbol);
+      divUpdateQ = divUpdateQ.or(`payment_date.eq.${txs[0].date},ex_date.eq.${txs[0].date}`);
+
+      const { data: updatedDivRows } = await divUpdateQ.select();
+      if (!updatedDivRows || updatedDivRows.length === 0) {
+        // Did not exist in dividends table, insert now
+        await supabase.from('dividends').insert({
+          holding_id: parentId,
+          symbol: txs[0].symbol,
+          name: txs[0].name,
+          amount_original: amt,
+          amount_inr: amtInr,
+          currency: isUs ? 'USD' : 'INR',
+          fx_rate: isUs ? effFx : 1.0,
+          payment_date: newDate,
+          ex_date: newDate
+        });
+      }
       db.invalidateCache('dividends');
     }
 
