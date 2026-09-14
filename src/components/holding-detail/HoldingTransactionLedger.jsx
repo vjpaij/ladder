@@ -84,7 +84,7 @@ export default function HoldingTransactionLedger({
                 const num = Number(holding?.current_price || 0);
                 if (num > 0 && (!newTxPrice || !String(newTxPrice).includes('.'))) {
                   const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
-                  setNewTxPrice(isFund ? num.toFixed(4) : num.toFixed(2));
+                  setNewTxPrice(isFund ? num.toFixed(9) : num.toFixed(2));
                 }
                 if (!newTxCharges || newTxCharges === '0' || newTxCharges === '') {
                   setNewTxCharges('0.00');
@@ -272,14 +272,14 @@ export default function HoldingTransactionLedger({
                         <div className="flex items-center justify-between">
                           <span className="opacity-70 font-semibold">Current Position:</span>
                           <span className="font-mono font-bold">
-                            {Number(holding.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{Number(holding.avg_buy_price || 0).toFixed(2)}
+                            {Number(holding.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{Number(holding.avg_buy_price || 0).toFixed(2)}
                           </span>
                         </div>
                         {newTxSplitOld && newTxSplitNew && Number(newTxSplitOld) > 0 && Number(newTxSplitNew) > 0 && (
                           <div className="flex items-center justify-between pt-1.5 border-t border-indigo-500/20">
                             <span className="text-indigo-400 font-bold">Projected Post-Split:</span>
                             <span className="font-mono font-black text-indigo-300">
-                              {(Number(holding.quantity || 0) * (Number(newTxSplitNew) / Number(newTxSplitOld))).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{(Number(holding.avg_buy_price || 0) / (Number(newTxSplitNew) / Number(newTxSplitOld))).toFixed(2)}
+                              {(Number(holding.quantity || 0) * (Number(newTxSplitNew) / Number(newTxSplitOld))).toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{(Number(holding.avg_buy_price || 0) / (Number(newTxSplitNew) / Number(newTxSplitOld))).toFixed(2)}
                             </span>
                           </div>
                         )}
@@ -292,7 +292,7 @@ export default function HoldingTransactionLedger({
                         <input
                           type="number"
                           step="any"
-                          min="0.0001"
+                          min="0.000000001"
                           value={newTxQty}
                           onChange={(e) => setNewTxQty(e.target.value)}
                           placeholder="Additional shares"
@@ -325,14 +325,14 @@ export default function HoldingTransactionLedger({
                         <div className="flex items-center justify-between">
                           <span className="opacity-70 font-semibold">Current Position:</span>
                           <span className="font-mono font-bold">
-                            {Number(holding.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{Number(holding.avg_buy_price || 0).toFixed(2)}
+                            {Number(holding.quantity || 0).toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{Number(holding.avg_buy_price || 0).toFixed(2)}
                           </span>
                         </div>
                         {newTxQty && Number(newTxQty) > 0 && (
                           <div className="flex items-center justify-between pt-1.5 border-t border-cyan-500/20">
                             <span className="text-cyan-400 font-bold">Projected Post-Bonus:</span>
                             <span className="font-mono font-black text-cyan-300">
-                              {(Number(holding.quantity || 0) + Number(newTxQty)).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{(((Number(holding.quantity || 0) * Number(holding.avg_buy_price || 0)) + (Number(newTxCharges) || 0)) / (Number(holding.quantity || 0) + Number(newTxQty))).toFixed(2)}
+                              {(Number(holding.quantity || 0) + Number(newTxQty)).toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {holding.currency === 'USD' ? '$' : '₹'}{(((Number(holding.quantity || 0) * Number(holding.avg_buy_price || 0)) + (Number(newTxCharges) || 0)) / (Number(holding.quantity || 0) + Number(newTxQty))).toFixed(2)}
                             </span>
                           </div>
                         )}
@@ -377,7 +377,7 @@ export default function HoldingTransactionLedger({
                             const val = parseFloat(e.target.value);
                             if (!isNaN(val)) {
                               const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
-                              setNewTxPrice(isFund ? val.toFixed(4) : val.toFixed(2));
+                              setNewTxPrice(isFund ? val.toFixed(9) : val.toFixed(2));
                             }
                           }}
                           placeholder="0.00"
@@ -719,11 +719,11 @@ export default function HoldingTransactionLedger({
 
                 let qtyDisplay = '—';
                 if (isSplit && Number(tx.quantity) > 0) {
-                  qtyDisplay = `+${Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })}`;
+                  qtyDisplay = `+${Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 })}`;
                 } else if (isBonus && Number(tx.quantity) > 0) {
-                  qtyDisplay = `+${Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })}`;
+                  qtyDisplay = `+${Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 })}`;
                 } else if (Number(tx.quantity) > 0) {
-                  qtyDisplay = Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 });
+                  qtyDisplay = Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 });
                 }
 
                 let priceDisplay = '—';
@@ -1048,7 +1048,7 @@ export default function HoldingTransactionLedger({
                             const val = parseFloat(e.target.value);
                             if (!isNaN(val)) {
                               const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
-                              setEditForm(prev => ({ ...prev, price: isFund ? val.toFixed(4) : val.toFixed(2) }));
+                              setEditForm(prev => ({ ...prev, price: isFund ? val.toFixed(9) : val.toFixed(2) }));
                             }
                           }}
                           className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"

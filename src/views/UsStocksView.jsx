@@ -529,7 +529,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                       {statusFilter === 'closed' ? (
                         <>
                           <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold whitespace-nowrap">
-                            {soldQty.toFixed(4)}
+                            {Number(soldQty).toLocaleString('en-US', {maximumFractionDigits: 9})}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-slate-300 whitespace-nowrap">
                             {isUSD ? `$${avgBuyUSD.toFixed(2)}` : formatMoney(avgBuyUSD * txRate, true)}
@@ -556,7 +556,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                         <>
                           <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                             {qty > 0 ? (
-                              <span className="text-slate-200 font-bold">{qty.toFixed(4)}</span>
+                              <span className="text-slate-200 font-bold">{Number(qty).toLocaleString('en-US', {maximumFractionDigits: 9})}</span>
                             ) : (
                               <span className="text-slate-600 font-medium">0</span>
                             )}

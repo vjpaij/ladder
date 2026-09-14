@@ -76,11 +76,29 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
 
   // Keep displayCurrency and newTxFxRate in sync if global currency/fxRate changes
   useEffect(() => {
-    if (isUSStock) {
+    if (isUSStock && !isAddingTx) {
       setDisplayCurrency(currency);
       setNewTxFxRate(prev => prev || String(detail?.currentFxRate || fxRate || ''));
     }
-  }, [currency, isUSStock, detail?.currentFxRate, fxRate]);
+  }, [currency, isUSStock, detail?.currentFxRate, fxRate, isAddingTx]);
+
+  // Auto-fetch historical FX rate when transaction date changes
+  useEffect(() => {
+    if (isUSStock && newTxDate && isAddingTx) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (newTxDate >= todayStr) {
+        setNewTxFxRate(String(detail?.currentFxRate || fxRate || ''));
+      } else {
+        axios.get(`/api/fx-rate?date=${newTxDate}`)
+          .then(res => {
+            if (res.data?.rate) {
+              setNewTxFxRate(String(res.data.rate));
+            }
+          })
+          .catch(err => console.warn('Failed to fetch historical FX rate:', err));
+      }
+    }
+  }, [newTxDate, isUSStock, isAddingTx, detail?.currentFxRate, fxRate]);
 
   const handleSaveNewTransaction = async (e) => {
     e.preventDefault();
@@ -363,6 +381,19 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const activeTimeline = isDisplayUSD
     ? (detail?.timelineUSD || detail?.timeline || [])
     : (detail?.timelineINR || detail?.timeline || []);
+
+  // Auto-update price/NAV based on date selection (Only for Mutual Funds & NPS)
+  useEffect(() => {
+    if (isAddingTx && newTxDate && activeTimeline && activeTimeline.length > 0) {
+      const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+      if (isFund) {
+        const point = activeTimeline.find(t => t.label === newTxDate);
+        if (point && point.price) {
+          setNewTxPrice(Number(point.price).toFixed(4));
+        }
+      }
+    }
+  }, [newTxDate, isAddingTx, activeTimeline, holding?.category_id]);
 
   const fmt = isDisplayUSD ? fmtUSD : fmtINR;
   const m = activeMetrics;

@@ -2,7 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import YF from 'yahoo-finance2';
 
+const yahooFinance = new YF();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -132,27 +134,31 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
       fetchSym = `${fetchSym}.NS`;
     }
 
-    const startTimestamp = startDate ? Math.floor(new Date(startDate).getTime() / 1000) - (86400 * 5) : Math.floor(Date.now() / 1000) - (86400 * 90);
-    const endTimestamp = Math.floor(Date.now() / 1000) + 86400;
+    const startMs = startDate ? new Date(startDate).getTime() - (86400000 * 5) : Date.now() - (86400000 * 90);
+    const endMs = Date.now() + 86400000;
+    const p1 = new Date(startMs).toISOString().split('T')[0];
+    const p2 = new Date(endMs).toISOString().split('T')[0];
 
     let quotesFound = false;
+    let earliestQuoteTime = Infinity;
 
     const fetchYahooUrl = async (s) => {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?interval=1d&period1=${startTimestamp}&period2=${endTimestamp}`;
-      const res = await axios.get(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-        timeout: 8000
+      const result = await yahooFinance.chart(s, {
+        period1: p1,
+        period2: p2,
+        interval: '1d'
       });
-      const result = res.data?.chart?.result?.[0];
-      if (result && Array.isArray(result.timestamp)) {
-        const timestamps = result.timestamp;
-        const quote = result.indicators?.quote?.[0] || {};
-        const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
-        timestamps.forEach((t, idx) => {
-          const dStr = new Date(t * 1000).toISOString().split('T')[0];
-          const val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+      
+      if (result && result.quotes && result.quotes.length > 0) {
+        result.quotes.forEach(quote => {
+          if (!quote.date) return;
+          const offsetDate = new Date(quote.date.getTime() - (quote.date.getTimezoneOffset() * 60000));
+          const dStr = offsetDate.toISOString().split('T')[0];
+          const val = quote.adjclose !== null && quote.adjclose !== undefined ? quote.adjclose : quote.close;
           if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
-            prices[dStr] = Number(Number(val).toFixed(2));
+            if (!prices[dStr]) prices[dStr] = Number(Number(val).toFixed(2));
+            const qTime = quote.date.getTime();
+            if (qTime < earliestQuoteTime) earliestQuoteTime = qTime;
           }
         });
         if (Object.keys(prices).length > 0) quotesFound = true;
@@ -161,6 +167,18 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
 
     try {
       await fetchYahooUrl(fetchSym);
+
+      // If no quotes found, OR if the earliest quote is significantly later than requested start date (e.g. recently listed on NSE but traded on BSE before)
+      const isIncompleteCoverage = quotesFound && (earliestQuoteTime - startMs > 86400000 * 15);
+      
+      if ((!quotesFound || isIncompleteCoverage) && fetchSym.endsWith('.NS')) {
+        const boSym = fetchSym.replace(/\.NS$/, '.BO');
+        try {
+          await fetchYahooUrl(boSym);
+        } catch (e2) {
+          console.warn(`[Yahoo Fallback] Failed for ${boSym}:`, e2.message);
+        }
+      }
     } catch (err) {
       // If .NS failed, fallback to .BO for Indian stocks
       if (isIndian && fetchSym.endsWith('.NS')) {

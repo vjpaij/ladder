@@ -313,7 +313,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
     if (selectedPortfolio === 'mutual_funds' && formData.type === 'BUY' && formData.amount) {
       const amt = Number(formData.amount);
       if (amt > 0) {
-        updateField('charges', (amt * 0.00015).toFixed(4));
+        updateField('charges', (amt * 0.00015).toFixed(9));
       }
     }
   }, [formData.amount, formData.type, selectedPortfolio]);
@@ -607,7 +607,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 <span className="text-[10px] text-slate-400 truncate">{formData.name}</span>
                 {currentHolding && (
                   <span className="text-[10px] text-slate-500 font-mono ml-auto">
-                    Active: <strong className="text-slate-200">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 4 })}</strong> units
+                    Active: <strong className="text-slate-200">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })}</strong> units
                   </span>
                 )}
                 <button
@@ -667,7 +667,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 <span className="text-[10px] text-slate-400 truncate">{formData.name}</span>
                 {currentHolding && (
                   <span className="text-[10px] text-slate-500 font-mono ml-auto">
-                    Active: <strong className="text-cyan-300">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 4 })}</strong> shares
+                    Active: <strong className="text-cyan-300">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })}</strong> shares
                   </span>
                 )}
               </motion.div>
@@ -686,7 +686,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             <span>
               {currentHoldingQty === 0
                 ? `Cannot sell: You currently hold 0 active shares of ${formData.symbol} in your portfolio.`
-                : `Cannot sell ${formData.quantity} shares: only ${currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares are available in your portfolio.`}
+                : `Cannot sell ${formData.quantity} shares: only ${currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares are available in your portfolio.`}
             </span>
           </motion.div>
         )}
@@ -794,13 +794,13 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               <div className="glass-subcard p-3 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-semibold">Current Active Holding:</span>
-                  <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {currSymbol}{currentHoldingAvgPrice.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{currentHoldingAvgPrice.toFixed(2)}</span>
                 </div>
                 {formData.splitOldQty && formData.splitNewQty && Number(formData.splitOldQty) > 0 && (
                   <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
                     <span className="text-cyan-400 font-bold">Projected Post-Split Position:</span>
                     <span className="font-mono font-black text-cyan-300">
-                      {(currentHoldingQty * (Number(formData.splitNewQty) / Number(formData.splitOldQty))).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {currSymbol}{(currentHoldingAvgPrice / (Number(formData.splitNewQty) / Number(formData.splitOldQty))).toFixed(2)}
+                      {(currentHoldingQty * (Number(formData.splitNewQty) / Number(formData.splitOldQty))).toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{(currentHoldingAvgPrice / (Number(formData.splitNewQty) / Number(formData.splitOldQty))).toFixed(2)}
                     </span>
                   </div>
                 )}
@@ -814,13 +814,13 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           <div className="glass-subcard p-3 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-semibold">Current Active Holding:</span>
-              <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {currSymbol}{currentHoldingAvgPrice.toFixed(2)}</span>
+              <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{currentHoldingAvgPrice.toFixed(2)}</span>
             </div>
             {formData.quantity && Number(formData.quantity) > 0 && (
               <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
                 <span className="text-cyan-400 font-bold">Projected Post-Bonus Position:</span>
                 <span className="font-mono font-black text-cyan-300">
-                  {(currentHoldingQty + Number(formData.quantity)).toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares @ {currSymbol}{((currentHoldingQty * currentHoldingAvgPrice) / (currentHoldingQty + Number(formData.quantity))).toFixed(2)}
+                  {(currentHoldingQty + Number(formData.quantity)).toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{((currentHoldingQty * currentHoldingAvgPrice) / (currentHoldingQty + Number(formData.quantity))).toFixed(2)}
                 </span>
               </div>
             )}
@@ -859,7 +859,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                   <input
                     type="number"
                     step="any"
-                    min="0.0001"
+                    min="0.000000001"
                     max={currentType === 'SELL' ? currentHoldingQty : undefined}
                     required
                     value={formData.quantity || ''}
@@ -869,7 +869,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                   />
                   {currentType === 'SELL' && formData.symbol && (
                     <p className={`text-[10px] font-bold mt-1 ${isOverSelling ? 'text-rose-400' : 'text-blue-400'}`}>
-                      Available to sell: {currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 4 })} {isMF ? 'Units' : 'Shares'}
+                      Available to sell: {currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} {isMF ? 'Units' : 'Shares'}
                     </p>
                   )}
                 </div>
@@ -891,7 +891,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     onBlur={(e) => {
                       const val = parseFloat(e.target.value);
                       if (!isNaN(val)) {
-                        updateField('price', (isMF || isNPS) ? val.toFixed(4) : val.toFixed(2));
+                        updateField('price', (isMF || isNPS) ? val.toFixed(9) : val.toFixed(2));
                       }
                     }}
                     placeholder={currentType === 'BONUS' ? "0" : "1,250.50"}
@@ -991,7 +991,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-800/50">
                 <span className="text-[10px] font-medium text-slate-500">Includes MF 0.015% Charges</span>
                 <span className="text-[10px] font-bold text-orange-400/80">
-                  - ₹{(Number(formData.amount) * 0.00015).toFixed(4)}
+                  - ₹{(Number(formData.amount) * 0.00015).toFixed(9)}
                 </span>
               </div>
             )}

@@ -216,7 +216,7 @@ export async function recalculateHoldingState(holdingId) {
       totalRealizedPnl += totalDividends;
 
       await db.update('holdings', holdingId, {
-        quantity: parseFloat(runningQty.toFixed(4)),
+        quantity: parseFloat(runningQty.toFixed(9)),
         buy_qty: parseFloat(totalBuyQty.toFixed(4)),
         sell_qty: parseFloat(totalSellQty.toFixed(4)),
         avg_buy_price: parseFloat(avgBuyPrice.toFixed(4)),

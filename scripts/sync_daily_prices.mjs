@@ -25,7 +25,9 @@ async function fetchYahooFinanceHistorical(symbol, startDate = '2015-01-01') {
       const quote = result.indicators.quote[0];
       const meta = result.meta || {};
       timestamps.forEach((t, i) => {
-        const dStr = new Date(t * 1000).toISOString().split('T')[0];
+        const tDate = new Date(t * 1000);
+        const offsetDate = new Date(tDate.getTime() - (tDate.getTimezoneOffset() * 60000));
+        const dStr = offsetDate.toISOString().split('T')[0];
         let val = adjclose[i] !== null && adjclose[i] !== undefined ? adjclose[i] : quote.close[i];
         if ((val === null || val === undefined || isNaN(val) || val <= 0) && i === timestamps.length - 2 && (meta.chartPreviousClose || meta.previousClose)) {
           val = meta.chartPreviousClose || meta.previousClose;
@@ -44,7 +46,8 @@ async function fetchYahooFinanceHistorical(symbol, startDate = '2015-01-01') {
       if (results && results.quotes) {
         results.quotes.forEach(q => {
           if (q.date && (q.adjclose !== undefined || q.close !== undefined)) {
-            const dStr = q.date.toISOString().split('T')[0];
+            const offsetDate = new Date(q.date.getTime() - (q.date.getTimezoneOffset() * 60000));
+            const dStr = offsetDate.toISOString().split('T')[0];
             const val = q.adjclose !== undefined && q.adjclose !== null ? q.adjclose : q.close;
             if (val > 0) prices[dStr] = Number(Number(val).toFixed(2));
           }
@@ -181,21 +184,30 @@ async function syncAllPrices() {
     if (!fetchSym.endsWith('.NS') && !fetchSym.endsWith('.BO')) {
       fetchSym = `${fetchSym}.NS`;
     }
-    const fresh = await fetchYahooFinanceHistorical(fetchSym);
+    let fresh = await fetchYahooFinanceHistorical(fetchSym);
+    
+    // Check if we need .BO fallback due to incomplete coverage (e.g. recent NSE listing)
+    let isIncomplete = false;
+    const freshDates = Object.keys(fresh).sort();
+    if (freshDates.length > 0) {
+      const earliestFresh = new Date(freshDates[0]).getTime();
+      const expectedStart = Date.now() - (86400000 * 85); // roughly 3mo ago
+      if (earliestFresh > expectedStart) isIncomplete = true;
+    }
+
     if (Object.keys(fresh).length > 0) {
       historicalData[h.symbol] = { ...(historicalData[h.symbol] || {}), ...fresh };
       const latestDate = Object.keys(historicalData[h.symbol]).sort().pop();
       console.log(`[IN ${i+1}/${inHoldings.length}] ${h.symbol}: Latest ${latestDate} = ₹${historicalData[h.symbol][latestDate]}`);
-    } else {
-      // Try .BO fallback
-      if (fetchSym.endsWith('.NS')) {
-        const boSym = fetchSym.replace('.NS', '.BO');
-        const boFresh = await fetchYahooFinanceHistorical(boSym);
-        if (Object.keys(boFresh).length > 0) {
-          historicalData[h.symbol] = { ...(historicalData[h.symbol] || {}), ...boFresh };
-          const latestDate = Object.keys(historicalData[h.symbol]).sort().pop();
-          console.log(`[IN ${i+1}/${inHoldings.length} - BO fallback] ${h.symbol}: Latest ${latestDate} = ₹${historicalData[h.symbol][latestDate]}`);
-        }
+    }
+    
+    if ((Object.keys(fresh).length === 0 || isIncomplete) && fetchSym.endsWith('.NS')) {
+      const boSym = fetchSym.replace('.NS', '.BO');
+      const boFresh = await fetchYahooFinanceHistorical(boSym);
+      if (Object.keys(boFresh).length > 0) {
+        historicalData[h.symbol] = { ...(historicalData[h.symbol] || {}), ...boFresh };
+        const latestDate = Object.keys(historicalData[h.symbol]).sort().pop();
+        console.log(`[IN ${i+1}/${inHoldings.length} - BO fallback merged] ${h.symbol}: Latest ${latestDate} = ₹${historicalData[h.symbol][latestDate]}`);
       }
     }
     await delay(250);

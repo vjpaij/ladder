@@ -70,7 +70,7 @@ export default function HoldingDetailHeader({
                   {holding.category_id === 'mutual_funds' || holding.category_id === 'nps' ? 'Units' : 'Shares'}:
                 </span>
                 <span className="text-sm font-black text-slate-900 dark:text-emerald-300">
-                  {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 4 })}
+                  {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 })}
                 </span>
               </span>
             )}
@@ -133,7 +133,7 @@ export default function HoldingDetailHeader({
                 {isDisplayUSD 
                   ? fmtUSD(quotePriceVal) 
                   : isFundOrNps 
-                  ? `₹${Number(quotePriceVal).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` 
+                  ? `₹${Number(quotePriceVal).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 9 })}` 
                   : fmtINR(quotePriceVal * (isUSStock && !isDisplayUSD ? fxRate : 1))}
               </span>
               {dayChangeVal !== undefined && (
@@ -142,7 +142,7 @@ export default function HoldingDetailHeader({
                     ? (isLight ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30')
                     : (isLight ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30')
                 }`}>
-                  {dayChangeVal >= 0 ? '▲ +' : '▼ '}{isDisplayUSD ? `$${Math.abs(dayChangeVal).toFixed(2)}` : isFundOrNps ? `₹${Math.abs(dayChangeVal).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : `₹${Math.abs(dayChangeVal).toFixed(2)}`} ({dayChangeVal >= 0 ? '+' : ''}{dayChangePctVal}%)
+                  {dayChangeVal >= 0 ? '▲ +' : '▼ '}{isDisplayUSD ? `$${Math.abs(dayChangeVal).toFixed(2)}` : isFundOrNps ? `₹${Math.abs(dayChangeVal).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 9 })}` : `₹${Math.abs(dayChangeVal).toFixed(2)}`} ({dayChangeVal >= 0 ? '+' : ''}{dayChangePctVal}%)
                 </span>
               )}
             </div>
