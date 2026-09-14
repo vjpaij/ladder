@@ -15,7 +15,6 @@ export const CORE_TABLES = [
   'mutual_fund_holdings',
   'loan_amortization',
   'asset_metadata',
-  'users',
   'sips'
 ];
 
