@@ -21,7 +21,7 @@ if (fs.existsSync(FX_FILE)) {
   }
 }
 
-const PERSISTENT_FX_FILE = path.join(__dirname, '../data/fx_rates_persistent.json');
+const PERSISTENT_FX_FILE = path.join(process.cwd(), 'data', 'fx_rates_persistent.json');
 let persistedFxRate = null;
 if (fs.existsSync(PERSISTENT_FX_FILE)) {
   try {
