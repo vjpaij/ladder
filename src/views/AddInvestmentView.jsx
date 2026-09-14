@@ -9,6 +9,7 @@ import {
   Banknote, SplitSquareHorizontal, Gift, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import DatePicker from '../components/common/DatePicker';
 
 // Portfolio type configurations
 const PORTFOLIOS = [
@@ -713,17 +714,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             </div>
             <div>
               <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Payment Date</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                <input
-                  type="date"
-                  required
-                  value={formData.date || ''}
-                  onChange={(e) => updateField('date', e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
-                />
-              </div>
+              <DatePicker
+                required
+                value={formData.date || ''}
+                onChange={(e) => updateField('date', e.target.value)}
+                inputClassName="py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:border-blue-500"
+              />
             </div>
+
             {isUS && (
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">USD/INR Rate</label>
@@ -781,17 +779,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               </div>
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Split Effective Date</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                  <input
-                    type="date"
-                    required
-                    value={formData.date || ''}
-                    onChange={(e) => updateField('date', e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
-                  />
-                </div>
+                <DatePicker
+                  required
+                  value={formData.date || ''}
+                  onChange={(e) => updateField('date', e.target.value)}
+                  inputClassName="py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:border-blue-500"
+                />
               </div>
+
             </div>
 
             {/* Split live projection summary card */}
@@ -893,6 +888,12 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     required={currentType !== 'BONUS'}
                     value={currentType === 'BONUS' ? 0 : formData.price || ''}
                     onChange={(e) => updateField('price', e.target.value)}
+                    onBlur={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) {
+                        updateField('price', (isMF || isNPS) ? val.toFixed(4) : val.toFixed(2));
+                      }
+                    }}
                     placeholder={currentType === 'BONUS' ? "0" : "1,250.50"}
                     className={`w-full pl-7 pr-8 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600 ${currentType === 'BONUS' ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />
@@ -914,17 +915,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Transaction Date</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                  <input
-                    type="date"
-                    required
-                    value={formData.date || ''}
-                    onChange={(e) => updateField('date', e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
-                  />
-                </div>
+                <DatePicker
+                  required
+                  value={formData.date || ''}
+                  onChange={(e) => updateField('date', e.target.value)}
+                  inputClassName="py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:border-blue-500"
+                />
               </div>
+
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">
                   Charges ({currSymbol})
@@ -936,6 +934,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     step="any"
                     value={formData.charges || ''}
                     onChange={(e) => updateField('charges', e.target.value)}
+                    onBlur={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) {
+                        updateField('charges', val.toFixed(2));
+                      } else if (e.target.value === '') {
+                        updateField('charges', '0.00');
+                      }
+                    }}
                     placeholder="0.00"
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 placeholder-slate-600"
                   />
@@ -1051,14 +1057,15 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                 </div>
                 {formData.sipIndefinite === false && (
                   <div>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={formData.sipEndDate || ''}
                       onChange={(e) => updateField('sipEndDate', e.target.value)}
-                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white focus:outline-none [color-scheme:dark]"
+                      placeholder="End Date"
+                      inputClassName="py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white"
                     />
                   </div>
                 )}
+
               </motion.div>
             )}
           </div>
@@ -1174,17 +1181,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           </div>
           <div>
             <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Transaction Date</label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-              <input
-                type="date"
-                required
-                value={formData.date || ''}
-                onChange={(e) => updateField('date', e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
-              />
-            </div>
+            <DatePicker
+              required
+              value={formData.date || ''}
+              onChange={(e) => updateField('date', e.target.value)}
+              inputClassName="py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:border-blue-500"
+            />
           </div>
+
         </div>
 
         {/* Description / Notes */}
@@ -1314,17 +1318,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           </div>
           <div>
             <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Payment Date</label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-              <input
-                type="date"
-                required
-                value={formData.date || ''}
-                onChange={(e) => updateField('date', e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
-              />
-            </div>
+            <DatePicker
+              required
+              value={formData.date || ''}
+              onChange={(e) => updateField('date', e.target.value)}
+              inputClassName="py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:border-blue-500"
+            />
           </div>
+
         </div>
 
         {/* Notes */}
@@ -1454,17 +1455,14 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           </div>
           <div>
             <label className="block text-[10px] font-extrabold text-slate-500 mb-1.5 uppercase tracking-wider">Date</label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-              <input
-                type="date"
-                required
-                value={formData.date || ''}
-                onChange={(e) => updateField('date', e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 [color-scheme:dark]"
-              />
-            </div>
+            <DatePicker
+              required
+              value={formData.date || ''}
+              onChange={(e) => updateField('date', e.target.value)}
+              inputClassName="py-2.5 bg-slate-900/60 border border-slate-700 rounded-xl text-xs text-white font-mono focus:border-blue-500"
+            />
           </div>
+
         </div>
 
         {/* Notes */}

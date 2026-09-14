@@ -344,29 +344,29 @@ export default function FxRateModal({ isOpen, onClose }) {
 
               <div className="overflow-x-auto rounded-2xl reports-table-container max-h-[260px] overflow-y-auto custom-scrollbar">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="reports-table-head font-bold uppercase text-[10px] select-none sticky top-0 z-10">
+                  <thead className="sticky top-0 z-30 reports-table-sticky-head shadow-sm">
+                    <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
                       <th 
                         onClick={() => handleSortClick('date')} 
-                        className="py-2.5 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-2.5 pl-4 cursor-pointer hover:text-emerald-500 transition-colors sticky left-0 top-0 z-40 reports-table-sticky-head border-r border-inherit min-w-[120px]"
                       >
                         Date {renderSortIcon('date')}
                       </th>
                       <th 
                         onClick={() => handleSortClick('rate')} 
-                        className="py-2.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-2.5 text-right cursor-pointer hover:text-emerald-500 transition-colors reports-table-sticky-head"
                       >
                         Exchange Rate (USD/INR) {renderSortIcon('rate')}
                       </th>
                       <th 
                         onClick={() => handleSortClick('change')} 
-                        className="py-2.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-2.5 text-right cursor-pointer hover:text-emerald-500 transition-colors reports-table-sticky-head"
                       >
                         Daily Change {renderSortIcon('change')}
                       </th>
                       <th 
                         onClick={() => handleSortClick('changePct')} 
-                        className="py-2.5 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-2.5 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors reports-table-sticky-head"
                       >
                         % Movement {renderSortIcon('changePct')}
                       </th>
@@ -378,7 +378,7 @@ export default function FxRateModal({ isOpen, onClose }) {
                         const isPositive = (row.change || 0) >= 0;
                         return (
                           <tr key={`${row.date}-${idx}`} className="reports-table-row transition-colors">
-                            <td className="py-2.5 pl-4 font-bold opacity-90">
+                            <td className="py-2.5 pl-4 font-bold opacity-90 sticky left-0 z-20 reports-table-sticky-cell border-r border-inherit min-w-[120px]">
                               {formatDateDDMMYYYY(row.date)}
                             </td>
                             <td className="py-2.5 text-right font-black text-emerald-600 dark:text-emerald-400">

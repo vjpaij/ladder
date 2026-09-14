@@ -4,6 +4,7 @@ import axios from 'axios';
 import { X, Calendar, Search, Loader2, Coins, Check, ArrowRight } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
+import DatePicker from './common/DatePicker';
 
 export default function AddDividendModal({ isOpen, onClose, onSuccess, holdings = [] }) {
   const { fxRate, formatMoney } = useThemeAuth();
@@ -315,17 +316,14 @@ export default function AddDividendModal({ isOpen, onClose, onSuccess, holdings 
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Payment Date
               </label>
-              <div className="relative">
-                <Calendar className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="date"
-                  required
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-blue-500 [color-scheme:dark]"
-                />
-              </div>
+              <DatePicker
+                required
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                inputClassName="py-2 pl-3 pr-3 bg-slate-900/80 border border-slate-700 rounded-xl text-xs text-white font-mono focus:border-blue-500"
+              />
             </div>
+
           </div>
 
           {/* USD/INR FX Rate (US Stocks Only) */}

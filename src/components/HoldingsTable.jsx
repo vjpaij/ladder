@@ -143,19 +143,19 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
       </div>
 
       {/* High-Density Production Data Table */}
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] custom-scrollbar rounded-2xl border border-slate-800/80">
         <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-800/80 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-900/40">
-              <th onClick={() => handleSort('name')} className="py-3.5 px-4 rounded-l-xl cursor-pointer hover:text-white">Instrument / Symbol {getSortIcon('name')}</th>
-              <th className="py-3.5 px-4">Exchange / Type</th>
-              <th onClick={() => handleSort('quantity')} className="py-3.5 px-4 text-right cursor-pointer hover:text-white">Quantity {getSortIcon('quantity')}</th>
-              <th className="py-3.5 px-4 text-right">Avg Buy Price</th>
-              <th className="py-3.5 px-4 text-right">Current Price</th>
-              <th onClick={() => handleSort('currentValueINR')} className="py-3.5 px-4 text-right cursor-pointer hover:text-white">Current Value {getSortIcon('currentValueINR')}</th>
-              <th onClick={() => handleSort('gainINR')} className="py-3.5 px-4 text-right cursor-pointer hover:text-white">Total Gain / P&amp;L {getSortIcon('gainINR')}</th>
-              <th className="py-3.5 px-4 text-center">Status / Price API</th>
-              <th className="py-3.5 px-4 text-center rounded-r-xl">Actions</th>
+          <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
+            <tr className="border-b border-slate-800/80 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              <th onClick={() => handleSort('name')} className="py-3.5 px-4 cursor-pointer hover:text-white sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[240px]">Instrument / Symbol {getSortIcon('name')}</th>
+              <th className="py-3.5 px-4 bg-slate-900">Exchange / Type</th>
+              <th onClick={() => handleSort('quantity')} className="py-3.5 px-4 text-right cursor-pointer hover:text-white bg-slate-900">Quantity {getSortIcon('quantity')}</th>
+              <th className="py-3.5 px-4 text-right bg-slate-900">Avg Buy Price</th>
+              <th className="py-3.5 px-4 text-right bg-slate-900">Current Price</th>
+              <th onClick={() => handleSort('currentValueINR')} className="py-3.5 px-4 text-right cursor-pointer hover:text-white bg-slate-900">Current Value {getSortIcon('currentValueINR')}</th>
+              <th onClick={() => handleSort('gainINR')} className="py-3.5 px-4 text-right cursor-pointer hover:text-white bg-slate-900">Total Gain / P&amp;L {getSortIcon('gainINR')}</th>
+              <th className="py-3.5 px-4 text-center bg-slate-900">Status / Price API</th>
+              <th className="py-3.5 px-4 text-center bg-slate-900">Actions</th>
             </tr>
           </thead>
           <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs">
@@ -170,7 +170,7 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                 <tr key={h.id} className="hover:bg-slate-800/30 transition-colors group">
                   
                   {/* Name & Symbol */}
-                  <td className="py-4 px-4 font-medium">
+                  <td className="py-4 px-4 font-medium sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[240px]">
                     <div className="flex items-center gap-3">
                       <HoldingLogo 
                         holding={h} 

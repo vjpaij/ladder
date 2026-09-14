@@ -119,22 +119,22 @@ export default function DividendsHub() {
           )}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] custom-scrollbar rounded-2xl border border-slate-800/80">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-900/40">
-                <th onClick={() => handleSort('asset_name')} className="py-3 px-4 rounded-l-xl cursor-pointer hover:text-white">Asset Symbol / Name {sortIcon('asset_name')}</th>
-                <th onClick={() => handleSort('currency')} className="py-3 px-4 cursor-pointer hover:text-white">Market {sortIcon('currency')}</th>
-                <th onClick={() => handleSort('amount_original')} className="py-3 px-4 text-right cursor-pointer hover:text-white">Original Amount {sortIcon('amount_original')}</th>
-                <th className="py-3 px-4 text-right">FX Conversion Rate</th>
-                <th onClick={() => handleSort('amount_inr')} className="py-3 px-4 text-right cursor-pointer hover:text-white">Total INR Credited {sortIcon('amount_inr')}</th>
-                <th onClick={() => handleSort('payment_date')} className="py-3 px-4 text-center rounded-r-xl cursor-pointer hover:text-white">Payment Date {sortIcon('payment_date')}</th>
+            <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
+              <tr className="border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <th onClick={() => handleSort('asset_name')} className="py-3 px-4 cursor-pointer hover:text-white sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[200px]">Asset Symbol / Name {sortIcon('asset_name')}</th>
+                <th onClick={() => handleSort('currency')} className="py-3 px-4 cursor-pointer hover:text-white bg-slate-900">Market {sortIcon('currency')}</th>
+                <th onClick={() => handleSort('amount_original')} className="py-3 px-4 text-right cursor-pointer hover:text-white bg-slate-900">Original Amount {sortIcon('amount_original')}</th>
+                <th className="py-3 px-4 text-right bg-slate-900">FX Conversion Rate</th>
+                <th onClick={() => handleSort('amount_inr')} className="py-3 px-4 text-right cursor-pointer hover:text-white bg-slate-900">Total INR Credited {sortIcon('amount_inr')}</th>
+                <th onClick={() => handleSort('payment_date')} className="py-3 px-4 text-center cursor-pointer hover:text-white bg-slate-900">Payment Date {sortIcon('payment_date')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/40 text-xs">
               {visibleHistory.map(d => (
-                <tr key={d.id} className="hover:bg-slate-800/30 transition-colors">
-                  <td className="py-3.5 px-4 font-semibold text-slate-200">
+                <tr key={d.id} className="group hover:bg-slate-800/30 transition-colors">
+                  <td className="py-3.5 px-4 font-semibold text-slate-200 sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[200px]">
                     <div>{d.asset_name}</div>
                     <div className="text-[11px] text-slate-400 font-mono">{d.symbol}</div>
                   </td>

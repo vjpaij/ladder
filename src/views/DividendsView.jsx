@@ -352,29 +352,29 @@ export default function DividendsView({ holdings = [], onRefresh }) {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto">
+            <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] custom-scrollbar rounded-2xl border border-slate-800/80">
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
+                <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
+                  <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                    <th onClick={() => handleSort('name')} className="py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[220px]">
                       Stock Name {getSortIcon('name')}
                     </th>
-                    <th onClick={() => handleSort('market')} className="py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleSort('market')} className="py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Market {getSortIcon('market')}
                     </th>
-                    <th onClick={() => handleSort('payouts')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleSort('payouts')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Payouts {getSortIcon('payouts')}
                     </th>
-                    <th onClick={() => handleSort('payout')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleSort('payout')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Total Payout {getSortIcon('payout')}
                     </th>
-                    <th onClick={() => handleSort('inr')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleSort('inr')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       {isUSDMode ? 'USD Credited' : 'INR Credited'} {getSortIcon('inr')}
                     </th>
-                    <th onClick={() => handleSort('date')} className="py-3 px-3 text-center cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleSort('date')} className="py-3 px-3 text-center cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Latest Date {getSortIcon('date')}
                     </th>
-                    <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">
+                    <th className="py-3 px-3 text-center whitespace-nowrap bg-slate-900">
                       Action
                     </th>
                   </tr>
@@ -386,12 +386,12 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                       <motion.tr 
                         key={s.id || `${s.symbol}-${i}`} 
                         onClick={() => handleRowClick(s)}
-                        className="hover:bg-slate-800/40 cursor-pointer transition-all"
+                        className="group hover:bg-slate-800/40 cursor-pointer transition-all"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: Math.min(i * 0.02, 0.3) }}
                       >
-                        <td className="py-3 px-3">
+                        <td className="py-3 px-3 sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[220px]">
                           <div className="flex items-center gap-2.5">
                             <HoldingLogo 
                               holding={{

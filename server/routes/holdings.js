@@ -648,7 +648,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const currentValueINR = currentValueUSD * liveRate;
     const activeLotsINR = buyLotsINR.filter(l => l.rem > 0);
     const costBasisINR = activeLotsINR.length > 0
-      ? activeLotsINR.reduce((s, l) => s + (l.rem * l.priceUSD * l.fxRate), 0)
+      ? activeLotsINR.reduce((s, l) => {
+          const lotCost = l.rem * l.priceUSD * l.fxRate;
+          const lotCharge = l.qty > 0 ? (l.rem / l.qty) * (l.charges || 0) : 0;
+          return s + lotCost + lotCharge;
+        }, 0)
       : (costBasisUSD * (totalInvestedUSD > 0 ? (totalInvestedINR / totalInvestedUSD) : liveRate));
 
     const unrealizedPnlINR = currentValueINR - costBasisINR;

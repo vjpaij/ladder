@@ -45,21 +45,40 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   });
   const [newTxDate, setNewTxDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newTxQty, setNewTxQty] = useState('');
-  const [newTxPrice, setNewTxPrice] = useState(() => String(holding?.current_price || ''));
+  const [newTxPrice, setNewTxPrice] = useState(() => {
+    if (!holding?.current_price) return '';
+    const num = Number(holding.current_price);
+    if (isNaN(num) || num <= 0) return '';
+    const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+    return isFund ? num.toFixed(4) : num.toFixed(2);
+  });
   const [newTxAmount, setNewTxAmount] = useState('');
-  const [newTxCharges, setNewTxCharges] = useState('0');
+  const [newTxCharges, setNewTxCharges] = useState('0.00');
+  const [newTxFxRate, setNewTxFxRate] = useState('');
   const [newTxNotes, setNewTxNotes] = useState('');
   const [isSavingTx, setIsSavingTx] = useState(false);
+
+  // Synchronize price precision if holding or current_price updates
+  useEffect(() => {
+    if (holding?.current_price) {
+      const num = Number(holding.current_price);
+      if (!isNaN(num) && num > 0) {
+        const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+        setNewTxPrice(isFund ? num.toFixed(4) : num.toFixed(2));
+      }
+    }
+  }, [holding?.current_price, holding?.category_id]);
 
   const isUSStock = holding?.category_id === 'us_stocks' || holding?.currency === 'USD';
   const [displayCurrency, setDisplayCurrency] = useState(isUSStock ? currency : 'INR');
 
-  // Keep displayCurrency in sync if global currency changes and modal is open
+  // Keep displayCurrency and newTxFxRate in sync if global currency/fxRate changes
   useEffect(() => {
     if (isUSStock) {
       setDisplayCurrency(currency);
+      setNewTxFxRate(prev => prev || String(detail?.currentFxRate || fxRate || ''));
     }
-  }, [currency, isUSStock]);
+  }, [currency, isUSStock, detail?.currentFxRate, fxRate]);
 
   const handleSaveNewTransaction = async (e) => {
     e.preventDefault();
@@ -77,14 +96,23 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
         notes: newTxNotes || `Added via Holding Detail Modal`
       };
 
+      if (isUSStock && newTxFxRate) {
+        payloadData.fxRateOverride = Number(newTxFxRate);
+        payloadData.fx_rate = Number(newTxFxRate);
+      }
+
       if (isBankOrEpf || isLiability) {
         payloadData.amount = Number(newTxAmount);
+        payloadData.charges = Number(newTxCharges) || 0;
         payloadData.holdingId = holding.id;
         payloadData.liabilityId = holding.id;
       } else {
-        payloadData.quantity = Number(newTxQty);
-        payloadData.price = Number(newTxPrice);
-        payloadData.amount = (Number(newTxQty) || 0) * (Number(newTxPrice) || 0);
+        const qty = Number(newTxQty) || 0;
+        const price = Number(newTxPrice) || 0;
+        const charges = Number(newTxCharges) || 0;
+        payloadData.quantity = qty;
+        payloadData.price = price;
+        payloadData.amount = newTxType === 'SELL' ? Math.max(0, (qty * price) - charges) : ((qty * price) + charges);
       }
 
       await axios.post('/api/add-investment', {
@@ -96,6 +124,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       setIsAddingTx(false);
       setNewTxQty('');
       setNewTxAmount('');
+      setNewTxCharges('0.00');
       setNewTxNotes('');
       // Reload holding details
       const detailRes = await axios.get(`/api/holding/${holding.id}/detail`);
@@ -157,14 +186,26 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
 
   const startEditTx = (tx) => {
     setEditingTxId(tx.id);
+    const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+    const priceDigits = isFund ? 4 : 2;
+    const priceVal = tx.price !== undefined && tx.price !== null && tx.price !== ''
+      ? Number(tx.price).toFixed(priceDigits)
+      : (tx.total_amount !== undefined ? Number(tx.total_amount).toFixed(2) : '');
+    const chargesVal = tx.charges !== undefined && tx.charges !== null && tx.charges !== ''
+      ? Number(tx.charges).toFixed(2)
+      : '0.00';
+    const totalAmtVal = tx.total_amount !== undefined && tx.total_amount !== null && tx.total_amount !== ''
+      ? Number(tx.total_amount).toFixed(2)
+      : (tx.price !== undefined ? Number(tx.price).toFixed(2) : '');
+
     setEditForm({
       date: (tx.date || '').split('T')[0],
       type: tx.type || (isEodAsset ? 'CREDIT' : 'BUY'),
       quantity: tx.quantity ?? (isEodAsset ? 1 : ''),
-      price: tx.price ?? tx.total_amount ?? '',
-      total_amount: tx.total_amount ?? tx.price ?? '',
-      charges: tx.charges ?? '',
-      fx_rate: tx.fx_rate ?? '',
+      price: priceVal,
+      total_amount: totalAmtVal,
+      charges: chargesVal,
+      fx_rate: tx.fx_rate !== undefined && tx.fx_rate !== null && tx.fx_rate !== '' ? Number(tx.fx_rate).toFixed(2) : '',
       notes: tx.notes ?? ''
     });
   };
@@ -551,6 +592,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                         setNewTxAmount={setNewTxAmount}
                         newTxCharges={newTxCharges}
                         setNewTxCharges={setNewTxCharges}
+                        newTxFxRate={newTxFxRate}
+                        setNewTxFxRate={setNewTxFxRate}
                         newTxNotes={newTxNotes}
                         setNewTxNotes={setNewTxNotes}
                         isSavingTx={isSavingTx}

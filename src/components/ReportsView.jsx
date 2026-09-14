@@ -1057,37 +1057,37 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl reports-table-container">
+                <div className="overflow-x-auto overflow-y-auto max-h-[560px] rounded-2xl reports-table-container relative custom-scrollbar">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-30 reports-table-head shadow-sm select-none">
                       <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
                         <th 
                           onClick={() => handleSortClick(setMfCompanySort, 'company')} 
-                          className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="sticky left-0 top-0 z-40 reports-table-sticky-head py-3 pl-4 pr-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap border-r border-inherit"
                         >
                           Company {renderSortIcon(mfCompanySort, 'company')}
                         </th>
                         <th 
                           onClick={() => handleSortClick(setMfCompanySort, 'sector')} 
-                          className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 px-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                         >
                           Sector {renderSortIcon(mfCompanySort, 'sector')}
                         </th>
                         <th 
                           onClick={() => handleSortClick(setMfCompanySort, 'mcap_category')} 
-                          className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 px-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                         >
                           Cap Tier {renderSortIcon(mfCompanySort, 'mcap_category')}
                         </th>
                         <th 
                           onClick={() => handleSortClick(setMfCompanySort, 'allocation_pct')} 
-                          className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                         >
                           Fund Weight {renderSortIcon(mfCompanySort, 'allocation_pct')}
                         </th>
                         <th 
                           onClick={() => handleSortClick(setMfCompanySort, 'allocatedINR')} 
-                          className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 pl-3.5 pr-4 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                         >
                           Allocated Value {renderSortIcon(mfCompanySort, 'allocatedINR')}
                         </th>
@@ -1133,7 +1133,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                             onClick={() => setCompanyDetailTarget(c)}
                             className="reports-table-row transition-colors cursor-pointer group"
                           >
-                            <td className="py-3 pl-4">
+                            <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 whitespace-nowrap border-r border-inherit">
                               <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
                                 <span>{c.company || c.name}</span>
                                 <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
@@ -1142,16 +1142,16 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                                 <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>
                               )}
                             </td>
-                            <td className="py-3 opacity-80 font-sans font-medium">{normalizeSector(c.sector)}</td>
-                            <td className="py-3">
+                            <td className="py-3 px-3.5 opacity-80 font-sans font-medium whitespace-nowrap">{normalizeSector(c.sector)}</td>
+                            <td className="py-3 px-3.5 whitespace-nowrap">
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
                                 {c.mcap_category || 'Mid Cap'}
                               </span>
                             </td>
-                            <td className="py-3 text-right opacity-80 font-bold">
+                            <td className="py-3 px-3.5 text-right opacity-80 font-bold whitespace-nowrap">
                               {c.allocation_pct ? `${c.allocation_pct}%` : `${c.percentage}%`}
                             </td>
-                            <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
+                            <td className="py-3 pl-3.5 pr-4 text-right text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">
                               {formatMoney(c.allocatedINR || c.totalAllocatedINR || 0)}
                             </td>
                           </tr>
@@ -1455,61 +1455,61 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl reports-table-container">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
+              <div className="overflow-x-auto overflow-y-auto max-h-[640px] rounded-2xl reports-table-container relative custom-scrollbar">
+                <table className="w-full text-left text-xs border-collapse min-w-[1100px]">
+                  <thead className="sticky top-0 z-30 reports-table-head shadow-sm select-none">
                     <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'label')} 
-                        className="py-3.5 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="sticky left-0 top-0 z-40 reports-table-sticky-head py-3.5 pl-4 pr-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap border-r border-inherit"
                       >
                         Asset Class {renderSortIcon(categorySort, 'label')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'activeVal')} 
-                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Active Valuation {renderSortIcon(categorySort, 'activeVal')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'activeCost')} 
-                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Active Cost {renderSortIcon(categorySort, 'activeCost')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'activePnl')} 
-                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Unrealized P&L {renderSortIcon(categorySort, 'activePnl')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'closedPnl')} 
-                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Realized P&L {renderSortIcon(categorySort, 'closedPnl')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'lifetimeCost')} 
-                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Lifetime Cost {renderSortIcon(categorySort, 'lifetimeCost')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'lifetimePnl')} 
-                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Total Net Return {renderSortIcon(categorySort, 'lifetimePnl')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'lifetimeRoiPct')} 
-                        className="py-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Abs ROI % {renderSortIcon(categorySort, 'lifetimeRoiPct')}
                       </th>
                       <th 
                         onClick={() => handleSortClick(setCategorySort, 'lifetimeXirr')} 
-                        className="py-3.5 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                        className="py-3.5 pl-3.5 pr-4 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                       >
                         Annualized XIRR {renderSortIcon(categorySort, 'lifetimeXirr')}
                       </th>
@@ -1538,63 +1538,65 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                       }
                       return list.map((cat) => (
                         <tr key={`table-${cat.id}`} className="reports-table-row transition-colors">
-                          <td className="py-3 pl-4 font-sans font-bold flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                            <span>{cat.label}</span>
+                          <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 font-sans font-bold whitespace-nowrap border-r border-inherit">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                              <span>{cat.label}</span>
+                            </div>
                           </td>
-                          <td className="py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                          <td className="py-3 px-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                             {formatMoney(cat.activeVal)}
                           </td>
-                          <td className="py-3 text-right opacity-80">
+                          <td className="py-3 px-3.5 text-right opacity-80 whitespace-nowrap">
                             {formatMoney(cat.activeCost, true)}
                           </td>
-                          <td className={`py-3 text-right font-bold ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <td className={`py-3 px-3.5 text-right font-bold whitespace-nowrap ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)}
                           </td>
-                          <td className={`py-3 text-right font-bold ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <td className={`py-3 px-3.5 text-right font-bold whitespace-nowrap ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)}
                           </td>
-                          <td className="py-3 text-right opacity-80">
+                          <td className="py-3 px-3.5 text-right opacity-80 whitespace-nowrap">
                             {formatMoney(cat.lifetimeCost, true)}
                           </td>
-                          <td className={`py-3 text-right font-black ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <td className={`py-3 px-3.5 text-right font-black whitespace-nowrap ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
                           </td>
-                          <td className={`py-3 text-right font-bold ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <td className={`py-3 px-3.5 text-right font-bold whitespace-nowrap ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%
                           </td>
-                          <td className={`py-3 text-right pr-4 font-black ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          <td className={`py-3 pl-3.5 pr-4 text-right font-black whitespace-nowrap ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
                           </td>
                         </tr>
                       ));
                     })()}
                   </tbody>
-                  <tfoot>
+                  <tfoot className="sticky bottom-0 z-30 reports-table-head shadow-sm select-none">
                     <tr className="reports-table-head font-bold font-mono border-t-2 border-inherit text-slate-900 dark:text-white">
-                      <td className="py-3.5 pl-4 font-sans font-black uppercase text-[11px]">Total Portfolio</td>
-                      <td className="py-3.5 text-right font-black text-emerald-600 dark:text-emerald-400">
+                      <td className="sticky left-0 bottom-0 z-40 reports-table-sticky-head py-3.5 pl-4 pr-3.5 font-sans font-black uppercase text-[11px] whitespace-nowrap border-r border-inherit">Total Portfolio</td>
+                      <td className="py-3.5 px-3.5 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                         {formatMoney(consolidatedPerformanceData.totals.activeVal)}
                       </td>
-                      <td className="py-3.5 text-right font-bold opacity-90">
+                      <td className="py-3.5 px-3.5 text-right font-bold opacity-90 whitespace-nowrap">
                         {formatMoney(consolidatedPerformanceData.totals.activeCost, true)}
                       </td>
-                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)}
                       </td>
-                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {consolidatedPerformanceData.totals.closedPnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
                       </td>
-                      <td className="py-3.5 text-right font-bold opacity-90">
+                      <td className="py-3.5 px-3.5 text-right font-bold opacity-90 whitespace-nowrap">
                         {formatMoney(consolidatedPerformanceData.totals.lifetimeCost, true)}
                       </td>
-                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {consolidatedPerformanceData.totals.lifetimePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
                       </td>
-                      <td className={`py-3.5 text-right font-black ${consolidatedPerformanceData.totals.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {consolidatedPerformanceData.totals.lifetimeRoiPct >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.lifetimeRoiPct.toFixed(2)}%
                       </td>
-                      <td className={`py-3.5 text-right pr-4 font-black ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <td className={`py-3.5 pl-3.5 pr-4 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {consolidatedPerformanceData.totals.portfolioXirr >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.portfolioXirr.toFixed(2)}%
                       </td>
                     </tr>
@@ -1718,31 +1720,31 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto rounded-2xl reports-table-container">
+                  <div className="overflow-x-auto overflow-y-auto max-h-[560px] rounded-2xl reports-table-container relative custom-scrollbar">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead>
+                      <thead className="sticky top-0 z-30 reports-table-head shadow-sm select-none">
                         <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
                           <th 
                             onClick={() => handleSortClick(setMcapCompanySort, 'name')} 
-                            className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="sticky left-0 top-0 z-40 reports-table-sticky-head py-3 pl-4 pr-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap border-r border-inherit"
                           >
                             Stock / Asset {renderSortIcon(mcapCompanySort, 'name')}
                           </th>
                           <th 
                             onClick={() => handleSortClick(setMcapCompanySort, 'source')} 
-                            className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="py-3 px-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                           >
                             Portfolio Source {renderSortIcon(mcapCompanySort, 'source')}
                           </th>
                           <th 
                             onClick={() => handleSortClick(setMcapCompanySort, 'allocatedINR')} 
-                            className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="py-3 px-3.5 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                           >
                             Contribution {renderSortIcon(mcapCompanySort, 'allocatedINR')}
                           </th>
                           <th 
                             onClick={() => handleSortClick(setMcapCompanySort, 'allocatedINR')} 
-                            className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="py-3 pl-3.5 pr-4 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                           >
                             Allocated Value {renderSortIcon(mcapCompanySort, 'allocatedINR')}
                           </th>
@@ -1781,18 +1783,18 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                                 onClick={() => setCompanyDetailTarget(c)}
                                 className="reports-table-row transition-colors cursor-pointer group"
                               >
-                                <td className="py-3 pl-4">
+                                <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 whitespace-nowrap border-r border-inherit">
                                   <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
                                     <span>{c.name}</span>
                                     <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                                   </div>
                                   {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
                                 </td>
-                                <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
-                                <td className="py-3 text-right opacity-80 font-bold">
+                                <td className="py-3 px-3.5 opacity-80 font-sans font-medium whitespace-nowrap">{c.source}</td>
+                                <td className="py-3 px-3.5 text-right opacity-80 font-bold whitespace-nowrap">
                                   {contribPct}%
                                 </td>
-                                <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">
+                                <td className="py-3 pl-3.5 pr-4 text-right text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">
                                   {formatMoney(c.allocatedINR)}
                                 </td>
                               </tr>
@@ -1944,31 +1946,31 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto rounded-2xl reports-table-container">
+                  <div className="overflow-x-auto overflow-y-auto max-h-[560px] rounded-2xl reports-table-container relative custom-scrollbar">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead>
+                      <thead className="sticky top-0 z-30 reports-table-head shadow-sm select-none">
                         <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
                           <th 
                             onClick={() => handleSortClick(setSectorCompanySort, 'name')} 
-                            className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="sticky left-0 top-0 z-40 reports-table-sticky-head py-3 pl-4 pr-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap border-r border-inherit"
                           >
                             Company {renderSortIcon(sectorCompanySort, 'name')}
                           </th>
                           <th 
                             onClick={() => handleSortClick(setSectorCompanySort, 'source')} 
-                            className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="py-3 px-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                           >
                             Portfolio Source {renderSortIcon(sectorCompanySort, 'source')}
                           </th>
                           <th 
                             onClick={() => handleSortClick(setSectorCompanySort, 'mcap_category')} 
-                            className="py-3 cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="py-3 px-3.5 cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                           >
                             Cap Tier {renderSortIcon(sectorCompanySort, 'mcap_category')}
                           </th>
                           <th 
                             onClick={() => handleSortClick(setSectorCompanySort, 'allocatedINR')} 
-                            className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                            className="py-3 pl-3.5 pr-4 text-right cursor-pointer hover:text-emerald-500 transition-colors whitespace-nowrap"
                           >
                             Allocated Value {renderSortIcon(sectorCompanySort, 'allocatedINR')}
                           </th>
@@ -2004,20 +2006,20 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                               onClick={() => setCompanyDetailTarget(c)}
                               className="reports-table-row transition-colors cursor-pointer group"
                             >
-                              <td className="py-3 pl-4">
+                              <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 whitespace-nowrap border-r border-inherit">
                                 <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
                                   <span>{c.name}</span>
                                   <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                                 </div>
                                 {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
                               </td>
-                              <td className="py-3 opacity-80 font-sans font-medium">{c.source}</td>
-                              <td className="py-3">
+                              <td className="py-3 px-3.5 opacity-80 font-sans font-medium whitespace-nowrap">{c.source}</td>
+                              <td className="py-3 px-3.5 whitespace-nowrap">
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full reports-subcard">
                                   {c.mcap_category}
                                 </span>
                               </td>
-                              <td className="py-3 text-right pr-4 text-emerald-600 dark:text-emerald-400 font-bold">{formatMoney(c.allocatedINR)}</td>
+                              <td className="py-3 pl-3.5 pr-4 text-right text-emerald-600 dark:text-emerald-400 font-bold whitespace-nowrap">{formatMoney(c.allocatedINR)}</td>
                             </tr>
                           ));
                         })()}

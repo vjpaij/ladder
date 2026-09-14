@@ -15,6 +15,7 @@ import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
 import formatDateDDMMYYYY from '../utils/dateFormatter';
 import ChartRangeSelector from './ChartRangeSelector';
+import DatePicker from './common/DatePicker';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // Soothing pastel palette with eye-friendly contrast in light and dark modes
@@ -886,28 +887,28 @@ export default function AssetDividendDetailModal({
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="relative overflow-x-auto overflow-y-auto max-h-[500px] custom-scrollbar rounded-xl border border-slate-800">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                      <th onClick={() => handleDivSort('raw_date')} className="py-2.5 px-3 cursor-pointer hover:text-white whitespace-nowrap">
+                  <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
+                    <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                      <th onClick={() => handleDivSort('raw_date')} className="py-2.5 px-3 cursor-pointer hover:text-white whitespace-nowrap sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[120px]">
                         Date {renderDivSortIcon('raw_date')}
                       </th>
-                      <th onClick={() => handleDivSort('amount_original')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      <th onClick={() => handleDivSort('amount_original')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                         Original Payout {renderDivSortIcon('amount_original')}
                       </th>
                       {isUS && (
-                        <th onClick={() => handleDivSort('fx_rate')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                        <th onClick={() => handleDivSort('fx_rate')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                           FX Rate {renderDivSortIcon('fx_rate')}
                         </th>
                       )}
-                      <th onClick={() => handleDivSort('amount_inr')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      <th onClick={() => handleDivSort('amount_inr')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                         INR Credited {renderDivSortIcon('amount_inr')}
                       </th>
-                      <th onClick={() => handleDivSort(isDisplayUSD ? 'cumOriginal' : 'cumINR')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      <th onClick={() => handleDivSort(isDisplayUSD ? 'cumOriginal' : 'cumINR')} className="py-2.5 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                         Cumulative Total {renderDivSortIcon(isDisplayUSD ? 'cumOriginal' : 'cumINR')}
                       </th>
-                      <th className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <th className="py-2.5 px-3 text-center whitespace-nowrap bg-slate-900">
                         Action
                       </th>
                     </tr>
@@ -919,12 +920,10 @@ export default function AssetDividendDetailModal({
                       if (isEditing) {
                         return (
                           <tr key={row.id || i} className="bg-slate-800/60 border-emerald-500/40">
-                            <td className="py-2 px-3">
-                              <input
-                                type="date"
+                            <td className="py-2 px-3 sticky left-0 z-20 bg-slate-900 border-r border-slate-800 min-w-[130px]">
+                              <DatePicker
                                 value={editForm.payment_date}
                                 onChange={(e) => setEditForm(prev => ({ ...prev, payment_date: e.target.value }))}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
                               />
                             </td>
                             <td className="py-2 px-3 text-right">
@@ -979,8 +978,8 @@ export default function AssetDividendDetailModal({
                       }
 
                       return (
-                        <tr key={row.id || `${row.symbol}-${i}`} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="py-2.5 px-3 text-slate-300 font-medium whitespace-nowrap">
+                        <tr key={row.id || `${row.symbol}-${i}`} className="group hover:bg-slate-800/40 transition-colors">
+                          <td className="py-2.5 px-3 text-slate-300 font-medium whitespace-nowrap sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[120px]">
                             {formatDateDDMMYYYY(row.payment_date || row.raw_date)}
                           </td>
                           <td className="py-2.5 px-3 text-right font-bold text-slate-200 whitespace-nowrap">

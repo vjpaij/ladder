@@ -88,6 +88,29 @@ Ladder is an institutional-grade personal finance and investment management dash
     - **Dynamic Category Registry**: Database-driven category capabilities in Supabase `categories` schema (`valuation_model`, `default_currency`, `default_exchange`, `price_fetcher`, `has_dividends`) and `server/services/categoryRegistry.js` with endpoint `GET /api/categories/registry`.
     - **Auth & Performance**: Dedicated authentication screen (`src/views/LoginView.jsx`) decoupled from `App.jsx`; validated sign-in and registration with bcrypt password hashing; strict >=32 character `JWT_SECRET` requirement; Vite `manualChunks` vendor code-splitting (React, Recharts, Lucide, Framer Motion), shrinking main bundle from 937 kB to 222 kB.
 
+12. **Universal Table Header and Column Freezing (Sticky Tables)**
+    - **Dual-Axis Freezing**: Configured dual-axis scrolling (`overflow-x-auto overflow-y-auto max-h-[...] custom-scrollbar`) on table containers so both vertical and horizontal stickiness execute synchronously in the same scroll viewport.
+    - **Frozen Headers & First Columns**: Table header rows (`sticky top-0 z-30 bg-slate-900`) freeze at the top on vertical scrolling, and first columns (instrument name, scheme, asset class, or date) (`sticky left-0 z-20 bg-slate-900/95`) freeze on horizontal scrolling.
+    - **Elevated Top-Left Corner Cells**: Top-left corner header cells are pinned with `sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800` to remain fixed and visible above all scrolled headers and columns.
+    - **Universal Project-Wide Coverage**: Enabled across all 16 tables in the application, including Indian Stocks, US Stocks, Mutual Funds, NPS, Asset Class Overview, Dividends, HoldingsTable, Holding Detail Transaction Ledgers, Asset Dividend Distribution Ledger, Loan Amortization Schedule, Database Studio, Database Viewer, Company MF Breakdown Modal, FX Rate History Modal, and all 4 Reports drill-down and performance tables (including sticky footers).
+    - **Multi-Theme Fidelity**: Added `.reports-table-sticky-head` and `.reports-table-sticky-cell` classes to maintain 100% theme fidelity across dark and light palettes.
+
+13. **Comprehensive Transaction Management & Asset-Class Parity**
+    - **Editable Transaction Charges & Strict Decimal Precision**: Dedicated `Charges` input in the Add Transaction drawer (`HoldingTransactionLedger.jsx`) across all asset classes with dynamic currency formatting (`₹` / `$`). `Price / NAV` and `Charges` inputs strictly enforce 2-decimal floating precision (e.g. `1131.00`, `0.00`), initializing cleanly and auto-formatting on blur across both Add Drawer and Inline Edit modes.
+    - **US Equities FX Override**: Direct `USD/INR Rate (₹)` entry in the Add Transaction drawer and inline transaction edit mode, enabling exact historical exchange rate recording for US transactions.
+    - **Mutual Funds Stamp Duty Automation**: Automatically computes 0.015% stamp duty upon BUY order entry while maintaining full user editability.
+    - **Real-Time Net Amount Calculation**: Total investment amount dynamically accounts for charges (`(qty * price) + charges` for BUY and `Math.max(0, (qty * price) - charges)` for SELL).
+    - **Full Amendment (Inline Edit) Parity**: Inline ledger editing (`editingTxId === tx.id`) supports editing charges, FX rate, and asset-specific transaction types across Indian Equities, US Equities, Mutual Funds, NPS, Bank Accounts, EPF, and Liabilities.
+
+14. **Modern Theme-Adaptive Custom DatePicker Architecture**
+    - **Replaced Native Browser Pickers**: Eradicated all default, clunky OS/browser `<input type="date">` widgets project-wide, replacing them with a custom, high-density React date picker (`src/components/common/DatePicker.jsx`).
+    - **Universal Design Token Adaptation & Uniform Box Styling**: Styled with `.modal-surface`, `.reports-card`, and CSS variables (`--bg-card`, `--border-color`, `--text-primary`, `--accent-emerald`), delivering full visual harmony across all 6 light and dark themes. Text input backgrounds strictly inherit parent surfaces (`style={{ backgroundColor: 'inherit', color: 'inherit' }}`), eliminating browser user-agent white strips in light themes and providing 100% uniformity with adjacent form boxes.
+    - **Direct Month & Year Header Selectors**: Instant 1-click navigation via integrated Month (`January`–`December`) and Year (`1986`–`2041`) dropdown selects, plus `<<` / `<` and `>` / `>>` stepper controls.
+    - **Direct Text Input & Live Sync**: Input field allows direct typing in `DD-MM-YYYY` with real-time calendar synchronization and validation.
+    - **Non-Premature Dismissal & Done Confirmation**: Selecting a day updates the value without snapping shut, allowing users to verify or adjust before confirming with the prominent `Done` action button.
+    - **Quick Shortcut Controls**: Bottom action bar with `Today`, `Yesterday`, `-1Y` (decrement 1 year), `+1Y` (increment 1 year), and `Clear` buttons.
+    - **Scroll & Viewport Isolation with Portal Event Protection**: Rendered via React Portal (`createPortal(..., document.body)`) with dynamic anchoring, avoiding drawer/modal overflow clipping while tracking scroll and window resize. Parent components (such as `ChartRangeSelector`) incorporate `data-datepicker-portal` containment checks in outside-click handlers to prevent calendar interactions from prematurely closing parent selectors.
+
 ---
 
 ## Tech Stack

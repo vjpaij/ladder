@@ -546,6 +546,18 @@ body {
   background-color: var(--bg-card) !important;
 }
 
+.reports-table-sticky-head {
+  background-color: var(--bg-main) !important;
+}
+
+.reports-table-sticky-cell {
+  background-color: var(--bg-surface) !important;
+}
+
+.reports-table-row:hover .reports-table-sticky-cell {
+  background-color: var(--bg-card) !important;
+}
+
 .light .reports-subcard, .warm_light .reports-subcard, .nordic_light .reports-subcard {
   background-color: #F8FAFC !important;
   color: #0F172A !important;

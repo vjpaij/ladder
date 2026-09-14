@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import formatDateDDMMYYYY from '../utils/dateFormatter';
+import DatePicker from './common/DatePicker';
 
 function fmtFullINR(val) {
   const n = Number(val) || 0;
@@ -739,39 +740,39 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
 
         {/* The Schedule Table */}
         <div className="border border-slate-800/90 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto max-h-[480px]">
+          <div className="relative overflow-x-auto overflow-y-auto max-h-[520px] custom-scrollbar">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="sticky top-0 z-20 bg-slate-900/95 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none backdrop-blur-md">
+              <thead className="sticky top-0 z-30 bg-slate-900 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none shadow-sm">
                 <tr>
-                  <th onClick={() => handleScheduleSort('date')} className="py-3 px-3.5 cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('date')} className="py-3 px-3.5 cursor-pointer hover:text-white sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[120px]">
                     Date {renderScheduleSortIcon('date')}
                   </th>
-                  <th onClick={() => handleScheduleSort('entry_type')} className="py-3 px-3 cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('entry_type')} className="py-3 px-3 cursor-pointer hover:text-white bg-slate-900">
                     Type {renderScheduleSortIcon('entry_type')}
                   </th>
-                  <th onClick={() => handleScheduleSort('opening_balance')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('opening_balance')} className="py-3 px-3 text-right cursor-pointer hover:text-white bg-slate-900">
                     Opening Balance {renderScheduleSortIcon('opening_balance')}
                   </th>
-                  <th onClick={() => handleScheduleSort('emi_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('emi_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white bg-slate-900">
                     Monthly Payment {renderScheduleSortIcon('emi_amount')}
                   </th>
-                  <th onClick={() => handleScheduleSort('bulk_payment')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('bulk_payment')} className="py-3 px-3 text-right cursor-pointer hover:text-white bg-slate-900">
                     Bulk Payment {renderScheduleSortIcon('bulk_payment')}
                   </th>
-                  <th onClick={() => handleScheduleSort('interest_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('interest_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white bg-slate-900">
                     Interest {renderScheduleSortIcon('interest_amount')}
                   </th>
-                  <th onClick={() => handleScheduleSort('principal_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('principal_amount')} className="py-3 px-3 text-right cursor-pointer hover:text-white bg-slate-900">
                     Principal {renderScheduleSortIcon('principal_amount')}
                   </th>
-                  <th onClick={() => handleScheduleSort('closing_balance')} className="py-3 px-3 text-right cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('closing_balance')} className="py-3 px-3 text-right cursor-pointer hover:text-white bg-slate-900">
                     Closing Balance {renderScheduleSortIcon('closing_balance')}
                   </th>
-                  <th onClick={() => handleScheduleSort('interest_rate')} className="py-3 px-2 text-center cursor-pointer hover:text-white">
+                  <th onClick={() => handleScheduleSort('interest_rate')} className="py-3 px-2 text-center cursor-pointer hover:text-white bg-slate-900">
                     Rate {renderScheduleSortIcon('interest_rate')}
                   </th>
-                  <th className="py-3 px-3 text-center">Status</th>
-                  <th className="py-3 px-3 text-center">Actions</th>
+                  <th className="py-3 px-3 text-center bg-slate-900">Status</th>
+                  <th className="py-3 px-3 text-center bg-slate-900">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -783,11 +784,11 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                   return (
                     <tr 
                       key={row.id || `${row.date}-${idx}`}
-                      className={`hover:bg-slate-800/30 transition-colors ${
+                      className={`group hover:bg-slate-800/30 transition-colors ${
                         isPrepay ? 'bg-emerald-500/5' : isDisb ? 'bg-blue-500/5' : ''
                       }`}
                     >
-                      <td className="py-2.5 px-3.5 text-slate-300 font-bold whitespace-nowrap">
+                      <td className="py-2.5 px-3.5 text-slate-300 font-bold whitespace-nowrap sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[120px]">
                         {formatDateDDMMYYYY(row.date)}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
@@ -908,14 +909,14 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-slate-400 uppercase text-[10px] block mb-1">Effective Date</label>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={newDate}
                       onChange={e => setNewDate(e.target.value)}
                       required
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-rose-500"
+                      inputClassName="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-rose-500"
                     />
                   </div>
+
 
                   <div>
                     <label className="text-slate-400 uppercase text-[10px] block mb-1">Interest Rate (% p.a.)</label>
@@ -1012,14 +1013,14 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-slate-400 uppercase text-[10px] block mb-1">Date</label>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={editDate}
                       onChange={e => setEditDate(e.target.value)}
                       required
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white outline-none focus:border-rose-500"
+                      inputClassName="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-rose-500"
                     />
                   </div>
+
 
                   <div>
                     <label className="text-slate-400 uppercase text-[10px] block mb-1">Entry Type</label>

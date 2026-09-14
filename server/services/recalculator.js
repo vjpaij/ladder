@@ -103,7 +103,7 @@ export async function recalculateHoldingState(holdingId) {
         if (type === 'BUY' || type === 'INVESTMENT' || type === 'INVESTMENT (SIP)') {
           runningQty += qty;
           totalBuyQty += qty;
-          totalBuyAmount += (qty * price);
+          totalBuyAmount += (qty * price) + charges;
           openLots.push({ qty, price, charges, rem: qty });
         } else if (type === 'BONUS') {
           // If bonus has a positive quantity, add to runningQty at 0 cost
@@ -154,6 +154,9 @@ export async function recalculateHoldingState(holdingId) {
 
       for (const lot of activeLots) {
         totalCostBasis += lot.rem * lot.price;
+        if (lot.qty > 0 && (lot.charges || 0) > 0) {
+          totalCostBasis += (lot.rem / lot.qty) * lot.charges;
+        }
         totalOpenShares += lot.rem;
       }
 

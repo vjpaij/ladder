@@ -139,29 +139,40 @@ export default function DatabaseViewer() {
           )}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] custom-scrollbar rounded-2xl border border-slate-800">
           <table className="w-full text-left border-collapse font-mono text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-[11px] uppercase text-slate-400 bg-slate-900/60">
-                {tableData.columns.map(col => (
-                  <th key={col.name} onClick={() => handleSort(col.name)} className={`py-3 px-3 cursor-pointer hover:text-white ${col.name === 'symbol' || col.name === 'name' ? 'text-emerald-400 font-extrabold' : ''}`}>
+            <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
+              <tr className="border-b border-slate-800 text-[11px] uppercase text-slate-400 select-none">
+                {tableData.columns.map((col, cIdx) => (
+                  <th 
+                    key={col.name} 
+                    onClick={() => handleSort(col.name)} 
+                    className={`py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap ${col.name === 'symbol' || col.name === 'name' ? 'text-emerald-400 font-extrabold' : ''} ${
+                      cIdx === 0 ? 'sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[120px]' : 'bg-slate-900'
+                    }`}
+                  >
                     <div>{col.name}</div>
                     <div className="text-[9px] text-slate-500 lowercase">({col.type})</div>
                     {sortState.field === col.name ? (sortState.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-emerald-400 inline" /> : <ArrowDown className="w-3 h-3 text-emerald-400 inline" />) : <ArrowUpDown className="w-3 h-3 text-slate-600 inline" />}
                   </th>
                 ))}
-                <th className="py-3 px-3 text-center">Action</th>
+                <th className="py-3 px-3 text-center bg-slate-900">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/40">
               {visibleRows.map(row => (
-                <tr key={`row-${row.id}`} className="hover:bg-slate-800/30 transition-colors">
-                  {tableData.columns.map(col => {
+                <tr key={`row-${row.id}`} className="group hover:bg-slate-800/30 transition-colors">
+                  {tableData.columns.map((col, cIdx) => {
                     const isEditing = editingCell && editingCell.id === row.id && editingCell.column === col.name;
                     const val = row[col.name];
 
                     return (
-                      <td key={`cell-${row.id}-${col.name}`} className="py-3 px-3 text-slate-200">
+                      <td 
+                        key={`cell-${row.id}-${col.name}`} 
+                        className={`py-3 px-3 text-slate-200 ${
+                          cIdx === 0 ? 'sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[120px]' : ''
+                        }`}
+                      >
                         {isEditing ? (
                           <div className="flex items-center gap-1">
                             <input

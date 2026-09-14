@@ -85,12 +85,12 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
     });
   }, [summary?.categoryMetrics, sortColumn, sortDirection, perfSearch]);
 
-  const SortHeader = ({ column, label, align = 'right' }) => {
+  const SortHeader = ({ column, label, align = 'right', isFirst = false }) => {
     const isActive = sortColumn === column;
     return (
       <th 
         onClick={() => handleSort(column)} 
-        className={`py-3 px-4 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors hover:text-slate-300 ${align === 'left' ? 'text-left' : 'text-right'} ${isActive ? 'text-emerald-400' : 'text-slate-500'}`}
+        className={`py-3 px-4 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors hover:text-slate-300 ${align === 'left' ? 'text-left' : 'text-right'} ${isActive ? 'text-emerald-400' : 'text-slate-500'} ${isFirst ? 'sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[200px]' : 'bg-slate-900'}`}
       >
         <span className="inline-flex items-center gap-1">
           {label}
@@ -431,11 +431,11 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
               )}
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto overflow-y-auto max-h-[540px] custom-scrollbar rounded-2xl border border-slate-800/80">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
                 <tr className="border-b border-slate-800/60">
-                  <SortHeader column="name" label="Asset Class" align="left" />
+                  <SortHeader column="name" label="Asset Class" align="left" isFirst />
                   <SortHeader column="investedINR" label="Invested" />
                   <SortHeader column="currentINR" label="Current Value" />
                   <SortHeader column="unrealizedINR" label="Unrealized P&L" />
@@ -470,12 +470,12 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
                   return (
                     <tr 
                       key={cat.id} 
-                      className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors cursor-pointer"
+                      className="group border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors cursor-pointer"
                       onClick={() => onNavigate(getRouteForCategory(cat.id))}
                       onMouseEnter={() => { if (pieIndex >= 0) setActivePieIndex(pieIndex); }}
                       onMouseLeave={() => setActivePieIndex(null)}
                     >
-                      <td className="py-4 px-4 flex items-center gap-2.5">
+                      <td className="py-4 px-4 flex items-center gap-2.5 sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[200px]">
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }}></div>
                         <span className="text-xs font-semibold text-slate-200">{cat.name}</span>
                       </td>

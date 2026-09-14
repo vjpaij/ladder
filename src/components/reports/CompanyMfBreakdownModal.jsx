@@ -100,33 +100,32 @@ export default function CompanyMfBreakdownModal({
                   </div>
                 )}
               </div>
-
               {companyMfBreakdown.schemes.length > 0 ? (
-                <div className="overflow-x-auto rounded-2xl reports-table-container">
+                <div className="relative overflow-x-auto overflow-y-auto max-h-[480px] custom-scrollbar rounded-2xl reports-table-container">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-30 reports-table-sticky-head shadow-sm">
                       <tr className="reports-table-head font-bold uppercase text-[10px] select-none">
                         <th 
                           onClick={() => handleSortClick(setCompanyModalSort, 'scheme_name')} 
-                          className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 pl-4 cursor-pointer hover:text-emerald-500 transition-colors sticky left-0 top-0 z-40 reports-table-sticky-head border-r border-inherit min-w-[200px]"
                         >
                           Mutual Fund Scheme {renderSortIcon(companyModalSort, 'scheme_name')}
                         </th>
                         <th 
                           onClick={() => handleSortClick(setCompanyModalSort, 'fund_weight_pct')} 
-                          className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors reports-table-sticky-head"
                         >
                           Fund Weight {renderSortIcon(companyModalSort, 'fund_weight_pct')}
                         </th>
                         <th 
                           onClick={() => handleSortClick(setCompanyModalSort, 'allocatedINR')} 
-                          className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 text-right cursor-pointer hover:text-emerald-500 transition-colors reports-table-sticky-head"
                         >
                           Allocated Value {renderSortIcon(companyModalSort, 'allocatedINR')}
                         </th>
                         <th 
                           onClick={() => handleSortClick(setCompanyModalSort, 'shareOfStockPct')} 
-                          className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors"
+                          className="py-3 text-right pr-4 cursor-pointer hover:text-emerald-500 transition-colors reports-table-sticky-head"
                         >
                           Share of Holding {renderSortIcon(companyModalSort, 'shareOfStockPct')}
                         </th>
@@ -147,7 +146,7 @@ export default function CompanyMfBreakdownModal({
                             let valA = a[companyModalSort.field];
                             let valB = b[companyModalSort.field];
                             if (typeof valA === 'string') {
-                              return companyModalSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                              return companyModalSort.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(aVal);
                             }
                             valA = Number(valA) || 0;
                             valB = Number(valB) || 0;
@@ -156,7 +155,7 @@ export default function CompanyMfBreakdownModal({
                         }
                         return list.map((s, idx) => (
                           <tr key={`${s.scheme_code}-${idx}`} className="reports-table-row transition-colors">
-                            <td className="py-3 pl-4 font-sans font-bold">
+                            <td className="py-3 pl-4 font-sans font-bold sticky left-0 z-20 reports-table-sticky-cell border-r border-inherit min-w-[200px]">
                               {s.scheme_name}
                             </td>
                             <td className="py-3 text-right opacity-80 font-bold">

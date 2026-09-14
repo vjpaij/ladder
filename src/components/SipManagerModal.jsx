@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, Trash2, Edit2, Check, Plus, Repeat, AlertCircle, Calendar, StopCircle } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import DatePicker from './common/DatePicker';
 
 const FREQUENCY_OPTIONS = [
   { value: 'MONTHLY', label: 'Monthly' },
@@ -349,27 +350,23 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
 
                         <div>
                           <label className="text-[10px] opacity-70 font-medium block mb-1">Start Date</label>
-                          <input
-                            type="date"
+                          <DatePicker
                             value={newStartDate}
                             onChange={(e) => setNewStartDate(e.target.value)}
-                            className="w-full px-3 py-2 bg-inherit border border-inherit rounded-xl text-xs font-mono outline-none focus:border-amber-500"
                             required
                           />
                         </div>
 
                         <div>
                           <label className="text-[10px] opacity-70 font-medium block mb-1">End Date (Optional)</label>
-                          <input
-                            type="date"
+                          <DatePicker
                             value={newEndDate}
                             onChange={(e) => setNewEndDate(e.target.value)}
-                            min={newStartDate}
                             placeholder="Continuous"
-                            className="w-full px-3 py-2 bg-inherit border border-inherit rounded-xl text-xs font-mono outline-none focus:border-amber-500"
                           />
                         </div>
                       </div>
+
 
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-inherit">
                         <button
@@ -498,13 +495,14 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
                                       </option>
                                     ))}
                                   </select>
-                                  <input
-                                    type="date"
-                                    value={editEndDate}
-                                    onChange={(e) => setEditEndDate(e.target.value)}
-                                    className="px-2 py-1 bg-inherit border border-inherit rounded-lg text-xs font-mono outline-none focus:border-amber-500"
-                                    placeholder="End Date"
-                                  />
+                                  <div className="w-32">
+                                    <DatePicker
+                                      value={editEndDate}
+                                      onChange={(e) => setEditEndDate(e.target.value)}
+                                      placeholder="End Date"
+                                    />
+                                  </div>
+
                                   <div className="flex items-center gap-1">
                                     <button
                                       onClick={() => handleSaveEdit(sip.id)}

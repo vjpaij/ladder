@@ -397,12 +397,12 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
             </div>
 
           {/* Table */}
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] rounded-2xl border border-slate-800/80 custom-scrollbar">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm select-none">
                 {statusFilter === 'closed' ? (
-                  <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
+                  <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
+                    <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
                       Stock Name {getSortIcon('name')}
                     </th>
                     <th onClick={() => handleSort('sell_qty')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
@@ -423,11 +423,11 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                     <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Realized P&amp;L {getSortIcon('realized_pnl')}
                     </th>
-                    <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">Actions</th>
+                    <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
                 ) : (
-                  <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                    <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
+                  <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
+                    <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
                       Stock Name {getSortIcon('name')}
                     </th>
                     <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
@@ -448,7 +448,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                     <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       P&amp;L {getSortIcon('gainINR')}
                     </th>
-                    <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">Actions</th>
+                    <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
                 )}
               </thead>
@@ -457,16 +457,16 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                   const qty = Number(h.quantity) || 0;
                   const isClosed = qty === 0;
 
-                  // Closed derived position metrics
+                  // Closed position derived metrics
                   const soldQty = Number(h.sell_qty) || Number(h.sold_qty) || Number(h.buy_qty) || 0;
                   const avgBuyUSD = Number(h.avg_buy_price) || 0;
-                  const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : 0;
-                  const txRate = h.txFxRate || (investedUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / investedUSD : fxRate) || 1.0;
-                  const investedINR = Number(h.investedValueINR) || (investedUSD * txRate);
+                  const avgBuyINR = avgBuyUSD * fxRate;
+                  const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : (Number(h.investedValueUSD) || 0);
+                  const investedINR = Number(h.investedValueINR) || (investedUSD * fxRate);
                   const realizedPnlUSD = Number(h.realized_pnl) || 0;
-                  const realizedPnlINR = realizedPnlUSD * fxRate;
+                  const realizedPnlINR = Number(h.realized_pnl_inr) || (realizedPnlUSD * fxRate);
                   const redeemedUSD = Number(h.redeemed_value) > 0 ? Number(h.redeemed_value) : (investedUSD + realizedPnlUSD);
-                  const redeemedINR = redeemedUSD * fxRate;
+                  const redeemedINR = Number(h.redeemed_value_inr) > 0 ? Number(h.redeemed_value_inr) : (redeemedUSD * fxRate);
                   const avgSellUSD = Number(h.avg_sell_price) > 0 ? Number(h.avg_sell_price) : (soldQty > 0 ? (redeemedUSD / soldQty) : 0);
                   const avgSellINR = avgSellUSD * fxRate;
                   const realizedPnlPct = investedUSD > 0 ? ((realizedPnlUSD / investedUSD) * 100).toFixed(2) : 0;
@@ -486,7 +486,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                     <motion.tr
                       key={h.id}
                       onClick={() => setSelectedHolding(h)}
-                      className={`cursor-pointer transition-all ${
+                      className={`cursor-pointer transition-all group ${
                         isClosed
                           ? 'bg-slate-900/30 hover:bg-slate-800/50'
                           : 'hover:bg-slate-800/40'
@@ -495,7 +495,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: Math.min(i * 0.02, 0.3) }}
                     >
-                      <td className="py-3 px-3">
+                      <td className="sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 py-3 px-3 border-r border-slate-800 min-w-[220px] transition-colors whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
                           <HoldingLogo 
                             holding={h} 

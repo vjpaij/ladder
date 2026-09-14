@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CalendarDays, X, ChevronDown } from 'lucide-react';
+import DatePicker from './common/DatePicker';
 
 /**
  * Compute start & end ISO dates for any range selection
@@ -136,6 +137,10 @@ export default function ChartRangeSelector({
   // Close calendar popover on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
+      // Do not close if clicking inside a DatePicker portal or popover
+      if (e.target.closest && (e.target.closest('[data-datepicker-portal]') || e.target.closest('.modal-surface'))) {
+        return;
+      }
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setShowCalendar(false);
       }
@@ -147,6 +152,7 @@ export default function ChartRangeSelector({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showCalendar]);
+
 
   // Keyboard accessibility for calendar popover
   useEffect(() => {
@@ -217,30 +223,30 @@ export default function ChartRangeSelector({
   return (
     <div ref={containerRef} className={`relative inline-flex items-center gap-1.5 ${className}`}>
       {/* Unified Compact Segmented Control Bar */}
-      <div className="flex items-center gap-1 p-0.5 bg-slate-900/70 dark:bg-slate-900/70 border border-slate-800 dark:border-slate-800 rounded-xl shadow-xs backdrop-blur-md">
+      <div className="flex items-center gap-1 p-0.5 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl shadow-xs backdrop-blur-md text-[var(--text-primary)]">
         {/* 'ALL' Button */}
         <button
           type="button"
           onClick={handleSelectAll}
-          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+          className={`px-2.5 py-0.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
             isAllActive
-              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-xs'
-              : 'text-slate-400 hover:text-slate-200 border border-transparent'
+              ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40 shadow-xs'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent hover:bg-[var(--bg-card)]'
           }`}
-          title="All Available History"
+          title="Show all available data"
         >
           ALL
         </button>
 
         {/* Divider */}
-        <div className="w-px h-3.5 bg-slate-800 dark:bg-slate-800" />
+        <div className="w-px h-3.5 bg-[var(--border-color)]" />
 
         {/* Dynamic Number Input & Unit Dropdown Capsule */}
         <div
           className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg border transition-all duration-200 ${
             isRelativeActive
-              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-xs'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-500 shadow-xs'
+              : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]'
           }`}
         >
           {/* Integer Input */}
@@ -260,7 +266,8 @@ export default function ChartRangeSelector({
                 notifyChange('RELATIVE', safeCount, unit, customStart, customEnd);
               }
             }}
-            className="w-8 text-center bg-transparent border-0 outline-none text-[11px] font-mono font-bold appearance-none [moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-pointer focus:cursor-text focus:bg-slate-950/40 rounded"
+            style={{ backgroundColor: 'transparent', color: 'inherit' }}
+            className="w-8 text-center bg-transparent border-0 outline-none text-[11px] font-mono font-bold appearance-none [moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-pointer focus:cursor-text rounded"
             title="Enter period number"
           />
 
@@ -269,20 +276,21 @@ export default function ChartRangeSelector({
             <select
               value={unit}
               onChange={handleUnitChange}
-              className="bg-transparent border-0 outline-none text-[10px] font-bold uppercase tracking-wider cursor-pointer pr-3 appearance-none [color-scheme:dark]"
+              style={{ backgroundColor: 'transparent', color: 'inherit' }}
+              className="bg-transparent border-0 outline-none text-[10px] font-bold uppercase tracking-wider cursor-pointer pr-3 appearance-none"
               title="Select time unit"
             >
-              <option value="D" className="bg-slate-900 text-slate-200">Day{count > 1 ? 's' : ''}</option>
-              <option value="W" className="bg-slate-900 text-slate-200">Week{count > 1 ? 's' : ''}</option>
-              <option value="M" className="bg-slate-900 text-slate-200">Month{count > 1 ? 's' : ''}</option>
-              <option value="Y" className="bg-slate-900 text-slate-200">Year{count > 1 ? 's' : ''}</option>
+              <option value="D" className="bg-[var(--bg-card)] text-[var(--text-primary)]">Day{count > 1 ? 's' : ''}</option>
+              <option value="W" className="bg-[var(--bg-card)] text-[var(--text-primary)]">Week{count > 1 ? 's' : ''}</option>
+              <option value="M" className="bg-[var(--bg-card)] text-[var(--text-primary)]">Month{count > 1 ? 's' : ''}</option>
+              <option value="Y" className="bg-[var(--bg-card)] text-[var(--text-primary)]">Year{count > 1 ? 's' : ''}</option>
             </select>
             <ChevronDown className="w-2.5 h-2.5 pointer-events-none absolute right-0 opacity-60" />
           </div>
         </div>
 
         {/* Divider */}
-        <div className="w-px h-3.5 bg-slate-800 dark:bg-slate-800" />
+        <div className="w-px h-3.5 bg-[var(--border-color)]" />
 
         {/* Calendar Trigger */}
         <button
@@ -290,8 +298,8 @@ export default function ChartRangeSelector({
           onClick={() => setShowCalendar(prev => !prev)}
           className={`p-1 rounded-lg border transition-all duration-200 flex items-center justify-center cursor-pointer ${
             isCustomActive || showCalendar
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-xs'
-              : 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/40'
+              ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/40 shadow-xs'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border-transparent hover:bg-[var(--bg-card)]'
           }`}
           title="Select Custom Calendar Range"
         >
@@ -307,19 +315,19 @@ export default function ChartRangeSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className={`absolute top-full mt-2 z-50 p-3 bg-slate-900/95 dark:bg-slate-900/95 border border-slate-700/80 dark:border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 text-xs min-w-[260px] ${
+            className={`absolute top-full mt-2 z-50 p-3 modal-surface reports-card border border-[var(--border-color)] rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col gap-2.5 text-xs min-w-[260px] text-[var(--text-primary)] ${
               popoverAlign === 'left' ? 'left-0' : 'right-0'
             }`}
           >
-            <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <CalendarDays className="w-3 h-3 text-emerald-400" />
+            <div className="flex items-center justify-between pb-1 border-b border-[var(--border-color)]">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
+                <CalendarDays className="w-3 h-3 text-emerald-500" />
                 Custom Date Range
               </span>
               <button
                 type="button"
                 onClick={() => setShowCalendar(false)}
-                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-colors cursor-pointer"
                 title="Close (Esc)"
               >
                 <X className="w-3.5 h-3.5" />
@@ -328,21 +336,17 @@ export default function ChartRangeSelector({
 
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-semibold text-slate-400">From Date</span>
-                <input
-                  type="date"
+                <span className="text-[9px] font-semibold text-[var(--text-muted)]">From Date</span>
+                <DatePicker
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-[9px] font-semibold text-slate-400">To Date</span>
-                <input
-                  type="date"
+                <span className="text-[9px] font-semibold text-[var(--text-muted)]">To Date</span>
+                <DatePicker
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-emerald-500 [color-scheme:dark]"
                 />
               </div>
             </div>

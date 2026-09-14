@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Filter } from 'lucide-react';
+import DatePicker from './common/DatePicker';
 
 export default function CalendarHeatmap() {
   const { formatMoney } = useThemeAuth();
@@ -92,19 +93,24 @@ export default function CalendarHeatmap() {
           </div>
 
           <div className="flex items-center gap-3">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-            />
+            <div className="w-36">
+              <DatePicker
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                placeholder="Start Date"
+                inputClassName="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:border-emerald-500"
+              />
+            </div>
             <span className="text-xs text-slate-500">to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-            />
+            <div className="w-36">
+              <DatePicker
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                placeholder="End Date"
+                inputClassName="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:border-emerald-500"
+              />
+            </div>
+
             {(startDate || endDate) && (
               <button
                 onClick={() => { setStartDate(''); setEndDate(''); }}

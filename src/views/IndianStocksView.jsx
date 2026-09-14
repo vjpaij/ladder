@@ -343,12 +343,12 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto">
+            <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] rounded-2xl border border-slate-800/80 custom-scrollbar">
               <table className="w-full text-left border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm select-none">
                   {statusFilter === 'closed' ? (
-                    <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                      <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
+                    <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
+                      <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
                         Stock Name {getSortIcon('name')}
                       </th>
                       <th onClick={() => handleSort('sell_qty')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
@@ -369,11 +369,11 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                       <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                         Realized P&amp;L {getSortIcon('realized_pnl')}
                       </th>
-                      <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">Actions</th>
+                      <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                     </tr>
                   ) : (
-                    <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                      <th onClick={() => handleSort('name')} className="py-3 px-3 rounded-l-xl cursor-pointer hover:text-white whitespace-nowrap">
+                    <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
+                      <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
                         Stock Name {getSortIcon('name')}
                       </th>
                       <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
@@ -394,7 +394,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                       <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                         P&amp;L {getSortIcon('gainINR')}
                       </th>
-                      <th className="py-3 px-3 text-center rounded-r-xl whitespace-nowrap">Actions</th>
+                      <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                     </tr>
                   )}
                 </thead>
@@ -418,7 +418,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                       <motion.tr
                         key={h.id}
                         onClick={() => setSelectedHolding(h)}
-                        className={`cursor-pointer transition-all ${
+                        className={`cursor-pointer transition-all group ${
                           isClosed
                             ? 'bg-slate-900/30 hover:bg-slate-800/50'
                             : 'hover:bg-slate-800/40'
@@ -427,7 +427,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: Math.min(i * 0.02, 0.3) }}
                       >
-                        <td className="py-3 px-3">
+                        <td className="sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 py-3 px-3 border-r border-slate-800 min-w-[220px] transition-colors whitespace-nowrap">
                           <div className="flex items-center gap-2.5">
                             <HoldingLogo 
                               holding={h} 

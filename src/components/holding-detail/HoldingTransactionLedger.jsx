@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import formatDateDDMMYYYY from '../../utils/dateFormatter';
 import { TxBadge, formatTxDate } from './holdingDetailUtils';
+import DatePicker from '../common/DatePicker';
 
 export default function HoldingTransactionLedger({
   holding,
@@ -37,6 +38,8 @@ export default function HoldingTransactionLedger({
   setNewTxAmount,
   newTxCharges,
   setNewTxCharges,
+  newTxFxRate,
+  setNewTxFxRate,
   newTxNotes,
   setNewTxNotes,
   isSavingTx,
@@ -72,7 +75,19 @@ export default function HoldingTransactionLedger({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsAddingTx(!isAddingTx)}
+            onClick={() => {
+              if (!isAddingTx) {
+                const num = Number(holding?.current_price || 0);
+                if (num > 0 && (!newTxPrice || !String(newTxPrice).includes('.'))) {
+                  const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+                  setNewTxPrice(isFund ? num.toFixed(4) : num.toFixed(2));
+                }
+                if (!newTxCharges || newTxCharges === '0' || newTxCharges === '') {
+                  setNewTxCharges('0.00');
+                }
+              }
+              setIsAddingTx(!isAddingTx);
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               isAddingTx
                 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
@@ -146,7 +161,7 @@ export default function HoldingTransactionLedger({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div>
                 <label className="text-[10px] opacity-70 font-medium block mb-1">Transaction Type</label>
                 <select
@@ -157,15 +172,15 @@ export default function HoldingTransactionLedger({
                   {(() => {
                     let types = ['BUY', 'SELL', 'BONUS', 'DIVIDEND', 'SPLIT'];
                     if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
-                      types = ['BUY', 'REDEEM'];
+                      types = ['BUY', 'REDEEM', 'INVESTMENT', 'INVESTMENT (SIP)'];
                     } else if (holding.category_id === 'bank') {
-                      types = ['DEPOSIT', 'WITHDRAWAL', 'INTEREST'];
+                      types = ['DEPOSIT', 'WITHDRAWAL', 'CREDIT', 'DEBIT', 'INTEREST', 'CHARGE'];
                     } else if (holding.category_id === 'epf') {
                       types = ['CONTRIBUTION', 'WITHDRAWAL', 'INTEREST'];
                     } else if (holding.category_id === 'loans') {
                       types = ['EMI_PAYMENT', 'PREPAYMENT', 'BORROW', 'CHARGE'];
                     } else if (holding.category_id === 'credit_cards') {
-                      types = ['EXPENSE', 'PAYMENT'];
+                      types = ['EXPENSE', 'PAYMENT', 'CHARGE'];
                     }
                     return types.map(t => (
                       <option key={t} value={t} className="bg-slate-900 text-white">{t}</option>
@@ -176,12 +191,11 @@ export default function HoldingTransactionLedger({
 
               <div>
                 <label className="text-[10px] opacity-70 font-medium block mb-1">Date</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={newTxDate}
                   onChange={(e) => setNewTxDate(e.target.value)}
                   required
-                  className="w-full px-3 py-1.5 [color-scheme:dark] bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                  placeholder="Select date"
                 />
               </div>
 
@@ -193,7 +207,14 @@ export default function HoldingTransactionLedger({
                       type="number"
                       step="any"
                       value={newTxQty}
-                      onChange={(e) => setNewTxQty(e.target.value)}
+                      onChange={(e) => {
+                        const qty = e.target.value;
+                        setNewTxQty(qty);
+                        if (holding.category_id === 'mutual_funds' && newTxType === 'BUY' && newTxPrice && (!newTxCharges || newTxCharges === '0')) {
+                          const gross = (Number(qty) || 0) * (Number(newTxPrice) || 0);
+                          setNewTxCharges((gross * 0.00015).toFixed(2));
+                        }
+                      }}
                       placeholder="Units"
                       required
                       className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
@@ -205,38 +226,108 @@ export default function HoldingTransactionLedger({
                       type="number"
                       step="any"
                       value={newTxPrice}
-                      onChange={(e) => setNewTxPrice(e.target.value)}
-                      placeholder="Price"
+                      onChange={(e) => {
+                        const price = e.target.value;
+                        setNewTxPrice(price);
+                        if (holding.category_id === 'mutual_funds' && newTxType === 'BUY' && newTxQty && (!newTxCharges || newTxCharges === '0' || newTxCharges === '0.00')) {
+                          const gross = (Number(newTxQty) || 0) * (Number(price) || 0);
+                          setNewTxCharges((gross * 0.00015).toFixed(2));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+                          setNewTxPrice(isFund ? val.toFixed(4) : val.toFixed(2));
+                        }
+                      }}
+                      placeholder="0.00"
                       required
                       className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] opacity-70 font-medium block mb-1">Total Amount ({holding.currency === 'USD' ? '$' : '₹'})</label>
+                    <label className="text-[10px] opacity-70 font-medium block mb-1">Charges ({holding.currency === 'USD' ? '$' : '₹'})</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={newTxCharges}
+                      onChange={(e) => setNewTxCharges(e.target.value)}
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          setNewTxCharges(val.toFixed(2));
+                        } else if (e.target.value === '') {
+                          setNewTxCharges('0.00');
+                        }
+                      }}
+                      placeholder="0.00"
+                      className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] opacity-70 font-medium block mb-1">
+                      Total Amount ({holding.currency === 'USD' ? '$' : '₹'}) {newTxType === 'SELL' ? '(Net)' : '(Incl. Charges)'}
+                    </label>
                     <input
                       type="text"
                       readOnly
-                      value={((Number(newTxQty) || 0) * (Number(newTxPrice) || 0)).toFixed(2)}
-                      className="w-full px-3 py-1.5 bg-inherit border border-inherit/40 rounded-xl text-xs font-mono opacity-80"
+                      value={(() => {
+                        const q = Number(newTxQty) || 0;
+                        const p = Number(newTxPrice) || 0;
+                        const c = Number(newTxCharges) || 0;
+                        const gross = q * p;
+                        const net = newTxType === 'SELL' ? Math.max(0, gross - c) : (gross + c);
+                        return net.toFixed(2);
+                      })()}
+                      className="w-full px-3 py-1.5 bg-inherit border border-inherit/40 rounded-xl text-xs font-mono font-bold opacity-90"
+                    />
+                  </div>
+                  {isUSStock && (
+                    <div>
+                      <label className="text-[10px] opacity-70 font-medium block mb-1 text-purple-400 font-bold">USD/INR Rate (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newTxFxRate || ''}
+                        onChange={(e) => setNewTxFxRate(e.target.value)}
+                        placeholder={String(fxRate || 95.5)}
+                        className="w-full px-3 py-1.5 bg-inherit border border-purple-500/40 rounded-xl text-xs outline-none focus:border-purple-500 font-mono text-purple-300"
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-[10px] opacity-70 font-medium block mb-1">Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={newTxAmount}
+                      onChange={(e) => setNewTxAmount(e.target.value)}
+                      placeholder="Amount in ₹"
+                      required
+                      className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] opacity-70 font-medium block mb-1">Charges / Fees (₹)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={newTxCharges}
+                      onChange={(e) => setNewTxCharges(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
                     />
                   </div>
                 </>
-              ) : (
-                <div>
-                  <label className="text-[10px] opacity-70 font-medium block mb-1">Amount (₹)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={newTxAmount}
-                    onChange={(e) => setNewTxAmount(e.target.value)}
-                    placeholder="Amount in ₹"
-                    required
-                    className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500 font-mono"
-                  />
-                </div>
               )}
 
-              <div>
+              <div className={isUSStock ? 'sm:col-span-2 md:col-span-2' : (!isEodAsset ? 'sm:col-span-2 md:col-span-3' : 'sm:col-span-2 md:col-span-3')}>
                 <label className="text-[10px] opacity-70 font-medium block mb-1">Notes / Description (Optional)</label>
                 <input
                   type="text"
@@ -269,46 +360,46 @@ export default function HoldingTransactionLedger({
       </AnimatePresence>
 
       <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto overflow-y-auto max-h-[560px] custom-scrollbar rounded-2xl">
           <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 select-none">
-                <th onClick={() => handleTxSort('date')} className="py-3 px-4 cursor-pointer hover:text-white whitespace-nowrap">
+            <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
+              <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                <th onClick={() => handleTxSort('date')} className="py-3 px-4 cursor-pointer hover:text-white whitespace-nowrap sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[130px]">
                   Date <SortIcon field="date" />
                 </th>
 
                 {isEodAsset ? (
                   <>
-                    <th className="py-3 px-4">Type</th>
-                    <th onClick={() => handleTxSort('netTxAmount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th className="py-3 px-4 bg-slate-900">Type</th>
+                    <th onClick={() => handleTxSort('netTxAmount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Amount (₹) <SortIcon field="netTxAmount" />
                     </th>
-                    <th onClick={() => handleTxSort('runningBalance')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleTxSort('runningBalance')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Running Balance (₹) <SortIcon field="runningBalance" />
                     </th>
-                    <th className="py-3 px-4 text-left">Notes</th>
-                    <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
+                    <th className="py-3 px-4 text-left bg-slate-900">Notes</th>
+                    <th className="py-3 px-4 text-center whitespace-nowrap bg-slate-900">Actions</th>
                   </>
                 ) : (
                   <>
-                    <th className="py-3 px-4">Type</th>
-                    <th onClick={() => handleTxSort('quantity')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th className="py-3 px-4 bg-slate-900">Type</th>
+                    <th onClick={() => handleTxSort('quantity')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Qty <SortIcon field="quantity" />
                     </th>
-                    <th onClick={() => handleTxSort('price')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleTxSort('price')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       Price <SortIcon field="price" />
                     </th>
-                    <th onClick={() => handleTxSort('total_amount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                    <th onClick={() => handleTxSort('total_amount')} className="py-3 px-4 text-right cursor-pointer hover:text-white whitespace-nowrap bg-slate-900">
                       {isDisplayUSD ? 'Amount ($)' : 'Amount (₹)'} <SortIcon field="total_amount" />
                     </th>
-                    <th className="py-3 px-4 text-right whitespace-nowrap">Charges</th>
+                    <th className="py-3 px-4 text-right whitespace-nowrap bg-slate-900">Charges</th>
                     {isUSStock && (
-                      <th className="py-3 px-4 text-right whitespace-nowrap text-purple-400 font-bold">
+                      <th className="py-3 px-4 text-right whitespace-nowrap text-purple-400 font-bold bg-slate-900">
                         Tx Dollar Rate
                       </th>
                     )}
-                    <th className="py-3 px-4 text-left">Notes</th>
-                    <th className="py-3 px-4 text-center whitespace-nowrap">Actions</th>
+                    <th className="py-3 px-4 text-left bg-slate-900">Notes</th>
+                    <th className="py-3 px-4 text-center whitespace-nowrap bg-slate-900">Actions</th>
                   </>
                 )}
               </tr>
@@ -319,12 +410,10 @@ export default function HoldingTransactionLedger({
                   if (editingTxId === tx.id) {
                     return (
                       <tr key={tx.id || i} className="bg-slate-800/80 border-y border-blue-500/40">
-                        <td className="py-2 px-3">
-                          <input
-                            type="date"
+                        <td className="py-2 px-3 sticky left-0 z-20 bg-slate-900 border-r border-slate-800 min-w-[140px]">
+                          <DatePicker
                             value={editForm.date || ''}
                             onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
                           />
                         </td>
                         <td className="py-2 px-3">
@@ -333,9 +422,19 @@ export default function HoldingTransactionLedger({
                             onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))}
                             className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                           >
-                            {['CREDIT', 'DEBIT', 'CONTRIBUTION', 'INTEREST', 'BORROW', 'EMI_PAYMENT'].map(t => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
+                            {(() => {
+                              let types = ['CREDIT', 'DEBIT', 'DEPOSIT', 'WITHDRAWAL', 'INTEREST', 'CHARGE'];
+                              if (holding.category_id === 'epf') {
+                                types = ['CONTRIBUTION', 'WITHDRAWAL', 'INTEREST'];
+                              } else if (holding.category_id === 'loans') {
+                                types = ['EMI_PAYMENT', 'PREPAYMENT', 'BORROW', 'CHARGE'];
+                              } else if (holding.category_id === 'credit_cards') {
+                                types = ['EXPENSE', 'PAYMENT', 'CHARGE'];
+                              }
+                              return types.map(t => (
+                                <option key={t} value={t} className="bg-slate-900 text-white">{t}</option>
+                              ));
+                            })()}
                           </select>
                         </td>
                         <td className="py-2 px-3">
@@ -344,6 +443,12 @@ export default function HoldingTransactionLedger({
                             step="any"
                             value={editForm.total_amount}
                             onChange={(e) => setEditForm(prev => ({ ...prev, total_amount: e.target.value, price: e.target.value }))}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (!isNaN(val)) {
+                                setEditForm(prev => ({ ...prev, total_amount: val.toFixed(2), price: val.toFixed(2) }));
+                              }
+                            }}
                             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"
                           />
                         </td>
@@ -389,12 +494,12 @@ export default function HoldingTransactionLedger({
                   return (
                     <motion.tr
                       key={tx.id || i}
-                      className="hover:bg-slate-800/30 transition-colors"
+                      className="group hover:bg-slate-800/30 transition-colors"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: Math.min(i * 0.015, 0.4) }}
                     >
-                      <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap">{formatTxDate(tx.date)}</td>
+                      <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[130px]">{formatTxDate(tx.date)}</td>
                       <td className="py-2.5 px-4 whitespace-nowrap">
                         <TxBadge type={tx.type} />
                       </td>
@@ -513,7 +618,7 @@ export default function HoldingTransactionLedger({
                               : 'bg-amber-950/60 border-amber-600/40')
                       }`}
                     >
-                      <td className={`py-2.5 px-4 font-mono font-bold whitespace-nowrap ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                      <td className={`py-2.5 px-4 font-mono font-bold whitespace-nowrap sticky left-0 z-20 ${isLight ? 'bg-purple-100 text-slate-700' : 'bg-slate-900/95 text-slate-300'} border-r border-slate-800 min-w-[130px]`}>
                         {formatDateDDMMYYYY(tx.date)}
                       </td>
                       <td colSpan={isUSStock ? 7 : 6} className="py-2.5 px-4 text-center">
@@ -548,25 +653,105 @@ export default function HoldingTransactionLedger({
                 if (editingTxId === tx.id) {
                   return (
                     <tr key={tx.id || i} className="bg-blue-950/20 border-y border-blue-500/30">
-                      <td className="py-2 px-3">
-                        <input type="date" value={editForm.date || ''} onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500" />
+                      <td className="py-2 px-3 sticky left-0 z-20 bg-slate-900 border-r border-slate-800 min-w-[140px]">
+                        <DatePicker
+                          value={editForm.date || ''}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                        />
                       </td>
                       <td className="py-2 px-3">
                         <select value={editForm.type || 'BUY'} onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
-                          {['BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT'].map(t => <option key={t} value={t}>{t}</option>)}
+                          {(() => {
+                            let types = ['BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT'];
+                            if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
+                              types = ['BUY', 'REDEEM', 'INVESTMENT', 'INVESTMENT (SIP)', 'BONUS', 'DIVIDEND'];
+                            }
+                            return types.map(t => <option key={t} value={t} className="bg-slate-900 text-white">{t}</option>);
+                          })()}
                         </select>
                       </td>
                       <td className="py-2 px-3">
-                        <input type="number" step="any" value={editForm.quantity} onChange={(e) => setEditForm(prev => ({ ...prev, quantity: e.target.value }))} className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" />
+                        <input
+                          type="number"
+                          step="any"
+                          value={editForm.quantity}
+                          onChange={(e) => {
+                            const q = e.target.value;
+                            setEditForm(prev => {
+                              const p = Number(prev.price) || 0;
+                              const c = Number(prev.charges) || 0;
+                              const total = prev.type === 'SELL' ? Math.max(0, (Number(q) * p) - c) : ((Number(q) * p) + c);
+                              return { ...prev, quantity: q, total_amount: q && p ? total.toFixed(2) : prev.total_amount };
+                            });
+                          }}
+                          className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"
+                        />
                       </td>
                       <td className="py-2 px-3">
-                        <input type="number" step="any" value={editForm.price} onChange={(e) => setEditForm(prev => ({ ...prev, price: e.target.value }))} className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" />
+                        <input
+                          type="number"
+                          step="any"
+                          value={editForm.price}
+                          onChange={(e) => {
+                            const p = e.target.value;
+                            setEditForm(prev => {
+                              const q = Number(prev.quantity) || 0;
+                              const c = Number(prev.charges) || 0;
+                              const total = prev.type === 'SELL' ? Math.max(0, (q * Number(p)) - c) : ((q * Number(p)) + c);
+                              return { ...prev, price: p, total_amount: q && p ? total.toFixed(2) : prev.total_amount };
+                            });
+                          }}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              const isFund = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+                              setEditForm(prev => ({ ...prev, price: isFund ? val.toFixed(4) : val.toFixed(2) }));
+                            }
+                          }}
+                          className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"
+                        />
                       </td>
                       <td className="py-2 px-3">
-                        <input type="number" step="any" value={editForm.total_amount} onChange={(e) => setEditForm(prev => ({ ...prev, total_amount: e.target.value }))} className="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" />
+                        <input
+                          type="number"
+                          step="any"
+                          value={editForm.total_amount}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, total_amount: e.target.value }))}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              setEditForm(prev => ({ ...prev, total_amount: val.toFixed(2) }));
+                            }
+                          }}
+                          className="w-28 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"
+                        />
                       </td>
                       <td className="py-2 px-3">
-                        <input type="number" step="any" value={editForm.charges || ''} onChange={(e) => setEditForm(prev => ({ ...prev, charges: e.target.value }))} className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500" placeholder="0" />
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={editForm.charges || ''}
+                          onChange={(e) => {
+                            const c = e.target.value;
+                            setEditForm(prev => {
+                              const q = Number(prev.quantity) || 0;
+                              const p = Number(prev.price) || 0;
+                              const total = prev.type === 'SELL' ? Math.max(0, (q * p) - Number(c)) : ((q * p) + Number(c));
+                              return { ...prev, charges: c, total_amount: q && p ? total.toFixed(2) : prev.total_amount };
+                            });
+                          }}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val)) {
+                              setEditForm(prev => ({ ...prev, charges: val.toFixed(2) }));
+                            } else {
+                              setEditForm(prev => ({ ...prev, charges: '0.00' }));
+                            }
+                          }}
+                          className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"
+                          placeholder="0.00"
+                        />
                       </td>
                       {isUSStock && (
                         <td className="py-2 px-3">
@@ -593,12 +778,12 @@ export default function HoldingTransactionLedger({
                 return (
                   <motion.tr
                     key={tx.id || i}
-                    className={`transition-colors ${rowHover}`}
+                    className={`group transition-colors ${rowHover}`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: Math.min(i * 0.015, 0.4) }}
                   >
-                    <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap" title={formatDateDDMMYYYY(tx.date)}>{formatDateDDMMYYYY(tx.date)}</td>
+                    <td className="py-2.5 px-4 font-mono text-slate-300 whitespace-nowrap sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[130px]" title={formatDateDDMMYYYY(tx.date)}>{formatDateDDMMYYYY(tx.date)}</td>
                     <td className="py-2.5 px-4"><TxBadge type={tx.type} /></td>
                     <td className="py-2.5 px-4 text-right font-mono text-slate-200">
                       {qtyDisplay}
