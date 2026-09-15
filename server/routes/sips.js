@@ -62,7 +62,8 @@ router.post('/sips', authenticateToken, async (req, res) => {
 
     if (error) throw error;
     db.invalidateCache('sips');
-    res.json({ success: true, sip: inserted[0] });
+    const processing = await processDueSips();
+    res.json({ success: true, sip: inserted[0], processing });
   } catch (err) {
     console.error('[Create SIP Error]:', err);
     res.status(500).json({ error: err.message });

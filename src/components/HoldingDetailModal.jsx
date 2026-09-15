@@ -10,6 +10,7 @@ import HoldingMarketStats from './holding-detail/HoldingMarketStats';
 import HoldingMetricCards from './holding-detail/HoldingMetricCards';
 import HoldingChartsSection from './holding-detail/HoldingChartsSection';
 import HoldingTransactionLedger from './holding-detail/HoldingTransactionLedger';
+import SipManagerModal from './SipManagerModal';
 
 export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const { currency, theme, fxRate, formatMoney, showError, showSuccess } = useThemeAuth();
@@ -36,6 +37,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
 
   // Quick Add Transaction state
   const [isAddingTx, setIsAddingTx] = useState(false);
+  const [isSipModalOpen, setIsSipModalOpen] = useState(false);
   const [newTxType, setNewTxType] = useState(() => {
     if (holding?.category_id === 'bank') return 'DEPOSIT';
     if (holding?.category_id === 'epf') return 'CONTRIBUTION';
@@ -719,6 +721,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                         setDeleteConfirmTx={setDeleteConfirmTx}
                         isDeletingTx={isDeletingTx}
                         handleConfirmDeleteTx={handleConfirmDeleteTx}
+                        onOpenSip={() => setIsSipModalOpen(true)}
                       />
                     </>
                   )}
@@ -732,7 +735,40 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   );
 
   if (typeof document !== 'undefined') {
-    return createPortal(modalContent, document.body);
+    return createPortal(
+      <>
+        {modalContent}
+        {holding?.category_id === 'mutual_funds' && (
+          <SipManagerModal
+            isOpen={isSipModalOpen}
+            onClose={() => setIsSipModalOpen(false)}
+            holdings={[holding]}
+            initialHoldingId={holding.id}
+            onRefresh={async () => {
+              await fetchDetail(false);
+              if (onRefresh) await onRefresh();
+            }}
+          />
+        )}
+      </>,
+      document.body
+    );
   }
-  return modalContent;
+  return (
+    <>
+      {modalContent}
+      {holding?.category_id === 'mutual_funds' && (
+        <SipManagerModal
+          isOpen={isSipModalOpen}
+          onClose={() => setIsSipModalOpen(false)}
+          holdings={[holding]}
+          initialHoldingId={holding.id}
+          onRefresh={async () => {
+            await fetchDetail(false);
+            if (onRefresh) await onRefresh();
+          }}
+        />
+      )}
+    </>
+  );
 }

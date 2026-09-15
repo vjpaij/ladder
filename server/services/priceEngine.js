@@ -221,18 +221,25 @@ export async function fetchStockQuote(symbol) {
   return liveQuoteCache.get(symbol) || null;
 }
 
-export async function fetchMutualFundNav(schemeCode) {
+export async function fetchMutualFundNav(schemeCode, targetDate = null) {
   try {
     const res = await axios.get(`https://api.mfapi.in/mf/${schemeCode}`, { timeout: 5000 });
     if (res.data && res.data.data && res.data.data.length > 0) {
-      const latest = res.data.data[0];
-      const prev = res.data.data[1] || latest;
+      const records = targetDate
+        ? res.data.data.filter(record => {
+            const [day, month, year] = String(record.date || '').split('-');
+            return `${year}-${month}-${day}` <= targetDate;
+          })
+        : res.data.data;
+      const latest = records[0];
+      if (!latest) return null;
+      const prev = records[1] || latest;
       const nav = parseFloat(latest.nav);
       const prevNav = parseFloat(prev.nav);
       const dayChange = nav - prevNav;
       const dayChangePct = prevNav > 0 ? Number(((dayChange / prevNav) * 100).toFixed(2)) : 0;
 
-      const yearRecords = res.data.data.slice(0, 252).map(r => parseFloat(r.nav)).filter(n => !isNaN(n));
+      const yearRecords = records.slice(0, 252).map(r => parseFloat(r.nav)).filter(n => !isNaN(n));
       const fiftyTwoWeekHigh = yearRecords.length > 0 ? Math.max(...yearRecords) : nav;
       const fiftyTwoWeekLow = yearRecords.length > 0 ? Math.min(...yearRecords) : nav;
       const quoteDate = formatCleanQuoteDate(latest.date);

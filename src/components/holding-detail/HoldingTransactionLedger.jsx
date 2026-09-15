@@ -59,7 +59,8 @@ export default function HoldingTransactionLedger({
   deleteConfirmTx,
   setDeleteConfirmTx,
   isDeletingTx,
-  handleConfirmDeleteTx
+  handleConfirmDeleteTx,
+  onOpenSip
 }) {
   const SortIcon = ({ field }) => {
     if (txSort.field !== field) return <ChevronDown className="w-3 h-3 text-slate-600 inline ml-0.5" />;
@@ -101,6 +102,18 @@ export default function HoldingTransactionLedger({
             <Plus className="w-3.5 h-3.5" />
             <span>{isAddingTx ? 'Close' : 'Add Transaction'}</span>
           </button>
+
+          {holding?.category_id === 'mutual_funds' && (
+            <button
+              type="button"
+              onClick={onOpenSip}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30"
+              title="Set up an SIP for this mutual fund"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add SIP</span>
+            </button>
+          )}
 
           {availableTxTypes.length > 1 && (
             <div className="flex flex-wrap items-center gap-1 p-0.5 bg-slate-900/80 border border-slate-800 rounded-xl text-[10px] font-bold">
@@ -1121,7 +1134,7 @@ export default function HoldingTransactionLedger({
                 return (
                   <motion.tr
                     key={tx.id || i}
-                    className={`group transition-colors ${rowHover}`}
+                    className={`group transition-colors border-0 ${rowHover}`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: Math.min(i * 0.015, 0.4) }}

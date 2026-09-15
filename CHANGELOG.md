@@ -5,6 +5,20 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.31.0] - 2026-09-15
+
+### Added
+- **Recurring Mutual Fund SIP Automation**:
+  - SIP creation and Mutual Fund NAV refresh now catch up every due installment through the current date, using the NAV available on each scheduled date.
+  - Added background SIP sweeps so future installments execute when the API is running even if the UI is closed.
+  - Added a scheme-scoped **Add SIP** action beside **Add Transaction** in the holding detail ledger.
+
+### Changed
+- Mutual Fund SIP and BUY charge handling now uses 0.005% stamp duty; legacy Mutual Fund amounts were migrated to store amount excluding charges, while corrected SIP rows were preserved.
+- Mutual Fund **Total Bought** and **Current Cost** use stored transaction amount plus charges, with proportional FIFO allocation for partially redeemed lots.
+- Standardized transaction ledger row borders and matched **Add SIP** styling to **Add Transaction**.
+- Shortened automated SIP notes to `SIP @ NAV ...`.
+
 ## [5.30.7] - 2026-09-14
 
 ### Fixed

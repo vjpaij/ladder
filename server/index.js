@@ -15,6 +15,7 @@ import { createCloudBackup } from '../scripts/backup_manager.mjs';
 import { JWT_SECRET } from './middleware/auth.js';
 import { triggerEodRebuildIfPastDate } from './services/eodSync.js';
 import { runComprehensiveSelfHealing } from './services/selfHealingService.js';
+import { processDueSips } from './services/sipEngine.js';
 
 // Import Modular API Route Controllers
 import authRouter from './routes/auth.js';
@@ -151,6 +152,17 @@ app.listen(PORT, () => {
   };
 
   scheduleDailyCloudBackup();
+
+  // Sweep due SIPs periodically so automation continues when the UI is closed.
+  const runSipSweep = async () => {
+    try {
+      await processDueSips();
+    } catch (err) {
+      console.warn('[SIP Scheduler Warning]:', err.message);
+    }
+  };
+  setTimeout(runSipSweep, 2000);
+  setInterval(runSipSweep, 15 * 60 * 1000);
 
   // Automated daily EOD rebuild scheduler: runs twice daily
   // 1. 06:30 PM IST (13:00 UTC) — post Indian market close & NAV settlement

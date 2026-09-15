@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient.js';
 import { refreshAllHoldingsPrices, fetchNpsHistoricalNav, syncAllMissingNavs } from '../services/priceEngine.js';
 import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { runComprehensiveSelfHealing } from '../services/selfHealingService.js';
+import { processDueSips } from '../services/sipEngine.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -165,10 +166,12 @@ router.get('/nav/nps/:schemeCode', async (req, res) => {
 router.post('/refresh-navs', authenticateToken, async (req, res) => {
   try {
     const results = await syncAllMissingNavs();
+    const sipProcessing = await processDueSips();
     res.json({
       success: true,
       message: `Sync complete: ${results.npsUpdated} NPS schemes & ${results.mfUpdated} Mutual Funds updated.`,
-      results
+      results,
+      sipProcessing
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

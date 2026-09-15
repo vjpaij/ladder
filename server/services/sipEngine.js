@@ -3,7 +3,6 @@ import path from 'path';
 import { supabase } from '../supabaseClient.js';
 import db from '../db.js';
 import { fetchMutualFundNav } from './priceEngine.js';
-import { isTradingDay, getNextTradingDay } from './marketCalendar.js';
 import { recalculateHoldingState } from './recalculator.js';
 
 const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');
@@ -86,12 +85,6 @@ async function appendSipHistory(records) {
 export async function processDueSips() {
   const today = new Date().toISOString().split('T')[0];
 
-  // If today is a non-trading day (weekend or NSE market holiday), defer execution
-  if (!isTradingDay(today)) {
-    console.log(`[SIP Engine] Today (${today}) is a non-trading session (weekend or NSE holiday). Execution deferred to next open business day.`);
-    return { processedCount: 0, processedSips: [], skippedSips: [], reason: 'Non-trading day deferral' };
-  }
-
   console.log(`[SIP Engine] Checking for due SIPs as of ${today}...`);
 
   const { data: dueSips, error } = await supabase
@@ -116,9 +109,11 @@ export async function processDueSips() {
   const historyEvents = [];
 
   for (const sip of dueSips) {
-    try {
+    let scheduledDate = sip.next_run_date;
+    while (scheduledDate && scheduledDate <= today) {
+      try {
       // Check if SIP has passed its end_date -- auto-close if so
-      if (sip.end_date && sip.next_run_date > sip.end_date) {
+      if (sip.end_date && scheduledDate > sip.end_date) {
         await supabase
           .from('sips')
           .update({ status: 'CLOSED', updated_at: new Date().toISOString() })
@@ -129,7 +124,7 @@ export async function processDueSips() {
         historyEvents.push({
           id: `${sip.id}-${today}-closed-${Date.now()}`,
           timestamp: new Date().toISOString(),
-          date: today,
+          date: scheduledDate,
           sipId: sip.id,
           name: sip.name,
           symbol: sip.symbol,
@@ -137,11 +132,11 @@ export async function processDueSips() {
           status: 'CLOSED',
           reason: `End date ${sip.end_date} reached`
         });
-        continue;
+        break;
       }
 
-      const quote = await fetchMutualFundNav(sip.symbol);
-      const nav = quote?.price;
+      const quote = await fetchMutualFundNav(sip.symbol, scheduledDate);
+      const nav = quote?.nav;
 
       // Safety: do NOT execute if fresh market NAV is unavailable
       if (!nav || nav <= 0) {
@@ -151,7 +146,7 @@ export async function processDueSips() {
         historyEvents.push({
           id: `${sip.id}-${today}-skip-${Date.now()}`,
           timestamp: new Date().toISOString(),
-          date: today,
+          date: scheduledDate,
           sipId: sip.id,
           name: sip.name,
           symbol: sip.symbol,
@@ -159,11 +154,11 @@ export async function processDueSips() {
           status: 'SKIPPED',
           reason: 'NAV unavailable or market closed'
         });
-        continue;
+        break;
       }
 
       const totalAmount = Number(sip.amount);
-      const charges = parseFloat((totalAmount * 0.00015).toFixed(2)); // 0.015% stamp duty
+      const charges = parseFloat((totalAmount * 0.00005).toFixed(2)); // 0.005% stamp duty
       const netInvested = totalAmount - charges;
       const units = parseFloat((netInvested / nav).toFixed(4));
 
@@ -173,20 +168,20 @@ export async function processDueSips() {
         type: 'BUY',
         quantity: units,
         price: nav,
-        total_amount: totalAmount,
+        total_amount: netInvested,
         charges: charges,
         currency: 'INR',
-        date: today,
+        date: scheduledDate,
         symbol: sip.symbol,
         name: sip.name,
-        notes: `Automated Recurring SIP Execution: Rs.${totalAmount.toLocaleString()} @ NAV Rs.${nav.toFixed(4)}`
+        notes: `SIP @ NAV Rs.${nav.toFixed(4)}`
       });
 
       // 2. Recompute holding position accurately
       await recalculateHoldingState(sip.holding_id);
 
       // 3. Compute next run date based on frequency (Weekly, Fortnightly, Monthly, Quarterly)
-      const currentNext = new Date(sip.next_run_date);
+      const currentNext = new Date(scheduledDate);
       const freq = (sip.frequency || 'MONTHLY').toUpperCase();
 
       if (freq === 'WEEKLY') {
@@ -203,7 +198,7 @@ export async function processDueSips() {
 
       // 4. Check if next run date exceeds end_date -- auto-close if so
       const sipUpdates = {
-        last_run_date: sip.next_run_date,
+        last_run_date: scheduledDate,
         next_run_date: newNextRunDate,
         updated_at: new Date().toISOString()
       };
@@ -224,16 +219,16 @@ export async function processDueSips() {
         amount: totalAmount,
         nav,
         units,
-        executedDate: sip.next_run_date,
+        executedDate: scheduledDate,
         newNextRunDate,
         autoClosed: sipUpdates.status === 'CLOSED'
       };
       processedSips.push(processedItem);
 
       historyEvents.push({
-        id: `${sip.id}-${today}-success-${Date.now()}`,
+        id: `${sip.id}-${scheduledDate}-success-${Date.now()}`,
         timestamp: new Date().toISOString(),
-        date: today,
+        date: scheduledDate,
         sipId: sip.id,
         name: sip.name,
         symbol: sip.symbol,
@@ -245,13 +240,15 @@ export async function processDueSips() {
       });
 
       console.log(`[SIP Engine] Successfully executed SIP for ${sip.name}: Rs.${totalAmount} (${units} units). Next: ${sipUpdates.status === 'CLOSED' ? 'CLOSED' : newNextRunDate}`);
-    } catch (sipErr) {
-      console.error(`[SIP Engine Error executing SIP ${sip.id}]:`, sipErr.message);
+      if (sipUpdates.status === 'CLOSED') break;
+      scheduledDate = newNextRunDate;
+      } catch (sipErr) {
+      console.error(`[SIP Engine Error executing SIP ${sip.id} on ${scheduledDate}]:`, sipErr.message);
       skippedSips.push({ sipId: sip.id, name: sip.name, symbol: sip.symbol, amount: Number(sip.amount), reason: sipErr.message });
       historyEvents.push({
-        id: `${sip.id}-${today}-failed-${Date.now()}`,
+        id: `${sip.id}-${scheduledDate}-failed-${Date.now()}`,
         timestamp: new Date().toISOString(),
-        date: today,
+        date: scheduledDate,
         sipId: sip.id,
         name: sip.name,
         symbol: sip.symbol,
@@ -259,6 +256,8 @@ export async function processDueSips() {
         status: 'FAILED',
         reason: sipErr.message
       });
+      break;
+      }
     }
   }
 

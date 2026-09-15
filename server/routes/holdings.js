@@ -571,10 +571,23 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       if (tx.type === 'BUY') {
         totalBuyChargesUSD += chargesUSD;
         totalBuyChargesINR += chargesINR;
-        totalInvestedUSD += rawPrincipalUSD + chargesUSD;
-        totalInvestedINR += rawPrincipalINR + chargesINR;
+        const storedAmount = Number(tx.total_amount);
+        const transactionAmountUSD = (holding.category_id === 'mutual_funds' && Number.isFinite(storedAmount))
+          ? storedAmount
+          : rawPrincipalUSD;
+        totalInvestedUSD += transactionAmountUSD + chargesUSD;
+        totalInvestedINR += (holding.category_id === 'mutual_funds' && Number.isFinite(storedAmount)
+          ? storedAmount
+          : rawPrincipalINR) + chargesINR;
         buyLotsUSD.push({ qty, price, charges: chargesUSD, rem: qty });
-        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, charges: chargesINR, rem: qty });
+        buyLotsINR.push({
+          qty,
+          priceUSD: price,
+          fxRate: txRate,
+          amount: Number(tx.total_amount),
+          charges: chargesINR,
+          rem: qty
+        });
       } else if (tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
         buyLotsUSD.push({ qty, price, charges: 0, rem: qty });
         buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, charges: 0, rem: qty });
@@ -645,6 +658,10 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const currentValueINR = currentValueUSD * liveRate;
     const costBasisINR = activeLotsINR.length > 0
       ? activeLotsINR.reduce((s, l) => {
+          if (holding.category_id === 'mutual_funds' && Number.isFinite(l.amount)) {
+            const lotCost = l.amount + (l.charges || 0);
+            return s + (l.qty > 0 ? (l.rem / l.qty) * lotCost : 0);
+          }
           const lotCost = l.rem * l.priceUSD * l.fxRate;
           const lotCharge = l.qty > 0 ? (l.rem / l.qty) * (l.charges || 0) : 0;
           return s + lotCost + lotCharge;
@@ -1266,10 +1283,10 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
         txAmount -= txCharges;
       }
 
-      // Handle MF SIP 0.015% automatic charges if amount was provided
+      // Handle MF SIP 0.005% automatic charges if amount was provided
       if (portfolio === 'mutual_funds' && txType === 'BUY' && data.amount) {
         const inputAmount = Math.abs(Number(data.amount));
-        txCharges = Number((inputAmount * 0.00015).toFixed(4));
+        txCharges = Number((inputAmount * 0.00005).toFixed(4));
         txAmount = inputAmount - txCharges;
         txQty = Number((txAmount / txPrice).toFixed(4));
       }

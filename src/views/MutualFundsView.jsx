@@ -570,6 +570,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
         isOpen={isSipModalOpen}
         onClose={() => setIsSipModalOpen(false)}
         holdings={holdings}
+        onRefresh={onRefresh}
       />
     </>
   );

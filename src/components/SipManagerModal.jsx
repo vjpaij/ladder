@@ -13,7 +13,7 @@ const FREQUENCY_OPTIONS = [
   { value: 'QUARTERLY', label: 'Quarterly' },
 ];
 
-export default function SipManagerModal({ isOpen, onClose, holdings }) {
+export default function SipManagerModal({ isOpen, onClose, holdings, onRefresh, initialHoldingId = '' }) {
   const { formatMoney, showError, showConfirm } = useThemeAuth();
   const [sips, setSips] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -57,6 +57,7 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
     if (isOpen) {
       fetchSips();
       setShowAddForm(false);
+      setSelectedHoldingId(initialHoldingId || '');
       setNewStartDate(new Date().toISOString().split('T')[0]);
       setNewEndDate('');
       setNewFrequency('MONTHLY');
@@ -157,6 +158,7 @@ export default function SipManagerModal({ isOpen, onClose, holdings }) {
 
       if (res.data.sip) {
         setSips(prev => [res.data.sip, ...prev]);
+        if (onRefresh) await onRefresh();
         setShowAddForm(false);
         setNewAmount('');
         setSelectedHoldingId('');
