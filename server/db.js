@@ -30,15 +30,15 @@ function getSupabaseTableName(tableName) {
   return tableName;
 }
 
-// In-memory reactive cache with TTL & instant invalidation
+// In-memory reactive cache with 24-hour TTL & write-through mutation
 const dbCache = new Map();
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours TTL (persists in Node RAM, updated write-through)
 
 export function initDatabase() {
   console.log('[Database] Connected to Supabase Cloud PostgreSQL engine with In-Memory Egress Guard.');
 }
 
-function getCacheEntry(tableName) {
+export function getCacheEntry(tableName) {
   const entry = dbCache.get(tableName);
   if (!entry) return null;
   if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
@@ -48,8 +48,24 @@ function getCacheEntry(tableName) {
   return entry.data;
 }
 
-function setCacheEntry(tableName, data) {
+export function setCacheEntry(tableName, data) {
   dbCache.set(tableName, { data, timestamp: Date.now() });
+}
+
+/**
+ * Update a single cached row directly in RAM without invalidating or re-fetching the table.
+ */
+export function updateCacheRow(tableName, id, updates) {
+  const sTable = getSupabaseTableName(tableName);
+  const entry = dbCache.get(sTable);
+  if (entry && Array.isArray(entry.data)) {
+    const idx = entry.data.findIndex(r => String(r.id) === String(id));
+    if (idx !== -1) {
+      entry.data[idx] = { ...entry.data[idx], ...updates };
+      return entry.data[idx];
+    }
+  }
+  return null;
 }
 
 export function invalidateCache(tableName) {
@@ -60,13 +76,9 @@ export function invalidateCache(tableName) {
   }
   const sTable = getSupabaseTableName(tableName);
   dbCache.delete(sTable);
-  // Cross-invalidation for related tables
-  if (sTable === 'transactions' || sTable === 'dividends') {
-    dbCache.delete('holdings');
-  }
-  if (sTable === 'holdings') {
-    dbCache.delete('transactions');
-  }
+
+  // STRICT EGRESS RULE: Holding price changes must NEVER invalidate transactions!
+  // Only invalidate tightly coupled sub-tables where rows are split or amortized:
   if (sTable === 'liabilities' || sTable === 'loan_amortization') {
     dbCache.delete('liabilities');
     dbCache.delete('loan_amortization');
@@ -156,7 +168,6 @@ export const db = {
       const newUser = { id: nextId, ...row };
       users.push(newUser);
       writeLocalUsers(users);
-      invalidateCache('users');
       return newUser;
     }
 
@@ -166,7 +177,12 @@ export const db = {
       console.error(`[DB Insert Error - ${sTable}]:`, error.message);
       throw new Error(error.message);
     }
-    invalidateCache(sTable);
+    
+    // Write-through update: push directly to RAM cache so subsequent reads do not re-query cloud DB
+    const cached = dbCache.get(sTable);
+    if (cached && Array.isArray(cached.data)) {
+      cached.data.push(data);
+    }
     return data;
   },
 
@@ -177,20 +193,30 @@ export const db = {
       if (idx !== -1) {
         users[idx] = { ...users[idx], ...updates };
         writeLocalUsers(users);
-        invalidateCache('users');
         return users[idx];
       }
       return null;
     }
 
     const sTable = getSupabaseTableName(tableName);
-    const { data, error } = await supabase.from(sTable).update(updates).eq('id', id).select();
+    // Omit .select() to return 204 No Content headers with 0 response bytes, protecting egress
+    const { error } = await supabase.from(sTable).update(updates).eq('id', id);
     if (error) {
       console.error(`[DB Update Error - ${sTable}]:`, error.message);
       throw new Error(error.message);
     }
-    invalidateCache(sTable);
-    return data?.[0] || null;
+
+    // Write-through update: mutate in-memory cache directly
+    const cached = dbCache.get(sTable);
+    let updatedRow = null;
+    if (cached && Array.isArray(cached.data)) {
+      const idx = cached.data.findIndex(u => String(u.id) === String(id));
+      if (idx !== -1) {
+        cached.data[idx] = { ...cached.data[idx], ...updates };
+        updatedRow = cached.data[idx];
+      }
+    }
+    return updatedRow || { id, ...updates };
   },
 
   delete: async (tableName, id) => {
@@ -198,7 +224,6 @@ export const db = {
       let users = readLocalUsers();
       users = users.filter(u => String(u.id) !== String(id));
       writeLocalUsers(users);
-      invalidateCache('users');
       return true;
     }
 
@@ -208,7 +233,12 @@ export const db = {
       console.error(`[DB Delete Error - ${sTable}]:`, error.message);
       return false;
     }
-    invalidateCache(sTable);
+
+    // Write-through update: remove from RAM cache directly
+    const cached = dbCache.get(sTable);
+    if (cached && Array.isArray(cached.data)) {
+      cached.data = cached.data.filter(u => String(u.id) !== String(id));
+    }
     return true;
   },
 

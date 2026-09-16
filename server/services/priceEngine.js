@@ -1,7 +1,7 @@
 import fs from 'fs';
 import axios from 'axios';
 import AdmZip from 'adm-zip';
-import db from '../db.js';
+import { db, updateCacheRow, getCacheEntry } from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { storeRate, getPersistedRate, scheduleRetry, registerFetchFunction } from './fxRateStore.js';
 
@@ -408,19 +408,28 @@ export async function fetchProteanNpsNavBatch() {
       }
     }
 
-    // Always persist valid downloaded Protean NAV rows to Supabase.
-    // Each row is keyed by (scheme_code, nav_date) so past/recent dates never overwrite other dates.
-    if (dbRows.length > 0) {
+    // EGRESS GUARD: Only persist NAV rows for schemes actively tracked in user holdings.
+    // Prevents inserting hundreds of untracked schemes across all of India and avoids thousands of POST calls.
+    let rowsToPersist = dbRows;
+    try {
+      const cachedHoldings = getCacheEntry('holdings') || [];
+      const heldSymbols = new Set(cachedHoldings.filter(h => h.category_id === 'nps' && h.symbol).map(h => h.symbol));
+      if (heldSymbols.size > 0) {
+        rowsToPersist = dbRows.filter(r => heldSymbols.has(r.scheme_code));
+      } else {
+        rowsToPersist = dbRows.filter(r => r.scheme_code.startsWith('SM00') || r.scheme_code.startsWith('SM01') || r.scheme_code.startsWith('SM008') || r.scheme_code.startsWith('SM003'));
+      }
+    } catch (e) {
+      rowsToPersist = dbRows.slice(0, 20);
+    }
+
+    if (rowsToPersist.length > 0) {
       try {
-        const batchSize = 100;
-        for (let i = 0; i < dbRows.length; i += batchSize) {
-          const chunk = dbRows.slice(i, i + batchSize);
-          const { error } = await supabase
-            .from('nps_daily_navs')
-            .upsert(chunk, { onConflict: 'scheme_code,nav_date' });
-          if (error) throw error;
-        }
-        console.log(`[Protean Scraper] Persisted ${dbRows.length} NAV rows for ${zipNavDate} to Supabase.`);
+        const { error } = await supabase
+          .from('nps_daily_navs')
+          .upsert(rowsToPersist, { onConflict: 'scheme_code,nav_date' });
+        if (error) throw error;
+        console.log(`[Protean Scraper] Persisted ${rowsToPersist.length} held NAV rows for ${zipNavDate} to Supabase.`);
       } catch (e) {
         console.warn('[NPS DB Upsert Warning]:', e.message);
       }
@@ -464,7 +473,8 @@ export async function syncDailyNpsNavs() {
  * - Already-synced detection: skips Supabase upsert if today's NAVs are all present.
  * - Date-verified Protean fetch: uses npsnav.in only when Protean ZIP is confirmed stale.
  */
-export async function syncAllMissingNavs() {
+export async function syncAllMissingNavs(options = {}) {
+  const { persistToDb = false } = options;
   const results = { npsUpdated: 0, mfUpdated: 0, totalChecked: 0, skipped: false, skipReason: null };
 
   const today = getTodayIST();
@@ -504,10 +514,16 @@ export async function syncAllMissingNavs() {
           });
           const h = npsHoldings.find(item => item.symbol === row.scheme_code);
           if (h && Number(h.current_price) !== Number(row.nav)) {
-            await db.update('holdings', h.id, {
+            updateCacheRow('holdings', h.id, {
               current_price: row.nav,
               updated_at: new Date().toISOString()
             });
+            if (persistToDb) {
+              await db.update('holdings', h.id, {
+                current_price: row.nav,
+                updated_at: new Date().toISOString()
+              });
+            }
           }
         }
         results.npsUpdated = navRows.length;
@@ -545,10 +561,16 @@ export async function syncAllMissingNavs() {
           if (item) {
             liveQuoteCache.set(h.symbol, { price: item.nav, quoteDate: item.quoteDate });
             if (Number(h.current_price) !== Number(item.nav)) {
-              await db.update('holdings', h.id, {
+              updateCacheRow('holdings', h.id, {
                 current_price: item.nav,
                 updated_at: new Date().toISOString()
               });
+              if (persistToDb) {
+                await db.update('holdings', h.id, {
+                  current_price: item.nav,
+                  updated_at: new Date().toISOString()
+                });
+              }
             }
             results.npsUpdated++;
           }
@@ -566,10 +588,16 @@ export async function syncAllMissingNavs() {
       if (q) {
         liveQuoteCache.set(h.symbol, q);
         if (Number(h.current_price) !== Number(q.nav)) {
-          await db.update('holdings', h.id, {
+          updateCacheRow('holdings', h.id, {
             current_price: q.nav,
             updated_at: new Date().toISOString()
           });
+          if (persistToDb) {
+            await db.update('holdings', h.id, {
+              current_price: q.nav,
+              updated_at: new Date().toISOString()
+            });
+          }
         }
         results.mfUpdated++;
       }
@@ -578,7 +606,6 @@ export async function syncAllMissingNavs() {
     }
   }));
 
-  db.invalidateCache('holdings');
   return results;
 }
 
@@ -722,7 +749,7 @@ export async function fetchNpsHistoricalNav(schemeCode) {
  * @param {Object} [options]
  * @param {boolean} [options.activeOnly=true] - If true, only holdings with quantity > 0 are refreshed
  */
-export async function refreshHoldingsPrices({ activeOnly = true } = {}) {
+export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = false } = {}) {
   const allHoldings = await db.select('holdings');
   const holdings = activeOnly ? allHoldings.filter(h => Number(h.quantity) > 0) : allHoldings;
   const fxRate = await fetchFxRate();
@@ -736,10 +763,16 @@ export async function refreshHoldingsPrices({ activeOnly = true } = {}) {
       if (q && q.price > 0) {
         liveQuoteCache.set(h.symbol, q);
         if (q.price !== Number(h.current_price)) {
-          await db.update('holdings', h.id, {
+          updateCacheRow('holdings', h.id, {
             current_price: q.price,
             updated_at: new Date().toISOString()
           });
+          if (persistToDb) {
+            await db.update('holdings', h.id, {
+              current_price: q.price,
+              updated_at: new Date().toISOString()
+            });
+          }
           updatedCount++;
         }
       }
@@ -786,12 +819,20 @@ export async function refreshHoldingsPrices({ activeOnly = true } = {}) {
         }
 
         if (newPrice > 0 && newPrice !== Number(h.current_price)) {
-          await db.update('holdings', h.id, {
+          updateCacheRow('holdings', h.id, {
             current_price: newPrice,
             nse_price: nseP,
             bse_price: bseP,
             updated_at: new Date().toISOString()
           });
+          if (persistToDb) {
+            await db.update('holdings', h.id, {
+              current_price: newPrice,
+              nse_price: nseP,
+              bse_price: bseP,
+              updated_at: new Date().toISOString()
+            });
+          }
           updatedCount++;
         }
       } catch (e) {
@@ -818,10 +859,16 @@ export async function refreshHoldingsPrices({ activeOnly = true } = {}) {
           quoteDate: q.quoteDate
         });
         if (q.nav !== Number(h.current_price)) {
-          await db.update('holdings', h.id, {
+          updateCacheRow('holdings', h.id, {
             current_price: q.nav,
             updated_at: new Date().toISOString()
           });
+          if (persistToDb) {
+            await db.update('holdings', h.id, {
+              current_price: q.nav,
+              updated_at: new Date().toISOString()
+            });
+          }
           updatedCount++;
         }
       }
@@ -864,10 +911,16 @@ export async function refreshHoldingsPrices({ activeOnly = true } = {}) {
             quoteDate: qDate
           });
           if (q.nav !== Number(h.current_price)) {
-            await db.update('holdings', h.id, {
+            updateCacheRow('holdings', h.id, {
               current_price: q.nav,
               updated_at: new Date().toISOString()
             });
+            if (persistToDb) {
+              await db.update('holdings', h.id, {
+                current_price: q.nav,
+                updated_at: new Date().toISOString()
+              });
+            }
             updatedCount++;
           }
         }
@@ -883,13 +936,21 @@ export async function refreshHoldingsPrices({ activeOnly = true } = {}) {
 /**
  * Fast loop: refreshes only actively held assets (quantity > 0)
  */
-export async function refreshActiveHoldingsPrices() {
-  return refreshHoldingsPrices({ activeOnly: true });
+export async function refreshActiveHoldingsPrices(options = {}) {
+  return refreshHoldingsPrices({ activeOnly: true, ...options });
 }
 
 /**
  * Comprehensive sync: refreshes all holdings across database
  */
-export async function refreshAllHoldingsPrices() {
-  return refreshHoldingsPrices({ activeOnly: false });
+export async function refreshAllHoldingsPrices(options = {}) {
+  return refreshHoldingsPrices({ activeOnly: false, ...options });
+}
+
+/**
+ * Persists official closing prices to Supabase table once at EOD / market close.
+ */
+export async function persistHoldingClosingPrices() {
+  console.log('[PriceEngine] Persisting closing holding prices to Supabase...');
+  return refreshHoldingsPrices({ activeOnly: false, persistToDb: true });
 }

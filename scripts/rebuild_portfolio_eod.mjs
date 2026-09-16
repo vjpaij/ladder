@@ -171,19 +171,29 @@ async function rebuildEod() {
   const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && (Number(h.quantity) || 0) > 0);
   const npsHoldings = holdings.filter(h => h.category_id === 'nps' && (Number(h.quantity) || 0) > 0);
 
-  // 1. Fetch official Protean CRA NAVs directly from Supabase nps_daily_navs table with pagination guard
+  // 1. Fetch official Protean CRA NAVs directly from Supabase nps_daily_navs table scoped strictly to held schemes
   let proteanDbNavs = [];
-  let navFrom = 0;
-  const navBatchSize = 1000;
-  while (true) {
-    const { data: batch, error } = await supabase
-      .from('nps_daily_navs')
-      .select('scheme_code, nav, nav_date')
-      .range(navFrom, navFrom + navBatchSize - 1);
-    if (error || !batch || batch.length === 0) break;
-    proteanDbNavs.push(...batch);
-    if (batch.length < navBatchSize) break;
-    navFrom += navBatchSize;
+  const heldNpsCodes = npsHoldings.map(h => h.symbol).filter(Boolean);
+  if (heldNpsCodes.length > 0) {
+    let navFrom = 0;
+    const navBatchSize = 1000;
+    const baselineDate = baseLogs[baseLogs.length - 1]?.date;
+    while (true) {
+      let query = supabase
+        .from('nps_daily_navs')
+        .select('scheme_code, nav, nav_date')
+        .in('scheme_code', heldNpsCodes);
+      
+      if (baselineDate) {
+        query = query.gte('nav_date', baselineDate);
+      }
+
+      const { data: batch, error } = await query.range(navFrom, navFrom + navBatchSize - 1);
+      if (error || !batch || batch.length === 0) break;
+      proteanDbNavs.push(...batch);
+      if (batch.length < navBatchSize) break;
+      navFrom += navBatchSize;
+    }
   }
   
   const proteanMap = {};

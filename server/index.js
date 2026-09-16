@@ -7,6 +7,7 @@ import { supabase } from './supabaseClient.js';
 import { 
   refreshAllHoldingsPrices, 
   refreshActiveHoldingsPrices, 
+  persistHoldingClosingPrices,
   liveQuoteCache, 
   fetchFxRate,
   syncAllMissingNavs 
@@ -105,9 +106,10 @@ app.listen(PORT, () => {
   }, 5000);
 
   // Full comprehensive portfolio sync & self-healing scan (every 10 minutes)
+  // EGRESS GUARD: persistToDb is strictly FALSE to update RAM with 0 Supabase egress
   setInterval(async () => {
     try {
-      await refreshAllHoldingsPrices();
+      await refreshAllHoldingsPrices({ persistToDb: false });
       await runComprehensiveSelfHealing();
     } catch (err) {
       console.warn('[FullPriceSync Warning]:', err.message);
@@ -188,8 +190,14 @@ app.listen(PORT, () => {
     const armNextRebuild = () => {
       const { delay, label, date } = getNextRebuildDelay();
       console.log(`[EOD Scheduler] Next automated EOD rebuild (${label}) scheduled for ${date.toISOString()} (in ${(delay / 3600000).toFixed(2)}h)`);
-      setTimeout(() => {
+      setTimeout(async () => {
         console.log(`[EOD Scheduler] Triggering scheduled EOD rebuild (${label})...`);
+        try {
+          // Persist official closing prices to Supabase holdings table once at session close
+          await persistHoldingClosingPrices();
+        } catch (e) {
+          console.warn('[EOD Scheduler] Closing price persist warning:', e.message);
+        }
         const child = fork('./scripts/rebuild_portfolio_eod.mjs');
         child.on('exit', (code) => {
           console.log(`[EOD Scheduler] Scheduled rebuild (${label}) completed with exit code ${code}`);
