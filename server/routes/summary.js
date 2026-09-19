@@ -5,6 +5,7 @@ import { fetchFxRate, liveQuoteCache } from '../services/priceEngine.js';
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
+import { getTodayIST } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -92,7 +93,7 @@ router.get('/summary', async (req, res) => {
 
       if (h.currency === 'USD') {
         const m = usFxMap[h.id] || usFxMap[h.symbol];
-        const txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : (getHistoricalFxRate(h.created_at) || fxRate);
+        const txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : fxRate;
         const investedUSD = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
         totalInvestedUSD += investedUSD;
         totalInvestedINR += investedUSD * txRate;
@@ -368,13 +369,15 @@ router.get('/summary', async (req, res) => {
 
     // Dynamic Day P&L (Computed relative to yesterday's closing wealth for real-time parity)
     let yesterdayWealth = null;
-    const todayStr = new Date().toISOString().slice(0, 10);
+    let yesterdayAssets = null;
+    const todayStr = getTodayIST();
     try {
       const pnlHistory = await db.select('pnl_history');
       if (pnlHistory && pnlHistory.length > 0) {
         const pastLogs = pnlHistory.filter(l => l.log_date < todayStr).sort((a, b) => b.log_date.localeCompare(a.log_date));
         if (pastLogs.length > 0) {
           yesterdayWealth = pastLogs[0].net_worth_inr;
+          yesterdayAssets = pastLogs[0].total_assets_inr;
         }
       }
     } catch (e) {
@@ -384,12 +387,13 @@ router.get('/summary', async (req, res) => {
       try {
         const { data: previousEod } = await supabase
           .from('pnl_history')
-          .select('net_worth_inr')
+          .select('net_worth_inr, total_assets_inr')
           .lt('log_date', todayStr)
           .order('log_date', { ascending: false })
           .limit(1)
           .maybeSingle();
         yesterdayWealth = previousEod?.net_worth_inr ?? null;
+        yesterdayAssets = previousEod?.total_assets_inr ?? null;
       } catch (e) {
         console.warn('[EOD pnl_history Fetch Error]:', e.message);
       }
@@ -402,15 +406,29 @@ router.get('/summary', async (req, res) => {
     const isWeekend = (new Date().getUTCDay() === 0 || new Date().getUTCDay() === 6);
     const wealthDelta = Number((netWorthINR - yesterdayWealth).toFixed(2));
     
-    // Check if any user transactions occurred today
-    const todayTxs = await db.selectWhere('transactions', { date: todayStr });
+    // Check if any user transactions occurred today strictly by trade date (Rule 5 & Rule 9)
+    const todayTxs = (txs || []).filter(t => t.date === todayStr);
     const hasTxToday = todayTxs && todayTxs.length > 0;
 
-    // Rule 5: On weekends, P&L is strictly 0 unless a user transaction occurred
-    const dayPnlINR = isWeekend ? (hasTxToday ? wealthDelta : 0) : wealthDelta;
-    const dayPnlPct = isWeekend
-      ? (hasTxToday && yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0)
-      : (yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0);
+    // Rule 5: On weekends, P&L is strictly 0 and equity/MF/NPS valuations carry forward Friday unless a user transaction occurred
+    let finalNetWorthINR = netWorthINR;
+    let finalTotalAssetsINR = totalAssetsINR;
+    let dayPnlINR = wealthDelta;
+    let dayPnlPct = yesterdayWealth > 0 ? Number(((wealthDelta / yesterdayWealth) * 100).toFixed(2)) : 0;
+
+    if (isWeekend) {
+      if (!hasTxToday) {
+        dayPnlINR = 0;
+        dayPnlPct = 0;
+        if (yesterdayWealth !== null) {
+          finalNetWorthINR = yesterdayWealth;
+          finalTotalAssetsINR = yesterdayAssets !== null ? yesterdayAssets : (yesterdayWealth + totalLiabilitiesINR);
+        }
+      } else {
+        dayPnlINR = wealthDelta;
+        dayPnlPct = yesterdayWealth > 0 ? Number(((wealthDelta / yesterdayWealth) * 100).toFixed(2)) : 0;
+      }
+    }
 
     // Asset Breakdown by Category (clean names)
     const categoryValues = {};
@@ -418,7 +436,8 @@ router.get('/summary', async (req, res) => {
       if ((Number(h.quantity) || 0) <= 0) return;
       const displayName = DISPLAY_NAMES[h.category_id] || (catMap[h.category_id] ? catMap[h.category_id].name : h.category_id);
       const rate = h.currency === 'USD' ? fxRate : 1.0;
-      const val = (Number(h.quantity) || 0) * (Number(h.current_price) || 0) * rate;
+      const p = livePriceMap[h.symbol] || (Number(h.current_price) || 0);
+      const val = (Number(h.quantity) || 0) * p * rate;
       if (!categoryValues[displayName]) categoryValues[displayName] = 0;
       categoryValues[displayName] += val;
     });
@@ -426,16 +445,16 @@ router.get('/summary', async (req, res) => {
     const assetAllocation = Object.keys(categoryValues).map(cat => ({
       name: cat,
       value: Number(categoryValues[cat].toFixed(2)),
-      percentage: Number(((categoryValues[cat] / (totalAssetsINR || 1)) * 100).toFixed(1))
+      percentage: Number(((categoryValues[cat] / (finalTotalAssetsINR || 1)) * 100).toFixed(1))
     }));
 
     res.json({
-      totalAssetsINR: Number(totalAssetsINR.toFixed(2)),
+      totalAssetsINR: Number(finalTotalAssetsINR.toFixed(2)),
       totalLiabilitiesINR: Number(totalLiabilitiesINR.toFixed(2)),
-      netWorthINR: Number(netWorthINR.toFixed(2)),
+      netWorthINR: Number(finalNetWorthINR.toFixed(2)),
       totalInvestedINR: Number(totalInvestedINR.toFixed(2)),
       totalInvestedUSD: Number(totalInvestedUSD.toFixed(2)),
-      totalGainINR: Number(totalGainINR.toFixed(2)),
+      totalGainINR: Number((finalTotalAssetsINR - totalInvestedINR).toFixed(2)),
       totalRealizedPnlINR: Number(totalRealizedPnlINR.toFixed(2)),
       totalRealizedPnlUSD: Number(totalRealizedPnlUSD.toFixed(2)),
       absoluteReturnPct,

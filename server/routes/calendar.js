@@ -6,7 +6,7 @@ import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay } from '../services/marketCalendar.js';
+import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -88,23 +88,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     });
 
     const liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
-    const todayStr = new Date().toISOString().slice(0, 10);
-
-    // Merge or append today's live valuation
-    const existingTodayIdx = eodLogs.findIndex(l => l.date === todayStr);
-    const todayEntry = {
-      date: todayStr,
-      ...liveTodayValuation
-    };
-
-    if (existingTodayIdx >= 0) {
-      eodLogs[existingTodayIdx] = todayEntry;
-    } else {
-      eodLogs.push(todayEntry);
-    }
-
-    // Sort chronologically
-    eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const todayStr = getTodayIST();
 
     const isWeekendDay = (dStr) => {
       if (!dStr) return false;
@@ -113,9 +97,73 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       return day === 0 || day === 6;
     };
 
-    // Load transaction dates to check for weekend user transactions (Rule 5)
+    // Load transactions strictly by trade/transaction date (Rule 5 & Rule 9)
     const allTxs = await db.select('transactions');
     const txDatesWithActivity = new Set((allTxs || []).map(t => t.date));
+    const todayTxs = (allTxs || []).filter(t => t.date === todayStr);
+
+    // Identify last trading day log before today (e.g. Friday)
+    const priorLogs = eodLogs.filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+    const lastTradingLog = priorLogs[0];
+
+    let todayEntry;
+    if (isWeekendDay(todayStr) && lastTradingLog) {
+      if (todayTxs.length === 0) {
+        // Rule 5: Non-trading session invariance. Zero market movement against Friday.
+        todayEntry = {
+          ...lastTradingLog,
+          date: todayStr,
+          daily_pnl: 0,
+          pnl_pct: 0
+        };
+      } else {
+        // User performed cash/debt transactions on weekend. Equity/MF/NPS strictly carry forward Friday.
+        const debt = Number((liveTodayValuation.debt ?? (liveTodayValuation.loan + liveTodayValuation.credits)).toFixed(2));
+        const totalAssets = Number((
+          (liveTodayValuation.savings || 0) +
+          (liveTodayValuation.epf || 0) +
+          Number(lastTradingLog.mutual_funds || 0) +
+          Number(lastTradingLog.indian_stocks || 0) +
+          Number(lastTradingLog.us_stocks || 0) +
+          Number(lastTradingLog.nps || 0)
+        ).toFixed(2));
+        const wealth = Number((totalAssets - debt).toFixed(2));
+        const prevWealth = Number(lastTradingLog.total_wealth ?? lastTradingLog.wealth ?? 0);
+        const pnl = Number((wealth - prevWealth).toFixed(2));
+        const pct = prevWealth !== 0 ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
+        todayEntry = {
+          ...lastTradingLog,
+          ...liveTodayValuation,
+          date: todayStr,
+          indian_stocks: lastTradingLog.indian_stocks,
+          us_stocks: lastTradingLog.us_stocks,
+          mutual_funds: lastTradingLog.mutual_funds,
+          nps: lastTradingLog.nps,
+          total_assets: totalAssets,
+          debt,
+          wealth,
+          total_wealth: wealth,
+          daily_pnl: pnl,
+          pnl_pct: pct
+        };
+      }
+    } else {
+      todayEntry = {
+        date: todayStr,
+        ...liveTodayValuation
+      };
+    }
+
+    // Merge or append today's valuation
+    const existingTodayIdx = eodLogs.findIndex(l => l.date === todayStr);
+    if (existingTodayIdx >= 0) {
+      eodLogs[existingTodayIdx] = todayEntry;
+    } else {
+      eodLogs.push(todayEntry);
+    }
+
+    // Sort chronologically
+    eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
     // Recompute daily_pnl and pnl_pct across all logs so today is accurate against yesterday
     for (let i = 0; i < eodLogs.length; i++) {

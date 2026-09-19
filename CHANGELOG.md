@@ -5,6 +5,13 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.37.1] - 2026-09-19
+
+### Fixed
+- **Weekend Market Invariance & Zero-Egress Calendar Alignment**: Enforced Rule 5 strictly in `server/routes/calendar.js` and `server/routes/summary.js`. On non-trading days (Saturdays, Sundays, exchange holidays), all equity, MF, and NPS asset valuations strictly carry forward Friday's finalized closing valuations with 0.00 daily movement unless manual cash/debt transactions occurred on that trade date.
+- **Trade Date Parity Guard**: Enforced strict trade/transaction date lookups (`t.date`) across calendar and summary routes rather than system entry timestamps.
+- **Local EOD Log Synchronization**: Synchronized Friday 18-Sep historical EOD log in `data/portfolio_eod_logs.json` and in-memory cache with post-split holding states locally with 0 bytes of cloud egress.
+
 ## [5.37.0] - 2026-09-19
 
 ### Added

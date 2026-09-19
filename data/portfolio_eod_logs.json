@@ -159422,17 +159422,17 @@
     "federal": 0,
     "savings": 1841088.12,
     "mutual_funds": 4542415.57,
-    "indian_stocks": 10407226.97,
-    "us_stocks": 1626998.18,
-    "nps": 509758.97,
+    "indian_stocks": 10500572.84,
+    "us_stocks": 1873986.47,
+    "nps": 512306.07,
     "epf": 4794473,
     "loan": 4464447,
     "credits": 1862.16,
     "debt": 4466309.16,
-    "total_assets": 23721960.81,
-    "wealth": 19255651.65,
-    "total_wealth": 19255651.65,
-    "daily_pnl": 277172.16,
-    "pnl_pct": 1.46
+    "total_assets": 24064842.07,
+    "wealth": 19598532.91,
+    "total_wealth": 19598532.91,
+    "daily_pnl": 620053.42,
+    "pnl_pct": 3.27
   }
 ]
