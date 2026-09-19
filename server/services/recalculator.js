@@ -9,6 +9,21 @@ import { supabase } from '../supabaseClient.js';
  * is deleted, amended, or inserted, this function brings the holding into exact mathematical parity.
  */
 async function fetchPagedTransactions(filterField, filterValue) {
+  try {
+    const allTxs = await db.select('transactions');
+    if (allTxs && allTxs.length > 0) {
+      return allTxs
+        .filter(tx => String(tx[filterField]) === String(filterValue))
+        .sort((a, b) => {
+          const dDiff = (a.date || '').localeCompare(b.date || '');
+          if (dDiff !== 0) return dDiff;
+          return (a.created_at || '').localeCompare(b.created_at || '');
+        });
+    }
+  } catch (e) {
+    console.warn('[Recalculator] In-memory transactions read fallback:', e.message);
+  }
+
   let allTxs = [];
   let from = 0;
   const batchSize = 1000;
@@ -34,14 +49,18 @@ export async function recalculateHoldingState(holdingId) {
   if (!holdingId) return null;
 
   try {
-    // 1. Check if holding exists in 'holdings'
-    const { data: holdingRows } = await supabase
-      .from('holdings')
-      .select('*')
-      .eq('id', holdingId);
+    // 1. Check if holding exists in 'holdings' (using cached db.select)
+    let holding = null;
+    const allHoldings = await db.select('holdings');
+    if (allHoldings && allHoldings.length > 0) {
+      holding = allHoldings.find(h => String(h.id) === String(holdingId));
+    }
+    if (!holding) {
+      const { data } = await supabase.from('holdings').select('*').eq('id', holdingId);
+      if (data && data.length > 0) holding = data[0];
+    }
 
-    if (holdingRows && holdingRows.length > 0) {
-      const holding = holdingRows[0];
+    if (holding) {
       const categoryId = holding.category_id;
 
       // Handle Balance-based categories (Bank, EPF)
@@ -178,10 +197,19 @@ export async function recalculateHoldingState(holdingId) {
       // Fetch and add credited dividends for this holding to strictly enforce:
       // Realized P&L = Sell - Buy - Charges + Dividends
       let totalDividends = 0;
-      const { data: divRows } = await supabase
-        .from('dividends')
-        .select('payment_date, ex_date, amount_inr, amount_original, fx_rate')
-        .or(`holding_id.eq.${holdingId},symbol.eq.${holding.symbol}`);
+      let divRows = [];
+      try {
+        const allDivs = await db.select('dividends');
+        divRows = (allDivs || []).filter(d => 
+          String(d.holding_id) === String(holdingId) || (d.symbol && d.symbol === holding.symbol)
+        );
+      } catch (e) {
+        const { data } = await supabase
+          .from('dividends')
+          .select('payment_date, ex_date, amount_inr, amount_original, fx_rate')
+          .or(`holding_id.eq.${holdingId},symbol.eq.${holding.symbol}`);
+        divRows = data || [];
+      }
 
       const divTxs = (txs || []).filter(t => t.type === 'DIVIDEND');
       const matchedTxIds = new Set();
@@ -237,13 +265,17 @@ export async function recalculateHoldingState(holdingId) {
     }
 
     // 2. Check if liability exists in 'liabilities' (Loans, Credit Cards)
-    const { data: liabilityRows } = await supabase
-      .from('liabilities')
-      .select('*')
-      .eq('id', holdingId);
+    let liability = null;
+    const allLiabilities = await db.select('liabilities');
+    if (allLiabilities && allLiabilities.length > 0) {
+      liability = allLiabilities.find(l => String(l.id) === String(holdingId));
+    }
+    if (!liability) {
+      const { data } = await supabase.from('liabilities').select('*').eq('id', holdingId);
+      if (data && data.length > 0) liability = data[0];
+    }
 
-    if (liabilityRows && liabilityRows.length > 0) {
-      const liability = liabilityRows[0];
+    if (liability) {
       const txs = await fetchPagedTransactions('liability_id', holdingId);
 
       let netDebt = 0;

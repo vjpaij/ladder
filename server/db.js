@@ -33,6 +33,56 @@ function getSupabaseTableName(tableName) {
 // In-memory reactive cache with 24-hour TTL & write-through mutation
 const dbCache = new Map();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours TTL (persists in Node RAM, updated write-through)
+const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'db_cache_snapshot.json');
+
+let saveTimeout = null;
+export function debouncedSaveSnapshot() {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    saveCacheSnapshotToDisk();
+  }, 2000);
+}
+
+export function saveCacheSnapshotToDisk() {
+  try {
+    const serialized = {};
+    for (const [key, entry] of dbCache.entries()) {
+      serialized[key] = {
+        data: entry.data,
+        timestamp: entry.timestamp
+      };
+    }
+    fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify({
+      savedAt: Date.now(),
+      tables: serialized
+    }), 'utf-8');
+  } catch (e) {
+    console.warn('[DB Cache] Failed to save disk snapshot:', e.message);
+  }
+}
+
+export function restoreCacheSnapshotFromDisk() {
+  try {
+    if (fs.existsSync(SNAPSHOT_FILE)) {
+      const raw = fs.readFileSync(SNAPSHOT_FILE, 'utf-8');
+      const snapshot = JSON.parse(raw);
+      if (snapshot && snapshot.tables && (Date.now() - (snapshot.savedAt || 0) < CACHE_TTL_MS)) {
+        let count = 0;
+        let rows = 0;
+        for (const [key, entry] of Object.entries(snapshot.tables)) {
+          dbCache.set(key, entry);
+          count++;
+          if (Array.isArray(entry.data)) rows += entry.data.length;
+        }
+        console.log(`[DB Cache] Restored ${count} tables (${rows} rows) from local disk snapshot (0 Supabase egress consumed). Snapshot age: ${((Date.now() - snapshot.savedAt) / 3600000).toFixed(1)}h`);
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn('[DB Cache] Failed to restore disk snapshot:', e.message);
+  }
+  return false;
+}
 
 export function initDatabase() {
   console.log('[Database] Connected to Supabase Cloud PostgreSQL engine with In-Memory Egress Guard.');
@@ -50,6 +100,7 @@ export function getCacheEntry(tableName) {
 
 export function setCacheEntry(tableName, data) {
   dbCache.set(tableName, { data, timestamp: Date.now() });
+  debouncedSaveSnapshot();
 }
 
 /**
@@ -62,6 +113,7 @@ export function updateCacheRow(tableName, id, updates) {
     const idx = entry.data.findIndex(r => String(r.id) === String(id));
     if (idx !== -1) {
       entry.data[idx] = { ...entry.data[idx], ...updates };
+      debouncedSaveSnapshot();
       return entry.data[idx];
     }
   }
@@ -182,6 +234,7 @@ export const db = {
     const cached = dbCache.get(sTable);
     if (cached && Array.isArray(cached.data)) {
       cached.data.push(data);
+      debouncedSaveSnapshot();
     }
     return data;
   },
@@ -214,6 +267,7 @@ export const db = {
       if (idx !== -1) {
         cached.data[idx] = { ...cached.data[idx], ...updates };
         updatedRow = cached.data[idx];
+        debouncedSaveSnapshot();
       }
     }
     return updatedRow || { id, ...updates };
@@ -238,6 +292,7 @@ export const db = {
     const cached = dbCache.get(sTable);
     if (cached && Array.isArray(cached.data)) {
       cached.data = cached.data.filter(u => String(u.id) !== String(id));
+      debouncedSaveSnapshot();
     }
     return true;
   },
@@ -248,34 +303,63 @@ export const db = {
 };
 
 // Preload high-frequency tables into the in-memory cache on server startup.
-// pnl_history is included (last 365 days) to protect Dashboard and Calendar from cold-start egress.
+// Restores from disk snapshot first to eliminate cold-start egress completely.
 export async function warmCache() {
-  const tables = ['categories', 'holdings', 'liabilities', 'dividends', 'transactions'];
+  const tables = [
+    'categories',
+    'holdings',
+    'liabilities',
+    'dividends',
+    'transactions',
+    'sips',
+    'sip_history',
+    'asset_metadata',
+    'mutual_fund_holdings'
+  ];
+
+  // 1. Restore from disk snapshot if fresh (<24h) to avoid cold-start egress
+  const restored = restoreCacheSnapshotFromDisk();
+  if (restored) {
+    const missingTables = tables.filter(t => !getCacheEntry(t));
+    if (missingTables.length === 0 && getCacheEntry('pnl_history')) {
+      console.log('[DB Cache] All critical tables verified in cache from disk snapshot. Zero Supabase egress consumed.');
+      return;
+    }
+  }
+
   const start = Date.now();
   let totalRows = 0;
 
   // Warm standard tables via paginated db.select
   for (const table of tables) {
-    const rows = await db.select(table);
-    totalRows += rows.length;
+    if (getCacheEntry(table)) continue;
+    try {
+      const rows = await db.select(table);
+      totalRows += rows.length;
+    } catch (e) {
+      console.warn(`[DB Cache] Failed to warm ${table}:`, e.message);
+    }
   }
 
   // Warm pnl_history separately — fetch latest 365 records only (avoids loading 6,900+ rows)
-  try {
-    const { data: recentEod } = await supabase
-      .from('pnl_history')
-      .select('*')
-      .order('log_date', { ascending: false })
-      .limit(365);
-    if (recentEod && recentEod.length > 0) {
-      // Store in cache sorted ascending for consumer consistency
-      setCacheEntry('pnl_history', recentEod.slice().reverse());
-      totalRows += recentEod.length;
+  if (!getCacheEntry('pnl_history')) {
+    try {
+      const { data: recentEod } = await supabase
+        .from('pnl_history')
+        .select('*')
+        .order('log_date', { ascending: false })
+        .limit(365);
+      if (recentEod && recentEod.length > 0) {
+        // Store in cache sorted ascending for consumer consistency
+        setCacheEntry('pnl_history', recentEod.slice().reverse());
+        totalRows += recentEod.length;
+      }
+    } catch (e) {
+      console.warn('[DB Cache] pnl_history warm-up failed:', e.message);
     }
-  } catch (e) {
-    console.warn('[DB Cache] pnl_history warm-up failed:', e.message);
   }
 
+  saveCacheSnapshotToDisk();
   const duration = Date.now() - start;
   console.log(`[DB Cache] Warmed ${tables.length + 1} tables in ${duration}ms with ${totalRows} total rows.`);
 }

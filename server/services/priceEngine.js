@@ -276,7 +276,10 @@ import {
   getLastTradingDay, 
   getNextTradingDay, 
   getTodayIST, 
-  getHolidaysForYear 
+  getHolidaysForYear,
+  isIndianMarketOpen,
+  isUsMarketOpen,
+  isAnyMarketOpen
 } from './marketCalendar.js';
 
 export { 
@@ -284,12 +287,18 @@ export {
   getLastTradingDay, 
   getNextTradingDay, 
   getTodayIST, 
-  getHolidaysForYear 
+  getHolidaysForYear,
+  isIndianMarketOpen,
+  isUsMarketOpen,
+  isAnyMarketOpen
 };
 
 // In-memory cache for the Protean NAV batch: { navMap, navDate, cachedAt }
 let proteanBatchCache = null;
 const PROTEAN_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+// In-memory cache tracking whether NPS NAVs for a given date are already synced to Supabase
+const npsSyncStatusCache = new Map();
 
 /**
  * Checks whether today's NAVs are already persisted in Supabase nps_daily_navs
@@ -297,6 +306,22 @@ const PROTEAN_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
  */
 async function areTodayNavsAlreadySynced(schemeCodes, targetDate) {
   if (!schemeCodes || schemeCodes.length === 0) return false;
+  if (!targetDate) return false;
+
+  // In-memory check: if already confirmed synced for this targetDate, return true immediately with 0 egress
+  if (npsSyncStatusCache.get(targetDate) === true) {
+    return true;
+  }
+
+  // Non-trading day guard: On weekends/holidays, NAV does not change from last trading day
+  if (!isTradingDay(targetDate, 'NSE')) {
+    const lastValidTradingDay = getLastTradingDay(targetDate, 'NSE');
+    if (npsSyncStatusCache.get(lastValidTradingDay) === true) {
+      npsSyncStatusCache.set(targetDate, true);
+      return true;
+    }
+  }
+
   try {
     const { data, error } = await supabase
       .from('nps_daily_navs')
@@ -304,7 +329,11 @@ async function areTodayNavsAlreadySynced(schemeCodes, targetDate) {
       .in('scheme_code', schemeCodes)
       .eq('nav_date', targetDate);
     if (error || !data) return false;
-    return data.length >= schemeCodes.length;
+    const isSynced = data.length >= schemeCodes.length;
+    if (isSynced) {
+      npsSyncStatusCache.set(targetDate, true);
+    }
+    return isSynced;
   } catch (e) {
     return false;
   }
@@ -478,14 +507,20 @@ export async function syncAllMissingNavs(options = {}) {
   const results = { npsUpdated: 0, mfUpdated: 0, totalChecked: 0, skipped: false, skipReason: null };
 
   const today = getTodayIST();
-  const lastTradingDay = getLastTradingDay();
+  const lastTradingDay = getLastTradingDay(today, 'NSE');
+  const isTodayTrading = isTradingDay(today, 'NSE');
 
-  // 1. Fetch active MF & NPS holdings
-  const { data: holdings } = await supabase
-    .from('holdings')
-    .select('*')
-    .in('category_id', ['mutual_funds', 'nps'])
-    .gt('quantity', 0);
+  // EGRESS GUARD: On non-trading days (weekends, exchange holidays), if last trading day is already synced,
+  // skip the entire routine to consume 0 egress.
+  if (!isTodayTrading && npsSyncStatusCache.get(lastTradingDay) === true) {
+    return results;
+  }
+
+  // 1. Fetch active MF & NPS holdings from cached db.select (0 egress)
+  const allHoldings = await db.select('holdings');
+  const holdings = allHoldings.filter(h => 
+    (h.category_id === 'mutual_funds' || h.category_id === 'nps') && Number(h.quantity) > 0
+  );
 
   if (!holdings || holdings.length === 0) return results;
   results.totalChecked = holdings.length;
@@ -499,34 +534,40 @@ export async function syncAllMissingNavs(options = {}) {
     const alreadySynced = await areTodayNavsAlreadySynced(npsSchemeCodes, lastTradingDay);
 
     if (alreadySynced) {
-      console.log(`[syncAllMissingNavs] NPS NAVs for ${lastTradingDay} already in Supabase. Loading from DB.`);
-      // Load from Supabase into liveQuoteCache and ensure holdings table matches
-      const { data: navRows } = await supabase
-        .from('nps_daily_navs')
-        .select('scheme_code,nav,nav_date')
-        .in('scheme_code', npsSchemeCodes)
-        .eq('nav_date', lastTradingDay);
-      if (navRows) {
-        for (const row of navRows) {
-          liveQuoteCache.set(row.scheme_code, {
-            price: row.nav,
-            quoteDate: formatCleanQuoteDate(row.nav_date)
-          });
-          const h = npsHoldings.find(item => item.symbol === row.scheme_code);
-          if (h && Number(h.current_price) !== Number(row.nav)) {
-            updateCacheRow('holdings', h.id, {
-              current_price: row.nav,
-              updated_at: new Date().toISOString()
+      // If all scheme codes already exist in liveQuoteCache, avoid re-fetching from Supabase
+      const allInLiveCache = npsSchemeCodes.every(code => liveQuoteCache.has(code));
+      if (allInLiveCache) {
+        results.npsUpdated = npsSchemeCodes.length;
+      } else {
+        console.log(`[syncAllMissingNavs] NPS NAVs for ${lastTradingDay} already in Supabase. Loading from DB.`);
+        // Load from Supabase into liveQuoteCache and ensure holdings table matches
+        const { data: navRows } = await supabase
+          .from('nps_daily_navs')
+          .select('scheme_code,nav,nav_date')
+          .in('scheme_code', npsSchemeCodes)
+          .eq('nav_date', lastTradingDay);
+        if (navRows) {
+          for (const row of navRows) {
+            liveQuoteCache.set(row.scheme_code, {
+              price: row.nav,
+              quoteDate: formatCleanQuoteDate(row.nav_date)
             });
-            if (persistToDb) {
-              await db.update('holdings', h.id, {
+            const h = npsHoldings.find(item => item.symbol === row.scheme_code);
+            if (h && Number(h.current_price) !== Number(row.nav)) {
+              updateCacheRow('holdings', h.id, {
                 current_price: row.nav,
                 updated_at: new Date().toISOString()
               });
+              if (persistToDb) {
+                await db.update('holdings', h.id, {
+                  current_price: row.nav,
+                  updated_at: new Date().toISOString()
+                });
+              }
             }
           }
+          results.npsUpdated = navRows.length;
         }
-        results.npsUpdated = navRows.length;
       }
     } else {
       // Fetch from Protean CRA
@@ -671,13 +712,17 @@ export async function fetchNpsHistoricalNav(schemeCode) {
   const navMap = new Map();
 
   // 1. Seed from local historical_prices.json if available
+  let latestDateInLocal = null;
   const hpPath = './data/historical_prices.json';
   if (fs.existsSync(hpPath)) {
     try {
       const hp = JSON.parse(fs.readFileSync(hpPath, 'utf8'));
       if (hp[schemeCode]) {
         Object.entries(hp[schemeCode]).forEach(([d, p]) => {
-          if (p != null && !isNaN(p)) navMap.set(d, Number(p));
+          if (p != null && !isNaN(p)) {
+            navMap.set(d, Number(p));
+            if (!latestDateInLocal || d > latestDateInLocal) latestDateInLocal = d;
+          }
         });
       }
     } catch (e) {
@@ -685,24 +730,31 @@ export async function fetchNpsHistoricalNav(schemeCode) {
     }
   }
 
-  // 2. Fetch authoritative Protean CRA NAVs from Supabase with pagination safety
+  const lastTradingDay = getLastTradingDay(getTodayIST(), 'NSE');
+  // If local seed already covers up to the last completed trading day, serve from cache with 0 egress
+  if (latestDateInLocal && latestDateInLocal >= lastTradingDay && navMap.size > 50) {
+    npsHistoricalCache.set(schemeCode, { navMap, cachedAt: Date.now() });
+    return navMap;
+  }
+
+  // 2. Fetch only incremental missing NAVs from Supabase rather than scanning full history
   try {
-    let from = 0;
-    const batch = 1000;
-    while (true) {
-      const { data, error } = await supabase
-        .from('nps_daily_navs')
-        .select('nav_date, nav')
-        .eq('scheme_code', schemeCode)
-        .range(from, from + batch - 1);
-      if (error || !data || data.length === 0) break;
+    let query = supabase
+      .from('nps_daily_navs')
+      .select('nav_date, nav')
+      .eq('scheme_code', schemeCode);
+    
+    if (latestDateInLocal) {
+      query = query.gte('nav_date', latestDateInLocal);
+    }
+
+    const { data, error } = await query.limit(500);
+    if (!error && data && data.length > 0) {
       data.forEach(r => {
         if (r.nav_date && r.nav != null) {
           navMap.set(r.nav_date, parseFloat(r.nav));
         }
       });
-      if (data.length < batch) break;
-      from += batch;
     }
 
     if (navMap.size > 0) {

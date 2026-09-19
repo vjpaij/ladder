@@ -13,16 +13,12 @@ const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');
  */
 export async function getSipExecutionHistory() {
   try {
-    const { data, error } = await supabase
-      .from('sip_history')
-      .select('*')
-      .order('executed_at', { ascending: false })
-      .limit(200);
-    if (!error && data && data.length > 0) {
-      return data;
+    const data = await db.select('sip_history');
+    if (data && data.length > 0) {
+      return data.slice().sort((a, b) => (b.executed_at || '').localeCompare(a.executed_at || '')).slice(0, 200);
     }
   } catch (e) {
-    console.warn('[SIP Engine] Failed reading from Supabase sip_history:', e.message);
+    console.warn('[SIP Engine] Failed reading from db sip_history:', e.message);
   }
 
   // Fallback to local JSON file
@@ -87,13 +83,11 @@ export async function processDueSips() {
 
   console.log(`[SIP Engine] Checking for due SIPs as of ${today}...`);
 
-  const { data: dueSips, error } = await supabase
-    .from('sips')
-    .select('*')
-    .eq('status', 'ACTIVE')
-    .lte('next_run_date', today);
-
-  if (error) {
+  let dueSips = [];
+  try {
+    const allSips = await db.select('sips');
+    dueSips = (allSips || []).filter(s => s.status === 'ACTIVE' && s.next_run_date && s.next_run_date <= today);
+  } catch (error) {
     console.error('[SIP Engine Error fetching due SIPs]:', error.message);
     return { error: error.message, processedCount: 0 };
   }
@@ -114,10 +108,7 @@ export async function processDueSips() {
       try {
       // Check if SIP has passed its end_date -- auto-close if so
       if (sip.end_date && scheduledDate > sip.end_date) {
-        await supabase
-          .from('sips')
-          .update({ status: 'CLOSED', updated_at: new Date().toISOString() })
-          .eq('id', sip.id);
+        await db.update('sips', sip.id, { status: 'CLOSED', updated_at: new Date().toISOString() });
         console.log(`[SIP Engine] Auto-closed SIP for ${sip.name} -- end date ${sip.end_date} reached.`);
         const skipItem = { sipId: sip.id, name: sip.name, symbol: sip.symbol, amount: Number(sip.amount), reason: `End date ${sip.end_date} reached` };
         skippedSips.push(skipItem);
@@ -208,10 +199,7 @@ export async function processDueSips() {
         console.log(`[SIP Engine] Final execution for ${sip.name} -- closing SIP as end date ${sip.end_date} will be exceeded.`);
       }
 
-      await supabase
-        .from('sips')
-        .update(sipUpdates)
-        .eq('id', sip.id);
+      await db.update('sips', sip.id, sipUpdates);
 
       const processedItem = {
         sipId: sip.id,

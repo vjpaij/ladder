@@ -35,21 +35,14 @@ export async function healTransactionFxRates() {
         const accurateRate = getHistoricalFxRate(tx.date) || getPersistedRate('USD_INR');
         if (accurateRate && accurateRate > 0) {
           console.log(`[Self-Healing] Healing missing FX rate for TX ${tx.id} (${tx.symbol} on ${tx.date}): -> ${accurateRate}`);
-          const { error } = await supabase
-            .from('transactions')
-            .update({ fx_rate: accurateRate })
-            .eq('id', tx.id);
-
-          if (!error) {
-            healedCount.updated++;
-            if (tx.holding_id) affectedHoldingIds.add(tx.holding_id);
-          }
+          await db.update('transactions', tx.id, { fx_rate: accurateRate });
+          healedCount.updated++;
+          if (tx.holding_id) affectedHoldingIds.add(tx.holding_id);
         }
       }
     }
 
     if (affectedHoldingIds.size > 0) {
-      db.invalidateCache('transactions');
       for (const hid of affectedHoldingIds) {
         try {
           await recalculateHoldingState(hid);
@@ -58,7 +51,6 @@ export async function healTransactionFxRates() {
           console.warn(`[Self-Healing] Recalculate holding ${hid} warning:`, e.message);
         }
       }
-      db.invalidateCache('holdings');
     }
   } catch (err) {
     console.warn('[Self-Healing] Transaction FX healing warning:', err.message);
@@ -95,22 +87,12 @@ export async function healMissingHoldingPrices() {
 
         if (freshPrice && freshPrice > 0) {
           console.log(`[Self-Healing] Healed missing price for ${h.symbol}: -> ${freshPrice}`);
-          const { error } = await supabase
-            .from('holdings')
-            .update({ current_price: freshPrice, updated_at: new Date().toISOString() })
-            .eq('id', h.id);
-
-          if (!error) {
-            healedCount.updated++;
-          }
+          await db.update('holdings', h.id, { current_price: freshPrice, updated_at: new Date().toISOString() });
+          healedCount.updated++;
         }
       } catch (err) {
         console.warn(`[Self-Healing] Price fetch warning for ${h.symbol}:`, err.message);
       }
-    }
-
-    if (healedCount.updated > 0) {
-      db.invalidateCache('holdings');
     }
   } catch (err) {
     console.warn('[Self-Healing] Holding price healing warning:', err.message);

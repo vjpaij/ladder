@@ -10,7 +10,11 @@ import {
   persistHoldingClosingPrices,
   liveQuoteCache, 
   fetchFxRate,
-  syncAllMissingNavs 
+  syncAllMissingNavs,
+  isAnyMarketOpen,
+  isTradingDay,
+  getLastTradingDay,
+  getTodayIST
 } from './services/priceEngine.js';
 import { createCloudBackup } from '../scripts/backup_manager.mjs';
 import { JWT_SECRET } from './middleware/auth.js';
@@ -79,38 +83,103 @@ app.use('/api', reportsRouter);
 // -------------------------------------------------------------
 // Server Boot & Background Schedulers
 // -------------------------------------------------------------
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[Ladder Server] Running on http://localhost:${PORT}`);
 
-  // Self-scheduling non-overlapping real-time active price & forex sync loop
+  // 1. Pre-warm database cache on boot first to eliminate cold starts and protect egress
+  try {
+    await warmCache();
+  } catch (err) {
+    console.warn('[WarmCache Error]:', err.message);
+  }
+
+  // 2. Self-scheduling non-overlapping real-time active price & forex sync loop
+  // EGRESS GUARD: Runs every 60s (instead of 2s), and ONLY during active market trading hours
+  let lastTickerMarketState = null;
   const runLiveTicker = async () => {
     try {
-      await refreshActiveHoldingsPrices();
+      const open = isAnyMarketOpen();
+      if (!open) {
+        if (lastTickerMarketState !== 'CLOSED') {
+          console.log('[LiveTicker] Markets are currently closed. Live price polling is paused to protect egress.');
+          lastTickerMarketState = 'CLOSED';
+        }
+      } else {
+        if (lastTickerMarketState !== 'OPEN') {
+          console.log('[LiveTicker] Market session is active. Resuming live price polling.');
+          lastTickerMarketState = 'OPEN';
+        }
+        await refreshActiveHoldingsPrices();
+      }
     } catch (err) {
       console.warn('[LiveTicker Warning]:', err.message);
     }
-    setTimeout(runLiveTicker, 2000);
+    // 60-second cycle (30x reduction in API and compute overhead)
+    setTimeout(runLiveTicker, 60000);
   };
 
   // Start ticker runner after initial boot delay
-  setTimeout(runLiveTicker, 1500);
+  setTimeout(runLiveTicker, 5000);
 
-  // Background self-healing: scan and resolve any data gaps (FX rates, missing quotes, NAVs)
+  // 3. Startup self-healing: scan and resolve any data gaps once after warm-up
   setTimeout(async () => {
     try {
-      console.log('[Self-Healing Engine] Running comprehensive background self-healing scan...');
+      console.log('[Self-Healing Engine] Running single startup background self-healing scan...');
       await runComprehensiveSelfHealing();
     } catch (err) {
       console.warn('[Self-Healing Engine Warning]:', err.message);
     }
-  }, 5000);
+  }, 10000);
 
-  // Full comprehensive portfolio sync & self-healing scan (every 10 minutes)
-  // EGRESS GUARD: persistToDb is strictly FALSE to update RAM with 0 Supabase egress
+  // 4. Daily midnight self-healing scheduler: runs strictly once per day at 00:05 AM IST (18:35 UTC)
+  const scheduleDailySelfHealing = () => {
+    const getNextMidnightDelay = () => {
+      const now = new Date();
+      // 18:35 UTC is exactly 00:05 AM IST next day
+      const nextTarget = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        18, 35, 0, 0
+      ));
+      if (nextTarget.getTime() <= now.getTime()) {
+        nextTarget.setUTCDate(nextTarget.getUTCDate() + 1);
+      }
+      return nextTarget.getTime() - now.getTime();
+    };
+
+    const armNextHealing = () => {
+      const delay = getNextMidnightDelay();
+      console.log(`[Self-Healing Scheduler] Next automated daily self-healing scheduled in ${(delay / 3600000).toFixed(2)}h`);
+      setTimeout(async () => {
+        try {
+          console.log('[Self-Healing Scheduler] Running scheduled daily self-healing scan...');
+          await runComprehensiveSelfHealing();
+        } catch (err) {
+          console.warn('[Self-Healing Scheduler Warning]:', err.message);
+        } finally {
+          armNextHealing();
+        }
+      }, delay);
+    };
+
+    armNextHealing();
+  };
+
+  scheduleDailySelfHealing();
+
+  // 5. Full comprehensive portfolio sync (every 10 minutes)
+  // EGRESS GUARD: persistToDb is strictly FALSE to update RAM with 0 Supabase egress.
+  // On non-trading days (weekends/holidays), skip when markets are closed to protect egress.
   setInterval(async () => {
     try {
+      const today = getTodayIST();
+      const anyOpen = isAnyMarketOpen();
+      const isTodayTrading = isTradingDay(today, 'NSE') || isTradingDay(today, 'NYSE');
+      if (!anyOpen && !isTodayTrading) {
+        return; // Non-trading day and markets closed; prices cannot change.
+      }
       await refreshAllHoldingsPrices({ persistToDb: false });
-      await runComprehensiveSelfHealing();
     } catch (err) {
       console.warn('[FullPriceSync Warning]:', err.message);
     }
@@ -215,30 +284,33 @@ app.listen(PORT, () => {
 
   scheduleDailyEodRebuild();
 
-  // Check on boot if yesterday's EOD log was missed (e.g. server was stopped)
+  // Check on boot if previous completed trading session's EOD log was missed (e.g. server was stopped)
   const checkMissedEodRebuild = async () => {
     try {
-      const now = new Date();
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().slice(0, 10);
+      const today = getTodayIST();
+      const lastTradingDay = getLastTradingDay(today, 'NSE');
 
-      const { data, error } = await supabase
-        .from('pnl_history')
-        .select('log_date')
-        .order('log_date', { ascending: false })
-        .limit(1);
-
-      if (error) {
-        console.warn('[Startup EOD Check] Query error:', error.message);
-        return;
+      // Check cached pnl_history first (0 egress)
+      const pnlHistory = await db.select('pnl_history');
+      let latestLogDate = null;
+      if (pnlHistory && pnlHistory.length > 0) {
+        latestLogDate = pnlHistory.reduce((max, r) => (!max || r.log_date > max) ? r.log_date : max, null);
+      } else {
+        const { data, error } = await supabase
+          .from('pnl_history')
+          .select('log_date')
+          .order('log_date', { ascending: false })
+          .limit(1);
+        if (!error && data?.[0]) {
+          latestLogDate = data[0].log_date;
+        }
       }
 
-      const latestLogDate = data?.[0]?.log_date;
       if (!latestLogDate) return;
 
-      if (latestLogDate < yesterdayStr) {
-        console.log(`[Startup EOD Check] Latest EOD log is ${latestLogDate}, but yesterday was ${yesterdayStr}. Triggering catch-up rebuild...`);
+      // Only trigger rebuild if the latest log date is strictly older than the last completed trading session
+      if (latestLogDate < lastTradingDay) {
+        console.log(`[Startup EOD Check] Latest EOD log is ${latestLogDate}, but last completed trading session was ${lastTradingDay}. Triggering catch-up rebuild...`);
         const child = fork('./scripts/rebuild_portfolio_eod.mjs');
         child.on('exit', (code) => {
           console.log(`[Startup EOD Check] Catch-up rebuild finished with code ${code}`);
@@ -247,7 +319,7 @@ app.listen(PORT, () => {
           console.error('[Startup EOD Check] Error starting catch-up rebuild:', err.message);
         });
       } else {
-        console.log(`[Startup EOD Check] EOD logs are up to date (latest: ${latestLogDate}).`);
+        console.log(`[Startup EOD Check] EOD logs are up to date with last trading session (latest: ${latestLogDate}, last trading day: ${lastTradingDay}).`);
       }
     } catch (e) {
       console.warn('[Startup EOD Check] Failed to check missed rebuild:', e.message);
@@ -255,7 +327,4 @@ app.listen(PORT, () => {
   };
 
   checkMissedEodRebuild();
-
-  // Pre-warm database cache on boot to eliminate cold starts and protect egress
-  warmCache().catch(err => console.warn('[WarmCache Error]:', err.message));
 });

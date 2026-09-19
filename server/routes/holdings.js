@@ -55,13 +55,12 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       usFxMap[key].totalINR += amt * rate;
     });
 
-    // Fetch Asset Metadata to map sector and capitalisation
+    // Fetch Asset Metadata to map sector and capitalisation (via cached db.select to eliminate egress)
     let metaData = null;
     try {
-      const { data } = await supabase.from('asset_metadata').select('*');
-      metaData = data;
+      metaData = await db.select('asset_metadata');
     } catch (e) {
-      console.warn('[Holdings Route] Supabase asset_metadata query failed:', e.message);
+      console.warn('[Holdings Route] Cached asset_metadata query failed:', e.message);
     }
 
     // Fallback to local cache if DB was unreachable or empty

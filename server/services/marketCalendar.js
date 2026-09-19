@@ -399,3 +399,57 @@ export function getHolidaysForYear(year, market = 'ALL') {
     return { ...h, dayOfWeek };
   });
 }
+
+/**
+ * Checks if Indian Equity/MF markets (NSE/BSE) are currently in active trading session.
+ * Trading hours: Monday-Friday, non-holiday, 09:15 to 15:30 IST.
+ */
+export function isIndianMarketOpen() {
+  const now = new Date();
+  const todayIST = getTodayIST();
+  if (!isTradingDay(todayIST, 'NSE')) return false;
+
+  const istFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = istFormatter.formatToParts(now);
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  const totalMinutes = hour * 60 + minute;
+
+  return totalMinutes >= 555 && totalMinutes <= 930;
+}
+
+/**
+ * Checks if US Equity markets (NYSE/NASDAQ) are currently in active trading session.
+ * Trading hours: Monday-Friday, non-holiday, 09:30 to 16:00 US Eastern Time.
+ */
+export function isUsMarketOpen() {
+  const now = new Date();
+  const usDate = now.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  if (!isTradingDay(usDate, 'NYSE')) return false;
+
+  const nyFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = nyFormatter.formatToParts(now);
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  const totalMinutes = hour * 60 + minute;
+
+  return totalMinutes >= 570 && totalMinutes <= 960;
+}
+
+/**
+ * Checks if ANY tracked equity market (India or US) is currently open for trading.
+ */
+export function isAnyMarketOpen() {
+  return isIndianMarketOpen() || isUsMarketOpen();
+}
+

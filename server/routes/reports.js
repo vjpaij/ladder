@@ -38,7 +38,7 @@ router.get('/reports/mf-holdings', authenticateToken, async (req, res) => {
 
     let mfPortfolios = null;
     try {
-      const { data } = await supabase.from('mutual_fund_holdings').select('*');
+      const data = await db.select('mutual_fund_holdings');
       if (data && data.length > 0) {
         mfPortfolios = {};
         data.forEach(row => {
@@ -59,7 +59,7 @@ router.get('/reports/mf-holdings', authenticateToken, async (req, res) => {
         });
       }
     } catch (e) {
-      console.warn('[Reports] Supabase mutual_fund_holdings fetch error:', e.message);
+      console.warn('[Reports] DB mutual_fund_holdings fetch error:', e.message);
     }
 
     if (!mfPortfolios) {

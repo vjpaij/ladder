@@ -75,11 +75,15 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Canonical Dividend Domain Service Architecture**: Managed exclusively by `server/services/dividendService.js` as the single authoritative domain controller. Any dividend addition, amendment, or deletion from either view (Dividends Hub, Asset Dividend Modal, or Holding Detail Transaction Ledger) executes an atomic dual-write/delete across both `dividends` and `transactions` tables, immediately triggers `recalculateHoldingState`, and invalidates in-memory caches, guaranteeing 100% real-time cross-page parity without ad-hoc background sync scripts.
    - **Canonical Corporate Actions Domain Service**: Managed by `server/services/corporateActionService.js`, orchestrating stock splits and bonus issues. When a stock split is added via the UI, preceding un-sold open buy lots are adjusted in quantity and price with metadata tags (`[Split orig: Q@P]`) to maintain perfect alignment with split-adjusted market price feeds, with complete reversibility when amended or deleted.
 
-10. **In-Memory Reactive Caching & Cloud Egress Protection**
+10. **In-Memory Reactive Caching, Disk Snapshots & Cloud Egress Lockdown**
     - High-performance in-memory cache layer (`dbCache` in `server/db.js`) eliminating repetitive multi-megabyte network sweeps across Supabase Cloud.
-    - All read-heavy operations (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`) serve responses in sub-milliseconds from local RAM.
-    - Automatic reactive cache invalidation across interdependent tables on all INSERT, UPDATE, and DELETE mutations.
-    - Cuts monthly Supabase cloud egress by 99% (< 50 MB / month), guaranteeing the application never exceeds free cloud tier allowances.
+    - All read-heavy operations (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`, `asset_metadata`, `mutual_fund_holdings`, `sips`, `sip_history`) serve responses in sub-milliseconds from local RAM.
+    - Automatic reactive cache invalidation and write-through row updates across interdependent tables on all INSERT, UPDATE, and DELETE mutations.
+    - **Local Disk Snapshot Cache**: On startup, `warmCache()` restores tables from `data/db_cache_snapshot.json` (if <24h old), completely eliminating cold-start egress when the server or machine restarts.
+    - **Market-Hours Gated Live Ticker**: The live price ticker runs on a 60-second cycle (30x reduction) and strictly gates execution via `isAnyMarketOpen()`, automatically pausing price polling when markets are closed (nights, weekends, and holidays).
+    - **Decoupled Self-Healing Service**: Comprehensive self-healing runs once after startup cache warming and once daily at midnight (00:05 AM IST), avoiding destructive cache drops during intraday operations.
+    - **NPS Sync & EOD Guards**: In-memory `npsSyncStatusCache` and non-trading day guards in `priceEngine.js` prevent redundant scraping and cloud queries, while `checkMissedEodRebuild` checks cached `pnl_history` against the last completed trading day.
+    - Cuts daily Supabase cloud egress to < 2 MB / day, guaranteeing the application stays safely within free cloud tier allowances.
 
 11. **Modular Architecture, Resilience & Full Production Readiness**
     - **Server Architecture Split**: Express API split into 13 modular route controllers in `server/routes/` (`auth.js`, `backup.js`, `calendar.js`, `database.js`, `dividends.js`, `fx.js`, `holdings.js`, `liabilities.js`, `reports.js`, `search.js`, `sips.js`, `summary.js`, `transactions.js`) and middleware `server/middleware/auth.js`. `server/index.js` is reduced to 229 lines mounting routers, schedulers, and background engines.

@@ -5,6 +5,49 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.36.0] - 2026-09-19
+
+### Fixed
+- **Emergency Supabase Egress Lockdown, Market-Hours Gating & Zero-Egress Disk Snapshot Cache**:
+  - Diagnosed 60 MB/day egress consumption: uncached `asset_metadata` queries on every `/api/holdings` page load/poll, 2-second unconstrained live ticker loops outside market hours, recurring 10-minute self-healing cache drops, and unconstrained weekend EOD rebuild checks.
+  - Cached `asset_metadata` and `mutual_fund_holdings` via `db.select` in `server/routes/holdings.js` and `server/routes/reports.js`.
+  - Added `sips`, `sip_history`, `asset_metadata`, and `mutual_fund_holdings` to `warmCache()` in `server/db.js`.
+  - Re-engineered live ticker in `server/index.js` to run on a 60-second cycle (30x reduction) and strictly gate execution via `isAnyMarketOpen()`, automatically pausing price polling when markets are closed (nights, weekends, holidays).
+  - Decoupled self-healing from the 10-minute interval loop, scheduling it strictly once on boot (after cache pre-warming) and once daily at midnight (00:05 AM IST).
+  - Implemented in-memory `npsSyncStatusCache` and non-trading day guards in `server/services/priceEngine.js`, eliminating redundant Supabase queries when NAVs are already synced or on weekends.
+  - Optimized `fetchNpsHistoricalNav` in `server/services/priceEngine.js` to check local cache and only query missing recent dates from Supabase.
+  - Implemented local disk snapshot cache (`data/db_cache_snapshot.json`) in `server/db.js` with write-through saves and instant startup restoration, completely eliminating cold-start cloud egress on server restarts.
+  - Updated `checkMissedEodRebuild` in `server/index.js` to check cached `pnl_history` and compare against `lastTradingDay` rather than `yesterdayStr`, preventing false weekend rebuild loops.
+  - Converted direct Supabase queries in `server/services/sipEngine.js` and `server/services/recalculator.js` to cached `db.select` and write-through updates.
+
+## [5.35.0] - 2026-09-16
+
+### Fixed
+- **Supabase Egress Elimination, 24-Hour Write-Through Caching & Intraday In-Memory Protection**:
+  - Upgraded `server/db.js` with 24-hour TTL and write-through cache mutations on `insert`, `update`, and `delete`.
+  - Omitted `.select()` on Supabase updates to return empty 204 No Content headers with 0 response bytes.
+  - Confined daytime live quotes strictly to `liveQuoteCache` in RAM, persisting official closing quotes once at EOD.
+  - Scoped Protean NAV persistence in `server/services/priceEngine.js` and queries in `scripts/rebuild_portfolio_eod.mjs` to user-held schemes and baseline dates.
+  - Codified Rule 18 in `.agents/AGENTS.md` and `LADDER.md`.
+
+## [5.34.1] - 2026-09-15
+
+### Fixed
+- **High-Precision Fractional Share Fix & Intra-Day Stock Pricing Parity**:
+  - Expanded `quantity` column precision in `transactions` and `holdings` to `numeric(30, 9)` for exact US Stock fractions.
+  - Patched `recalculator.js` to prevent 4-decimal truncation of running lot quantities.
+  - Replaced trailing-zero `.toFixed(9)` in `UsStocksView.jsx` with localized `toLocaleString`.
+  - Disabled EOD auto-population logic in `HoldingDetailModal.jsx` for equity stocks to allow manual intra-day execution prices.
+
+## [5.34.0] - 2026-09-14
+
+### Changed
+- **Eradication of Ad-Hoc Scripts, Rule 17 & Canonical Domain Service Architecture**:
+  - Permanently removed `server/services/dividendSync.js` and `server/services/splitManager.js`.
+  - Built canonical dividend domain service `server/services/dividendService.js` for atomic mutations across `dividends` and `transactions` tables.
+  - Built canonical corporate actions domain service `server/services/corporateActionService.js` orchestrating stock splits and bonus issues with FIFO lot adjustment and reversibility.
+  - Established Rule 17 in `.agents/AGENTS.md` and `LADDER.md`.
+
 ## [5.31.0] - 2026-09-15
 
 ### Added
