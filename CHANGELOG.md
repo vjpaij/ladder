@@ -5,6 +5,16 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.36.1] - 2026-09-19
+
+### Fixed
+- **Comprehensive Egress Elimination Across All Endpoints & Backup Scoping**:
+  - Replaced direct `supabase.from('transactions')` and `supabase.from('dividends')` in `server/routes/holdings.js` (`/api/holding/:holdingId/detail`) with in-memory `db.select()` queries.
+  - Converted direct `pnl_history` Supabase queries in `server/routes/summary.js` and `server/routes/calendar.js` to read from pre-warmed in-memory `db.select('pnl_history')`.
+  - Replaced direct `sips` table fetch in `server/routes/sips.js` with in-memory `db.select('sips')`.
+  - Scoped `fetchAllRows` in `scripts/backup_manager.mjs` for `nps_daily_navs` strictly to user-held scheme codes, eliminating the 53,000-row (~8 MB) general market dump on every backup.
+  - Relaxed periodic dashboard polling in `App.jsx` from 15s to 30s and holding modal polling in `HoldingDetailModal.jsx` from 3s to 30s.
+
 ## [5.36.0] - 2026-09-19
 
 ### Fixed

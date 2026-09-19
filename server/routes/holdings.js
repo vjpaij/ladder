@@ -442,14 +442,24 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         }
 
         let txs = [];
-        const { data: realTxs } = await supabase
-          .from('transactions')
-          .select('*')
-          .or(`holding_id.eq.${holding.id},liability_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
-          .order('date', { ascending: false });
-        
-        if (realTxs && realTxs.length > 0) {
-          txs = realTxs;
+        try {
+          const allTxs = await db.select('transactions');
+          const matched = (allTxs || []).filter(t => 
+            String(t.holding_id) === String(holding.id) ||
+            String(t.liability_id) === String(holding.id) ||
+            (t.symbol && t.symbol === holding.symbol)
+          ).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          if (matched.length > 0) txs = matched;
+        } catch (e) {
+          console.warn('[Detail API db.select transactions Warning]:', e.message);
+        }
+        if (txs.length === 0) {
+          const { data: realTxs } = await supabase
+            .from('transactions')
+            .select('*')
+            .or(`holding_id.eq.${holding.id},liability_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
+            .order('date', { ascending: false });
+          if (realTxs && realTxs.length > 0) txs = realTxs;
         } else {
           let prevVal = 0;
           const txStep = Math.max(1, Math.floor(validLogs.length / 60));
@@ -528,21 +538,43 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const currentFx = await fetchFxRate();
     const liveRate = isUSStock ? currentFx : 1.0;
 
-    const { data: txsData, error: txErr } = await supabase
-      .from('transactions')
-      .select('*')
-      .or(`holding_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
-      .order('date', { ascending: true });
-    if (txErr) console.error('[Detail API] Tx Fetch Error:', txErr.message);
-    const txs = txsData || [];
+    let txs = [];
+    try {
+      const allTxs = await db.select('transactions');
+      txs = (allTxs || []).filter(t => 
+        String(t.holding_id) === String(holding.id) || (t.symbol && t.symbol === holding.symbol)
+      ).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    } catch (txErr) {
+      console.warn('[Detail API db.select transactions Warning]:', txErr.message);
+    }
+    if (txs.length === 0) {
+      const { data: txsData, error: txErr } = await supabase
+        .from('transactions')
+        .select('*')
+        .or(`holding_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
+        .order('date', { ascending: true });
+      if (txErr) console.error('[Detail API] Tx Fetch Error:', txErr.message);
+      txs = txsData || [];
+    }
 
-    const { data: divsData, error: divErr } = await supabase
-      .from('dividends')
-      .select('*')
-      .or(`holding_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
-      .order('ex_date', { ascending: true });
-    if (divErr) console.error('[Detail API] Div Fetch Error:', divErr.message);
-    const divs = divsData || [];
+    let divs = [];
+    try {
+      const allDivs = await db.select('dividends');
+      divs = (allDivs || []).filter(d => 
+        String(d.holding_id) === String(holding.id) || (d.symbol && d.symbol === holding.symbol)
+      ).sort((a, b) => (a.ex_date || a.payment_date || '').localeCompare(b.ex_date || b.payment_date || ''));
+    } catch (divErr) {
+      console.warn('[Detail API db.select dividends Warning]:', divErr.message);
+    }
+    if (divs.length === 0) {
+      const { data: divsData, error: divErr } = await supabase
+        .from('dividends')
+        .select('*')
+        .or(`holding_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
+        .order('ex_date', { ascending: true });
+      if (divErr) console.error('[Detail API] Div Fetch Error:', divErr.message);
+      divs = divsData || [];
+    }
 
     let totalInvestedUSD = 0;
     let totalInvestedINR = 0;

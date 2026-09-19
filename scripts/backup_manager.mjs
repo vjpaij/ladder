@@ -32,11 +32,27 @@ export async function fetchAllRows(tableName) {
   let allRows = [];
   let from = 0;
   const batchSize = 1000;
+
+  // EGRESS GUARD: For nps_daily_navs, only backup scheme codes currently held by the user
+  let heldNpsCodes = null;
+  if (tableName === 'nps_daily_navs') {
+    try {
+      const { data: npsHoldings } = await supabase.from('holdings').select('symbol').eq('category_id', 'nps');
+      if (npsHoldings && npsHoldings.length > 0) {
+        heldNpsCodes = npsHoldings.map(h => h.symbol).filter(Boolean);
+      }
+    } catch (e) {
+      console.warn('[Backup Manager] Could not load held NPS symbols for backup scoping:', e.message);
+    }
+  }
+
   while (true) {
-    const { data, error } = await supabase
-      .from(tableName)
-      .select('*')
-      .range(from, from + batchSize - 1);
+    let query = supabase.from(tableName).select('*');
+    if (tableName === 'nps_daily_navs' && heldNpsCodes && heldNpsCodes.length > 0) {
+      query = query.in('scheme_code', heldNpsCodes);
+    }
+
+    const { data, error } = await query.range(from, from + batchSize - 1);
 
     if (error) {
       throw new Error(`Failed to read ${tableName}: ${error.message}`);

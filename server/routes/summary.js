@@ -370,16 +370,29 @@ router.get('/summary', async (req, res) => {
     let yesterdayWealth = null;
     const todayStr = new Date().toISOString().slice(0, 10);
     try {
-      const { data: previousEod } = await supabase
-        .from('pnl_history')
-        .select('net_worth_inr')
-        .lt('log_date', todayStr)
-        .order('log_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      yesterdayWealth = previousEod?.net_worth_inr ?? null;
+      const pnlHistory = await db.select('pnl_history');
+      if (pnlHistory && pnlHistory.length > 0) {
+        const pastLogs = pnlHistory.filter(l => l.log_date < todayStr).sort((a, b) => b.log_date.localeCompare(a.log_date));
+        if (pastLogs.length > 0) {
+          yesterdayWealth = pastLogs[0].net_worth_inr;
+        }
+      }
     } catch (e) {
-      console.warn('[EOD pnl_history Fetch Error]:', e.message);
+      console.warn('[EOD db.select pnl_history Warning]:', e.message);
+    }
+    if (yesterdayWealth === null) {
+      try {
+        const { data: previousEod } = await supabase
+          .from('pnl_history')
+          .select('net_worth_inr')
+          .lt('log_date', todayStr)
+          .order('log_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        yesterdayWealth = previousEod?.net_worth_inr ?? null;
+      } catch (e) {
+        console.warn('[EOD pnl_history Fetch Error]:', e.message);
+      }
     }
 
     if (yesterdayWealth === null) {

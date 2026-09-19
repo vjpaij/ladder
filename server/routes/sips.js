@@ -9,13 +9,14 @@ const router = express.Router();
 // List all SIPs
 router.get('/sips', authenticateToken, async (req, res) => {
   try {
-    const { data: sips, error } = await supabase
-      .from('sips')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    res.json(sips || []);
+    let sips = await db.select('sips');
+    if (!sips || sips.length === 0) {
+      const { data, error } = await supabase.from('sips').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      sips = data || [];
+    }
+    const sorted = sips.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(sorted);
   } catch (err) {
     console.error('[Get SIPs Error]:', err);
     res.status(500).json({ error: err.message });

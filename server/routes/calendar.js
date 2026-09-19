@@ -28,13 +28,25 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     const latestLocalDate = eodLogs.reduce((latest, log) => (
       log.date > latest ? log.date : latest
     ), '0000-00-00');
-    const { data: dbLogs, error: dbLogsError } = await supabase
-      .from('pnl_history')
-      .select('*')
-      .gte('log_date', latestLocalDate)
-      .order('log_date', { ascending: true });
-    if (dbLogsError) {
-      console.warn('[EOD Supabase Fetch Warning]:', dbLogsError.message);
+    let dbLogs = [];
+    try {
+      const pnlHistory = await db.select('pnl_history');
+      if (pnlHistory && pnlHistory.length > 0) {
+        dbLogs = pnlHistory.filter(l => l.log_date >= latestLocalDate).sort((a, b) => a.log_date.localeCompare(b.log_date));
+      }
+    } catch (e) {
+      console.warn('[EOD db.select pnl_history Warning]:', e.message);
+    }
+    if (!dbLogs || dbLogs.length === 0) {
+      const { data, error: dbLogsError } = await supabase
+        .from('pnl_history')
+        .select('*')
+        .gte('log_date', latestLocalDate)
+        .order('log_date', { ascending: true });
+      if (dbLogsError) {
+        console.warn('[EOD Supabase Fetch Warning]:', dbLogsError.message);
+      }
+      dbLogs = data || [];
     }
     const dbLogsByDate = new Map((dbLogs || []).map(l => [l.log_date, {
       date: l.log_date,

@@ -79,10 +79,10 @@ function AuthenticatedApp() {
   useEffect(() => {
     fetchDashboardData();
 
-    // Refresh periodically while the dashboard is open without overloading the API.
+    // Refresh periodically while the dashboard is open (30s interval for resource efficiency).
     const pollInterval = setInterval(() => {
       fetchDashboardData(true);
-    }, 15000);
+    }, 30000);
 
     // Instant refresh when user switches back to this tab
     const handleFocus = () => {

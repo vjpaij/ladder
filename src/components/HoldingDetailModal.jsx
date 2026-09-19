@@ -237,7 +237,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   useEffect(() => {
     if (!holding?.id) return;
     fetchDetail(true);
-    const pollTimer = setInterval(() => fetchDetail(false), 3000);
+    // Periodic refresh while modal is open (every 30s instead of 3s to preserve resources)
+    const pollTimer = setInterval(() => fetchDetail(false), 30000);
 
     return () => {
       clearInterval(pollTimer);
