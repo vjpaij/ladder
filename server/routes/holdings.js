@@ -459,29 +459,50 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             .select('*')
             .or(`holding_id.eq.${holding.id},liability_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
             .order('date', { ascending: false });
-          if (realTxs && realTxs.length > 0) txs = realTxs;
-        } else {
-          let prevVal = 0;
-          const txStep = Math.max(1, Math.floor(validLogs.length / 60));
-          for (let i = 0; i < validLogs.length; i += txStep) {
-            const l = validLogs[i];
-            const val = l[eodKey] || 0;
-            const diff = val - prevVal;
-            txs.push({
-              id: `eod_${l.date}_${i}`,
-              holding_id: holding.id,
-              symbol: holding.symbol || 'EOD',
-              name: holding.name,
-              type: diff >= 0 ? 'BUY' : 'SELL',
-              quantity: 1,
-              price: val,
-              total_amount: Math.abs(diff),
-              date: l.date,
-              notes: `EOD Balance: ₹${val.toLocaleString('en-IN')}`
-            });
-            prevVal = val;
+          if (realTxs && realTxs.length > 0) {
+            txs = realTxs;
+          } else {
+            let prevVal = 0;
+            const txStep = Math.max(1, Math.floor(validLogs.length / 60));
+            for (let i = 0; i < validLogs.length; i += txStep) {
+              const l = validLogs[i];
+              const val = l[eodKey] || 0;
+              const diff = val - prevVal;
+              txs.push({
+                id: `eod_${l.date}_${i}`,
+                holding_id: holding.id,
+                symbol: holding.symbol || 'EOD',
+                name: holding.name,
+                type: diff >= 0 ? 'BUY' : 'SELL',
+                quantity: 1,
+                price: val,
+                total_amount: Math.abs(diff),
+                date: l.date,
+                notes: `EOD Balance: ₹${val.toLocaleString('en-IN')}`
+              });
+              prevVal = val;
+            }
+            txs = txs.reverse();
           }
-          txs = txs.reverse();
+        }
+
+        if (holding.category_id === 'loans') {
+          try {
+            const { data: amortRows } = await supabase
+              .from('loan_amortization')
+              .select('date, closing_balance')
+              .eq('liability_id', holding.id);
+            if (amortRows && amortRows.length > 0) {
+              const amortMap = new Map();
+              amortRows.forEach(r => amortMap.set(r.date, Number(r.closing_balance)));
+              txs = txs.map(t => ({
+                ...t,
+                runningBalance: amortMap.has(t.date) ? amortMap.get(t.date) : t.runningBalance
+              }));
+            }
+          } catch (err) {
+            console.warn('[Loan Detail Amort Map Error]:', err.message);
+          }
         }
 
         return res.json({
@@ -628,7 +649,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           buyLotsUSD.push({ qty: splitQty, price: 0, charges: 0, rem: splitQty });
           buyLotsINR.push({ qty: splitQty, priceUSD: 0, fxRate: txRate, charges: 0, rem: splitQty });
         }
-      } else if (tx.type === 'SELL') {
+      } else if (tx.type === 'SELL' || tx.type === 'REDEEM' || tx.type === 'REDEMPTION') {
         totalSellChargesUSD += chargesUSD;
         totalSellChargesINR += chargesINR;
         const netProceedsUSD = Math.max(0, rawPrincipalUSD - chargesUSD);
@@ -717,13 +738,13 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
     // Cashflows & XIRR
     const cashflowsUSD = txs
-      .filter(t => t.type === 'BUY' || t.type === 'SELL')
+      .filter(t => ['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'SELL', 'REDEEM', 'REDEMPTION'].includes(t.type))
       .map(t => {
         const amt = Number(t.total_amount) || 0;
         const charges = Number(t.charges) || 0;
         return {
           date: t.date,
-          amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
+          amount: (t.type === 'BUY' || t.type === 'INVESTMENT' || t.type === 'INVESTMENT (SIP)') ? -(amt + charges) : (amt - charges)
         };
       });
 
@@ -737,14 +758,14 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const totalXirrUSD = calculateXirr(cashflowsUSD);
 
     const cashflowsINR = txs
-      .filter(t => t.type === 'BUY' || t.type === 'SELL')
+      .filter(t => ['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'SELL', 'REDEEM', 'REDEMPTION'].includes(t.type))
       .map(t => {
         const r = isUSStock ? (Number(t.fx_rate) || getHistoricalFxRate(t.date)) : 1.0;
         const amt = (Number(t.total_amount) || 0) * r;
         const charges = (Number(t.charges) || 0) * r;
         return {
           date: t.date,
-          amount: (t.type === 'BUY') ? -(amt + charges) : (amt - charges)
+          amount: (t.type === 'BUY' || t.type === 'INVESTMENT' || t.type === 'INVESTMENT (SIP)') ? -(amt + charges) : (amt - charges)
         };
       });
 
@@ -803,10 +824,10 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
               });
             }
 
-            if (tx.type === 'BUY' || tx.type === 'BONUS') {
+            if (tx.type === 'BUY' || tx.type === 'BONUS' || tx.type === 'INVESTMENT' || tx.type === 'INVESTMENT (SIP)') {
               runningQ += qty;
               runningInv += amt;
-            } else if (tx.type === 'SELL') {
+            } else if (tx.type === 'SELL' || tx.type === 'REDEEM' || tx.type === 'REDEMPTION') {
               runningQ = Math.max(0, runningQ - qty);
               runningInv = Math.max(0, runningInv - amt);
             }
@@ -895,7 +916,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       const tradeScaleCheckpoints = [];
 
       for (const t of txs) {
-        if ((t.type === 'BUY' || t.type === 'SELL') && Number(t.price) > 0) {
+        if ((['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'SELL', 'REDEEM', 'REDEMPTION'].includes(t.type)) && Number(t.price) > 0) {
           const tDate = t.date;
           let hp = histPrices[tDate];
           if (!hp) {
@@ -981,8 +1002,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           const rawPrincipalINR = rawPrincipalUSD * txRate;
           const txChargesUSD = Number(tx.charges) || 0;
           const txChargesINR = txChargesUSD * txRate;
-          const amtUSD = tx.type === 'SELL' ? Math.max(0, rawPrincipalUSD - txChargesUSD) : (rawPrincipalUSD + txChargesUSD);
-          const amtINR = tx.type === 'SELL' ? Math.max(0, rawPrincipalINR - txChargesINR) : (rawPrincipalINR + txChargesINR);
+          const amtUSD = ['SELL', 'REDEEM', 'REDEMPTION'].includes(tx.type) ? Math.max(0, rawPrincipalUSD - txChargesUSD) : (rawPrincipalUSD + txChargesUSD);
+          const amtINR = ['SELL', 'REDEEM', 'REDEMPTION'].includes(tx.type) ? Math.max(0, rawPrincipalINR - txChargesINR) : (rawPrincipalINR + txChargesINR);
 
           if (tx.date === dStr && tx.type !== 'DIVIDEND') {
             dayEvents.push({
@@ -1018,7 +1039,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             if (splitQty > 0) {
               runningQ += splitQty;
             }
-          } else if (tx.type === 'SELL') {
+          } else if (tx.type === 'SELL' || tx.type === 'REDEEM' || tx.type === 'REDEMPTION') {
             const sellCostUSD = runningQ > 0 ? (qty * (runningInvUSD / runningQ)) : 0;
             const sellCostINR = runningQ > 0 ? (qty * (runningInvINR / runningQ)) : 0;
             runningQ = Math.max(0, runningQ - qty);
@@ -1172,7 +1193,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const dayChange = quotePrice - prevClose;
     const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
 
-    const txTypePriority = { BUY: 1, BONUS: 1, DIVIDEND_REINVEST: 1, SPLIT: 2, SELL: 3, DIVIDEND: 4 };
+    const txTypePriority = { BUY: 1, BONUS: 1, DIVIDEND_REINVEST: 1, SPLIT: 2, SELL: 3, REDEEM: 3, REDEMPTION: 3, DIVIDEND: 4 };
     const mergedTransactions = [...nonDivTxs, ...allHoldingDividends].sort((a, b) => {
       const da = a.date || '';
       const db = b.date || '';
@@ -1294,7 +1315,11 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       const rawPrice = Number(price);
       const rawCharges = Number(charges) || 0;
 
-      if (['BUY', 'SELL', 'REDEEM'].includes(txType)) {
+      if (txType === 'REDEEM' || txType === 'REDEMPTION') {
+        txType = 'SELL';
+      }
+
+      if (['BUY', 'SELL'].includes(txType)) {
         if ((isNaN(rawQty) || rawQty <= 0) && (isNaN(Number(amount)) || Number(amount) <= 0)) {
           return res.status(400).json({ error: `Invalid quantity '${quantity}'. Must be a positive number greater than zero.` });
         }

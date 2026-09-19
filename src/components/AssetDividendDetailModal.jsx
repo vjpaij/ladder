@@ -913,13 +913,13 @@ export default function AssetDividendDetailModal({
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs font-mono">
+                  <tbody className="text-xs font-mono">
                     {sortedFilteredLedgerRows.map((row, i) => {
                       const isEditing = editingDivId === row.id;
 
                       if (isEditing) {
                         return (
-                          <tr key={row.id || i} className="bg-slate-800/60 border-emerald-500/40">
+                          <tr key={row.id || i} className="bg-slate-800/60 border-0">
                             <td className="py-2 px-3 sticky left-0 z-20 bg-slate-900 border-r border-slate-800 min-w-[130px]">
                               <DatePicker
                                 value={editForm.payment_date}
@@ -978,7 +978,7 @@ export default function AssetDividendDetailModal({
                       }
 
                       return (
-                        <tr key={row.id || `${row.symbol}-${i}`} className="group hover:bg-slate-800/40 transition-colors">
+                        <tr key={row.id || `${row.symbol}-${i}`} className="group hover:bg-slate-800/40 transition-colors border-0">
                           <td className="py-2.5 px-3 text-slate-300 font-medium whitespace-nowrap sticky left-0 z-20 bg-slate-900/95 group-hover:bg-slate-900/95 border-r border-slate-800 min-w-[120px]">
                             {formatDateDDMMYYYY(row.payment_date || row.raw_date)}
                           </td>

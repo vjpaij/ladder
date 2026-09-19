@@ -16,6 +16,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const { currency, theme, fxRate, formatMoney, showError, showSuccess } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   const [detail, setDetail] = useState(null);
+  const activeHolding = detail?.holding || holding;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [txSort, setTxSort] = useState({ field: 'date', dir: 'desc' });
@@ -23,9 +24,9 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const [txTypeFilter, setTxTypeFilter] = useState('ALL');
 
   const [activeTab, setActiveTab] = useState('tracker');
-  const isLoan = holding?.category_id === 'loans';
-  const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(holding?.category_id);
-  const [loanViewTab, setLoanViewTab] = useState(holding?.initialTab || 'history');
+  const isLoan = activeHolding?.category_id === 'loans';
+  const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(activeHolding?.category_id);
+  const [loanViewTab, setLoanViewTab] = useState(activeHolding?.initialTab || 'history');
   const [chartRangeFilter, setChartRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
 
   // Transaction Edit/Delete state
@@ -451,7 +452,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
 
         return {
           ...tx,
-          runningBalance: Math.max(0, runningBal),
+          runningBalance: tx.runningBalance !== undefined ? Number(tx.runningBalance) : Math.max(0, runningBal),
           isInflow,
           netTxAmount: amt
         };
@@ -550,7 +551,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
           >
             {/* Header */}
             <HoldingDetailHeader
-              holding={holding}
+              holding={activeHolding}
               accentColor={accentColor}
               displayHoldingName={displayHoldingName}
               isEodAsset={isEodAsset}

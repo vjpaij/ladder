@@ -25,22 +25,73 @@ router.get('/search/stocks', async (req, res) => {
     });
 
     const quotes = response.data?.quotes || [];
-    let filtered = quotes.filter(q => q.quoteType === 'EQUITY' || q.quoteType === 'MUTUALFUND' || q.quoteType === 'ETF');
+    let results = [];
 
     if (market === 'india') {
-      filtered = filtered.filter(q => q.exchange === 'NSI' || q.exchange === 'BSE' || q.exchange === 'NSE' ||
-        (q.symbol && (q.symbol.endsWith('.NS') || q.symbol.endsWith('.BO'))));
-    } else if (market === 'us') {
-      filtered = filtered.filter(q => ['NMS', 'NYQ', 'NGM', 'NCM', 'PCX', 'BTS'].includes(q.exchange) ||
-        q.exchDisp === 'NASDAQ' || q.exchDisp === 'NYSE');
-    }
+      const inQuotes = quotes.filter(q => 
+        (q.quoteType === 'EQUITY' || q.quoteType === 'MUTUALFUND' || q.quoteType === 'ETF') &&
+        (q.exchange === 'NSI' || q.exchange === 'BSE' || q.exchange === 'NSE' ||
+         (q.symbol && (q.symbol.endsWith('.NS') || q.symbol.endsWith('.BO'))))
+      );
 
-    const results = filtered.map(q => ({
-      symbol: q.symbol,
-      name: q.longname || q.shortname || q.symbol,
-      exchange: q.exchDisp || q.exchange,
-      type: q.quoteType
-    }));
+      // Separate into NSE and BSE candidates
+      const nseBaseMap = new Map();
+      const nseNameMap = new Map();
+      const bseList = [];
+
+      for (const q of inQuotes) {
+        const isNse = q.symbol?.endsWith('.NS') || q.exchange === 'NSI' || q.exchange === 'NSE' || q.exchDisp === 'NSE';
+        const baseSymbol = (q.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+        const rawName = q.longname || q.shortname || baseSymbol;
+        const normName = rawName.toLowerCase().replace(/\s+(ltd|limited|corp|corporation|inc|industries|ind)\.?$/i, '').trim();
+
+        if (isNse) {
+          if (!nseBaseMap.has(baseSymbol)) {
+            nseBaseMap.set(baseSymbol, q);
+            if (normName) nseNameMap.set(normName, q);
+          }
+        } else {
+          bseList.push({ q, baseSymbol, normName });
+        }
+      }
+
+      // Start with NSE quotes
+      const finalQuotes = Array.from(nseBaseMap.values());
+
+      // Only add BSE quotes if the company / base symbol is NOT in NSE
+      const seenBseSymbols = new Set();
+      for (const { q, baseSymbol, normName } of bseList) {
+        if (!nseBaseMap.has(baseSymbol) && (!normName || !nseNameMap.has(normName)) && !seenBseSymbols.has(baseSymbol)) {
+          seenBseSymbols.add(baseSymbol);
+          finalQuotes.push(q);
+        }
+      }
+
+      // Map to clean results: no exchange text, clean symbol, clean company name
+      results = finalQuotes.map(q => {
+        const cleanSymbol = (q.symbol || '').replace(/\.(NS|BO)$/i, '');
+        const rawName = q.longname || q.shortname || cleanSymbol;
+        const cleanName = rawName.replace(/\s*[\(\[]?(NSE|BSE|NSI)[\)\]]?\s*$/i, '').trim();
+        return {
+          symbol: cleanSymbol,
+          name: cleanName,
+          exchange: '', // Never display whether it is NSE or BSE
+          type: q.quoteType
+        };
+      });
+    } else {
+      let filtered = quotes.filter(q => q.quoteType === 'EQUITY' || q.quoteType === 'MUTUALFUND' || q.quoteType === 'ETF');
+      if (market === 'us') {
+        filtered = filtered.filter(q => ['NMS', 'NYQ', 'NGM', 'NCM', 'PCX', 'BTS'].includes(q.exchange) ||
+          q.exchDisp === 'NASDAQ' || q.exchDisp === 'NYSE');
+      }
+      results = filtered.map(q => ({
+        symbol: q.symbol,
+        name: q.longname || q.shortname || q.symbol,
+        exchange: q.exchDisp || q.exchange,
+        type: q.quoteType
+      }));
+    }
 
     res.json(results);
   } catch (err) {

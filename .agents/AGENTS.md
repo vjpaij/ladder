@@ -105,6 +105,31 @@
     - **SCOPED NPS & SUB-TABLE QUERIES ONLY**: Scrapers, rebuild scripts, and cron workers MUST query `nps_daily_navs` strictly scoped by `.in('scheme_code', heldNpsCodes)` and `.gte('nav_date', baselineDate)`. Unconstrained full-table scans across all 53,000+ historical rows across all schemes in India are strictly forbidden.
     - **STRIP REPRESENTATION ON DATABASE WRITES**: All database updates and deletes MUST omit `.select()` when the response body is not strictly required, enforcing empty `204 No Content` headers with 0 response bytes to protect cloud egress limits.
 
+19. **ZERO-UNCACHED READS & CLIENT-SERVER POLLING GUARDRAILS PROTOCOL**:
+    - **UNIVERSAL IN-MEMORY READ PATH**: Every API endpoint and data controller (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`, `/api/sips`, `/api/holding/:id/detail`, `/api/daily-pnl`, `/api/reports`) MUST read exclusively from resident in-memory caches (`db.select()`, `liveQuoteCache`). Never issue direct, ad-hoc `supabase.from(...).select('*')` calls from route controllers or detail modals.
+    - **CLIENT POLLING INTERVAL MINIMUMS**: Polling loops inside React components (`setInterval` in `App.jsx`, `HoldingDetailModal.jsx`, `CalendarView.jsx`) MUST never be set below 30 seconds. Sub-second and aggressive single-digit polling intervals are strictly prohibited. Modals and pages must refresh dynamically on explicit user mutations (`mutate`, `save`, `delete`) rather than aggressive polling loops.
+
+20. **CLOUD CI/CD RUNNER EGRESS QUARANTINE & DUAL-EXECUTION BAN**:
+    - **ZERO UNCONTROLLED CLOUD CRON OVERHEAD**: Cloud CI/CD workflows (`.github/workflows/`) run in ephemeral virtual machines with zero resident cache and zero disk snapshots; any batch script executed in cloud CI/CD downloads 100% of data cold over the public internet.
+    - **DUAL-EXECUTION BAN**: Never run duplicate scheduled jobs simultaneously on both local Express daemons and cloud GitHub Actions. When the application is operated via local daemon, cloud CI/CD crons must be paused or disabled to prevent redundant 30+ MB/day bandwidth drains.
+    - **EMERGENCY QUOTA QUARANTINE**: When cloud database free-tier allowance falls below 20% (< 1.0 GB remaining), cloud CI/CD scheduled workflows MUST be quarantined (disabled or commented out) in favor of the local zero-egress Express server.
+
+21. **ZERO-EGRESS LOCAL DISK SNAPSHOT PERSISTENCE & COLD-BOOT IMMUNITY**:
+    - **DEBOUNCED WRITE-THROUGH SNAPSHOTS**: Node.js RAM cache (`dbCache`) MUST continuously persist state to a local disk snapshot (`data/db_cache_snapshot.json`) with debounced write-through saves on any insert, update, or delete.
+    - **ZERO-EGRESS SERVER BOOT**: On server startup, development restart, machine reboot, or crash recovery, `warmCache()` MUST restore table collections from the local disk snapshot first. Re-fetching tables from the cloud on server boot is strictly prohibited unless the local snapshot is absent or older than 24 hours.
+
+22. **MARKET-HOURS GATING & NON-TRADING DAY RUNNER INVARIANCE PROTOCOL**:
+    - **DYNAMIC TRADING SESSION GATING**: Live tickers, price engines, NAV pollers, and background calculation loops MUST strictly gate execution against active exchange hours via `isAnyMarketOpen()` and `isTradingDay()`.
+    - **OFF-MARKET ZERO-ACTIVITY INVARIANCE**: Outside official trading hours (nights, weekends, and national exchange holidays), all active live price polling MUST automatically pause with zero database queries. Scrapers and background sync routines must never probe cloud tables for non-existent weekend price changes.
+
+23. **BACKUP PROJECTION SCOPING & UNBOUNDED TABLE SCAN BAN**:
+    - **SCOPED BACKUP PROJECTIONS**: Backup routines (`scripts/backup_manager.mjs`) MUST NEVER perform unbounded full-table scans across broad national aggregators (such as `nps_daily_navs` containing 53,000+ unheld schemes). Public market datasets in backups must strictly be scoped to user-held portfolio assets (`heldNpsCodes`) or active scheme subsets.
+    - **MANDATORY LOSSLESS GZIP COMPRESSION**: All cloud backups MUST be compressed losslessly with gzip (`.json.gz`) before cloud transmission, guaranteeing >90% reduction in storage and bandwidth.
+
+24. **AUTONOMOUS ARCHITECTURAL INTEGRITY & CONTINUOUS RULE GOVERNANCE PROTOCOL**:
+    - **MANDATORY PROACTIVE RULE CODIFICATION**: Whenever an agent identifies an architectural bug, design flaw, resource leak, or divergence from real-world fintech standards, the agent MUST NOT merely apply a superficial local patch. The agent is explicitly authorized and mandated to autonomously formulate, codify, and append a permanent, binding numbered rule in `.agents/AGENTS.md` and log the architectural evolution in `LADDER.md`.
+    - **PERMANENT GUARDRAIL IMMUNITY**: Rules once codified in `AGENTS.md` represent non-negotiable workspace law and cannot be bypassed, watered down, or reverted by subsequent agents or automated refactors.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:

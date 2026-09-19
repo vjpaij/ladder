@@ -13,9 +13,9 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Automatically triggered on transaction additions, edits, and deletions across all asset classes.
 
 2. **Multi-Pass Daily NAV & Market Data Engine**
-   - **Indian Equities**: Live quotes comparing NSE and BSE prices, automatically locking the higher market quote (`NSE/BSE MAX`).
-   - **US Equities**: Real-time quotes from NASDAQ/NYSE with dynamic USD to INR conversion. Entries are strictly in USD ($) with real-time INR preview.
-   - **Mutual Funds**: Real-time NAV synchronization via AMFI Scheme API.
+   - **Indian Equities**: Live quotes comparing NSE and BSE prices, automatically locking the higher market quote (`NSE/BSE MAX`). Stock search automatically prioritizes NSE, falls back to BSE only if absent, and strips all exchange tags for clean single-entry prompts.
+   - **US Equities**: Real-time quotes from NASDAQ/NYSE with dynamic USD to INR conversion. Entries are strictly in USD ($) with real-time INR preview and automated historical FX rate lookups on date selection.
+   - **Mutual Funds**: Real-time NAV synchronization via AMFI Scheme API. Full uniformity across asset lifecycle with standardized SELL transactions and borderless transaction ledgers.
    - **NPS (National Pension System)**: Automated daily scraper extracting official NAV files directly from Protean CRA archives (`nps_daily_navs` table in Supabase) with historical backfill fallback.
    - **Automated Historical Price Population**: Whenever a new or past-dated transaction is recorded for any stock, Mutual Fund, or NPS scheme, historical daily closing quotes/NAVs from the transaction date to present are automatically retrieved and populated into `data/historical_prices.json` and in-memory cache, ensuring holding detail charts immediately track real daily trajectories instead of flat lines.
    - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).

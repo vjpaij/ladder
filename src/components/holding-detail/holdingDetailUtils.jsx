@@ -46,6 +46,8 @@ export function TxBadge({ type }) {
   const cfg = {
     BUY:          { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'BUY' },
     SELL:         { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'SELL' },
+    REDEEM:       { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'SELL' },
+    REDEMPTION:   { cls: 'bg-rose-500/15 text-rose-400 border-rose-500/30',          label: 'SELL' },
     DIVIDEND:     { cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30',       label: 'DIV' },
     SPLIT:        { cls: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',     label: 'SPLIT' },
     BONUS:        { cls: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',          label: 'BONUS' },

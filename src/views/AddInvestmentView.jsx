@@ -92,11 +92,13 @@ function AutocompleteDropdown({ items, onSelect, isLoading, highlightText }) {
           >
             <div className="flex-1 min-w-0">
               <div className="text-xs font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
-                {item.schemeName || item.name}
+                {(item.schemeName || item.name || '').replace(/\s*[\(\[]?(NSE|BSE|NSI)[\)\]]?\s*$/i, '')}
               </div>
               <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                {item.symbol || item.schemeCode}
-                {item.exchange && <span className="ml-1.5 text-slate-600">{item.exchange}</span>}
+                {(item.symbol || item.schemeCode || '').replace(/\.(NS|BO)$/i, '')}
+                {item.exchange && !['NSE', 'BSE', 'NSI', 'Bombay'].includes(item.exchange) && (
+                  <span className="ml-1.5 text-slate-600">{item.exchange}</span>
+                )}
               </div>
             </div>
             <ArrowRight className="w-3 h-3 text-slate-600 group-hover:text-emerald-400 transition-colors shrink-0 ml-2" />

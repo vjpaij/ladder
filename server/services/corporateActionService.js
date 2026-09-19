@@ -145,7 +145,7 @@ export async function applyStockSplit({
     const tx = lot.tx;
 
     if (lot.remQty === lot.origQty) {
-      const newQty = parseFloat((tx.quantity * splitMultiplier).toFixed(4));
+      const newQty = parseFloat((tx.quantity * splitMultiplier).toFixed(9));
       const newPrice = parseFloat((tx.price / splitMultiplier).toFixed(4));
       const newTotal = parseFloat((newQty * newPrice).toFixed(2));
       const origTag = `[Split orig: ${tx.quantity}@${tx.price}]`;
@@ -163,7 +163,7 @@ export async function applyStockSplit({
 
       postSplitOpenQty += newQty;
     } else {
-      const closedQty = parseFloat((lot.origQty - lot.remQty).toFixed(4));
+      const closedQty = parseFloat((lot.origQty - lot.remQty).toFixed(9));
       const closedTotal = parseFloat((closedQty * tx.price).toFixed(2));
 
       await supabase
@@ -174,7 +174,7 @@ export async function applyStockSplit({
         })
         .eq('id', tx.id);
 
-      const openScaledQty = parseFloat((lot.remQty * splitMultiplier).toFixed(4));
+      const openScaledQty = parseFloat((lot.remQty * splitMultiplier).toFixed(9));
       const openScaledPrice = parseFloat((tx.price / splitMultiplier).toFixed(4));
       const openScaledTotal = parseFloat((openScaledQty * openScaledPrice).toFixed(2));
       const origTag = `[Split orig: ${lot.remQty}@${tx.price}]`;

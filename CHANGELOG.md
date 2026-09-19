@@ -5,6 +5,33 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.37.0] - 2026-09-19
+
+### Added
+- **Indian Stock Search Deduplication**: Deduplicated Indian equity stock search results to strictly prioritize NSE, falling back to BSE only if NSE does not exist, and stripped all exchange suffixes/tags (`(NSE)`, `(BSE)`, `.NS`, `.BO`) to display a single, clean instrument prompt.
+- **Automated US Stock Historical FX Rate Synchronization**: Enhanced `HoldingTransactionLedger.jsx` date picker and inline edit to automatically fetch and populate historical USD/INR exchange rates from `/api/fx-rate?date=${date}` on date selection.
+
+### Changed
+- **Universal Sell / Redeem Uniformity**: Standardized all `REDEEM` and `REDEMPTION` transaction types to `SELL` across database records, backend routes, FIFO matching logic, and frontend forms for unified asset lifecycle tracking.
+- **Detail Record Borderless Design Uniformity**: Eliminated `divide-y` and table row borders across `HoldingTransactionLedger.jsx`, `LoanAmortizationSection.jsx`, and `AssetDividendDetailModal.jsx` for clean, consistent borderless detail records.
+- **Universal Real-Time UI Synchronization**: Connected `onRefresh={fetchDashboardData}` callback from `HoldingDetailModal` to parent `App.jsx`, bound dynamic `activeHolding` in `HoldingDetailHeader`, and synchronized `DividendsView` on holdings updates to update quantities and totals across all pages immediately on data entry.
+
+### Fixed
+- **Home Loan Balance and Amortization Ledger**: Re-linked September 1, 2026 EMI transaction to Housing Loan liability (`00000000-0000-0000-0000-000000000010`), deleted rogue duplicate liability row, set outstanding balance to ₹44,64,447, and attached amortization closing balances to transaction records so running balance shows true amortization progression instead of ₹0.00.
+- **Arista Networks (ANET) Stock Split Reconciliation**: Restored true executed pre-split buy prices ($121.48 to $366.96), removed malformed manual split entry, and applied canonical 1:4 stock split with 9-decimal precision via `corporateActionService.applyStockSplit`, yielding 24.5516 shares, $1,096.52 invested cost, and $44.6621 average price.
+- **Holding Detail Fake EOD Pollution**: Fixed bug in `server/routes/holdings.js` where real transactions were populated with 60 synthetic EOD transactions when total transaction count was below 60.
+
+## [5.36.2] - 2026-09-19
+
+### Added
+- **Codification of Architectural Governance & Rules 19 to 24 in AGENTS.md**:
+  - Rule 19: Zero-uncached reads across all API routes and client polling minimums (>= 30s).
+  - Rule 20: Cloud CI/CD runner egress quarantine, dual-execution ban, and emergency quota isolation.
+  - Rule 21: Zero-egress local disk snapshot persistence and cold-boot cloud immunity.
+  - Rule 22: Dynamic market-hours gating and non-trading day runner invariance.
+  - Rule 23: Backup projection scoping and ban on unconstrained multi-scheme table scans.
+  - Rule 24: Autonomous Architectural Integrity & Continuous Rule Governance Protocol, authorizing agents to proactively formulate and append permanent workspace guardrails in `AGENTS.md` whenever systemic design issues are diagnosed.
+
 ## [5.36.1] - 2026-09-19
 
 ### Fixed

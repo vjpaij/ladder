@@ -742,8 +742,8 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
         <div className="border border-slate-800/90 rounded-2xl overflow-hidden">
           <div className="relative overflow-x-auto overflow-y-auto max-h-[520px] custom-scrollbar">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="sticky top-0 z-30 bg-slate-900 border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none shadow-sm">
-                <tr>
+              <thead className="sticky top-0 z-30 bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none shadow-sm">
+                <tr className="border-b border-slate-800">
                   <th onClick={() => handleScheduleSort('date')} className="py-3 px-3.5 cursor-pointer hover:text-white sticky left-0 top-0 z-40 bg-slate-900 border-r border-slate-800 min-w-[120px]">
                     Date {renderScheduleSortIcon('date')}
                   </th>
@@ -775,7 +775,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                   <th className="py-3 px-3 text-center bg-slate-900">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="font-mono">
                 {filteredEntries.map((row, idx) => {
                   const isSettled = row.is_settled;
                   const isPrepay = (Number(row.bulk_payment) || 0) > 0;
@@ -784,7 +784,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                   return (
                     <tr 
                       key={row.id || `${row.date}-${idx}`}
-                      className={`group hover:bg-slate-800/30 transition-colors ${
+                      className={`group hover:bg-slate-800/30 transition-colors border-0 ${
                         isPrepay ? 'bg-emerald-500/5' : isDisb ? 'bg-blue-500/5' : ''
                       }`}
                     >

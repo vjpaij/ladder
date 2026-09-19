@@ -34,7 +34,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
 
   useEffect(() => {
     fetchDividends();
-  }, []);
+  }, [holdings]);
 
   const cleanName = (name = '') => {
     return String(name)

@@ -1,4 +1,5 @@
 import React from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Plus, PlusCircle, Search, X, ChevronUp, ChevronDown,
@@ -189,7 +190,7 @@ export default function HoldingTransactionLedger({
                   {(() => {
                     let types = ['BUY', 'SELL', 'BONUS', 'DIVIDEND', 'SPLIT'];
                     if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
-                      types = ['BUY', 'REDEEM', 'INVESTMENT', 'INVESTMENT (SIP)', 'DIVIDEND'];
+                      types = ['BUY', 'SELL', 'INVESTMENT', 'INVESTMENT (SIP)', 'DIVIDEND'];
                     } else if (holding.category_id === 'bank') {
                       types = ['DEPOSIT', 'WITHDRAWAL', 'CREDIT', 'DEBIT', 'INTEREST', 'CHARGE'];
                     } else if (holding.category_id === 'epf') {
@@ -212,7 +213,17 @@ export default function HoldingTransactionLedger({
                 </label>
                 <DatePicker
                   value={newTxDate}
-                  onChange={(e) => setNewTxDate(e.target.value)}
+                  onChange={(e) => {
+                    const newD = e.target.value;
+                    setNewTxDate(newD);
+                    if (isUSStock && newD && typeof setNewTxFxRate === 'function') {
+                      axios.get('/api/fx-rate', { params: { date: newD } })
+                        .then(res => {
+                          if (res.data?.rate) setNewTxFxRate(String(res.data.rate));
+                        })
+                        .catch(() => {});
+                    }
+                  }}
                   required
                   placeholder="Select date"
                 />
@@ -567,12 +578,12 @@ export default function HoldingTransactionLedger({
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/40">
+            <tbody className="text-xs">
               {sortedTxs.map((tx, i) => {
                 if (isEodAsset) {
                   if (editingTxId === tx.id) {
                     return (
-                      <tr key={tx.id || i} className="bg-slate-800/80 border-y border-blue-500/40">
+                      <tr key={tx.id || i} className="bg-slate-800/80 border-0">
                         <td className="py-2 px-3 sticky left-0 z-20 bg-slate-900 border-r border-slate-800 min-w-[140px]">
                           <DatePicker
                             value={editForm.date || ''}
@@ -653,11 +664,12 @@ export default function HoldingTransactionLedger({
                   const isPos = tx.isInflow;
                   const changeVal = Number(tx.netTxAmount || tx.total_amount || 0);
                   const balance = Number(tx.runningBalance || 0);
+                  const rowHover = isPos ? 'hover:bg-emerald-500/5' : 'hover:bg-rose-500/5';
 
                   return (
                     <motion.tr
                       key={tx.id || i}
-                      className="group hover:bg-slate-800/30 transition-colors"
+                      className={`group ${rowHover} transition-colors border-0`}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: Math.min(i * 0.015, 0.4) }}
@@ -702,8 +714,8 @@ export default function HoldingTransactionLedger({
                   );
                 }
 
-                const isBuy   = tx.type === 'BUY';
-                const isSell  = tx.type === 'SELL';
+                const isBuy   = tx.type === 'BUY' || tx.type === 'INVESTMENT' || tx.type === 'INVESTMENT (SIP)';
+                const isSell  = tx.type === 'SELL' || tx.type === 'REDEEM' || tx.type === 'REDEMPTION';
                 const isDiv   = tx.type === 'DIVIDEND';
                 const isSplit = tx.type === 'SPLIT';
                 const isBonus = tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST';
@@ -760,7 +772,7 @@ export default function HoldingTransactionLedger({
 
                 if (isSplit && editingTxId === tx.id) {
                   return (
-                    <tr key={tx.id || i} className={`border-y ${isLight ? 'bg-purple-100/90 border-purple-300' : 'bg-purple-950/70 border-purple-500/50'}`}>
+                    <tr key={tx.id || i} className={`border-0 ${isLight ? 'bg-purple-100/90' : 'bg-purple-950/70'}`}>
                       <td className={`py-2 px-3 sticky left-0 z-20 border-r border-slate-800 min-w-[140px] ${isLight ? 'bg-purple-100' : 'bg-slate-900'}`}>
                         <DatePicker
                           value={editForm.date || ''}
@@ -838,7 +850,7 @@ export default function HoldingTransactionLedger({
 
                 if (isBonus && editingTxId === tx.id) {
                   return (
-                    <tr key={tx.id || i} className={`border-y ${isLight ? 'bg-amber-100/90 border-amber-300' : 'bg-amber-950/70 border-amber-500/50'}`}>
+                    <tr key={tx.id || i} className={`border-0 ${isLight ? 'bg-amber-100/90' : 'bg-amber-950/70'}`}>
                       <td className={`py-2 px-3 sticky left-0 z-20 border-r border-slate-800 min-w-[140px] ${isLight ? 'bg-amber-100' : 'bg-slate-900'}`}>
                         <DatePicker
                           value={editForm.date || ''}
@@ -947,7 +959,7 @@ export default function HoldingTransactionLedger({
                   return (
                     <tr
                       key={tx.id || i}
-                      className={`border-y transition-colors ${rowBg} ${borderColor} shadow-sm`}
+                      className={`border-0 transition-colors ${rowBg} shadow-sm`}
                     >
                       <td className={`py-2.5 px-4 font-mono font-bold whitespace-nowrap sticky left-0 z-20 border-r border-slate-800 min-w-[130px] ${stickyDateBg}`}>
                         {formatDateDDMMYYYY(tx.date)}
@@ -1008,11 +1020,23 @@ export default function HoldingTransactionLedger({
                 // Inline Edit Mode
                 if (editingTxId === tx.id) {
                   return (
-                    <tr key={tx.id || i} className="bg-blue-950/20 border-y border-blue-500/30">
+                    <tr key={tx.id || i} className="bg-blue-950/20 border-0">
                       <td className="py-2 px-3 sticky left-0 z-20 bg-slate-900 border-r border-slate-800 min-w-[140px]">
                         <DatePicker
                           value={editForm.date || ''}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, date: e.target.value }))}
+                          onChange={(e) => {
+                            const newD = e.target.value;
+                            setEditForm(prev => ({ ...prev, date: newD }));
+                            if (isUSStock && newD) {
+                              axios.get('/api/fx-rate', { params: { date: newD } })
+                                .then(res => {
+                                  if (res.data?.rate) {
+                                    setEditForm(prev => ({ ...prev, fx_rate: res.data.rate }));
+                                  }
+                                })
+                                .catch(() => {});
+                            }
+                          }}
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -1020,7 +1044,7 @@ export default function HoldingTransactionLedger({
                           {(() => {
                             let types = ['BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT'];
                             if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
-                              types = ['BUY', 'REDEEM', 'INVESTMENT', 'INVESTMENT (SIP)', 'BONUS', 'DIVIDEND'];
+                              types = ['BUY', 'SELL', 'INVESTMENT', 'INVESTMENT (SIP)', 'BONUS', 'DIVIDEND'];
                             }
                             return types.map(t => <option key={t} value={t} className="bg-slate-900 text-white">{t}</option>);
                           })()}

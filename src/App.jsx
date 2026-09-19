@@ -405,6 +405,7 @@ function AuthenticatedApp() {
         <HoldingDetailModal
           holding={selectedHoldingModal}
           onClose={() => setSelectedHoldingModal(null)}
+          onRefresh={fetchDashboardData}
         />
       )}
 
