@@ -109,14 +109,35 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
       let aVal = a[sortField];
       let bVal = b[sortField];
 
+      // Derived fields for sorting
+      if (sortField === 'sell_qty') {
+        aVal = Number(a.sell_qty) || Number(a.sold_qty) || Number(a.buy_qty) || 0;
+        bVal = Number(b.sell_qty) || Number(b.sold_qty) || Number(b.buy_qty) || 0;
+      } else if (sortField === 'gainINR') {
+        aVal = Number(a.gainINR) || (Number(a.unrealized_pnl) || 0);
+        bVal = Number(b.gainINR) || (Number(b.unrealized_pnl) || 0);
+      } else if (sortField === 'unrealized_pnl') {
+        aVal = Number(a.unrealized_pnl) || (Number(a.gainINR) || 0);
+        bVal = Number(b.unrealized_pnl) || (Number(b.gainINR) || 0);
+      } else if (sortField === 'realized_pnl') {
+        aVal = Number(a.realized_pnl) || 0;
+        bVal = Number(b.realized_pnl) || 0;
+      } else if (sortField === 'total_dividends') {
+        aVal = Number(a.total_dividends) || 0;
+        bVal = Number(b.total_dividends) || 0;
+      }
+
       if (typeof aVal === 'string') {
         aVal = aVal.toLowerCase();
         bVal = (bVal || '').toLowerCase();
+        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
       }
 
-      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
+      const numA = Number(aVal) || 0;
+      const numB = Number(bVal) || 0;
+      return sortOrder === 'asc' ? numA - numB : numB - numA;
     });
   }, [searchFiltered, sortField, sortOrder]);
 
@@ -349,8 +370,24 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
               <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm select-none">
                 {statusFilter === 'closed' ? (
                   <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
-                    <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
-                      Scheme Name {getSortIcon('name')}
+                    <th className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 whitespace-nowrap border-r border-slate-800 min-w-[220px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          onClick={() => handleSort('name')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'name' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Name"
+                        >
+                          Name {getSortIcon('name')}
+                        </span>
+                        <span className="text-slate-600 select-none">/</span>
+                        <span
+                          onClick={() => handleSort('symbol')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'symbol' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Code / Symbol"
+                        >
+                          Code {getSortIcon('symbol')}
+                        </span>
+                      </div>
                     </th>
                     <th onClick={() => handleSort('sell_qty')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Units Sold {getSortIcon('sell_qty')}
@@ -370,12 +407,31 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                     <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Realized P&amp;L {getSortIcon('realized_pnl')}
                     </th>
+                    <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Dividend {getSortIcon('total_dividends')}
+                    </th>
                     <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
                 ) : (
                   <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
-                    <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
-                      Scheme Name {getSortIcon('name')}
+                    <th className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 whitespace-nowrap border-r border-slate-800 min-w-[220px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          onClick={() => handleSort('name')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'name' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Name"
+                        >
+                          Name {getSortIcon('name')}
+                        </span>
+                        <span className="text-slate-600 select-none">/</span>
+                        <span
+                          onClick={() => handleSort('symbol')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'symbol' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Code / Symbol"
+                        >
+                          Code {getSortIcon('symbol')}
+                        </span>
+                      </div>
                     </th>
                     <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Units {getSortIcon('quantity')}
@@ -392,8 +448,14 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                     <th onClick={() => handleSort('currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Value {getSortIcon('currentValueINR')}
                     </th>
-                    <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                      P&amp;L {getSortIcon('gainINR')}
+                    <th onClick={() => handleSort('unrealized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Unrealized P&amp;L {getSortIcon('unrealized_pnl')}
+                    </th>
+                    <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Realized P&amp;L {getSortIcon('realized_pnl')}
+                    </th>
+                    <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Dividend {getSortIcon('total_dividends')}
                     </th>
                     <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
@@ -485,6 +547,15 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                               {isRealizedPos ? '+' : ''}{realizedPnlPct}%
                             </div>
                           </td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            {Number(h.total_dividends) > 0 ? (
+                              <span className="text-emerald-400 font-bold">
+                                {formatMoney(Number(h.total_dividends), true)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 font-medium">—</span>
+                            )}
+                          </td>
                         </>
                       ) : (
                         <>
@@ -524,6 +595,24 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                               {isGainPositive ? '+' : ''}{h.gainPct || 0}%
                             </div>
                           </td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            {Number(h.realized_pnl) !== 0 ? (
+                              <div className={Number(h.realized_pnl) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                {Number(h.realized_pnl) >= 0 ? '+' : ''}{formatMoney(Number(h.realized_pnl), true)}
+                              </div>
+                            ) : (
+                              <span className="text-slate-600 font-medium">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            {Number(h.total_dividends) > 0 ? (
+                              <span className="text-emerald-400 font-bold">
+                                {formatMoney(Number(h.total_dividends), true)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 font-medium">—</span>
+                            )}
+                          </td>
                         </>
                       )}
 
@@ -537,7 +626,7 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                 })}
                 {sortedHoldings.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-slate-600 text-xs">
+                    <td colSpan={10} className="py-10 text-center text-slate-600 text-xs">
                       No NPS schemes found matching current status filter ({statusFilter})
                     </td>
                   </tr>

@@ -5,6 +5,53 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.39.0] - 2026-09-20
+
+### Added
+- **Distinct Realized and Unrealized P&L Columns Across 4 Asset Classes**:
+  - Added separate `Unrealized P&L` and `Realized P&L` columns across all 4 market asset classes ([IndianStocksView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/IndianStocksView.jsx), [UsStocksView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/UsStocksView.jsx), [MutualFundsView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/MutualFundsView.jsx), [NpsView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/NpsView.jsx)).
+  - Active tables now clearly distinguish between paper gains on remaining open shares (`Unrealized P&L`) and booked trading profits/losses from sold shares (`Realized P&L`), with full USD/INR currency conversion support in US Stocks.
+- **Dedicated Dividend Column Across Active and Closed Portfolio Tables**:
+  - Added dedicated `Dividend` column to both active and closed tables across all 4 asset classes, cleanly displaying credited dividend income distinctly from capital gains.
+
+### Changed
+- **Unrealized Open Lots Average Price for Active Holdings**:
+  - In [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js), dynamically evaluates `avg_buy_price` using FIFO simulation on open remaining lots (`unrealizedAvgBuy`) for active positions (`quantity > 0`), ensuring average buy price accurately reflects currently held shares rather than being distorted by closed historical trades (e.g. ANANTRAJ shows ₹447.10 open lot average instead of old consolidated ₹458.89).
+  - For fully liquidated positions (`quantity === 0`), `avg_buy_price` evaluates to the consolidated all-time average buy price (`totalBuyCost / totalBuyQty`) across historical transactions, while `investedValueINR` remains strictly 0 (preserving Rule 5 balance sheet invariance).
+- **Robust Numeric and Text Sorting**:
+  - Upgraded `sortedHoldings` across all 4 views to correctly sort derived numeric columns (`sell_qty`, `unrealized_pnl`, `realized_pnl`, `total_dividends`, `gainINR`) and text columns.
+
+## [5.38.0] - 2026-09-20
+
+### Added
+- **First Column Dual Name/Ticker Sorting Across 4 Asset Classes**:
+  - Implemented interactive dual-target sorting (`Name` / `Ticker` or `Name` / `Code`) in the first column header across [IndianStocksView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/IndianStocksView.jsx), [UsStocksView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/UsStocksView.jsx), [MutualFundsView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/MutualFundsView.jsx), and [NpsView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/NpsView.jsx).
+  - Users can click either **Name** or **Ticker/Code** independently to sort alphabetically with ascending/descending order toggle and visual direction arrows in both Active and Closed portfolio tables.
+
+### Fixed
+- **Indian Equity NSE/BSE MAX Quote Engine & Circuit Breaker Hardening**:
+  - Diagnosed why Anantraj showed NSE price (₹606.15) instead of higher BSE price (₹606.25): `fetchStockQuote` in [priceEngine.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/services/priceEngine.js) treated HTTP 404 (stocks not listed on BSE or missing `.BO` tickers on Yahoo Finance) as provider failures, tripping `yfCircuitBreaker` into `OPEN` state after 5 failures and aborting subsequent quote comparisons across batches.
+  - Hardened `fetchStockQuote` to treat 404 as expected absence without retrying or tripping the circuit breaker.
+  - Updated `refreshHoldingsPrices` and [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js) to explicitly attach both `nse_price` and `bse_price` to holding responses, locking `Math.max(nse_price, bse_price)`.
+  - Updated ANANTRAJ in the local database cache snapshot (`data/db_cache_snapshot.json`) to lock the higher BSE closing quote (₹606.25 vs ₹606.15) with 0 bytes of Supabase network egress.
+
+## [5.37.3] - 2026-09-19
+
+### Fixed
+- **Bonus Issue Ingestion Scaling Fix & Whole-Share Quantity Restoration**:
+  - Identified and fixed the root cause of corrupted fractional quantities in Indian equities in `scripts/ingestion/load_all_indian_stocks.mjs`. Previously, a Bonus Issue (`Dividend Reinvest` / `Bonus`) recalculated preceding `BUY` transactions with a fractional multiplier (`currentQty / preQty`) and stored `quantity: 0` for the bonus transaction itself.
+  - Updated the ingestion engine to retain original whole-share buy transactions and record actual bonus shares credited on the corporate action date at ₹0.00 cost.
+  - Restored true whole-share executed orders from [Book1.xlsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/Indian%20Stocks/Book1.xlsx) for `OIL` (42, 1, 25, 1, 19, 2, 2 shares, +24 bonus shares) and `ASTRAL` (3, 1, 1 shares, +1 bonus share) with write-through cache persistence and zero cloud egress.
+  - Re-simulated holding states via `recalculateHoldingState`, bringing positions into exact mathematical parity and properly closing out fully liquidated positions (`OIL`: 160 buys = 160 sells => 0 shares, status REDEEMED; `ASTRAL`: 11 buys = 11 sells => 0 shares, status REDEEMED).
+
+## [5.37.2] - 2026-09-19
+
+### Fixed
+- **MF Composition Scrip Breakdown Modal Viewport Centering & Multi-Theme Fidelity**:
+  - Wrapped [CompanyMfBreakdownModal.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/components/reports/CompanyMfBreakdownModal.jsx) with `createPortal(..., document.body)` as required by Rule 7, preventing CSS transforms from parent `AnimatedPage` containers from offsetting the modal window and achieving perfect viewport-level centering.
+  - Replaced hardcoded dark background values (`bg-slate-900/60`) on the scheme search input with canonical theme design tokens (`reports-subcard`, `border border-inherit`, `modal-surface`), guaranteeing seamless readability across all 6 light and dark themes (Clean Light, Warm Sand, Nordic Light, Obsidian Dark, Midnight Blue, Sunset Rose).
+  - Enhanced modal ergonomics with backdrop click dismissal, `Escape` key close listener, and bounded scroll containment (`max-h-[380px] custom-scrollbar`) on the schemes table so headers and stat summaries stay fixed while schemes scroll gracefully.
+
 ## [5.37.1] - 2026-09-19
 
 ### Fixed

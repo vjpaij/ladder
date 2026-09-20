@@ -111,14 +111,16 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
       let aVal = a[sortField];
       let bVal = b[sortField];
 
-      if (typeof aVal === 'string') {
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
         aVal = aVal.toLowerCase();
-        bVal = (bVal || '').toLowerCase();
+        bVal = bVal.toLowerCase();
+        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
       }
-
-      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
+      aVal = Number(aVal) || 0;
+      bVal = Number(bVal) || 0;
+      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
     });
   }, [searchFiltered, sortField, sortOrder]);
 
@@ -361,8 +363,24 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
               <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm select-none">
                 {statusFilter === 'closed' ? (
                   <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
-                    <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
-                      Scheme Name {getSortIcon('name')}
+                    <th className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 whitespace-nowrap border-r border-slate-800 min-w-[220px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          onClick={() => handleSort('name')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'name' ? 'text-blue-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Name"
+                        >
+                          Name {getSortIcon('name')}
+                        </span>
+                        <span className="text-slate-600 select-none">/</span>
+                        <span
+                          onClick={() => handleSort('symbol')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'symbol' ? 'text-blue-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Code / Symbol"
+                        >
+                          Code {getSortIcon('symbol')}
+                        </span>
+                      </div>
                     </th>
                     <th onClick={() => handleSort('sell_qty')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Units Sold {getSortIcon('sell_qty')}
@@ -382,12 +400,31 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                     <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Realized P&amp;L {getSortIcon('realized_pnl')}
                     </th>
+                    <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Dividend {getSortIcon('total_dividends')}
+                    </th>
                     <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
                 ) : (
                   <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
-                    <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
-                      Scheme Name {getSortIcon('name')}
+                    <th className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 whitespace-nowrap border-r border-slate-800 min-w-[220px]">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          onClick={() => handleSort('name')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'name' ? 'text-blue-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Name"
+                        >
+                          Name {getSortIcon('name')}
+                        </span>
+                        <span className="text-slate-600 select-none">/</span>
+                        <span
+                          onClick={() => handleSort('symbol')}
+                          className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'symbol' ? 'text-blue-400 font-bold' : 'text-slate-400'}`}
+                          title="Sort by Scheme Code / Symbol"
+                        >
+                          Code {getSortIcon('symbol')}
+                        </span>
+                      </div>
                     </th>
                     <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Units {getSortIcon('quantity')}
@@ -404,8 +441,14 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                     <th onClick={() => handleSort('currentValueINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Value {getSortIcon('currentValueINR')}
                     </th>
-                    <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                      P&amp;L {getSortIcon('gainINR')}
+                    <th onClick={() => handleSort('unrealized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Unrealized P&amp;L {getSortIcon('unrealized_pnl')}
+                    </th>
+                    <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Realized P&amp;L {getSortIcon('realized_pnl')}
+                    </th>
+                    <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      Dividend {getSortIcon('total_dividends')}
                     </th>
                     <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
@@ -497,6 +540,15 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                               {isRealizedPos ? '+' : ''}{realizedPnlPct}%
                             </div>
                           </td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            {Number(h.total_dividends) > 0 ? (
+                              <span className="text-emerald-400 font-bold">
+                                {formatMoney(Number(h.total_dividends), true)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 font-medium">—</span>
+                            )}
+                          </td>
                         </>
                       ) : (
                         <>
@@ -536,6 +588,24 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                               {isGainPositive ? '+' : ''}{h.gainPct || 0}%
                             </div>
                           </td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            {Number(h.realized_pnl) !== 0 ? (
+                              <div className={Number(h.realized_pnl) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                {Number(h.realized_pnl) >= 0 ? '+' : ''}{formatMoney(Number(h.realized_pnl), true)}
+                              </div>
+                            ) : (
+                              <span className="text-slate-600 font-medium">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            {Number(h.total_dividends) > 0 ? (
+                              <span className="text-emerald-400 font-bold">
+                                {formatMoney(Number(h.total_dividends), true)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 font-medium">—</span>
+                            )}
+                          </td>
                         </>
                       )}
 
@@ -549,7 +619,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                 })}
                 {sortedHoldings.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-slate-600 text-xs">
+                    <td colSpan={10} className="py-10 text-center text-slate-600 text-xs">
                       No mutual funds found matching current status filter ({statusFilter})
                     </td>
                   </tr>

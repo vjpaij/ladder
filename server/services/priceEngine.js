@@ -208,6 +208,11 @@ export async function fetchStockQuote(symbol) {
         return quote;
       }
     } catch (err) {
+      const isNotFound = err.response?.status === 404;
+      if (isNotFound) {
+        // Expected absence (e.g. stock not listed on BSE / no .BO ticker); do not retry or trip breaker
+        return liveQuoteCache.get(symbol) || null;
+      }
       if (attempt === maxRetries) {
         yfCircuitBreaker.recordFailure();
         console.warn(`[Yahoo Finance] Quote error for ${symbol} (attempt ${attempt}/${maxRetries}):`, err.message);
@@ -833,44 +838,59 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
     }
   }));
 
-  // 2. Refresh Indian stocks in concurrent batches
+  // 2. Refresh Indian stocks in concurrent batches with NSE/BSE MAX price comparison
   const inHoldings = holdings.filter(h => h.category_id === 'in_stocks');
-  const batchSize = 15;
+  const batchSize = 10;
   for (let i = 0; i < inHoldings.length; i += batchSize) {
     const batch = inHoldings.slice(i, i + batchSize);
     await Promise.all(batch.map(async (h) => {
       try {
         const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
-        let bestQ = await fetchStockQuote(`${baseSymbol}.NS`);
-        let nseP = bestQ?.price || 0;
-        let bseP = 0;
+        const [nseQ, bseQ] = await Promise.all([
+          fetchStockQuote(`${baseSymbol}.NS`),
+          fetchStockQuote(`${baseSymbol}.BO`)
+        ]);
 
-        // Fallback to BSE only if NSE is unavailable
-        if (!bestQ || nseP <= 0) {
-          const bseQ = await fetchStockQuote(`${baseSymbol}.BO`);
-          if (bseQ && bseQ.price > 0) {
-            bestQ = bseQ;
-            bseP = bseQ.price;
-          }
+        const nseP = Number(nseQ?.price) || 0;
+        const bseP = Number(bseQ?.price) || 0;
+
+        // Automatically lock the higher market quote (NSE/BSE MAX)
+        let bestQ = nseQ;
+        let newPrice = nseP;
+
+        if (bseP > nseP && bseP > 0) {
+          bestQ = bseQ;
+          newPrice = bseP;
+        } else if (nseP > 0) {
+          bestQ = nseQ;
+          newPrice = nseP;
+        } else if (bseP > 0) {
+          bestQ = bseQ;
+          newPrice = bseP;
         }
 
-        const newPrice = nseP || bseP || bestQ?.price || 0;
-
-        if (bestQ) {
+        if (bestQ && newPrice > 0) {
           liveQuoteCache.set(h.symbol, {
-            price: newPrice || bestQ.price,
+            price: newPrice,
+            nse_price: nseP,
+            bse_price: bseP,
             dayChange: bestQ.dayChange,
             dayChangePct: bestQ.dayChangePct,
             open: bestQ.open,
             high: bestQ.high,
             low: bestQ.low,
-            fiftyTwoWeekHigh: bestQ.fiftyTwoWeekHigh,
-            fiftyTwoWeekLow: bestQ.fiftyTwoWeekLow,
+            fiftyTwoWeekHigh: Math.max(Number(nseQ?.fiftyTwoWeekHigh || 0), Number(bseQ?.fiftyTwoWeekHigh || 0), Number(bestQ.fiftyTwoWeekHigh || 0)),
+            fiftyTwoWeekLow: Math.min(...[nseQ?.fiftyTwoWeekLow, bseQ?.fiftyTwoWeekLow, bestQ.fiftyTwoWeekLow].map(Number).filter(v => v > 0)),
             quoteDate: bestQ.quoteDate
           });
         }
 
-        if (newPrice > 0 && newPrice !== Number(h.current_price)) {
+        const needsUpdate = newPrice > 0 && (
+          newPrice !== Number(h.current_price) ||
+          (nseP > 0 && nseP !== Number(h.nse_price)) ||
+          (bseP > 0 && bseP !== Number(h.bse_price))
+        );
+        if (needsUpdate) {
           updateCacheRow('holdings', h.id, {
             current_price: newPrice,
             nse_price: nseP,

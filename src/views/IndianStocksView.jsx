@@ -106,13 +106,16 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
     return [...searchFiltered].sort((a, b) => {
       let aVal = a[sortField];
       let bVal = b[sortField];
-      if (typeof aVal === 'string') {
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
         aVal = aVal.toLowerCase();
-        bVal = (bVal || '').toLowerCase();
+        bVal = bVal.toLowerCase();
+        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
       }
-      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
+      aVal = Number(aVal) || 0;
+      bVal = Number(bVal) || 0;
+      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
     });
   }, [searchFiltered, sortField, sortOrder]);
 
@@ -348,8 +351,24 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                 <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm select-none">
                   {statusFilter === 'closed' ? (
                     <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
-                      <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
-                        Stock Name {getSortIcon('name')}
+                      <th className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 whitespace-nowrap border-r border-slate-800 min-w-[220px]">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            onClick={() => handleSort('name')}
+                            className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'name' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                            title="Sort by Name"
+                          >
+                            Name {getSortIcon('name')}
+                          </span>
+                          <span className="text-slate-600 select-none">/</span>
+                          <span
+                            onClick={() => handleSort('symbol')}
+                            className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'symbol' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                            title="Sort by Ticker Symbol"
+                          >
+                            Ticker {getSortIcon('symbol')}
+                          </span>
+                        </div>
                       </th>
                       <th onClick={() => handleSort('sell_qty')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                         Shares Sold {getSortIcon('sell_qty')}
@@ -369,17 +388,36 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                       <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                         Realized P&amp;L {getSortIcon('realized_pnl')}
                       </th>
+                      <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                        Dividend {getSortIcon('total_dividends')}
+                      </th>
                       <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                     </tr>
                   ) : (
                     <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 select-none">
-                      <th onClick={() => handleSort('name')} className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 cursor-pointer hover:text-white whitespace-nowrap border-r border-slate-800 min-w-[220px]">
-                        Stock Name {getSortIcon('name')}
+                      <th className="sticky left-0 top-0 z-40 bg-slate-900 py-3 px-3 whitespace-nowrap border-r border-slate-800 min-w-[220px]">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            onClick={() => handleSort('name')}
+                            className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'name' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                            title="Sort by Name"
+                          >
+                            Name {getSortIcon('name')}
+                          </span>
+                          <span className="text-slate-600 select-none">/</span>
+                          <span
+                            onClick={() => handleSort('symbol')}
+                            className={`cursor-pointer transition-colors hover:text-white flex items-center gap-0.5 ${sortField === 'symbol' ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}
+                            title="Sort by Ticker Symbol"
+                          >
+                            Ticker {getSortIcon('symbol')}
+                          </span>
+                        </div>
                       </th>
                       <th onClick={() => handleSort('quantity')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                         Shares {getSortIcon('quantity')}
                       </th>
-                      <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                      <th onClick={() => handleSort('avg_buy_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap" title="Unrealized Average Buy Price">
                         Avg Buy {getSortIcon('avg_buy_price')}
                       </th>
                       <th onClick={() => handleSort('current_price')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
@@ -392,7 +430,13 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                         Value {getSortIcon('currentValueINR')}
                       </th>
                       <th onClick={() => handleSort('gainINR')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                        P&amp;L {getSortIcon('gainINR')}
+                        Unrealized P&amp;L {getSortIcon('gainINR')}
+                      </th>
+                      <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                        Realized P&amp;L {getSortIcon('realized_pnl')}
+                      </th>
+                      <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
+                        Dividend {getSortIcon('total_dividends')}
                       </th>
                       <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                     </tr>
@@ -483,6 +527,16 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                 {isRealizedPositive ? '+' : ''}{realizedPnlPct}%
                               </div>
                             </td>
+                            {/* Closed Position Dividend */}
+                            <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                              {Number(h.total_dividends || 0) > 0 ? (
+                                <span className="text-amber-400 font-bold">
+                                  {formatMoney(h.total_dividends, true)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">—</span>
+                              )}
+                            </td>
                           </>
                         ) : (
                           <>
@@ -493,7 +547,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                 <span className="text-slate-600 font-medium">0</span>
                               )}
                             </td>
-                            <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap">{formatMoney(h.avg_buy_price, true)}</td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap" title="Unrealized Average Buy Price">{formatMoney(h.avg_buy_price, true)}</td>
                             <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                               <div className="text-[12px] font-bold text-emerald-400 font-black">
                                 {formatMoney(h.current_price, true)}
@@ -501,7 +555,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                               {h.day_change !== undefined && (
                                 <div className={`text-[9.5px] font-bold inline-flex items-center justify-end gap-1 whitespace-nowrap ${
                                   (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                                }}`}>
+                                }`}>
                                   {(h.day_change || 0) >= 0 ? (
                                     <ArrowUp className="w-2.5 h-2.5 stroke-[3] shrink-0" />
                                   ) : (
@@ -518,6 +572,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                             <td className="py-3 px-3 text-right font-mono font-black text-slate-100 whitespace-nowrap">
                               {formatMoney(h.currentValueINR, true)}
                             </td>
+                            {/* Unrealized P&L */}
                             <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                               <div className={isGainPositive ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
                                 {isGainPositive ? '+' : ''}{formatMoney(h.gainINR || 0, true)}
@@ -525,6 +580,26 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                               <div className={`text-[9px] ${isGainPositive ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>
                                 {isGainPositive ? '+' : ''}{h.gainPct || 0}%
                               </div>
+                            </td>
+                            {/* Realized P&L */}
+                            <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                              {Number(h.realized_pnl || 0) !== 0 ? (
+                                <span className={Number(h.realized_pnl) >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                  {Number(h.realized_pnl) >= 0 ? '+' : ''}{formatMoney(h.realized_pnl, true)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">—</span>
+                              )}
+                            </td>
+                            {/* Dividend */}
+                            <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                              {Number(h.total_dividends || 0) > 0 ? (
+                                <span className="text-amber-400 font-bold">
+                                  {formatMoney(h.total_dividends, true)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">—</span>
+                              )}
                             </td>
                           </>
                         )}
@@ -539,7 +614,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                   })}
                   {sortedHoldings.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="py-10 text-center text-slate-600 text-xs">
+                      <td colSpan={10} className="py-10 text-center text-slate-600 text-xs">
                         No stocks found matching current status filter ({statusFilter})
                       </td>
                     </tr>

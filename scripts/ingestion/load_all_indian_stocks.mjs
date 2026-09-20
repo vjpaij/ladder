@@ -65,7 +65,7 @@ async function run() {
 
     const rawTxRows = symRows.filter(r => r["Type"] !== "" && r["Transaction Date"] !== "");
 
-    const typeOrder = { "Buy": 1, "Dividend Reinvest": 1, "Split": 2, "Sell": 3, "Sell All": 4, "Dividend": 5 };
+    const typeOrder = { "Buy": 1, "Dividend Reinvest": 1, "Bonus": 1, "Split": 2, "Sell": 3, "Sell All": 4, "Dividend": 5 };
 
     rawTxRows.sort((a, b) => {
       const da = parseDate(a["Transaction Date"]) || "";
@@ -115,34 +115,22 @@ async function run() {
       } else if (rawType === "Dividend Reinvest" || rawType === "Bonus") {
         const qty = parseFloat(r["Shares Owned"]) || 0;
         if (qty <= 0) continue;
-        const preQty = currentQty;
         currentQty += qty;
         totalBuyQty += qty;
-        const bonusMultiplier = preQty > 0 ? (currentQty / preQty) : 1;
         
-        // Scale all preceding open buy lots and buy transactions
-        for (const lot of buyLots) {
-          lot.qty = lot.qty * bonusMultiplier;
-          lot.price = lot.price / bonusMultiplier;
-        }
-        for (const tx of processedTxs) {
-          if (tx.type === "BUY") {
-            tx.quantity = parseFloat((tx.quantity * bonusMultiplier).toFixed(4));
-            tx.price = parseFloat((tx.price / bonusMultiplier).toFixed(4));
-            tx.total_amount = parseFloat((tx.quantity * tx.price).toFixed(2));
-          }
-        }
+        // Bonus issue credits new free shares at zero cost; original buy orders remain unscaled
+        buyLots.push({ qty, price: 0 });
 
-        const bonusRatioStr = preQty > 0 ? `1:${parseFloat((qty / preQty).toFixed(2))}` : `+${qty} shares`;
         processedTxs.push({
           type: "BONUS",
-          quantity: 0,
+          quantity: qty,
           price: 0,
           total_amount: 0,
           charges: parseFloat(commission.toFixed(2)),
           date: dateStr,
           notes: `+${qty} Shares Received as Bonus`
         });
+
 
       } else if (rawType === "Split") {
         const newRatio = parseFloat(r["Shares Owned"]) || 1;

@@ -44,6 +44,38 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
     // Compute exact weighted transaction FX rates for US stocks using cached transactions
     const allTxs = await db.select('transactions');
+    const allDivs = await db.select('dividends');
+
+    // Pre-group transactions by holding_id and symbol
+    const txsByHolding = new Map();
+    for (const t of allTxs) {
+      const k1 = t.holding_id;
+      const k2 = t.symbol;
+      if (k1) {
+        if (!txsByHolding.has(k1)) txsByHolding.set(k1, []);
+        txsByHolding.get(k1).push(t);
+      }
+      if (k2 && k2 !== k1) {
+        if (!txsByHolding.has(k2)) txsByHolding.set(k2, []);
+        txsByHolding.get(k2).push(t);
+      }
+    }
+
+    // Pre-group dividends by holding_id and symbol
+    const divsByHolding = new Map();
+    for (const d of allDivs) {
+      const k1 = d.holding_id;
+      const k2 = d.symbol;
+      if (k1) {
+        if (!divsByHolding.has(k1)) divsByHolding.set(k1, []);
+        divsByHolding.get(k1).push(d);
+      }
+      if (k2 && k2 !== k1) {
+        if (!divsByHolding.has(k2)) divsByHolding.set(k2, []);
+        divsByHolding.get(k2).push(d);
+      }
+    }
+
     const usTxs = allTxs.filter(t => t.currency === 'USD' && t.type === 'BUY');
     const usFxMap = {};
     usTxs.forEach(t => {
@@ -88,67 +120,195 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
     const historicalPricesCache = getHistoricalPricesMap();
 
-    const allDivs = await db.select('dividends');
-    const divStatsMap = {};
-    allDivs.forEach(d => {
-      const key = d.holding_id || d.symbol;
-      if (!divStatsMap[key]) divStatsMap[key] = { inr: 0, orig: 0 };
-      divStatsMap[key].inr += Number(d.amount_inr) || 0;
-      divStatsMap[key].orig += Number(d.amount_original) || (Number(d.amount_inr) / (Number(d.fx_rate) || 1));
-    });
-
-    const sellStatsMap = {};
-    allTxs.forEach(t => {
-      if (t.type === 'SELL' || t.type === 'REDEEM' || t.type === 'REDEMPTION') {
-        const key = t.holding_id || t.symbol;
-        if (!sellStatsMap[key]) sellStatsMap[key] = { qty: 0, grossUSD: 0, grossINR: 0, chargesUSD: 0, chargesINR: 0, netUSD: 0, netINR: 0 };
-        const q = Number(t.quantity) || 0;
-        const p = Number(t.price) || 0;
-        const amt = Number(t.total_amount) || (q * p);
-        const chg = Number(t.charges) || 0;
-        const r = (t.currency === 'USD') ? (Number(t.fx_rate) || getHistoricalFxRate(t.date) || fxRate || 1.0) : 1.0;
-
-        sellStatsMap[key].qty += q;
-        sellStatsMap[key].grossUSD += (t.currency === 'USD' ? amt : amt / r);
-        sellStatsMap[key].grossINR += (t.currency === 'USD' ? amt * r : amt);
-        sellStatsMap[key].chargesUSD += (t.currency === 'USD' ? chg : chg / r);
-        sellStatsMap[key].chargesINR += (t.currency === 'USD' ? chg * r : chg);
-        sellStatsMap[key].netUSD += (t.currency === 'USD' ? (amt - chg) : (amt - chg) / r);
-        sellStatsMap[key].netINR += (t.currency === 'USD' ? (amt - chg) * r : (amt - chg));
-      }
-    });
-
     const formatted = holdings.map(h => {
-      const liveRate = h.currency === 'USD' ? fxRate : 1.0;
+      const isUSD = h.currency === 'USD';
+      const liveRate = isUSD ? fxRate : 1.0;
       let txRate = 1.0;
-      if (h.currency === 'USD') {
+      if (isUSD) {
         const m = usFxMap[h.id] || usFxMap[h.symbol];
         txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : (getHistoricalFxRate(h.created_at) || getPersistedRate('USD_INR') || fxRate || 1.0);
       }
 
-      const sStats = sellStatsMap[h.id] || sellStatsMap[h.symbol] || { qty: 0, grossUSD: 0, grossINR: 0, netUSD: 0, netINR: 0 };
-      const dStats = divStatsMap[h.id] || divStatsMap[h.symbol] || { inr: 0, orig: 0 };
-      const isUSD = h.currency === 'USD';
       const isFundOrNps = h.category_id === 'mutual_funds' || h.category_id === 'nps';
+      const precisionDigits = isFundOrNps ? 4 : 2;
 
-      const soldQty = Number(h.sell_qty) || sStats.qty || Number(h.buy_qty) || 0;
-      const avgSellPrice = sStats.qty > 0 
-        ? Number((isUSD ? (sStats.grossUSD / sStats.qty) : (sStats.grossINR / sStats.qty)).toFixed(isFundOrNps ? 4 : 2))
-        : 0;
-      const redeemedValue = Number((isUSD ? sStats.netUSD : sStats.netINR).toFixed(2));
-      const grossRedeemed = Number((isUSD ? sStats.grossUSD : sStats.grossINR).toFixed(2));
-      const totalDividends = Number((isUSD ? dStats.orig : dStats.inr).toFixed(2));
+      // Transactions FIFO simulation for this holding
+      const txs = (txsByHolding.get(h.id) || (h.symbol ? txsByHolding.get(h.symbol) : null) || [])
+        .slice()
+        .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+      let openLots = [];
+      let totalBuyQty = 0;
+      let totalBuyCostUSD = 0;
+      let totalBuyCostINR = 0;
+      let totalSellQty = 0;
+      let grossSellProceedsUSD = 0;
+      let grossSellProceedsINR = 0;
+      let netSellProceedsUSD = 0;
+      let netSellProceedsINR = 0;
+      let realizedTradingPnlUSD = 0;
+      let realizedTradingPnlINR = 0;
+
+      for (const tx of txs) {
+        const type = (tx.type || 'BUY').toUpperCase();
+        const qty = Number(tx.quantity) || 0;
+        const price = Number(tx.price) || 0;
+        const charges = Number(tx.charges) || 0;
+        const lotFxRate = isUSD ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date) || txRate || 1.0) : 1.0;
+
+        if (type === 'BUY' || type === 'INVESTMENT' || type === 'INVESTMENT (SIP)') {
+          totalBuyQty += qty;
+          const storedAmt = Number(tx.total_amount);
+          const amtUSD = (isFundOrNps && Number.isFinite(storedAmt)) ? storedAmt : (qty * price);
+          const amtINR = (isFundOrNps && Number.isFinite(storedAmt)) ? storedAmt : (amtUSD * lotFxRate);
+
+          totalBuyCostUSD += amtUSD + charges;
+          totalBuyCostINR += amtINR + (charges * lotFxRate);
+
+          openLots.push({
+            qty,
+            rem: qty,
+            priceUSD: price,
+            chargesUSD: charges,
+            fxRate: lotFxRate,
+            amount: storedAmt
+          });
+        } else if (type === 'BONUS' || type === 'SPLIT') {
+          if (qty > 0) {
+            totalBuyQty += qty;
+            openLots.push({
+              qty,
+              rem: qty,
+              priceUSD: 0,
+              chargesUSD: 0,
+              fxRate: lotFxRate,
+              amount: 0
+            });
+          }
+        } else if (type === 'SELL' || type === 'REDEEM' || type === 'REDEMPTION') {
+          totalSellQty += qty;
+          const rawProceedsUSD = qty * price;
+          const rawProceedsINR = rawProceedsUSD * lotFxRate;
+          grossSellProceedsUSD += rawProceedsUSD;
+          grossSellProceedsINR += rawProceedsINR;
+          netSellProceedsUSD += Math.max(0, rawProceedsUSD - charges);
+          netSellProceedsINR += Math.max(0, rawProceedsINR - (charges * lotFxRate));
+
+          let remToSell = qty;
+          let costSoldUSD = 0;
+          let costSoldINR = 0;
+
+          for (const lot of openLots) {
+            if (remToSell <= 0) break;
+            if (lot.rem > 0) {
+              const take = Math.min(lot.rem, remToSell);
+              lot.rem -= take;
+              const lotChargeRatioUSD = (lot.qty > 0 && lot.chargesUSD > 0) ? (take / lot.qty) * lot.chargesUSD : 0;
+
+              if (isFundOrNps && Number.isFinite(lot.amount)) {
+                const unitCost = lot.qty > 0 ? (lot.amount + (lot.chargesUSD || 0)) / lot.qty : 0;
+                costSoldUSD += take * unitCost;
+                costSoldINR += take * unitCost * lot.fxRate;
+              } else {
+                costSoldUSD += (take * lot.priceUSD) + lotChargeRatioUSD;
+                costSoldINR += (take * lot.priceUSD * lot.fxRate) + (lotChargeRatioUSD * lot.fxRate);
+              }
+              remToSell -= take;
+            }
+          }
+
+          realizedTradingPnlUSD += (rawProceedsUSD - charges - costSoldUSD);
+          realizedTradingPnlINR += (rawProceedsINR - (charges * lotFxRate) - costSoldINR);
+        }
+      }
+
+      // Dividends for this holding
+      const divs = divsByHolding.get(h.id) || (h.symbol ? divsByHolding.get(h.symbol) : null) || [];
+      let totalDividendsUSD = 0;
+      let totalDividendsINR = 0;
+      for (const d of divs) {
+        const dAmtOrig = Number(d.amount_original) || 0;
+        const dAmtINR = Number(d.amount_inr) || 0;
+        const dFx = Number(d.fx_rate) || 1.0;
+        if (isUSD) {
+          totalDividendsUSD += dAmtOrig || (dAmtINR / dFx);
+          totalDividendsINR += dAmtINR || (dAmtOrig * dFx);
+        } else {
+          totalDividendsINR += dAmtINR || dAmtOrig;
+          totalDividendsUSD += dAmtOrig || dAmtINR;
+        }
+      }
+
+      // Active lots and FIFO cost basis
+      const activeLots = openLots.filter(l => l.rem > 0);
+      const openShares = activeLots.reduce((s, l) => s + l.rem, 0);
+
+      let openCostUSD = 0;
+      let openCostINR = 0;
+      for (const lot of activeLots) {
+        const lotChargeUSD = (lot.qty > 0 && lot.chargesUSD > 0) ? (lot.rem / lot.qty) * lot.chargesUSD : 0;
+        if (isFundOrNps && Number.isFinite(lot.amount)) {
+          const unitCost = lot.qty > 0 ? (lot.amount + (lot.chargesUSD || 0)) / lot.qty : 0;
+          openCostUSD += lot.rem * unitCost;
+          openCostINR += lot.rem * unitCost * lot.fxRate;
+        } else {
+          openCostUSD += (lot.rem * lot.priceUSD) + lotChargeUSD;
+          openCostINR += (lot.rem * lot.priceUSD * lot.fxRate) + (lotChargeUSD * lot.fxRate);
+        }
+      }
+
+      const unrealizedAvgBuyUSD = openShares > 0 ? (openCostUSD / openShares) : (Number(h.avg_buy_price) || 0);
+      const unrealizedAvgBuyINR = openShares > 0 ? (openCostINR / openShares) : (Number(h.avg_buy_price) || 0);
+
+      const consolidatedAvgBuyUSD = totalBuyQty > 0 ? (totalBuyCostUSD / totalBuyQty) : (Number(h.avg_buy_price) || 0);
+      const consolidatedAvgBuyINR = totalBuyQty > 0 ? (totalBuyCostINR / totalBuyQty) : (Number(h.avg_buy_price) || 0);
+
+      const qty = Number(h.quantity) || 0;
+      const isClosed = qty <= 0;
+
+      // Required Avg Price logic:
+      // Active holding: Unrealized FIFO average buy price
+      // Fully sold holding: Consolidated average buy price of all purchases
+      let finalAvgBuyPrice = 0;
+      if (!isClosed) {
+        finalAvgBuyPrice = isUSD ? unrealizedAvgBuyUSD : unrealizedAvgBuyINR;
+        if (txs.length === 0 || openShares <= 0) {
+          finalAvgBuyPrice = Number(h.avg_buy_price) || 0;
+        }
+      } else {
+        finalAvgBuyPrice = isUSD ? consolidatedAvgBuyUSD : consolidatedAvgBuyINR;
+        if (txs.length === 0 || totalBuyQty <= 0) {
+          finalAvgBuyPrice = Number(h.avg_buy_price) || 0;
+        }
+      }
 
       const liveQuote = liveQuoteCache.get(h.symbol);
       const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
-      const currentValueOriginal = (Number(h.quantity) || 0) * currentPriceNum;
+      const currentValueOriginal = qty * currentPriceNum;
       const currentValueINR = computeHoldingValueINR(h, currentPriceNum, fxRate);
 
-      const investedValueOriginal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0);
-      const investedValueINR = investedValueOriginal * txRate;
+      // Rule 5: Zero-quantity assets must have investedValueINR = 0
+      const investedValueOriginal = !isClosed ? (qty * finalAvgBuyPrice) : 0;
+      const investedValueINR = !isClosed ? (isUSD ? (openCostINR > 0 ? openCostINR : investedValueOriginal * txRate) : investedValueOriginal) : 0;
 
-      const gainINR = currentValueINR - investedValueINR;
-      const gainPct = investedValueINR > 0 ? ((gainINR / investedValueINR) * 100).toFixed(2) : 0;
+      const gainINR = !isClosed ? (currentValueINR - investedValueINR) : 0;
+      const gainPct = (!isClosed && investedValueINR > 0) ? Number(((gainINR / investedValueINR) * 100).toFixed(2)) : 0;
+
+      const unrealizedPnlOriginal = !isClosed ? (currentValueOriginal - investedValueOriginal) : 0;
+      const unrealizedPnlINR = gainINR;
+
+      const soldQty = isClosed 
+        ? (Number(h.sell_qty) || totalSellQty || Number(h.buy_qty) || 0)
+        : totalSellQty;
+      const avgSellPrice = totalSellQty > 0
+        ? Number((isUSD ? (grossSellProceedsUSD / totalSellQty) : (grossSellProceedsINR / totalSellQty)).toFixed(precisionDigits))
+        : (Number(h.avg_sell_price) || 0);
+      const redeemedValue = Number((isUSD ? netSellProceedsUSD : netSellProceedsINR).toFixed(2));
+      const grossRedeemed = Number((isUSD ? grossSellProceedsUSD : grossSellProceedsINR).toFixed(2));
+
+      const realizedPnlUSD = (txs.length > 0) ? realizedTradingPnlUSD : (Number(h.realized_pnl) || 0);
+      const realizedPnlINR = (txs.length > 0) ? realizedTradingPnlINR : ((Number(h.realized_pnl) || 0) * (isUSD ? fxRate : 1.0));
+      const totalDividends = Number((isUSD ? totalDividendsUSD : totalDividendsINR).toFixed(2));
 
       // Calculate Day Change & Day Change %
       let prevPrice = currentPriceNum;
@@ -188,7 +348,12 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       return {
         ...h,
         name: finalName || h.name,
+        avg_buy_price: Number(finalAvgBuyPrice.toFixed(precisionDigits)),
+        unrealized_avg_buy_price: Number((isUSD ? unrealizedAvgBuyUSD : unrealizedAvgBuyINR).toFixed(precisionDigits)),
+        consolidated_avg_buy_price: Number((isUSD ? consolidatedAvgBuyUSD : consolidatedAvgBuyINR).toFixed(precisionDigits)),
         current_price: currentPriceNum,
+        nse_price: (liveQuote && liveQuote.nse_price > 0) ? liveQuote.nse_price : (Number(h.nse_price) || 0),
+        bse_price: (liveQuote && liveQuote.bse_price > 0) ? liveQuote.bse_price : (Number(h.bse_price) || 0),
         sector: finalSector,
         market_cap: finalMcap,
         market_cap_cr: meta.market_cap || null,
@@ -197,24 +362,28 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         category_color: catMap[h.category_id] ? catMap[h.category_id].color : '#3B82F6',
         fxRate: liveRate,
         txFxRate: Number(txRate.toFixed(2)),
-        day_change: (h.category_id === 'mutual_funds' || h.category_id === 'nps') 
-          ? Number(Number(dayChange || 0).toFixed(4)) 
-          : Number(Number(dayChange || 0).toFixed(2)),
+        day_change: isFundOrNps ? Number(Number(dayChange || 0).toFixed(4)) : Number(Number(dayChange || 0).toFixed(2)),
         day_change_pct: Number(Number(dayChangePct || 0).toFixed(2)),
-        prev_price: (h.category_id === 'mutual_funds' || h.category_id === 'nps')
-          ? Number(prevPrice.toFixed(4))
-          : Number(prevPrice.toFixed(2)),
+        prev_price: isFundOrNps ? Number(prevPrice.toFixed(4)) : Number(prevPrice.toFixed(2)),
         quote_date: liveQuote?.quoteDate || (h.updated_at ? h.updated_at.split('T')[0] : null),
         currentValueOriginal: Number(currentValueOriginal.toFixed(2)),
         currentValueINR: Number(currentValueINR.toFixed(2)),
         investedValueINR: Number(investedValueINR.toFixed(2)),
+        investedValueOriginal: Number(investedValueOriginal.toFixed(2)),
         gainINR: Number(gainINR.toFixed(2)),
         gainPct: Number(gainPct),
+        unrealized_pnl: Number((isUSD ? unrealizedPnlOriginal : unrealizedPnlINR).toFixed(2)),
+        unrealized_pnl_inr: Number(unrealizedPnlINR.toFixed(2)),
+        unrealized_pnl_pct: Number(gainPct),
+        realized_pnl: Number((isUSD ? realizedPnlUSD : realizedPnlINR).toFixed(2)),
+        realized_pnl_inr: Number(realizedPnlINR.toFixed(2)),
+        realized_pnl_total: Number(((isUSD ? realizedPnlUSD : realizedPnlINR) + (isUSD ? totalDividendsUSD : totalDividendsINR)).toFixed(2)),
+        total_dividends: totalDividends,
+        total_dividends_inr: Number(totalDividendsINR.toFixed(2)),
         sold_qty: soldQty,
         avg_sell_price: avgSellPrice,
         redeemed_value: redeemedValue,
-        gross_redeemed: grossRedeemed,
-        total_dividends: totalDividends
+        gross_redeemed: grossRedeemed
       };
     }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
@@ -1136,9 +1305,24 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     }
 
     if ((!liveQuote || !liveQuote.price) && (holding.category_id === 'in_stocks' || holding.category_id === 'us_stocks')) {
-      const sym = holding.category_id === 'in_stocks' ? `${cleanSym}.NS` : holding.symbol;
       try {
-        const liveQ = await fetchStockQuote(sym);
+        let liveQ = null;
+        if (holding.category_id === 'in_stocks') {
+          const [nseQ, bseQ] = await Promise.all([
+            fetchStockQuote(`${cleanSym}.NS`),
+            fetchStockQuote(`${cleanSym}.BO`)
+          ]);
+          const nseP = Number(nseQ?.price) || 0;
+          const bseP = Number(bseQ?.price) || 0;
+          if (bseP > nseP && bseP > 0) {
+            liveQ = bseQ;
+          } else {
+            liveQ = nseQ || bseQ;
+          }
+        } else {
+          liveQ = await fetchStockQuote(holding.symbol);
+        }
+
         if (liveQ) {
           if (liveQ.price) quotePrice = Number(liveQ.price);
           if (liveQ.previousClose) prevClose = Number(liveQ.previousClose);
@@ -1150,7 +1334,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           if (liveQ.quoteDate) quoteDateStr = liveQ.quoteDate;
         }
       } catch (e) {
-        console.warn(`[Holding Detail] Live stock quote fetch warning for ${sym}:`, e.message);
+        console.warn(`[Holding Detail] Live stock quote fetch warning for ${holding.symbol}:`, e.message);
       }
     } else if (holding.category_id === 'mutual_funds') {
       try {
