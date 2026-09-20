@@ -5,7 +5,7 @@ import axios from 'axios';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { fetchNpsHistoricalNav, isTradingDay } from '../server/services/priceEngine.js';
+import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs } from '../server/services/priceEngine.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -588,6 +588,31 @@ async function rebuildEod() {
       }
     }
     console.log(`[Supabase Sync] Successfully synchronized ${totalUpserted} of ${baseLogs.length} daily logs to Supabase pnl_history.`);
+
+    // Persist full pnl_history to local disk snapshot for offline cache mode
+    try {
+      const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'db_cache_snapshot.json');
+      if (fs.existsSync(SNAPSHOT_FILE)) {
+        const snap = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf8'));
+        const allDbRecords = baseLogs.map(mapLogToDbRecord);
+        snap.tables = snap.tables || {};
+        snap.tables.pnl_history = {
+          data: allDbRecords,
+          timestamp: Date.now()
+        };
+        fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(snap, null, 2), 'utf8');
+      }
+    } catch (snapErr) {
+      console.warn('[EOD Rebuild Snapshot Sync Warning]:', snapErr.message);
+    }
+    
+    // Ensure all holdings have the latest closing NAVs and prices persisted to DB
+    try {
+      await syncAllMissingNavs({ persistToDb: true });
+      console.log('[EOD Rebuild] Holdings table synchronized with latest NAVs and closing prices.');
+    } catch (e) {
+      console.warn('[EOD Rebuild] Holdings NAV sync warning:', e.message);
+    }
   } catch (syncErr) {
     console.warn('[Supabase Sync Exception]:', syncErr.message);
   }

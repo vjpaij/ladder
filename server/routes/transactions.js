@@ -19,7 +19,7 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
       return res.json({ success: true, message: 'Dividend deleted and holding position synchronized.' });
     }
 
-    const { data: txs } = await supabase.from('transactions').select('*').eq('id', id);
+    const txs = await db.selectWhere('transactions', { id });
     if (!txs || txs.length === 0) {
       return res.status(404).json({ error: 'Transaction not found' });
     }
@@ -37,7 +37,7 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
       return res.json({ success: true, message: 'Dividend deleted and holding position synchronized.' });
     }
 
-    await supabase.from('transactions').delete().eq('id', id);
+    await db.delete('transactions', id);
 
     db.invalidateCache('transactions');
     db.invalidateCache('holdings');
@@ -71,7 +71,7 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
       return res.json({ success: true, message: 'Dividend updated and holding position synchronized.' });
     }
 
-    const { data: txs } = await supabase.from('transactions').select('*').eq('id', id);
+    const txs = await db.selectWhere('transactions', { id });
     if (!txs || txs.length === 0) {
       return res.status(404).json({ error: 'Transaction not found' });
     }
@@ -91,7 +91,7 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    await supabase.from('transactions').update(updates).eq('id', id);
+    await db.update('transactions', id, updates);
 
     // If updating a DIVIDEND transaction, also sync with 'dividends' table
     if (txs[0].type === 'DIVIDEND' && (parentId || txs[0].symbol)) {

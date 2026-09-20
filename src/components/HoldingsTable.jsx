@@ -201,7 +201,9 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
 
                   {/* Quantity */}
                   <td className="py-4 px-4 text-right font-mono text-slate-200">
-                    {h.quantity.toLocaleString()}
+                    {isFundOrNps
+                      ? Number(h.quantity).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+                      : Number(h.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 })}
                   </td>
 
                   {/* Avg Buy Price */}

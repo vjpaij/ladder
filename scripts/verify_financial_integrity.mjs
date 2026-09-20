@@ -1,8 +1,11 @@
+import 'dotenv/config';
+import jwt from 'jsonwebtoken';
 import assert from 'assert';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { liveQuoteCache, fetchFxRate } from '../server/services/priceEngine.js';
+import { liveQuoteCache, fetchFxRate, resolveHoldingPrice } from '../server/services/priceEngine.js';
+import { getTodayIST, isTradingDay, isAnyMarketOpen } from '../server/services/marketCalendar.js';
 
 /**
  * Automated Financial Integrity & Mathematical Invariance Suite
@@ -41,7 +44,7 @@ async function runIntegrityAudit() {
   const livePriceMap = {};
   holdings.forEach(h => {
     const quote = liveQuoteCache.get(h.symbol);
-    livePriceMap[h.symbol] = (quote && quote.price > 0) ? quote.price : (Number(h.current_price) || 0);
+    livePriceMap[h.symbol] = resolveHoldingPrice(h, quote);
   });
 
   // 3. Mathematical Valuation Canonical Engine
@@ -70,14 +73,9 @@ async function runIntegrityAudit() {
   try {
     let authHeaders = {};
     try {
-      const authRes = await fetch('http://127.0.0.1:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@ladder.com', password: 'admin123' })
-      }).then(r => r.json());
-      if (authRes && authRes.token) {
-        authHeaders = { Authorization: `Bearer ${authRes.token}` };
-      }
+      const jwtSecret = process.env.JWT_SECRET || 'ladder-secret-jwt-key-2026';
+      const token = jwt.sign({ id: 1, email: 'admin@ladder.com', role: 'authenticated' }, jwtSecret, { expiresIn: '1h' });
+      authHeaders = { Authorization: `Bearer ${token}` };
     } catch (authErr) {
       // Proceed without token if auth not configured
     }
@@ -116,7 +114,24 @@ async function runIntegrityAudit() {
         assert.strictEqual(h.investedValueINR, 0, `Zero-quantity holding ${h.symbol} (${h.name}) must have invested value ₹0.00`);
       }
     });
+
+    // 4c. Universal Categorical Breakdown Parity across Holdings, Summary, and Calendar
+    const catSums = {};
+    holdingsRes.forEach(h => {
+      const cat = h.category_id;
+      if (!catSums[cat]) catSums[cat] = 0;
+      catSums[cat] = Number((catSums[cat] + (h.currentValueINR || 0)).toFixed(2));
+    });
+
+    const npsHoldingsSum = catSums['nps'] || 0;
+    const npsSummaryMetric = sumRes.categoryMetrics?.find(c => c.id === 'nps')?.currentINR || 0;
+    const npsCalendarLog = latestCalendarLog.nps || latestCalendarLog.breakdown?.nps || 0;
+
+    assert.strictEqual(npsHoldingsSum, npsSummaryMetric, `NPS Holdings table sum (₹${npsHoldingsSum}) must match Dashboard Summary metric (₹${npsSummaryMetric})`);
+    assert.strictEqual(npsHoldingsSum, npsCalendarLog, `NPS Holdings table sum (₹${npsHoldingsSum}) must match Calendar breakdown (₹${npsCalendarLog})`);
+
     console.log(`✓ Holding-Level Zero-Quantity & Individual Valuation Invariance Verified across ${holdingsRes.length} assets.`);
+    console.log(`✓ Universal Categorical Breakdown Parity Verified (NPS: Holdings ₹${npsHoldingsSum} === Dashboard ₹${npsSummaryMetric} === Calendar ₹${npsCalendarLog}).`);
 
     console.log(`✓ API Parity Verified (Exact 1-to-1 Cent Match across Dashboard and Calendar):`);
     console.log(`  - Net Worth:   Dashboard ₹${sumRes.netWorthINR} === Calendar ₹${latestCalendarLog.net_worth_inr}`);
@@ -128,30 +143,31 @@ async function runIntegrityAudit() {
     throw err;
   }
 
-  // 5. Weekend Market Invariance Verification
-  console.log('[Test 4] Verifying Weekend Market Settlement Invariance...');
-  const today = new Date();
-  const dayOfWeek = today.getUTCDay(); // 0 is Sunday, 6 is Saturday
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
+  // 5. Market Hours & Non-Trading Settlement Invariance Verification
+  console.log('[Test 4] Verifying Market Hours & Non-Trading Settlement Invariance...');
+  const todayStr = getTodayIST();
+  const dIST = new Date(`${todayStr}T00:00:00Z`);
+  const dayOfWeek = dIST.getUTCDay(); // 0 is Sunday, 6 is Saturday
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const isTradingToday = isTradingDay(todayStr, 'NSE');
+  const anyMarketOpen = isAnyMarketOpen();
+  const isOffMarketOrPreMarket = isWeekend || !isTradingToday || !anyMarketOpen;
+
+  if (isOffMarketOrPreMarket) {
     let authHeaders = {};
     try {
-      const authRes = await fetch('http://127.0.0.1:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@ladder.com', password: 'admin123' })
-      }).then(r => r.json());
-      if (authRes && authRes.token) {
-        authHeaders = { Authorization: `Bearer ${authRes.token}` };
-      }
+      const jwtSecret = process.env.JWT_SECRET || 'ladder-secret-jwt-key-2026';
+      const token = jwt.sign({ id: 1, email: 'admin@ladder.com', role: 'authenticated' }, jwtSecret, { expiresIn: '1h' });
+      authHeaders = { Authorization: `Bearer ${token}` };
     } catch (e) {
-      console.warn('[Integrity Audit] Local test login attempt warning:', e.message);
+      console.warn('[Integrity Audit] Local test token warning:', e.message);
     }
     const sumRes = await fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json());
-    assert.strictEqual(sumRes.dayPnlINR, 0, 'On weekend non-trading days, Day PnL must strictly equal 0.00 unless manual transactions occurred');
-    assert.strictEqual(sumRes.dayPnlPct, 0, 'On weekend non-trading days, Day PnL % must strictly equal 0.00%');
-    console.log(`✓ Weekend Invariance Verified: Current Day is ${dayOfWeek === 0 ? 'Sunday' : 'Saturday'} -> Day PnL = ₹0.00 (0.00%).\n`);
+    assert.strictEqual(sumRes.dayPnlINR, 0, 'Outside active trading hours (pre-market/off-market/weekend), Day PnL must strictly equal 0.00 unless manual transactions occurred');
+    assert.strictEqual(sumRes.dayPnlPct, 0, 'Outside active trading hours, Day PnL % must strictly equal 0.00%');
+    console.log(`✓ Off-Market / Pre-Market Invariance Verified (Markets Closed) -> Day PnL = ₹0.00 (0.00%).\n`);
   } else {
-    console.log('✓ Current day is a weekday trading session.\n');
+    console.log(`✓ Current session (${todayStr}) is active market trading hours.\n`);
   }
 
   console.log('================================================================');

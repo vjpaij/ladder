@@ -118,6 +118,9 @@ app.listen(PORT, async () => {
       }
       console.log(`[PriceEngine] Primed liveQuoteCache with ${primedCount} holdings from local cache on boot (0 egress).`);
     }
+
+    // Synchronize latest authoritative NAVs for active NPS and MF holdings
+    await syncAllMissingNavs({ persistToDb: true });
   } catch (err) {
     console.warn('[PriceEngine Priming Warning]:', err.message);
   }

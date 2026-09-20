@@ -70,7 +70,9 @@ export default function HoldingDetailHeader({
                   {holding.category_id === 'mutual_funds' || holding.category_id === 'nps' ? 'Units' : 'Shares'}:
                 </span>
                 <span className="text-sm font-black text-slate-900 dark:text-emerald-300">
-                  {Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 })}
+                  {holding.category_id === 'mutual_funds' || holding.category_id === 'nps'
+                    ? Number(holding.quantity).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+                    : Number(holding.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 })}
                 </span>
               </span>
             )}

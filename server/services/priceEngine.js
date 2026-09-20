@@ -533,13 +533,6 @@ export async function syncAllMissingNavs(options = {}) {
 
   const today = getTodayIST();
   const lastTradingDay = getLastTradingDay(today, 'NSE');
-  const isTodayTrading = isTradingDay(today, 'NSE');
-
-  // EGRESS GUARD: On non-trading days (weekends, exchange holidays), if last trading day is already synced,
-  // skip the entire routine to consume 0 egress.
-  if (!isTodayTrading && npsSyncStatusCache.get(lastTradingDay) === true) {
-    return results;
-  }
 
   // 1. Fetch active MF & NPS holdings from cached db.select (0 egress)
   const allHoldings = await db.select('holdings');
@@ -553,97 +546,99 @@ export async function syncAllMissingNavs(options = {}) {
   const npsHoldings = holdings.filter(h => h.category_id === 'nps' && h.symbol);
   const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && h.symbol);
 
-  // 2. Sync NPS via Protean / fallback
+  // 2. Sync NPS via Supabase authoritative store -> Protean -> fallback
   if (npsHoldings.length > 0) {
     const npsSchemeCodes = npsHoldings.map(h => h.symbol);
-    const alreadySynced = await areTodayNavsAlreadySynced(npsSchemeCodes, lastTradingDay);
+    
+    // Always check what latest NAVs exist in Supabase nps_daily_navs table first
+    let latestDbNavs = [];
+    try {
+      const { data } = await supabase
+        .from('nps_daily_navs')
+        .select('scheme_code,nav,nav_date')
+        .in('scheme_code', npsSchemeCodes)
+        .order('nav_date', { ascending: false });
+      latestDbNavs = data || [];
+    } catch (e) {
+      console.warn('[syncAllMissingNavs] nps_daily_navs fetch warning:', e.message);
+    }
 
-    if (alreadySynced) {
-      // If all scheme codes already exist in liveQuoteCache, avoid re-fetching from Supabase
-      const allInLiveCache = npsSchemeCodes.every(code => liveQuoteCache.has(code));
-      if (allInLiveCache) {
-        results.npsUpdated = npsSchemeCodes.length;
-      } else {
-        console.log(`[syncAllMissingNavs] NPS NAVs for ${lastTradingDay} already in Supabase. Loading from DB.`);
-        // Load from Supabase into liveQuoteCache and ensure holdings table matches
-        const { data: navRows } = await supabase
-          .from('nps_daily_navs')
-          .select('scheme_code,nav,nav_date')
-          .in('scheme_code', npsSchemeCodes)
-          .eq('nav_date', lastTradingDay);
-        if (navRows) {
-          for (const row of navRows) {
-            liveQuoteCache.set(row.scheme_code, {
-              price: row.nav,
-              quoteDate: formatCleanQuoteDate(row.nav_date)
-            });
-            const h = npsHoldings.find(item => item.symbol === row.scheme_code);
-            if (h && Number(h.current_price) !== Number(row.nav)) {
-              updateCacheRow('holdings', h.id, {
-                current_price: row.nav,
-                updated_at: new Date().toISOString()
-              });
-              if (persistToDb) {
-                await db.update('holdings', h.id, {
-                  current_price: row.nav,
-                  updated_at: new Date().toISOString()
-                });
-              }
-            }
-          }
-          results.npsUpdated = navRows.length;
-        }
+    const latestNavMapByScheme = new Map();
+    latestDbNavs.forEach(r => {
+      if (!latestNavMapByScheme.has(r.scheme_code)) {
+        latestNavMapByScheme.set(r.scheme_code, r);
       }
-    } else {
-      // Fetch from Protean CRA
-      const navMap = await fetchProteanNpsNavBatch();
+    });
+
+    // Check if any held schemes are missing or older than lastTradingDay
+    const missingOrStaleCodes = npsSchemeCodes.filter(code => {
+      const row = latestNavMapByScheme.get(code);
+      return !row || row.nav_date < lastTradingDay;
+    });
+
+    if (missingOrStaleCodes.length > 0) {
+      const proteanMap = await fetchProteanNpsNavBatch();
       const isStale = isProteanNavStale();
 
-      await Promise.all(npsHoldings.map(async (h) => {
+      await Promise.all(missingOrStaleCodes.map(async (code) => {
+        const h = npsHoldings.find(item => item.symbol === code);
         try {
-          let item = (!isStale && navMap) ? navMap.get(h.symbol) : null;
-
-          // If Protean ZIP is stale (today's/last trading day's NAV not yet published), try npsnav.in
+          let item = (!isStale && proteanMap) ? proteanMap.get(code) : null;
           if (!item || isStale) {
-            const fallback = await fetchNpsNavFallback(h.symbol);
+            const fallback = await fetchNpsNavFallback(code);
             if (fallback && (fallback.date === lastTradingDay || fallback.date > (item?.date || ''))) {
               item = { nav: fallback.nav, date: fallback.date, quoteDate: fallback.quoteDate };
-              console.log(`[syncAllMissingNavs] NPS ${h.symbol}: Protean stale, using fallback NAV ${fallback.nav} for ${fallback.date}`);
               try {
                 await supabase.from('nps_daily_navs').upsert({
-                  scheme_code: h.symbol,
-                  scheme_name: h.name,
+                  scheme_code: code,
+                  scheme_name: h ? h.name : code,
                   nav: fallback.nav,
                   nav_date: fallback.date
                 }, { onConflict: 'scheme_code,nav_date' });
               } catch (e) {
-                console.warn(`[syncAllMissingNavs] Supabase upsert error for ${h.symbol}:`, e.message);
+                console.warn(`[syncAllMissingNavs] Supabase upsert error for ${code}:`, e.message);
               }
-            } else if (!item && navMap?.get(h.symbol)) {
-              item = navMap.get(h.symbol);
+            } else if (!item && proteanMap?.get(code)) {
+              item = proteanMap.get(code);
             }
           }
-
           if (item) {
-            liveQuoteCache.set(h.symbol, { price: item.nav, quoteDate: item.quoteDate });
-            if (Number(h.current_price) !== Number(item.nav)) {
-              updateCacheRow('holdings', h.id, {
-                current_price: item.nav,
-                updated_at: new Date().toISOString()
-              });
-              if (persistToDb) {
-                await db.update('holdings', h.id, {
-                  current_price: item.nav,
-                  updated_at: new Date().toISOString()
-                });
-              }
-            }
-            results.npsUpdated++;
+            latestNavMapByScheme.set(code, {
+              scheme_code: code,
+              nav: item.nav,
+              nav_date: item.date
+            });
           }
         } catch (e) {
-          console.warn(`[syncAllMissingNavs] NPS ${h.symbol} error:`, e.message);
+          console.warn(`[syncAllMissingNavs] NPS fetch error for ${code}:`, e.message);
         }
       }));
+    }
+
+    // Apply latest NAVs to liveQuoteCache and holdings
+    for (const h of npsHoldings) {
+      const latest = latestNavMapByScheme.get(h.symbol);
+      if (latest && latest.nav > 0) {
+        const navNum = Number(latest.nav);
+        const qDate = formatCleanQuoteDate(latest.nav_date);
+        liveQuoteCache.set(h.symbol, {
+          price: navNum,
+          quoteDate: qDate
+        });
+        if (navNum !== Number(h.current_price)) {
+          updateCacheRow('holdings', h.id, {
+            current_price: navNum,
+            updated_at: new Date().toISOString()
+          });
+          if (persistToDb) {
+            await db.update('holdings', h.id, {
+              current_price: navNum,
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+        results.npsUpdated++;
+      }
     }
   }
 
@@ -972,46 +967,103 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
   // 4. Refresh NPS schemes in parallel
   const npsHoldings = holdings.filter(h => h.category_id === 'nps');
   if (npsHoldings.length > 0) {
-    const proteanMap = await fetchProteanNpsNavBatch();
-    const isStale = isProteanNavStale();
-    const lastTradingDay = getLastTradingDay();
+    const heldCodes = npsHoldings.map(h => h.symbol).filter(Boolean);
+    let latestDbNavs = [];
+    try {
+      const { data } = await supabase
+        .from('nps_daily_navs')
+        .select('scheme_code,nav,nav_date')
+        .in('scheme_code', heldCodes)
+        .order('nav_date', { ascending: false });
+      latestDbNavs = data || [];
+    } catch (e) {
+      console.warn('[refreshHoldingsPrices] nps_daily_navs query warning:', e.message);
+    }
+
+    const latestNavMap = new Map();
+    const prevNavMap = new Map();
+    latestDbNavs.forEach(r => {
+      if (!latestNavMap.has(r.scheme_code)) {
+        latestNavMap.set(r.scheme_code, r);
+      } else if (!prevNavMap.has(r.scheme_code)) {
+        prevNavMap.set(r.scheme_code, r);
+      }
+    });
+
+    const lastTradingDay = getLastTradingDay(getTodayIST(), 'NSE');
+    const missingOrStaleCodes = heldCodes.filter(code => {
+      const row = latestNavMap.get(code);
+      return !row || row.nav_date < lastTradingDay;
+    });
+
+    let proteanMap = null;
+    let isStale = true;
+    if (missingOrStaleCodes.length > 0) {
+      proteanMap = await fetchProteanNpsNavBatch();
+      isStale = isProteanNavStale();
+    }
+
     await Promise.all(npsHoldings.map(async (h) => {
       try {
-        let q = (!isStale && proteanMap) ? proteanMap.get(h.symbol) : null;
-        if (!q || isStale) {
-          const fallback = await fetchNpsNavFallback(h.symbol);
-          if (fallback && (fallback.date === lastTradingDay || fallback.date > (q?.date || ''))) {
-            q = fallback;
-            try {
-              await supabase.from('nps_daily_navs').upsert({
-                scheme_code: h.symbol,
-                scheme_name: h.name,
-                nav: fallback.nav,
-                nav_date: fallback.date
-              }, { onConflict: 'scheme_code,nav_date' });
-            } catch (e) {
-              console.warn(`[Sync] Failed to upsert NPS fallback NAV for ${h.symbol}:`, e.message);
+        let q = latestNavMap.get(h.symbol);
+        let prevQ = prevNavMap.get(h.symbol);
+        if (!q || q.nav_date < lastTradingDay) {
+          let pItem = (!isStale && proteanMap) ? proteanMap.get(h.symbol) : null;
+          if (!pItem || isStale) {
+            const fallback = await fetchNpsNavFallback(h.symbol);
+            if (fallback && (fallback.date === lastTradingDay || fallback.date > (pItem?.date || ''))) {
+              pItem = fallback;
+              try {
+                await supabase.from('nps_daily_navs').upsert({
+                  scheme_code: h.symbol,
+                  scheme_name: h.name,
+                  nav: fallback.nav,
+                  nav_date: fallback.date
+                }, { onConflict: 'scheme_code,nav_date' });
+              } catch (e) {
+                console.warn(`[Sync] Failed to upsert NPS fallback NAV for ${h.symbol}:`, e.message);
+              }
+            } else if (!pItem && proteanMap?.get(h.symbol)) {
+              pItem = proteanMap.get(h.symbol);
             }
-          } else if (!q && proteanMap?.get(h.symbol)) {
-            q = proteanMap.get(h.symbol);
+          }
+          if (pItem) {
+            if (q && q.nav_date !== (pItem.date || pItem.rawDate)) {
+              prevQ = q;
+            }
+            q = { nav: pItem.nav, nav_date: pItem.date || pItem.rawDate };
           }
         }
+
         if (q && q.nav > 0) {
-          const qDate = q.quoteDate || formatCleanQuoteDate(q.date);
+          const navNum = Number(q.nav);
+          const qDate = formatCleanQuoteDate(q.nav_date);
+          let dayChange = 0;
+          let dayChangePct = 0;
+          if (prevQ && Number(prevQ.nav) > 0) {
+            const prevNavNum = Number(prevQ.nav);
+            dayChange = Number((navNum - prevNavNum).toFixed(4));
+            dayChangePct = Number((((navNum - prevNavNum) / prevNavNum) * 100).toFixed(2));
+          }
+
           liveQuoteCache.set(h.symbol, {
-            price: q.nav,
+            price: navNum,
+            dayChange,
+            dayChangePct,
             quoteDate: qDate
           });
-          if (q.nav !== Number(h.current_price)) {
-            updateCacheRow('holdings', h.id, {
-              current_price: q.nav,
-              updated_at: new Date().toISOString()
-            });
+
+          const updates = {
+            current_price: navNum,
+            day_change: dayChange,
+            day_change_pct: dayChangePct,
+            updated_at: new Date().toISOString()
+          };
+
+          if (navNum !== Number(h.current_price) || h.day_change !== dayChange) {
+            updateCacheRow('holdings', h.id, updates);
             if (persistToDb) {
-              await db.update('holdings', h.id, {
-                current_price: q.nav,
-                updated_at: new Date().toISOString()
-              });
+              await db.update('holdings', h.id, updates);
             }
             updatedCount++;
           }

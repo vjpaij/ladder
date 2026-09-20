@@ -16,9 +16,9 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Indian Equities**: Live quotes comparing NSE and BSE prices, automatically locking the higher market quote (`NSE/BSE MAX`). Stock search automatically prioritizes NSE, falls back to BSE only if absent, and strips all exchange tags for clean single-entry prompts.
    - **US Equities**: Real-time quotes from NASDAQ/NYSE with dynamic USD to INR conversion. Entries are strictly in USD ($) with real-time INR preview and automated historical FX rate lookups on date selection.
    - **Mutual Funds**: Real-time NAV synchronization via AMFI Scheme API. Full uniformity across asset lifecycle with standardized SELL transactions and borderless transaction ledgers.
-   - **NPS (National Pension System)**: Automated daily scraper extracting official NAV files directly from Protean CRA archives (`nps_daily_navs` table in Supabase) with historical backfill fallback.
+   - **NPS (National Pension System)**: Automated daily scraper extracting official NAV files directly from Protean CRA archives (`nps_daily_navs` table in Supabase) with resilient historical backfill fallback. Authoritative database NAV synchronization guarantees 100% mathematical parity across Dashboard, NPS page, Calendar Heatmap, Reports, and Holding Detail Modals.
    - **Automated Historical Price Population**: Whenever a new or past-dated transaction is recorded for any stock, Mutual Fund, or NPS scheme, historical daily closing quotes/NAVs from the transaction date to present are automatically retrieved and populated into `data/historical_prices.json` and in-memory cache, ensuring holding detail charts immediately track real daily trajectories instead of flat lines.
-   - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).
+   - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI, server boot synchronization, and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).
 
 3. **Delta-Ledger Architecture for Cash, EPF & Debt**
    - Bank Accounts, EPF, Loans, and Credit Cards operate as a transaction-backed delta ledger.

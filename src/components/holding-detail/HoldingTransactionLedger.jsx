@@ -748,7 +748,9 @@ export default function HoldingTransactionLedger({
                 } else if (isBonus && Number(tx.quantity) > 0) {
                   qtyDisplay = `+${Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 })}`;
                 } else if (Number(tx.quantity) > 0) {
-                  qtyDisplay = Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 });
+                  qtyDisplay = isFundOrNps
+                    ? Number(tx.quantity).toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+                    : Number(tx.quantity).toLocaleString('en-IN', { maximumFractionDigits: 9 });
                 }
 
                 let priceDisplay = '—';
@@ -1096,7 +1098,10 @@ export default function HoldingTransactionLedger({
                           type="number"
                           step="any"
                           value={editForm.total_amount}
-                          onChange={(e) => setEditForm(prev => ({ ...prev, total_amount: e.target.value }))}
+                          onChange={(e) => {
+                            const amt = e.target.value;
+                            setEditForm(prev => ({ ...prev, total_amount: amt }));
+                          }}
                           onBlur={(e) => {
                             const val = parseFloat(e.target.value);
                             if (!isNaN(val)) {
@@ -1114,12 +1119,7 @@ export default function HoldingTransactionLedger({
                           value={editForm.charges || ''}
                           onChange={(e) => {
                             const c = e.target.value;
-                            setEditForm(prev => {
-                              const q = Number(prev.quantity) || 0;
-                              const p = Number(prev.price) || 0;
-                              const total = prev.type === 'SELL' ? Math.max(0, (q * p) - Number(c)) : ((q * p) + Number(c));
-                              return { ...prev, charges: c, total_amount: q && p ? total.toFixed(2) : prev.total_amount };
-                            });
+                            setEditForm(prev => ({ ...prev, charges: c }));
                           }}
                           onBlur={(e) => {
                             const val = parseFloat(e.target.value);

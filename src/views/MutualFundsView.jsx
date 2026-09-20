@@ -20,6 +20,12 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
   const [isSipModalOpen, setIsSipModalOpen] = useState(false);
   const closeDetail = useCallback(() => setSelectedHolding(null), []);
 
+  const formatMfUnits = useCallback((val) => {
+    const n = Number(val) || 0;
+    if (n === 0) return '0.0000';
+    return n.toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  }, []);
+
   const handleRefreshNavs = async () => {
     setIsRefreshingNavs(true);
     try {
@@ -518,7 +524,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                       {statusFilter === 'closed' ? (
                         <>
                           <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold whitespace-nowrap">
-                            {soldQty.toLocaleString()}
+                            {formatMfUnits(soldQty)}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-slate-300 whitespace-nowrap">
                             {formatNAV(avgBuy)}
@@ -554,9 +560,9 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                         <>
                           <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                             {qty > 0 ? (
-                              <span className="text-slate-200 font-bold">{qty.toLocaleString()}</span>
+                              <span className="text-slate-200 font-bold">{formatMfUnits(qty)}</span>
                             ) : (
-                              <span className="text-slate-600 font-medium">0</span>
+                              <span className="text-slate-600 font-medium">0.0000</span>
                             )}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap">{formatNAV(h.avg_buy_price)}</td>

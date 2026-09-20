@@ -5,6 +5,30 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.47.0] - 2026-09-21
+
+### Fixed
+- **US Dividends Full Financial Reconciliation & Zero-Egress Storage Parity**:
+  - **Root Cause Diagnosed**: In historical US stock ingestion (`load_all_us_stocks.mjs`), dividend payouts were extracted from `Cost Per Share` (which stored market share prices like `$746.91`, `$664.14`, `$743.40`) instead of `Shares Owned` (which stored the actual dividend amounts like `$1.78`, `$0.81`, `$0.48`), falsely inflating US dividends by over ₹4.76 Lakhs with corrupted default FX rates (`46.61`).
+  - **Authoritative Reconciliation**: Reconstructed all 73 US dividend payments across 9 dividend-paying US stocks from `US Stocks/Book2.xlsx`, calculating exact USD dividends (`$99.22`) and transaction-date FX conversions (`₹8,632.85`).
+  - **Ingestion Script Hardened**: Fixed [scripts/ingestion/load_all_us_stocks.mjs](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/scripts/ingestion/load_all_us_stocks.mjs) to strictly parse dividend amounts from `Shares Owned`.
+  - **Zero-Egress Cache Synchronization**: Synchronized `dividends` (506 records) and `transactions` tables in local memory (`dbCache`) and disk snapshot (`data/db_cache_snapshot.json`) with 0 bytes of Supabase egress.
+
+## [5.46.4] - 2026-09-21
+
+### Fixed
+- **Mutual Fund Exact Statement Alignment & Operational Script Organization**:
+  - Aligned all 12 active Mutual Fund scheme units and NAVs to exact statement figures, reconciling Mutual Funds portfolio total to exact `₹45,42,362.15` down to the cent.
+  - Rebuilt and synchronized all 6,933 historical daily records in `data/portfolio_eod_logs.json` and `pnl_history`.
+  - Moved all one-off migration and reconciliation scripts from `scripts/` to `scratch/`, preserving only core operational CLI tools in `scripts/`.
+
+## [5.46.3] - 2026-09-21
+
+### Fixed
+- **Mutual Fund 4-Decimal Unit Precision & Pre-Market Zero Movement Invariance**:
+  - Standardized 4-decimal precision across Mutual Fund units display in `MutualFundsView.jsx`, `HoldingsTable.jsx`, `HoldingDetailHeader.jsx`, and `HoldingTransactionLedger.jsx`.
+  - Gated live Day P&L calculation in `server/routes/summary.js` and `server/routes/calendar.js` by `isAnyMarketOpen()`, strictly enforcing `₹0.00 (0.00%)` Day P&L during pre-market hours before 09:15 AM IST.
+
 ## [5.44.0] - 2026-09-20
 
 ### Added

@@ -122,8 +122,11 @@ export async function recalculateHoldingState(holdingId) {
         if (type === 'BUY' || type === 'INVESTMENT' || type === 'INVESTMENT (SIP)') {
           runningQty += qty;
           totalBuyQty += qty;
-          totalBuyAmount += (qty * price) + charges;
-          openLots.push({ qty, price, charges, rem: qty });
+          const buyCost = Number(tx.total_amount) > 0 ? Number(tx.total_amount) : ((qty * price) + charges);
+          totalBuyAmount += buyCost;
+          const isFundOrNps = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
+          const lotPrice = qty > 0 ? (isFundOrNps ? (buyCost / qty) : Math.max(0, (buyCost - charges) / qty)) : price;
+          openLots.push({ qty, price: lotPrice, charges, rem: qty });
         } else if (type === 'BONUS') {
           // If bonus has a positive quantity, add to runningQty at 0 cost
           if (qty > 0) {

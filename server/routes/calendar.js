@@ -6,7 +6,7 @@ import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST } from '../services/marketCalendar.js';
+import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, isAnyMarketOpen } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -106,11 +106,16 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     const priorLogs = eodLogs.filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
     const lastTradingLog = priorLogs[0];
 
+    const isWeekend = isWeekendDay(todayStr);
+    const isTradingToday = isTradingDay(todayStr, 'NSE');
+    const anyMarketOpen = isAnyMarketOpen();
+    const isOffMarketOrPreMarket = isWeekend || !isTradingToday || !anyMarketOpen;
+
     let todayEntry;
-    if (isWeekendDay(todayStr) && lastTradingLog) {
+    if (isOffMarketOrPreMarket && lastTradingLog) {
       const liveDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
       if (todayTxs.length === 0) {
-        // Rule 5: Non-trading session invariance. Zero market movement against Friday.
+        // Non-trading session & pre-market invariance: zero market movement against last trading session.
         todayEntry = {
           ...lastTradingLog,
           date: todayStr,
@@ -121,7 +126,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
           pnl_pct: 0
         };
       } else {
-        // User performed cash/debt transactions on weekend. Equity/MF/NPS strictly carry forward Friday.
+        // User performed cash/debt transactions. Equity/MF/NPS strictly carry forward last session.
         const totalAssets = Number((
           (liveTodayValuation.savings || 0) +
           (liveTodayValuation.epf || 0) +

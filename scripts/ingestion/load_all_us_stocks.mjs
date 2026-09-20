@@ -380,11 +380,10 @@ async function run() {
     if (matchingDivs.length > 0) {
       const divInserts = matchingDivs.map(d => {
         const dateStr = parseUsOrderDate(d["Transaction Date"]) || new Date().toISOString().split('T')[0];
-        const rawAmt = parseFloat(d["Cost Per Share"]) || 0;
-        const sharesVal = parseFloat(d["Shares Owned"]) || 0;
-        const amtUSD = rawAmt > 0 ? rawAmt : sharesVal;
+        // In Book2.xlsx, the Dividend USD amount is strictly stored in the 'Shares Owned' column
+        const amtUSD = parseFloat(d["Shares Owned"]) || 0;
         const fxRate = parseFloat(d["Purchase Exchange Rate"]) || historicalFxMap[dateStr] || getFallbackFxRate(dateStr);
-        const amtINR = amtUSD * fxRate;
+        const amtINR = parseFloat((amtUSD * fxRate).toFixed(2));
 
         grandTotalDivsUSD += amtUSD;
         grandTotalDivsINR += amtINR;

@@ -5,7 +5,7 @@ import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/pr
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getTodayIST } from '../services/marketCalendar.js';
+import { getTodayIST, isAnyMarketOpen, isTradingDay } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -410,20 +410,26 @@ router.get('/summary', async (req, res) => {
       yesterdayWealth = netWorthINR;
     }
 
-    const isWeekend = (new Date().getUTCDay() === 0 || new Date().getUTCDay() === 6);
+    const dIST = new Date(`${todayStr}T00:00:00Z`);
+    const isWeekend = (dIST.getUTCDay() === 0 || dIST.getUTCDay() === 6);
+    const isTradingToday = isTradingDay(todayStr, 'NSE');
+    const anyMarketOpen = isAnyMarketOpen();
+    const isOffMarketOrPreMarket = !isTradingToday || !anyMarketOpen;
+
     const wealthDelta = Number((netWorthINR - yesterdayWealth).toFixed(2));
     
     // Check if any user transactions occurred today strictly by trade date (Rule 5 & Rule 9)
     const todayTxs = (txs || []).filter(t => t.date === todayStr);
     const hasTxToday = todayTxs && todayTxs.length > 0;
 
-    // Rule 5: On weekends, P&L is strictly 0 and equity/MF/NPS valuations carry forward Friday unless a user transaction occurred
+    // Rule 5 & Rule 22: Outside active market hours (pre-market, nights, weekends, holidays),
+    // P&L is strictly 0 and equity/MF/NPS valuations carry forward previous finalized close unless a transaction occurred
     let finalNetWorthINR = netWorthINR;
     let finalTotalAssetsINR = totalAssetsINR;
     let dayPnlINR = wealthDelta;
     let dayPnlPct = yesterdayWealth > 0 ? Number(((wealthDelta / yesterdayWealth) * 100).toFixed(2)) : 0;
 
-    if (isWeekend) {
+    if (isOffMarketOrPreMarket) {
       if (!hasTxToday) {
         dayPnlINR = 0;
         dayPnlPct = 0;
