@@ -281,6 +281,10 @@ Audits all 8 asset and liability classes across every historical record to guara
 node scripts/verify_all_assets_integrity.mjs
 ```
 
+### 10. 100% Offline Local Cache Mode (Zero Supabase Egress)
+To operate the entire application locally with zero cloud network requests, set `OFFLINE_CACHE_MODE=true` in `.env`.
+All data is served from and persisted to `data/db_cache_snapshot.json` in Node.js RAM (`dbCache`). See [SUPABASE_EGRESS_AND_CACHE_GUIDE.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/SUPABASE_EGRESS_AND_CACHE_GUIDE.md) for full operational instructions, multi-device transfer steps, and post-reset cloud re-population guides.
+
 ---
 
 ## Maintenance & Contribution Rules

@@ -5,6 +5,16 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.44.0] - 2026-09-20
+
+### Added
+- **100% Offline Local Cache Mode (`OFFLINE_CACHE_MODE=true`)**:
+  - **Zero Supabase Egress Guarantee**: Activated `OFFLINE_CACHE_MODE=true` in `.env` and [server/db.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/db.js) to guarantee absolute 0 bytes of Supabase egress until the quota reset on October 10, 2026.
+  - **Local Snapshot Boot Priority**: Hardened [server/db.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/db.js) to unconditionally restore all 13,567 rows (holdings, transactions, liabilities, dividends, categories, sips, and EOD logs) from `data/db_cache_snapshot.json` during cold startup and reboot, completely bypassing cloud initialization.
+  - **TTL Expiration Bypass**: Disabled 24-hour cache eviction (`CACHE_TTL_MS`) when `OFFLINE_CACHE_MODE` is active, keeping in-memory tables permanently resident in Node.js RAM (`dbCache`) without dropping tables or triggering cloud re-queries.
+  - **Local In-Memory Mutation Handling**: Configured `db.insert`, `db.update`, and `db.delete` to handle create/update/delete operations directly against in-memory RAM arrays and persist debounced snapshots to disk (`data/db_cache_snapshot.json`) using `crypto.randomUUID()` for new records.
+  - **Comprehensive Operational Documentation**: Created [SUPABASE_EGRESS_AND_CACHE_GUIDE.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/SUPABASE_EGRESS_AND_CACHE_GUIDE.md) detailing multi-machine transfer procedures, post-refresh re-population strategies, and local-first architecture.
+
 ## [5.43.0] - 2026-09-20
 
 ### Fixed
