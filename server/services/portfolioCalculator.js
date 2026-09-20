@@ -37,9 +37,13 @@ export function computeHoldingValueINR(holding, overridePrice = null, fxRate = n
 
   if (unitBased) {
     if (qty <= 0) return 0;
-    const price = overridePrice !== null && overridePrice !== undefined && overridePrice > 0
+    let price = overridePrice !== null && overridePrice !== undefined && overridePrice > 0
       ? Number(overridePrice)
       : (Number(holding.current_price) || 0);
+    if (holding.category_id === 'in_stocks') {
+      const maxEx = Math.max(Number(holding.nse_price) || 0, Number(holding.bse_price) || 0);
+      if (maxEx > 0) price = Math.max(price, maxEx);
+    }
     const rate = holding.currency === 'USD' ? effectiveFx : 1.0;
     return Number((qty * price * rate).toFixed(2));
   }

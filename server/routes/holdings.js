@@ -7,6 +7,7 @@ import { supabase } from '../supabaseClient.js';
 import { 
   fetchFxRate, 
   liveQuoteCache, 
+  resolveHoldingPrice,
   fetchStockQuote, 
   fetchMutualFundNav, 
   fetchNpsNavFallback, 
@@ -283,7 +284,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       }
 
       const liveQuote = liveQuoteCache.get(h.symbol);
-      const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+      const currentPriceNum = resolveHoldingPrice(h, liveQuote);
       const currentValueOriginal = qty * currentPriceNum;
       const currentValueINR = computeHoldingValueINR(h, currentPriceNum, fxRate);
 
@@ -733,7 +734,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       const allTxs = await db.select('transactions');
       txs = (allTxs || []).filter(t => 
         String(t.holding_id) === String(holding.id) || (t.symbol && t.symbol === holding.symbol)
-      ).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      ).sort((a, b) => {
+        const dDiff = (a.date || '').localeCompare(b.date || '');
+        if (dDiff !== 0) return dDiff;
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      });
     } catch (txErr) {
       console.warn('[Detail API db.select transactions Warning]:', txErr.message);
     }
@@ -742,7 +747,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
         .from('transactions')
         .select('*')
         .or(`holding_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
-        .order('date', { ascending: true });
+        .order('date', { ascending: true })
+        .order('created_at', { ascending: true });
       if (txErr) console.error('[Detail API] Tx Fetch Error:', txErr.message);
       txs = txsData || [];
     }
@@ -810,8 +816,10 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           rem: qty
         });
       } else if (tx.type === 'BONUS' || tx.type === 'DIVIDEND_REINVEST') {
-        buyLotsUSD.push({ qty, price, charges: 0, rem: qty });
-        buyLotsINR.push({ qty, priceUSD: price, fxRate: txRate, charges: 0, rem: qty });
+        if (qty > 0) {
+          buyLotsUSD.push({ qty, price: 0, charges: 0, rem: qty });
+          buyLotsINR.push({ qty, priceUSD: 0, fxRate: txRate, charges: 0, rem: qty });
+        }
       } else if (tx.type === 'SPLIT') {
         const splitQty = Number(tx.quantity) || 0;
         if (splitQty > 0) {
@@ -839,6 +847,10 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           remUSD -= used;
           if (lot.rem <= 0) buyLotsUSD.shift();
         }
+        if (remUSD > 0) {
+          realizedPnlUSD += (remUSD * price);
+          remUSD = 0;
+        }
 
         let remINR = qty;
         while (remINR > 0 && buyLotsINR.length > 0) {
@@ -849,6 +861,10 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           lot.rem -= used;
           remINR -= used;
           if (lot.rem <= 0) buyLotsINR.shift();
+        }
+        if (remINR > 0) {
+          realizedPnlINR += (remINR * price * txRate);
+          remINR = 0;
         }
       }
     }
@@ -869,7 +885,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       ? (dynamicCostBasisUSD / dynamicOpenShares)
       : (Number(holding.avg_buy_price) || 0);
 
-    const currentPriceUSD = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(holding.current_price) || 0);
+    const currentPriceUSD = resolveHoldingPrice(holding, liveQuote);
 
     const currentValueUSD = currentQty * currentPriceUSD;
     const costBasisUSD = dynamicCostBasisUSD > 0 ? dynamicCostBasisUSD : (currentQty * avgBuyPriceUSD);
@@ -1112,26 +1128,43 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             }
             tradeScaleCheckpoints.push({ date: tDate, scale: bestRatio });
           }
-        } else if (t.type === 'SPLIT') {
-          // If a split transaction exists, identify the market ex-date where historical prices dropped
+        } else if (t.type === 'SPLIT' || t.type === 'BONUS') {
+          // If a split or bonus exists, identify the market ex-date where historical prices dropped
           let splitMultiplier = 1;
           const match = (t.notes || '').match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
           if (match) {
             const o = parseFloat(match[1]);
             const n = parseFloat(match[2]);
             if (o > 0 && n > 0) splitMultiplier = n / o;
+          } else if (t.type === 'BONUS') {
+             // For bonus, if we don't have a ratio, we can estimate it based on the quantity added vs running quantity.
+             // But simpler: just look for ANY massive price drop (>= 20%) in the 45 days prior to the bonus transaction.
+             splitMultiplier = 1.25; // Minimum drop to look for (20% drop = 1.25 multiplier)
           }
+
           let exDate = t.date;
+          const hpDates = Object.keys(histPrices).sort();
+          
           if (splitMultiplier > 1) {
-            const hpDates = Object.keys(histPrices).sort();
-            for (let i = 1; i < hpDates.length; i++) {
-              if (hpDates[i] > t.date) break;
+            // Search backwards from the recorded transaction date to identify the true market ex-date where historical prices dropped
+            for (let i = hpDates.length - 1; i >= 1; i--) {
+              if (hpDates[i] > t.date) continue;
+              // Allow searching back up to 365 days from the recorded transaction date
+              const daysDiff = (new Date(t.date).getTime() - new Date(hpDates[i]).getTime()) / (1000 * 3600 * 24);
+              if (daysDiff > 365) break;
+
               const prevP = Number(histPrices[hpDates[i - 1]]) || 0;
               const curP = Number(histPrices[hpDates[i]]) || 0;
               if (prevP > 0 && curP > 0) {
                 const dropRatio = curP / prevP;
                 const expectedDrop = 1 / splitMultiplier;
-                if (Math.abs(dropRatio - expectedDrop) / expectedDrop <= 0.20) {
+                // For explicitly known splits, require 20% tolerance. For BONUS, accept drop matching ratio within 20% or drop >= 15%
+                if (t.type === 'SPLIT' && match) {
+                  if (Math.abs(dropRatio - expectedDrop) / expectedDrop <= 0.20) {
+                    exDate = hpDates[i];
+                    break;
+                  }
+                } else if (Math.abs(dropRatio - expectedDrop) / expectedDrop <= 0.20 || dropRatio <= 0.85) {
                   exDate = hpDates[i];
                   break;
                 }
@@ -1139,6 +1172,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             }
           }
           tradeScaleCheckpoints.push({ date: exDate, scale: 1.0 });
+          // Shift the transaction date backwards so that runningQ updates exactly on the ex-date to prevent chart troughs
+          t.effectiveDate = exDate;
         }
       }
 
@@ -1153,6 +1188,13 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
       let currentDate = new Date(startDate);
 
+      // Sort txs by effectiveDate (or date) so that shifted bonus/split transactions are processed in chronological order
+      txs.sort((a, b) => {
+        const dDiff = (a.effectiveDate || a.date || '').localeCompare(b.effectiveDate || b.date || '');
+        if (dDiff !== 0) return dDiff;
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      });
+
       while (currentDate <= endDate) {
         const dStr = currentDate.toISOString().split('T')[0];
         let dayEvents = [];
@@ -1162,9 +1204,16 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           scaleIdx++;
         }
 
-        while (txIdx < txs.length && txs[txIdx].date <= dStr) {
+        while (txIdx < txs.length && (txs[txIdx].effectiveDate || txs[txIdx].date) <= dStr) {
           const tx = txs[txIdx];
           const qty = Number(tx.quantity) || 0;
+          let eventQty = qty;
+          if (eventQty === 0 && tx.type === 'BONUS') {
+            const bMatch = (tx.notes || '').match(/\+([\d.,]+)\s*Shares/i);
+            if (bMatch) {
+              eventQty = parseFloat(bMatch[1].replace(/,/g, ''));
+            }
+          }
           const price = Number(tx.price) || 0;
           const rawPrincipalUSD = qty * price;
           const txRate = isUSStock ? (Number(tx.fx_rate) || getHistoricalFxRate(tx.date)) : 1.0;
@@ -1174,11 +1223,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           const amtUSD = ['SELL', 'REDEEM', 'REDEMPTION'].includes(tx.type) ? Math.max(0, rawPrincipalUSD - txChargesUSD) : (rawPrincipalUSD + txChargesUSD);
           const amtINR = ['SELL', 'REDEEM', 'REDEMPTION'].includes(tx.type) ? Math.max(0, rawPrincipalINR - txChargesINR) : (rawPrincipalINR + txChargesINR);
 
-          if (tx.date === dStr && tx.type !== 'DIVIDEND') {
+          if ((txs[txIdx].effectiveDate || txs[txIdx].date) === dStr && tx.type !== 'DIVIDEND') {
             dayEvents.push({
               type: tx.type,
-              qty: qty,
-              quantity: qty,
+              qty: eventQty,
+              quantity: eventQty,
               price: isUSStock ? price : (price * txRate),
               priceUSD: price,
               priceINR: price * txRate,
@@ -1204,9 +1253,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             runningInvUSD += txChargesUSD;
             runningInvINR += txChargesINR;
           } else if (tx.type === 'SPLIT') {
-            const splitQty = Number(tx.quantity) || 0;
-            if (splitQty > 0) {
-              runningQ += splitQty;
+            if (qty > 0) {
+              runningQ += qty;
             }
           } else if (tx.type === 'SELL' || tx.type === 'REDEEM' || tx.type === 'REDEMPTION') {
             const sellCostUSD = runningQ > 0 ? (qty * (runningInvUSD / runningQ)) : 0;
@@ -1215,7 +1263,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             runningInvUSD = Math.max(0, runningInvUSD - sellCostUSD);
             runningInvINR = Math.max(0, runningInvINR - sellCostINR);
           }
-          if (runningQ <= 1e-6) {
+          if (runningQ <= 1e-6 || (isExited && txIdx === txs.length - 1 && ['SELL', 'REDEEM', 'REDEMPTION'].includes(tx.type))) {
             runningQ = 0;
             runningInvUSD = 0;
             runningInvINR = 0;
@@ -1275,7 +1323,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     }
 
     const activeTimelineData = isUSStock ? timelineUSD : timelineINR;
-    let quotePrice = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(holding.current_price) || 0);
+    let quotePrice = resolveHoldingPrice(holding, liveQuote);
     let prevClose = (liveQuote && liveQuote.previousClose) ? Number(liveQuote.previousClose) : quotePrice;
     let dayHigh = (liveQuote && liveQuote.high) ? Number(liveQuote.high) : quotePrice;
     let dayLow = (liveQuote && liveQuote.low) ? Number(liveQuote.low) : quotePrice;
@@ -1387,9 +1435,14 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
     const isFundOrNps = holding.category_id === 'mutual_funds' || holding.category_id === 'nps';
     const quoteDigits = isFundOrNps ? 4 : 2;
+    const resolvedNse = (liveQuote && liveQuote.nse_price > 0) ? liveQuote.nse_price : (Number(holding.nse_price) || 0);
+    const resolvedBse = (liveQuote && liveQuote.bse_price > 0) ? liveQuote.bse_price : (Number(holding.bse_price) || 0);
 
     const updatedHolding = {
       ...holding,
+      current_price: Number(quotePrice.toFixed(quoteDigits)),
+      nse_price: resolvedNse,
+      bse_price: resolvedBse,
       quantity: Number(currentQty.toFixed(4)),
       avg_buy_price: Number((isUSStock ? avgBuyPriceUSD : (activeLotsINR.length > 0 && currentQty > 0 ? (costBasisINR / currentQty) : avgBuyPriceUSD)).toFixed(4))
     };
@@ -1398,6 +1451,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       holding: updatedHolding,
       quote: {
         price: Number(quotePrice.toFixed(quoteDigits)),
+        nse_price: resolvedNse,
+        bse_price: resolvedBse,
         previousClose: Number(prevClose.toFixed(quoteDigits)),
         open: Number(openPrice.toFixed(quoteDigits)),
         high: Number(dayHigh.toFixed(quoteDigits)),

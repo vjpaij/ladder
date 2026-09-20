@@ -8,6 +8,26 @@ import { storeRate, getPersistedRate, scheduleRetry, registerFetchFunction } fro
 export const liveQuoteCache = new Map();
 
 /**
+ * Canonical helper to resolve a holding's current price with NSE/BSE MAX comparison for Indian stocks.
+ * Zero-divergence calculation across all endpoints, modals, and summary engines.
+ */
+export function resolveHoldingPrice(h, liveQuote = null) {
+  if (!h) return 0;
+  const quote = liveQuote || liveQuoteCache.get(h.symbol);
+  let price = (quote && quote.price > 0) ? Number(quote.price) : (Number(h.current_price) || 0);
+
+  if (h.category_id === 'in_stocks') {
+    const nse = (quote && quote.nse_price > 0) ? Number(quote.nse_price) : (Number(h.nse_price) || 0);
+    const bse = (quote && quote.bse_price > 0) ? Number(quote.bse_price) : (Number(h.bse_price) || 0);
+    const maxEx = Math.max(nse, bse);
+    if (maxEx > 0) {
+      price = Math.max(price, maxEx);
+    }
+  }
+  return price;
+}
+
+/**
  * Helper to delay execution for exponential backoff
  */
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));

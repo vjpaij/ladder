@@ -407,9 +407,6 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                     <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Realized P&amp;L {getSortIcon('realized_pnl')}
                     </th>
-                    <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                      Dividend {getSortIcon('total_dividends')}
-                    </th>
                     <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
                 ) : (
@@ -453,9 +450,6 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                     </th>
                     <th onClick={() => handleSort('realized_pnl')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
                       Realized P&amp;L {getSortIcon('realized_pnl')}
-                    </th>
-                    <th onClick={() => handleSort('total_dividends')} className="py-3 px-3 text-right cursor-pointer hover:text-white whitespace-nowrap">
-                      Dividend {getSortIcon('total_dividends')}
                     </th>
                     <th className="py-3 px-3 text-center whitespace-nowrap">Actions</th>
                   </tr>
@@ -547,15 +541,6 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                               {isRealizedPos ? '+' : ''}{realizedPnlPct}%
                             </div>
                           </td>
-                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
-                            {Number(h.total_dividends) > 0 ? (
-                              <span className="text-emerald-400 font-bold">
-                                {formatMoney(Number(h.total_dividends), true)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-600 font-medium">—</span>
-                            )}
-                          </td>
                         </>
                       ) : (
                         <>
@@ -604,15 +589,6 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                               <span className="text-slate-600 font-medium">—</span>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
-                            {Number(h.total_dividends) > 0 ? (
-                              <span className="text-emerald-400 font-bold">
-                                {formatMoney(Number(h.total_dividends), true)}
-                              </span>
-                            ) : (
-                              <span className="text-slate-600 font-medium">—</span>
-                            )}
-                          </td>
                         </>
                       )}
 
@@ -626,7 +602,7 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                 })}
                 {sortedHoldings.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-10 text-center text-slate-600 text-xs">
+                    <td colSpan={9} className="py-10 text-center text-slate-600 text-xs">
                       No NPS schemes found matching current status filter ({statusFilter})
                     </td>
                   </tr>

@@ -146,6 +146,11 @@ export default function HoldingDetailHeader({
                 </span>
               )}
             </div>
+            {((detail?.quote?.nse_price > 0 || holding?.nse_price > 0) && (detail?.quote?.bse_price > 0 || holding?.bse_price > 0)) && (
+              <div className="text-[10px] text-emerald-400/90 font-mono mt-0.5 text-right whitespace-nowrap">
+                NSE: ₹{detail?.quote?.nse_price || holding?.nse_price} | BSE: ₹{detail?.quote?.bse_price || holding?.bse_price}
+              </div>
+            )}
             <div className="mt-1 flex items-center justify-end">
               {(() => {
                 const rawQuoteDate = detail?.quote?.quoteDate || holding?.quote_date || holding?.quoteDate || detail?.quote?.updated;

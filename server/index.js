@@ -93,6 +93,35 @@ app.listen(PORT, async () => {
     console.warn('[WarmCache Error]:', err.message);
   }
 
+  // 1b. Prime liveQuoteCache from cached holdings on server boot (0 Supabase egress)
+  try {
+    const cachedHoldings = await db.select('holdings');
+    if (Array.isArray(cachedHoldings)) {
+      let primedCount = 0;
+      for (const h of cachedHoldings) {
+        if (!h.symbol) continue;
+        const nse = Number(h.nse_price) || 0;
+        const bse = Number(h.bse_price) || 0;
+        const cur = Number(h.current_price) || 0;
+        const highest = h.category_id === 'in_stocks' ? Math.max(cur, nse, bse) : cur;
+        if (highest > 0 || nse > 0 || bse > 0) {
+          liveQuoteCache.set(h.symbol, {
+            price: highest > 0 ? highest : cur,
+            nse_price: nse,
+            bse_price: bse,
+            dayChange: h.day_change !== undefined ? Number(h.day_change) : 0,
+            dayChangePct: h.day_change_pct !== undefined ? Number(h.day_change_pct) : 0,
+            quoteDate: h.updated_at ? h.updated_at.split('T')[0] : null
+          });
+          primedCount++;
+        }
+      }
+      console.log(`[PriceEngine] Primed liveQuoteCache with ${primedCount} holdings from local cache on boot (0 egress).`);
+    }
+  } catch (err) {
+    console.warn('[PriceEngine Priming Warning]:', err.message);
+  }
+
   // 2. Self-scheduling non-overlapping real-time active price & forex sync loop
   // EGRESS GUARD: Runs every 60s (instead of 2s), and ONLY during active market trading hours
   let lastTickerMarketState = null;

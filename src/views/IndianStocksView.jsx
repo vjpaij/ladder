@@ -565,6 +565,11 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                   <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                                 </div>
                               )}
+                              {h.nse_price > 0 && h.bse_price > 0 && (
+                                <div className="text-[9.5px] text-emerald-400/90 font-mono mt-0.5 text-right whitespace-nowrap">
+                                  NSE: ₹{h.nse_price} | BSE: ₹{h.bse_price}
+                                </div>
+                              )}
                             </td>
                             <td className="py-3 px-3 text-right font-mono font-bold text-slate-100 whitespace-nowrap">
                               {formatMoney(h.investedValueINR, true)}

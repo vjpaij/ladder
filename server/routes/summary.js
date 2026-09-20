@@ -1,7 +1,7 @@
 import express from 'express';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { fetchFxRate, liveQuoteCache } from '../services/priceEngine.js';
+import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
@@ -69,7 +69,7 @@ router.get('/summary', async (req, res) => {
     const livePriceMap = {};
     holdings.forEach(h => {
       const liveQuote = liveQuoteCache.get(h.symbol);
-      livePriceMap[h.symbol] = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+      livePriceMap[h.symbol] = resolveHoldingPrice(h, liveQuote);
     });
 
     const valuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
@@ -141,7 +141,7 @@ router.get('/summary', async (req, res) => {
       if ((Number(h.quantity) || 0) > 0) {
         const liveRate = h.currency === 'USD' ? fxRate : 1.0;
         const liveQuote = liveQuoteCache.get(h.symbol);
-        const currentPriceNum = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+        const currentPriceNum = resolveHoldingPrice(h, liveQuote);
         const currentVal = (Number(h.quantity) || 0) * currentPriceNum * liveRate;
 
         let txRate = 1.0;
@@ -288,7 +288,7 @@ router.get('/summary', async (req, res) => {
           hDivs.forEach(d => flows.push({ date: d.ex_date || d.payment_date, amount: Number(d.amount_inr || 0) }));
           const rate = h.currency === 'USD' ? fxRate : 1.0;
           const liveQuote = liveQuoteCache.get(h.symbol);
-          const curPrice = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+          const curPrice = resolveHoldingPrice(h, liveQuote);
           const curVal = Number(h.quantity) * curPrice * rate;
           flows.push({ date: new Date().toISOString().split('T')[0], amount: curVal });
 
@@ -374,7 +374,14 @@ router.get('/summary', async (req, res) => {
     try {
       const pnlHistory = await db.select('pnl_history');
       if (pnlHistory && pnlHistory.length > 0) {
-        const pastLogs = pnlHistory.filter(l => l.log_date < todayStr).sort((a, b) => b.log_date.localeCompare(a.log_date));
+        const normalizedLogs = pnlHistory.map(l => {
+          const parts = (l.log_date || '').split('-');
+          const iso = (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4)
+            ? `${parts[2]}-${parts[1]}-${parts[0]}`
+            : l.log_date;
+          return { ...l, isoDate: iso };
+        });
+        const pastLogs = normalizedLogs.filter(l => l.isoDate < todayStr).sort((a, b) => b.isoDate.localeCompare(a.isoDate));
         if (pastLogs.length > 0) {
           yesterdayWealth = pastLogs[0].net_worth_inr;
           yesterdayAssets = pastLogs[0].total_assets_inr;

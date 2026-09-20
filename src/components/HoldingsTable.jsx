@@ -214,19 +214,18 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                     <div>
                       {isUS ? `$${h.current_price}` : `₹${Number(h.current_price).toLocaleString('en-IN', { minimumFractionDigits: isFundOrNps ? 4 : 2, maximumFractionDigits: isFundOrNps ? 4 : 2 })}`}
                     </div>
-                    {h.day_change !== undefined ? (
+                    {h.day_change !== undefined && (
                       <div className={`text-[9.5px] font-bold flex items-center justify-end gap-0.5 ${
                         (h.day_change || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}>
                         <span>{(h.day_change || 0) >= 0 ? '▲ +' : '▼ '}{isUS ? `$${Math.abs(h.day_change)}` : `₹${Number(Math.abs(h.day_change)).toLocaleString('en-IN', { minimumFractionDigits: isFundOrNps ? 4 : 2, maximumFractionDigits: isFundOrNps ? 4 : 2 })}`}</span>
                         <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                       </div>
-                    ) : (
-                      h.category_id === 'in_stocks' && h.nse_price > 0 && h.bse_price > 0 && (
-                        <div className="text-[10px] text-emerald-400/90 font-sans mt-0.5">
-                          NSE: ₹{h.nse_price} | BSE: ₹{h.bse_price}
-                        </div>
-                      )
+                    )}
+                    {h.category_id === 'in_stocks' && h.nse_price > 0 && h.bse_price > 0 && (
+                      <div className="text-[9.5px] text-emerald-400/90 font-mono mt-0.5 text-right whitespace-nowrap">
+                        NSE: ₹{h.nse_price} | BSE: ₹{h.bse_price}
+                      </div>
                     )}
                   </td>
 

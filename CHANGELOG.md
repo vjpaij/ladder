@@ -5,6 +5,47 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.43.0] - 2026-09-20
+
+### Fixed
+- **Stock Split Market Ex-Date Detection Hardening & TDPOWERSYS Timeline Alignment**:
+  - **Root Cause Diagnosed**: TD Power Systems (`TDPOWERSYS`) underwent a 1:2 stock split with market ex-date on 28-05-2026 where historical raw closing prices halved from ₹1,330.20 to ₹665.10. In [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js), ex-date detection previously searched forward with an arbitrary 45-day window (`daysDiff > 45`). Because the SPLIT transaction was entered on 24-08-2026 (88 days after ex-date), the loop failed to find the 28-05-2026 ex-date; this left `currentTradeScale` at 0.5 for three months, cutting market prices in half twice (to ₹332.55) and creating an artificial 50% valuation trough from ₹4.58L to ₹2.29L from May 28 to August 24, followed by an artificial 100% vertical surge on August 24 when the scale reset to 1.0.
+  - **Backward Search with 365-Day Lookback**: Enhanced ex-date detection in [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js) to search backwards from the recorded transaction date with up to 365 days lookback, reliably detecting the ex-date (2026-05-28) and transitioning `currentTradeScale` to 1.0 on the exact ex-date.
+  - **TDPOWERSYS Transaction Alignment**: Updated the SPLIT transaction date in `data/db_cache_snapshot.json` and database to the true market ex-date `2026-05-28`, aligning the transaction ledger separator bar with the chart split event.
+  - **Calendar Weekend Liability Parity**: Fixed weekend `todayEntry` handling in [server/routes/calendar.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/calendar.js) to ensure live liabilities (`liveTodayValuation.debt`) are preserved on non-trading days, maintaining 100% exact parity with Dashboard `/api/summary` and canonical engine.
+
+## [5.42.0] - 2026-09-20
+
+### Fixed
+- **Fully Sold Holding Timeline Chart Zero-Touch Fix (Corporate Action & Bonus Issue Resolution)**:
+  - **Root Cause Diagnosed**: Stocks like Sonata Software (`SONATSOFTW`), Gail (`GAIL`), Blue Star (`BLUESTARCO`), and Fiem Industries (`FIEMIND`) showed phantom balances and cost hanging in the air above zero at the end of their Tracker Chart after being fully sold. Historical BUY transactions in the database had previously been adjusted to corporate-action-scaled share counts (e.g. Sonata's buys were stored as 14, 14, and 1 share, total 29 shares, matching total sold of 29 shares) while the BONUS transaction was logged with `quantity: 0` and informational note `+14 Shares Received as Bonus`. The dense timeline simulation loop in `/api/holding/:holdingId/detail` previously parsed `+14 Shares Received as Bonus` from notes and added 14 bonus shares to `runningQ` a second time (double counting), leaving 14 phantom shares and ₹5,869.46 cost basis hanging in the air after the final 14-share sale.
+  - **Timeline Simulation Harmonization**: Separated event dot display quantity (`eventQty`) from financial simulation quantity (`qty`). Simulation strictly adheres to `Number(tx.quantity) || 0`, eliminating duplicate share additions for split/bonus-adjusted buy lots.
+  - **Airtight Liquidation Zero-Touch Invariance**: Added safeguard in [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js) guaranteeing that when an exited holding (`isExited`) executes its final sale/redemption transaction, `runningQ`, `runningInvUSD`, and `runningInvINR` immediately clamp to strictly 0, ensuring both Cost Basis and Market Value lines drop to exactly ₹0.00 at the liquidation date.
+  - **Summary P&L Date Normalization**: In [server/routes/summary.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/summary.js), normalized `pnl_history` dates to ISO format `YYYY-MM-DD` when evaluating yesterday's closing wealth, ensuring 100% exact cent-level parity between Dashboard and Calendar views.
+
+## [5.41.0] - 2026-09-20
+
+### Fixed
+- **Indian Equity NSE/BSE MAX Quote Engine Hardening, Zero-Egress Boot Priming & UI Parity**:
+  - **Root Cause Diagnosed**: Outside market trading hours (nights/weekends/holidays), live price polling is suspended per Rule 22 market hours gating; on cold server reboots, `liveQuoteCache` was empty, causing endpoints to fall back to `holding.current_price` from `data/db_cache_snapshot.json` where `bse_price` was 0 and `current_price` held the older NSE quote (e.g. Anant Raj at ₹606.15 instead of BSE ₹606.25). Furthermore, in [HoldingsTable.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/components/HoldingsTable.jsx), `NSE: ₹... | BSE: ₹...` was placed in an unreachable `else` branch of `h.day_change !== undefined` and was omitted from [IndianStocksView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/IndianStocksView.jsx).
+  - **Universal Price Resolver (`resolveHoldingPrice`)**: Exported canonical helper `resolveHoldingPrice(holding, liveQuote)` from [server/services/priceEngine.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/services/priceEngine.js) and integrated across [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js), [server/routes/summary.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/summary.js), [server/routes/calendar.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/calendar.js), and [server/services/portfolioCalculator.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/services/portfolioCalculator.js), strictly enforcing `Math.max(price, nse_price, bse_price)` for Indian stocks.
+  - **Boot Cache Priming (Zero Egress)**: Added cache priming logic in [server/index.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/index.js) right after `warmCache()` loads the local snapshot, priming `liveQuoteCache` with all cached holdings on startup with 0 bytes of Supabase egress.
+  - **Local Disk Snapshot Quote Refresh (Zero Egress)**: Queried Yahoo Finance directly for all active Indian stocks (`.NS` and `.BO`), updating `data/db_cache_snapshot.json` to lock higher BSE quotes (such as Anant Raj ₹606.25 vs ₹606.15, PFC ₹346 vs ₹342.55, FCL ₹57.09 vs ₹57.02) with 0 bytes of Supabase egress.
+  - **UI Exchange Badges**: Updated [HoldingsTable.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/components/HoldingsTable.jsx), [IndianStocksView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/IndianStocksView.jsx), and [HoldingDetailHeader.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/components/holding-detail/HoldingDetailHeader.jsx) to render `NSE: ₹... | BSE: ₹...` pills whenever both exchange quotes are available.
+
+## [5.40.0] - 2026-09-20
+
+### Fixed
+- **Corporate Action FIFO Realized P&L & Bonus Lot Harmonization (FCL Resolution)**:
+  - Fixed a critical calculation bug where Fineotex Chemical Limited (`FCL`) displayed a massive false realized loss of `-₹34,327.14` in the Holding Detail Modal.
+  - Root Cause: In [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js), the FIFO lot queue previously ignored bonus transactions when `quantity === 0`. Because FCL had bonus logged as `quantity: 0` with notes `+1336 Shares Received as Bonus`, the 1,336 bonus shares were never pushed to the FIFO queue. When the user sold 2,061 shares, FIFO only found 725 shares, matched pre-bonus high costs, and halted without accounting for the proceeds of the 1,336 zero-cost bonus shares.
+  - Universal Fix: Patched [server/routes/holdings.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/routes/holdings.js) and [server/services/recalculator.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/services/recalculator.js) to parse bonus quantities from transaction notes (`/\+([\d.,]+)\s*Shares/i`) and push 0-cost lots to the queue, achieving exact cent-level parity across Holding Detail Modal (`-4,691.81`), Recalculator (`-4,691.81`), and Holdings table (`-4,691.81`).
+- **Timeline Chart Duplicate Split Multiplier Elimination**:
+  - Diagnosed why the timeline chart showed false big profits on realized sales: the timeline chart simulation loop previously parsed `Stock Split (1:2)` and added synthetic quantity `runningQ * ((2/1) - 1) = 1,670` shares, double-counting the split since buy transactions were already split-adjusted; this cut the average cost basis in half to ₹12.15, plotting false profits on sales at ₹22.18.
+  - Removed synthetic split addition from the chart loop, restoring true cost basis (~₹24.45/share before sell), eliminating the chart valuation trough, and correctly reflecting the true small loss (-₹4,691.81) when the position was liquidated.
+- **Removed Dividend Column From NPS**:
+  - Cleaned up [NpsView.jsx](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/src/views/NpsView.jsx) by removing the Dividend column from both active and closed tables as NPS schemes do not distribute dividends.
+
 ## [5.39.0] - 2026-09-20
 
 ### Added

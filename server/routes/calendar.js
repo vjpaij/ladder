@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { fetchFxRate, liveQuoteCache } from '../services/priceEngine.js';
+import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
 import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -84,7 +84,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     const livePriceMap = {};
     holdings.forEach(h => {
       const liveQuote = liveQuoteCache.get(h.symbol);
-      livePriceMap[h.symbol] = (liveQuote && liveQuote.price > 0) ? liveQuote.price : (Number(h.current_price) || 0);
+      livePriceMap[h.symbol] = resolveHoldingPrice(h, liveQuote);
     });
 
     const liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
@@ -108,17 +108,20 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
 
     let todayEntry;
     if (isWeekendDay(todayStr) && lastTradingLog) {
+      const liveDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
       if (todayTxs.length === 0) {
         // Rule 5: Non-trading session invariance. Zero market movement against Friday.
         todayEntry = {
           ...lastTradingLog,
           date: todayStr,
+          debt: liveDebt,
+          credits: liveTodayValuation.credits,
+          loan: liveTodayValuation.loan,
           daily_pnl: 0,
           pnl_pct: 0
         };
       } else {
         // User performed cash/debt transactions on weekend. Equity/MF/NPS strictly carry forward Friday.
-        const debt = Number((liveTodayValuation.debt ?? (liveTodayValuation.loan + liveTodayValuation.credits)).toFixed(2));
         const totalAssets = Number((
           (liveTodayValuation.savings || 0) +
           (liveTodayValuation.epf || 0) +
@@ -127,7 +130,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
           Number(lastTradingLog.us_stocks || 0) +
           Number(lastTradingLog.nps || 0)
         ).toFixed(2));
-        const wealth = Number((totalAssets - debt).toFixed(2));
+        const wealth = Number((totalAssets - liveDebt).toFixed(2));
         const prevWealth = Number(lastTradingLog.total_wealth ?? lastTradingLog.wealth ?? 0);
         const pnl = Number((wealth - prevWealth).toFixed(2));
         const pct = prevWealth !== 0 ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
@@ -140,7 +143,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
           mutual_funds: lastTradingLog.mutual_funds,
           nps: lastTradingLog.nps,
           total_assets: totalAssets,
-          debt,
+          debt: liveDebt,
           wealth,
           total_wealth: wealth,
           daily_pnl: pnl,
