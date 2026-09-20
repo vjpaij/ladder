@@ -6,6 +6,7 @@ import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
 import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs } from '../server/services/priceEngine.js';
+import { getYesterdayIST } from '../server/services/marketCalendar.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -230,9 +231,8 @@ async function rebuildEod() {
 
   // Target end date: EOD logs strictly represent finalized, closed trading sessions.
   // Today's current day is actively trading and MUST compute dynamically in real-time.
-  // Target end date for batch historical EOD logs is strictly yesterday.
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const targetEndDate = yesterdayStr;
+  // Target end date for batch historical EOD logs is strictly yesterday in IST.
+  const targetEndDate = getYesterdayIST();
 
   // 3. Ensure active Indian and US stocks have prices up to targetEndDate
   const symbolMap = { 'TATAMOTORS': 'TMPV.NS', 'TATAMTRDVR': 'TMPV.NS', 'SWANENERGY': '503310.BO' };

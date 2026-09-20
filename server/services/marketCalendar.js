@@ -298,6 +298,16 @@ export function getTodayIST() {
 }
 
 /**
+ * Returns yesterday's date in IST as YYYY-MM-DD string.
+ */
+export function getYesterdayIST() {
+  const todayIST = getTodayIST();
+  const d = new Date(`${todayIST}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * Determines whether a given ISO date is an active trading session for a specified market.
  * 
  * @param {string} dateISO - Date string formatted as YYYY-MM-DD

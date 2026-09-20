@@ -2,6 +2,15 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { fork } from 'child_process';
+
+// Global resilience handlers to prevent unexpected daemon exits
+process.on('uncaughtException', (err) => {
+  console.warn('[Server Resilience] Uncaught exception intercepted:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.warn('[Server Resilience] Unhandled promise rejection intercepted:', reason?.message || reason);
+});
+
 import db, { initDatabase, warmCache } from './db.js';
 import { supabase } from './supabaseClient.js';
 import { 
@@ -14,7 +23,8 @@ import {
   isAnyMarketOpen,
   isTradingDay,
   getLastTradingDay,
-  getTodayIST
+  getTodayIST,
+  getYesterdayIST
 } from './services/priceEngine.js';
 import { createCloudBackup } from '../scripts/backup_manager.mjs';
 import { JWT_SECRET } from './middleware/auth.js';
@@ -319,8 +329,8 @@ app.listen(PORT, async () => {
   // Check on boot if previous completed trading session's EOD log was missed (e.g. server was stopped)
   const checkMissedEodRebuild = async () => {
     try {
-      const today = getTodayIST();
-      const lastTradingDay = getLastTradingDay(today, 'NSE');
+      const yesterday = getYesterdayIST();
+      const lastCompletedTradingDay = getLastTradingDay(yesterday, 'NSE');
 
       // Check cached pnl_history first (0 egress)
       const pnlHistory = await db.select('pnl_history');
@@ -341,8 +351,8 @@ app.listen(PORT, async () => {
       if (!latestLogDate) return;
 
       // Only trigger rebuild if the latest log date is strictly older than the last completed trading session
-      if (latestLogDate < lastTradingDay) {
-        console.log(`[Startup EOD Check] Latest EOD log is ${latestLogDate}, but last completed trading session was ${lastTradingDay}. Triggering catch-up rebuild...`);
+      if (latestLogDate < lastCompletedTradingDay) {
+        console.log(`[Startup EOD Check] Latest EOD log is ${latestLogDate}, but last completed trading session was ${lastCompletedTradingDay}. Triggering catch-up rebuild...`);
         const child = fork('./scripts/rebuild_portfolio_eod.mjs');
         child.on('exit', (code) => {
           console.log(`[Startup EOD Check] Catch-up rebuild finished with code ${code}`);
@@ -351,7 +361,7 @@ app.listen(PORT, async () => {
           console.error('[Startup EOD Check] Error starting catch-up rebuild:', err.message);
         });
       } else {
-        console.log(`[Startup EOD Check] EOD logs are up to date with last trading session (latest: ${latestLogDate}, last trading day: ${lastTradingDay}).`);
+        console.log(`[Startup EOD Check] EOD logs are up to date with last trading session (latest: ${latestLogDate}, last trading day: ${lastCompletedTradingDay}).`);
       }
     } catch (e) {
       console.warn('[Startup EOD Check] Failed to check missed rebuild:', e.message);

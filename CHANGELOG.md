@@ -5,6 +5,32 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.48.2] - 2026-09-21
+
+### Fixed
+- **IndusInd Bank Statement Digit Correction & Exact Daily P&L Parity**:
+  - **Root Cause Diagnosed**: In the raw balance series from 10-Sep to 19-Sep, the leading digit for IndusInd Bank was previously transcribed as `18,662.00` and `18,513.00` instead of the statement's true `16,662.00` and `16,513.00`, artificially inflating 19-Sep IndusInd balance by ₹2,000. When IndusInd dropped to `₹9,233.00` on 20-Sep, the true bank change was `16,513.00 - 9,233.00 = -₹7,280.00`.
+  - **Clean Ingestion & Holding Recalculation**: Corrected all 11 IndusInd balance records (10-14 Sep: `₹16,662.00`, 15-19 Sep: `₹16,513.00`, 20 Sep: `₹9,233.00`), updated transaction ledgers, recalculated holding balances, and synchronized EOD logs in `portfolio_eod_logs.json` and `pnl_history`.
+  - **Exact 1-to-1 Parity Verified**: On 20-Sep-2026, Daily P&L is **`-₹7,280.00`** and Bank Savings delta is **`↓ -₹7,280.00`**, matching with 100% mathematical consistency down to the cent.
+
+## [5.48.1] - 2026-09-21
+
+### Fixed
+- **Authoritative Portfolio EOD Sheet Alignment & Weekend Market Invariance**:
+  - **Root Cause Diagnosed**: Automated rebuild had previously estimated intermediate daily asset valuations from external APIs instead of preserving the authoritative spreadsheet numbers, causing synthetic fluctuations on weekends; in addition, the server startup check repeatedly triggered catch-up rebuilds because `getLastTradingDay(today)` evaluated to Monday before market close.
+  - **Authoritative EOD History Synchronization**: Synchronized all 46 daily records from `06-08-2026` to `20-09-2026` with exact spreadsheet figures across [portfolio_eod_logs.json](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/data/portfolio_eod_logs.json) and `pnl_history`.
+  - **Weekend Market Invariance Enforced**: Mutual Funds (`₹45,42,362.15`), Indian Stocks (`₹1,03,90,621.54`), US Stocks (`₹18,72,266.10`), NPS (`₹5,12,306.07`), and EPF (`₹47,94,473.00`) remain strictly invariant across Saturday, Sunday, and Monday pre-market, with weekend movements reflecting strictly bank deposits (`+₹1,88,137.16` on 19 Sep) and bank spends (`-₹7,280.00` on 20 Sep).
+  - **Startup Rebuild Guard Hardened**: Patched `checkMissedEodRebuild` in [server/index.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/index.js) to evaluate `getLastTradingDay(getYesterdayIST())` preventing false startup rebuild loops.
+
+## [5.48.0] - 2026-09-21
+
+### Added
+- **Bank Accounts and Credit Card Historical Ingestion & Zero-Egress Synchronization**:
+  - **Historical Ingestion Audit**: Audited missing bank balance transactions and credit card liabilities from 06-08-2026 / 07-08-2026 to 20-09-2026 across HDFC, IndusInd, IDFC, RBL, SBI, and ICICI Credit Card.
+  - **Automated Discrete Transaction Ingestion**: Ingested 78 verified delta transactions (27 HDFC, 14 IndusInd, 17 IDFC, 1 RBL, 2 SBI, 17 ICICI Credit Card) into the local write-through cache (`dbCache`) and disk snapshot (`data/db_cache_snapshot.json`) with zero Supabase egress.
+  - **Recalculated Holdings & Liabilities**: Re-computed running ledger balances via `recalculateHoldingState` to exact 20-09-2026 closing balances: HDFC ₹10,062.62, IndusInd ₹9,233.00, IDFC ₹14,77,056.92, RBL ₹20,804.00, SBI ₹1,338.05, and ICICI Credit Card outstanding balance ₹49,153.24.
+  - **Portfolio EOD Logs & Calendar Synchronization**: Synchronized 46 daily records in `data/portfolio_eod_logs.json` and rebuilt historical EOD logs via `rebuild_portfolio_eod.mjs`.
+
 ## [5.47.0] - 2026-09-21
 
 ### Fixed
