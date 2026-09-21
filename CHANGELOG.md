@@ -5,6 +5,14 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.48.4] - 2026-09-21
+
+### Fixed
+- **EOD History Full-Span Synchronization & Weekend Single-Change Invariance**:
+  - **Root Cause Diagnosed**: While `pnl_history` in the database snapshot had been reconciled, `data/portfolio_eod_logs.json` on disk still contained older unaligned rows for 18-Sep and 19-Sep. When `server/routes/calendar.js` loaded `portfolio_eod_logs.json` and merged `pnl_history` strictly for `>= 2026-09-20`, it took 19-Sep from `portfolio_eod_logs.json` and 20-Sep from `pnl_history`. This mixed two disparate datasets across the boundary, falsely plotting 5 category changes (`-₹58,614.43` Indian Equity, `-₹0.02` Mutual Funds, `+₹4,729.52` US Equity, `+₹19.25` Credit Cards) on Sunday 20-Sep instead of strictly 1 bank change.
+  - **Full 6,934-Record Synchronization**: Synchronized all 6,934 historical records in `data/portfolio_eod_logs.json` directly from `pnl_history`, guaranteeing 100% exact parity across every single date.
+  - **Weekend Single-Change Invariance Verified**: On Sunday 20-Sep-2026, Indian Equity, US Equity, Mutual Funds, NPS, EPF, Loans, and Credit Cards remain strictly invariant against Saturday 19-Sep (all deltas = `₹0.00`). Daily P&L is **`-₹7,280.00`** with strictly **1 change** (Bank Savings `↓ -₹7,280.00`).
+
 ## [5.48.3] - 2026-09-21
 
 ### Fixed
