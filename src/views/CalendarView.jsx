@@ -78,7 +78,7 @@ export default function CalendarView() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
-  const [modalLog, setModalLog] = useState(null); // Popup modal state
+  const [selectedModalKey, setSelectedModalKey] = useState(null); // Dynamic popup modal selection key
   
   // View mode: 'grid' or 'table'
   const [viewMode, setViewMode] = useState('grid');
@@ -103,16 +103,16 @@ export default function CalendarView() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (modalLog) setModalLog(null);
+        if (selectedModalKey) setSelectedModalKey(null);
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [modalLog]);
+  }, [selectedModalKey]);
 
   // Lock body scrolling when popup is open to prevent page shifting
   useEffect(() => {
-    if (modalLog) {
+    if (selectedModalKey) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -120,7 +120,7 @@ export default function CalendarView() {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [modalLog]);
+  }, [selectedModalKey]);
 
   const fetchLogs = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -163,8 +163,9 @@ export default function CalendarView() {
   };
 
   const handleCardClick = (log) => {
+    const key = log.period_key || log.log_date || log.date;
     setSelectedLog(log);
-    setModalLog(log);
+    setSelectedModalKey(key);
     setModalTab('changed');
   };
 
@@ -314,6 +315,12 @@ export default function CalendarView() {
     const lastLiab = logs[logs.length - 1].liabilities_inr || 0;
     return lastLiab - firstLiab;
   }, [logs]);
+
+  // Dynamically derived modalLog that updates automatically with every live price poll
+  const modalLog = useMemo(() => {
+    if (!selectedModalKey) return null;
+    return displayLogs.find(l => (l.period_key || l.log_date || l.date) === selectedModalKey) || null;
+  }, [displayLogs, selectedModalKey]);
 
   // Filter category keys where values actually changed in the selected log popup
   const changedCategoryKeys = useMemo(() => {
@@ -823,7 +830,7 @@ export default function CalendarView() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setModalLog(null)}
+              onClick={() => setSelectedModalKey(null)}
               className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-hidden"
             >
               <motion.div
@@ -860,7 +867,7 @@ export default function CalendarView() {
                         )}
                       </div>
                       <button
-                        onClick={() => setModalLog(null)}
+                        onClick={() => setSelectedModalKey(null)}
                         className="p-1 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors"
                       >
                         <X className="w-3.5 h-3.5" />

@@ -130,6 +130,11 @@
     - **MANDATORY PROACTIVE RULE CODIFICATION**: Whenever an agent identifies an architectural bug, design flaw, resource leak, or divergence from real-world fintech standards, the agent MUST NOT merely apply a superficial local patch. The agent is explicitly authorized and mandated to autonomously formulate, codify, and append a permanent, binding numbered rule in `.agents/AGENTS.md` and log the architectural evolution in `LADDER.md`.
     - **PERMANENT GUARDRAIL IMMUNITY**: Rules once codified in `AGENTS.md` represent non-negotiable workspace law and cannot be bypassed, watered down, or reverted by subsequent agents or automated refactors.
 
+25. **MANDATORY ZERO-STATIC-SNAPSHOT MODAL REACTIVITY & 6-TIER PROPAGATION PROTOCOL**:
+    - **ZERO STATIC DATA OBJECT STATE IN MODALS/POPUPS**: Modals, popups, side drawers, and detail dialogs MUST NEVER store raw data objects (e.g. `holding`, `log`, `scheme`) directly in component state (`const [modalLog, setModalLog] = useState(null)` is strictly prohibited).
+    - **MANDATORY IDENTIFIER KEY & DYNAMIC DERIVATION**: All modals MUST store strictly an identifier key (`const [selectedModalKey, setSelectedModalKey] = useState(null)`) and dynamically derive the active record via `useMemo` from the parent polling collection (`const modalLog = useMemo(() => displayLogs.find(...), [displayLogs, selectedModalKey])`), guaranteeing that background polling updates immediately update on-screen modal metrics reactively without requiring closing and reopening.
+    - **MANDATORY 6-TIER PROPAGATION AUDIT BEFORE HANDOFF**: Any modification to quotes, transactions, corporate actions, balance adjustments, or calculations MUST autonomously verify full 6-tier propagation across Database -> Calculation Engine -> API Controllers -> Global Client Polling -> Primary Views -> Open Modal Popups with 100% mathematical parity and zero human intervention.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:

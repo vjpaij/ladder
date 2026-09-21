@@ -5,6 +5,14 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.48.6] - 2026-09-21
+
+### Fixed
+- **Calendar Day Popup Modal & Table Live Reactive Synchronization & Rule 25 Codified**:
+  - **Root Cause Diagnosed**: When clicking on a date in Calendar (`CalendarView.jsx`), `modalLog` was stored as a static snapshot object on card click. While background polling updates every 5 seconds refreshed `logs` and `displayLogs`, the open popup modal remained frozen with stale metrics (Net Worth, Daily P&L, category breakdowns).
+  - **Dynamic Modal Derivation**: Replaced static `modalLog` state with dynamic `selectedModalKey` state and `modalLog = useMemo(() => displayLogs.find(...), [displayLogs, selectedModalKey])`, guaranteeing that whenever live prices and P&L update in the background, the open drill-down popup modal instantly updates its Net Worth, Daily P&L, and category numbers reactively without closing or re-opening.
+  - **Rule 25 Codification**: Formally codified Rule 25 (Mandatory Zero-Static-Snapshot Modal Reactivity & 6-Tier Propagation Protocol) in `.agents/AGENTS.md` and `LADDER.md`.
+
 ## [5.48.5] - 2026-09-21
 
 ### Enhanced

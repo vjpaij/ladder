@@ -34,7 +34,7 @@ Ladder is an institutional-grade personal finance and investment management dash
 5. **Historical Time-Series & Real-Time Multi-Granularity Calendar**
    - Daily, monthly, and yearly portfolio valuation history spanning 19 years (2007-2026) across 18 asset and liability columns (`data/portfolio_eod_logs.json`).
    - Dynamic real-time single-source-of-truth engine: today's current valuation updates live from real-time price feeds with 0 delay and zero scripts needed.
-   - Interactive color-coded heatmap grid and tabular view with period P&L and ROI metrics.
+   - Interactive color-coded heatmap grid, period trend tables, and dynamic drill-down popup modals that update reactively in real time with live price ticks.
 
 6. **High-Performance Growth Benchmark & Reports Suite**
    - Dedicated service (`server/services/benchmarkEngine.js`) calculating true money-weighted performance vs Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ with binary search index lookups and live sync staleness badge ("Synced: DD-MM-YYYY").
