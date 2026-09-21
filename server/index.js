@@ -136,32 +136,37 @@ app.listen(PORT, async () => {
   }
 
   // 2. Self-scheduling non-overlapping real-time active price & forex sync loop
-  // EGRESS GUARD: Runs every 60s (instead of 2s), and ONLY during active market trading hours
+  // Runs every 10s during active market trading hours for open markets, and pauses when markets are closed
   let lastTickerMarketState = null;
   const runLiveTicker = async () => {
+    let nextDelay = 30000;
     try {
-      const open = isAnyMarketOpen();
+      const inOpen = isIndianMarketOpen();
+      const usOpen = isUsMarketOpen();
+      const open = inOpen || usOpen;
       if (!open) {
         if (lastTickerMarketState !== 'CLOSED') {
-          console.log('[LiveTicker] Markets are currently closed. Live price polling is paused to protect egress.');
+          console.log('[LiveTicker] Markets are currently closed. Live price polling is paused.');
           lastTickerMarketState = 'CLOSED';
         }
+        nextDelay = 30000;
       } else {
         if (lastTickerMarketState !== 'OPEN') {
-          console.log('[LiveTicker] Market session is active. Resuming live price polling.');
+          console.log(`[LiveTicker] Market session is active (IN: ${inOpen ? 'OPEN' : 'CLOSED'}, US: ${usOpen ? 'OPEN' : 'CLOSED'}). Polling live quotes every 10s.`);
           lastTickerMarketState = 'OPEN';
         }
         await refreshActiveHoldingsPrices();
+        nextDelay = 10000;
       }
     } catch (err) {
       console.warn('[LiveTicker Warning]:', err.message);
+      nextDelay = 15000;
     }
-    // 60-second cycle (30x reduction in API and compute overhead)
-    setTimeout(runLiveTicker, 60000);
+    setTimeout(runLiveTicker, nextDelay);
   };
 
   // Start ticker runner after initial boot delay
-  setTimeout(runLiveTicker, 5000);
+  setTimeout(runLiveTicker, 3000);
 
   // 3. Startup self-healing: scan and resolve any data gaps once after warm-up
   setTimeout(async () => {

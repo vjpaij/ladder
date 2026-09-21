@@ -79,10 +79,10 @@ function AuthenticatedApp() {
   useEffect(() => {
     fetchDashboardData();
 
-    // Refresh periodically while the dashboard is open (30s interval for resource efficiency).
+    // Refresh periodically while the dashboard is open (10s interval for near-real-time live ticker).
     const pollInterval = setInterval(() => {
       fetchDashboardData(true);
-    }, 30000);
+    }, 10000);
 
     // Instant refresh when user switches back to this tab
     const handleFocus = () => {

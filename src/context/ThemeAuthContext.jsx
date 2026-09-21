@@ -182,7 +182,7 @@ export function ThemeAuthProvider({ children }) {
       }
     };
     fetchLiveFx();
-    const interval = setInterval(fetchLiveFx, 30000);
+    const interval = setInterval(fetchLiveFx, 15000);
     return () => clearInterval(interval);
   }, []);
 

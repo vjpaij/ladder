@@ -5,6 +5,14 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.48.5] - 2026-09-21
+
+### Enhanced
+- **Adaptive Market-Session Live Ticker & 10s High-Speed Polling Protocol**:
+  - **Market-Session Scoped Polling**: Enhanced `refreshHoldingsPrices` and `refreshActiveHoldingsPrices` in `server/services/priceEngine.js` with `marketSession` gating (`IN`, `US`, `ALL`). When only US markets are open (07:00 PM to 01:30 AM IST), polling queries only the 11 US stocks and live USD/INR FX rate (`<1s` execution), completely bypassing closed Indian equities, MFs, and NPS.
+  - **10s Backend Live Ticker**: Reduced `runLiveTicker` loop interval in `server/index.js` from 60s down to **10s** during active market trading sessions (and 30s when closed), delivering responsive live ticks without Yahoo Finance rate limits.
+  - **10s/15s Frontend UI Refresh**: Reduced dashboard polling in `src/App.jsx` from 30s to **10s**, live FX polling in `ThemeAuthContext.jsx` from 30s to **15s**, and holding detail polling in `HoldingDetailModal.jsx` from 30s to **15s**.
+
 ## [5.48.4] - 2026-09-21
 
 ### Fixed
