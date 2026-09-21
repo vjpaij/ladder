@@ -20,6 +20,8 @@ import {
   liveQuoteCache, 
   fetchFxRate,
   syncAllMissingNavs,
+  isIndianMarketOpen,
+  isUsMarketOpen,
   isAnyMarketOpen,
   isTradingDay,
   getLastTradingDay,
