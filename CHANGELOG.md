@@ -5,6 +5,15 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.48.3] - 2026-09-21
+
+### Fixed
+- **Stock Quote Refresh Engine & Quote Date Resolution Protocol**:
+  - **Root Cause Diagnosed**: In `server/services/priceEngine.js`, a missing `quoteTime` definition in `fetchStockQuote` caused an unhandled `ReferenceError: quoteTime is not defined`. This triggered retry failures and tripped the Yahoo Finance circuit breaker to OPEN, causing refresh attempts to fail and fall back to stale Friday closing prices.
+  - **System Timestamp vs Quote Date Disentanglement**: In `server/index.js` and `server/routes/holdings.js`, `quote_date` previously fell back to `h.updated_at.split('T')[0]`. Whenever bank transactions or holding states were updated today, `updated_at` became `2026-09-21`, falsely presenting stale Friday market quotes as "Today (21 Sep 2026)".
+  - **Clean Quote Date Formatter & Unified Badge Evaluation**: Overhauled `formatCleanQuoteDate` to format timestamps in exchange local timezones (`Asia/Kolkata` for NSE/BSE, `America/New_York` for US) using standardized 3-letter month abbreviations (`21 Sep 2026`). Unified quote date badge evaluation across `IndianStocksView`, `UsStocksView`, `MutualFundsView`, and `NpsView` using canonical `getQuoteBadgeStatus`.
+  - **Full In-Memory & Snapshot Quote Refresh**: Executed live price refresh across all 82 active Indian equity holdings, successfully updating live market quotes, daily changes, and quote dates to `21 Sep 2026` with 0 Supabase egress consumed.
+
 ## [5.48.2] - 2026-09-21
 
 ### Fixed

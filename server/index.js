@@ -121,7 +121,7 @@ app.listen(PORT, async () => {
             bse_price: bse,
             dayChange: h.day_change !== undefined ? Number(h.day_change) : 0,
             dayChangePct: h.day_change_pct !== undefined ? Number(h.day_change_pct) : 0,
-            quoteDate: h.updated_at ? h.updated_at.split('T')[0] : null
+            quoteDate: h.quote_date || null
           });
           primedCount++;
         }

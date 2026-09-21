@@ -3,13 +3,13 @@ import { motion } from 'framer-motion';
 import { Globe, Search, X, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, DollarSign, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import { getQuoteBadgeStatus } from '../utils/dateFormatter';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
 
 export default function UsStocksView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal, onRefresh }) {
-  const { currency, toggleCurrency, formatMoney, formatRawUSD, fxRate } = useThemeAuth();
-  const isUSD = currency === 'USD';
+  const { currency, toggleCurrency, formatMoney, formatRawUSD, fxRate, liveFxRate, isUSD } = useThemeAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'closed'
   const [sortField, setSortField] = useState('name'); // Default sort by name
@@ -24,7 +24,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
     try {
       const res = await axios.post('/api/refresh-prices');
       if (onRefresh) await onRefresh();
-      setRefreshToast(res.data?.message || 'US quotes and FX rate updated successfully!');
+      setRefreshToast(res.data?.message || 'US stock quotes updated successfully!');
       setTimeout(() => setRefreshToast(null), 4000);
     } catch (err) {
       setRefreshToast('Error refreshing US quotes: ' + (err.response?.data?.error || err.message));
@@ -34,45 +34,6 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
     }
   };
 
-  const isUpToDate = useCallback((qd) => {
-    if (!qd) return false;
-    const now = new Date();
-    const todayISO = now.toISOString().split('T')[0];
-    const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-    const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
-    // Most recent completed trading day (walking back weekend)
-    const dow = now.getDay();
-    const lastTradingDate = new Date(now);
-    if (dow === 6) lastTradingDate.setDate(lastTradingDate.getDate() - 1);
-    else if (dow === 0) lastTradingDate.setDate(lastTradingDate.getDate() - 2);
-
-    const lastISO = lastTradingDate.toISOString().split('T')[0];
-    const lastFormatted = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-    const lastShort = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
-    return (
-      qd === todayISO || qd === todayFormatted || qd === todayShort ||
-      qd === lastISO || qd === lastFormatted || qd === lastShort
-    );
-  }, []);
-
-  const getQuoteDateLabel = useCallback((qd) => {
-    if (!qd) return '';
-    const now = new Date();
-    const todayISO = now.toISOString().split('T')[0];
-    const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-    const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-
-    if (qd === todayISO || qd === todayFormatted || qd === todayShort) {
-      return `Today (${qd})`;
-    }
-    if (isUpToDate(qd)) {
-      return `Latest (${qd})`;
-    }
-    return `As of ${qd}`;
-  }, [isUpToDate]);
-
   const rawUsStocks = useMemo(() => {
     return holdings.filter(h => h.category_id === 'us_stocks');
   }, [holdings]);
@@ -80,11 +41,8 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
   const upToDateCount = useMemo(() => {
     return rawUsStocks
       .filter(h => (Number(h.quantity) || 0) > 0)
-      .filter(h => {
-        const qd = h.quote_date || (h.updated_at ? h.updated_at.split('T')[0] : '');
-        return isUpToDate(qd);
-      }).length;
-  }, [rawUsStocks, isUpToDate]);
+      .filter(h => getQuoteBadgeStatus(h.quote_date).isUpToDate).length;
+  }, [rawUsStocks]);
 
   // Filter by status tab
   const statusFiltered = useMemo(() => {
@@ -554,16 +512,19 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[10px] text-slate-500 font-mono">{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</span>
-                              {h.quote_date && (
-                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
-                                  isUpToDate(h.quote_date)
-                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
-                                    : 'bg-purple-500/10 text-purple-400/90 border border-purple-500/20'
-                                }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${isUpToDate(h.quote_date) ? 'bg-emerald-400' : 'bg-purple-400'}`} />
-                                  {getQuoteDateLabel(h.quote_date)}
-                                </span>
-                              )}
+                              {h.quote_date && (() => {
+                                const status = getQuoteBadgeStatus(h.quote_date);
+                                return (
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
+                                    status.isUpToDate
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                                      : 'bg-purple-500/10 text-purple-400/90 border border-purple-500/20'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${status.isUpToDate ? 'bg-emerald-400' : 'bg-purple-400'}`} />
+                                    {status.label}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>

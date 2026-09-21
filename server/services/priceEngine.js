@@ -87,12 +87,34 @@ export async function fetchFxRate() {
 // Register the fetch function for background retry
 registerFetchFunction('USD_INR', fetchFxRate);
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 export function formatCleanQuoteDate(dateStr, timeZone) {
   if (!dateStr) return null;
   if (typeof dateStr === 'number') {
-    const opts = { day: '2-digit', month: 'short', year: 'numeric' };
-    if (timeZone) opts.timeZone = timeZone;
-    return new Date(dateStr * 1000).toLocaleDateString('en-GB', opts);
+    const ms = dateStr < 1e11 ? dateStr * 1000 : dateStr;
+    const d = new Date(ms);
+    if (timeZone) {
+      try {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone,
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        }).formatToParts(d);
+        const day = parts.find(p => p.type === 'day')?.value || String(d.getDate()).padStart(2, '0');
+        const monthRaw = parts.find(p => p.type === 'month')?.value || MONTH_NAMES[d.getMonth()];
+        const month = monthRaw.slice(0, 3);
+        const year = parts.find(p => p.type === 'year')?.value || d.getFullYear();
+        return `${day} ${month} ${year}`;
+      } catch (e) {
+        // Fallback to UTC if timezone invalid
+      }
+    }
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const month = MONTH_NAMES[d.getUTCMonth()];
+    const year = d.getUTCFullYear();
+    return `${day} ${month} ${year}`;
   }
   if (typeof dateStr === 'string') {
     const cleanStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr.trim();
@@ -110,15 +132,15 @@ export function formatCleanQuoteDate(dateStr, timeZone) {
       }
       const mNum = parseInt(month, 10);
       if (!isNaN(mNum) && mNum >= 1 && mNum <= 12) {
-        const d = new Date(Date.UTC(parseInt(year, 10), mNum - 1, parseInt(day, 10)));
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+        return `${String(day).padStart(2, '0')} ${MONTH_NAMES[mNum - 1]} ${year}`;
       }
     }
     const parsed = new Date(dateStr);
     if (!isNaN(parsed.getTime())) {
-      const opts = { day: '2-digit', month: 'short', year: 'numeric' };
-      if (timeZone) opts.timeZone = timeZone;
-      return parsed.toLocaleDateString('en-GB', opts);
+      const day = String(parsed.getDate()).padStart(2, '0');
+      const month = MONTH_NAMES[parsed.getMonth()];
+      const year = parsed.getFullYear();
+      return `${day} ${month} ${year}`;
     }
   }
   return dateStr;
@@ -195,16 +217,10 @@ export async function fetchStockQuote(symbol) {
         const fiftyTwoWeekHigh = Number(result.meta.fiftyTwoWeekHigh || dayHigh * 1.15);
         const fiftyTwoWeekLow = Number(result.meta.fiftyTwoWeekLow || dayLow * 0.85);
 
+        const quoteTime = result.meta.regularMarketTime || Math.floor(Date.now() / 1000);
         // Derive exchange timezone so US stocks reflect US trading date and Indian stocks reflect Indian date
         const exchangeTz = result.meta.exchangeTimezoneName || (symbol.endsWith('.NS') || symbol.endsWith('.BO') ? 'Asia/Kolkata' : 'America/New_York');
-        const quoteTime = result.meta.regularMarketTime || Math.floor(Date.now() / 1000);
-        const d = new Date(quoteTime * 1000);
-        const quoteDate = d.toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          timeZone: exchangeTz
-        });
+        const quoteDate = formatCleanQuoteDate(quoteTime, exchangeTz);
 
         const quote = {
           price,
@@ -836,19 +852,18 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
       const q = await fetchStockQuote(h.symbol);
       if (q && q.price > 0) {
         liveQuoteCache.set(h.symbol, q);
-        if (q.price !== Number(h.current_price)) {
-          updateCacheRow('holdings', h.id, {
-            current_price: q.price,
-            updated_at: new Date().toISOString()
-          });
-          if (persistToDb) {
-            await db.update('holdings', h.id, {
-              current_price: q.price,
-              updated_at: new Date().toISOString()
-            });
-          }
-          updatedCount++;
+        const updates = {
+          current_price: q.price,
+          day_change: q.dayChange,
+          day_change_pct: q.dayChangePct,
+          quote_date: q.quoteDate,
+          updated_at: new Date().toISOString()
+        };
+        updateCacheRow('holdings', h.id, updates);
+        if (persistToDb) {
+          await db.update('holdings', h.id, updates);
         }
+        updatedCount++;
       }
     } catch (e) {
       console.warn(`[Sync] Failed to fetch US Stock ${h.symbol}:`, e.message);
@@ -900,27 +915,20 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
             fiftyTwoWeekLow: Math.min(...[nseQ?.fiftyTwoWeekLow, bseQ?.fiftyTwoWeekLow, bestQ.fiftyTwoWeekLow].map(Number).filter(v => v > 0)),
             quoteDate: bestQ.quoteDate
           });
-        }
 
-        const needsUpdate = newPrice > 0 && (
-          newPrice !== Number(h.current_price) ||
-          (nseP > 0 && nseP !== Number(h.nse_price)) ||
-          (bseP > 0 && bseP !== Number(h.bse_price))
-        );
-        if (needsUpdate) {
-          updateCacheRow('holdings', h.id, {
+          const updates = {
             current_price: newPrice,
             nse_price: nseP,
             bse_price: bseP,
+            day_change: bestQ.dayChange,
+            day_change_pct: bestQ.dayChangePct,
+            quote_date: bestQ.quoteDate,
             updated_at: new Date().toISOString()
-          });
+          };
+
+          updateCacheRow('holdings', h.id, updates);
           if (persistToDb) {
-            await db.update('holdings', h.id, {
-              current_price: newPrice,
-              nse_price: nseP,
-              bse_price: bseP,
-              updated_at: new Date().toISOString()
-            });
+            await db.update('holdings', h.id, updates);
           }
           updatedCount++;
         }
@@ -947,19 +955,18 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
           fiftyTwoWeekLow: q.fiftyTwoWeekLow,
           quoteDate: q.quoteDate
         });
-        if (q.nav !== Number(h.current_price)) {
-          updateCacheRow('holdings', h.id, {
-            current_price: q.nav,
-            updated_at: new Date().toISOString()
-          });
-          if (persistToDb) {
-            await db.update('holdings', h.id, {
-              current_price: q.nav,
-              updated_at: new Date().toISOString()
-            });
-          }
-          updatedCount++;
+        const updates = {
+          current_price: q.nav,
+          day_change: q.dayChange,
+          day_change_pct: q.dayChangePct,
+          quote_date: q.quoteDate,
+          updated_at: new Date().toISOString()
+        };
+        updateCacheRow('holdings', h.id, updates);
+        if (persistToDb) {
+          await db.update('holdings', h.id, updates);
         }
+        updatedCount++;
       }
     } catch (e) {
       console.warn(`[Sync] Failed to fetch MF ${h.symbol}:`, e.message);
