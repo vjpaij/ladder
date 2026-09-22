@@ -1597,16 +1597,31 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
 
       const symbolKey = (portfolio === 'mutual_funds' && schemeCode) ? schemeCode : symbol.trim().toUpperCase();
 
-      let holdingId;
-      const existingHoldings = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
+      let targetHolding = null;
+      let holdingId = data.holdingId || req.body.holdingId;
+
+      if (holdingId) {
+        const byId = await db.selectWhere('holdings', { id: holdingId });
+        if (byId.length > 0) {
+          targetHolding = byId[0];
+        }
+      }
+
+      if (!targetHolding) {
+        const existingHoldings = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
+        if (existingHoldings.length > 0) {
+          targetHolding = existingHoldings[0];
+          holdingId = targetHolding.id;
+        }
+      }
 
       if (txType === 'SELL' || txType === 'REDEEM') {
-        if (existingHoldings.length === 0 || (Number(existingHoldings[0].quantity) || 0) <= 0) {
+        if (!targetHolding || (Number(targetHolding.quantity) || 0) <= 0) {
           return res.status(400).json({
             error: `Cannot sell ${symbolKey}: you do not have any active shares of this investment in your portfolio.`
           });
         }
-        const currentOpenShares = Number(existingHoldings[0].quantity) || 0;
+        const currentOpenShares = Number(targetHolding.quantity) || 0;
         if (txQty > currentOpenShares + 0.0001) {
           return res.status(400).json({
             error: `Cannot sell ${txQty} shares of ${symbolKey}: only ${currentOpenShares.toLocaleString('en-IN', { maximumFractionDigits: 4 })} shares are currently held in your portfolio.`
@@ -1614,9 +1629,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
         }
       }
 
-      if (existingHoldings.length > 0) {
-        holdingId = existingHoldings[0].id;
-      } else {
+      if (!targetHolding) {
         const exchange = portfolio === 'in_stocks' ? 'NSE' :
           portfolio === 'us_stocks' ? 'NASDAQ' :
             portfolio === 'mutual_funds' ? 'AMFI' : 'NPS';
@@ -1632,7 +1645,8 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           currency: currency,
           status: 'ACTIVE'
         });
-        holdingId = newHolding.id;
+        targetHolding = newHolding[0] || newHolding;
+        holdingId = targetHolding.id;
       }
 
       if (txType === 'DIVIDEND') {
@@ -1648,8 +1662,8 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           currency,
           fxRate: txFxRate || fxRate,
           notes: data.notes || '',
-          symbol: symbolKey,
-          name: name.trim()
+          symbol: targetHolding.symbol || symbolKey,
+          name: targetHolding.name || name.trim()
         });
 
         return res.json({ success: true, holdingId, action: 'dividend_recorded' });
@@ -1662,7 +1676,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           return res.status(400).json({ error: 'Split Old Ratio and New Ratio must be valid numbers greater than zero.' });
         }
 
-        if (existingHoldings.length === 0 || (Number(existingHoldings[0].quantity) || 0) <= 0) {
+        if (!targetHolding || (Number(targetHolding.quantity) || 0) <= 0) {
           return res.status(400).json({ error: `Cannot perform stock split on ${symbolKey}: no active shares found in portfolio.` });
         }
 
@@ -1672,8 +1686,8 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           splitNew: newQtyRatio,
           date: txDate,
           notes: data.notes || '',
-          symbol: symbolKey,
-          name: name.trim(),
+          symbol: targetHolding.symbol || symbolKey,
+          name: targetHolding.name || name.trim(),
           currency
         });
 
@@ -1685,11 +1699,11 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           return res.status(400).json({ error: 'Bonus quantity must be a positive number greater than zero.' });
         }
 
-        if (existingHoldings.length === 0 || (Number(existingHoldings[0].quantity) || 0) <= 0) {
+        if (!targetHolding || (Number(targetHolding.quantity) || 0) <= 0) {
           return res.status(400).json({ error: `Cannot credit bonus shares for ${symbolKey}: no active shares found in portfolio.` });
         }
 
-        const holding = existingHoldings[0];
+        const holding = targetHolding;
         const preBonusQty = Number(holding.quantity) || 0;
         const preBonusAvg = Number(holding.avg_buy_price) || 0;
 
@@ -1713,8 +1727,8 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           charges: txCharges,
           currency: currency,
           date: txDate,
-          symbol: symbolKey,
-          name: name.trim(),
+          symbol: targetHolding.symbol || symbolKey,
+          name: targetHolding.name || name.trim(),
           notes: data.notes || `Bonus issue (+${txQty} shares credited at ₹0 cost, avg cost diluted from ₹${preBonusAvg.toFixed(2)} to ₹${newAvg.toFixed(2)})`
         });
 
@@ -1732,8 +1746,8 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
         charges: txCharges,
         currency: currency,
         date: txDate,
-        symbol: symbolKey,
-        name: name.trim(),
+        symbol: targetHolding.symbol || symbolKey,
+        name: targetHolding.name || name.trim(),
         notes: data.notes || ''
       };
 
@@ -1753,32 +1767,49 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       invalidateBenchmarkCache();
       triggerEodRebuildIfPastDate(txDate);
 
-      if (existingHoldings.length === 0 && (portfolio === 'in_stocks' || portfolio === 'us_stocks')) {
-        import('../../scripts/sync_asset_metadata.mjs')
-          .then(m => m.syncAssetMetadata(false))
-          .catch(e => console.error('[Background Sync Error]:', e));
-      }
-
       return res.json({ success: true, holdingId, action: 'transaction_recorded' });
     }
 
     // Handle Bank / EPF
     if (portfolio === 'bank' || portfolio === 'epf') {
-      const { name: accName, balance, amount, type: rawType, date: entryDate, notes } = data;
-      if (!accName) return res.status(400).json({ error: 'Account name is required' });
+      const { name: accName, balance, amount, type: rawType, date: entryDate, notes, holdingId: inputHoldingId, symbol: inputSymbol } = data;
+      if (!accName && !inputHoldingId) return res.status(400).json({ error: 'Account name or Holding ID is required' });
 
-      const symbolKey = portfolio === 'epf' ? 'EPF-RETIREMENT' :
-        accName.toUpperCase().replace(/\s+/g, '-') + '-SAVINGS';
+      let targetHolding = null;
+      let holdingId = inputHoldingId;
 
-      const existing = await db.selectWhere('holdings', { category_id: portfolio, symbol: symbolKey });
-      let holdingId;
+      if (holdingId) {
+        const byId = await db.selectWhere('holdings', { id: holdingId });
+        if (byId.length > 0) targetHolding = byId[0];
+      }
 
-      if (existing.length > 0) {
-        holdingId = existing[0].id;
-      } else {
+      if (!targetHolding && inputSymbol) {
+        const bySymbol = await db.selectWhere('holdings', { category_id: portfolio, symbol: inputSymbol });
+        if (bySymbol.length > 0) {
+          targetHolding = bySymbol[0];
+          holdingId = targetHolding.id;
+        }
+      }
+
+      if (!targetHolding && accName) {
+        const allCategoryHoldings = await db.selectWhere('holdings', { category_id: portfolio });
+        const byName = allCategoryHoldings.find(h => 
+          (h.name || '').trim().toLowerCase() === accName.trim().toLowerCase() ||
+          (h.symbol || '').trim().toLowerCase() === accName.trim().toLowerCase()
+        );
+        if (byName) {
+          targetHolding = byName;
+          holdingId = targetHolding.id;
+        }
+      }
+
+      if (!targetHolding) {
+        const fallbackSymbol = portfolio === 'epf' ? 'EPF-RETIREMENT' :
+          (inputSymbol || accName.toUpperCase().replace(/\s+/g, '-') + '-SAVINGS');
+
         const newHolding = await db.insert('holdings', {
           category_id: portfolio,
-          symbol: symbolKey,
+          symbol: fallbackSymbol,
           name: accName,
           exchange: portfolio === 'bank' ? 'BANK' : 'EPF',
           quantity: 1,
@@ -1787,10 +1818,13 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           currency: 'INR',
           status: 'ACTIVE'
         });
-        holdingId = newHolding[0]?.id || newHolding.id;
+        targetHolding = newHolding[0] || newHolding;
+        holdingId = targetHolding.id;
       }
 
       const txDate = entryDate || new Date().toISOString().split('T')[0];
+      const finalSymbol = targetHolding.symbol || inputSymbol || (portfolio === 'epf' ? 'EPF-RETIREMENT' : 'BANK-SAVINGS');
+      const finalName = targetHolding.name || accName;
 
       if (amount !== undefined && Number(amount) > 0) {
         const amt = Number(amount);
@@ -1808,12 +1842,12 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           charges: 0,
           currency: 'INR',
           date: txDate,
-          symbol: symbolKey,
-          name: accName,
+          symbol: finalSymbol,
+          name: finalName,
           notes: notes || ''
         });
       } else if (balance !== undefined) {
-        const currentBal = existing.length > 0 ? (Number(existing[0].current_price) || 0) : 0;
+        const currentBal = Number(targetHolding.current_price) || 0;
         const targetBal = Math.max(0, Number(balance));
         const diff = targetBal - currentBal;
 
@@ -1834,8 +1868,8 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
             charges: 0,
             currency: 'INR',
             date: txDate,
-            symbol: symbolKey,
-            name: accName,
+            symbol: finalSymbol,
+            name: finalName,
             notes: notes || `Balance Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
           });
         }
@@ -1848,15 +1882,25 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
 
     // Handle Loan
     if (portfolio === 'loans') {
-      const { name: loanName, balance, amount, type: rawType, date: entryDate, notes } = data;
-      if (!loanName) return res.status(400).json({ error: 'Loan name is required' });
+      const { name: loanName, balance, amount, type: rawType, date: entryDate, notes, liabilityId: inputLiabilityId, holdingId: inputHoldingId } = data;
+      const targetId = inputLiabilityId || inputHoldingId;
+      let targetLiability = null;
+      let liabilityId = targetId;
 
-      const existing = await db.selectWhere('liabilities', { category_id: 'loans', name: loanName });
-      let liabilityId;
+      if (liabilityId) {
+        const byId = await db.selectWhere('liabilities', { id: liabilityId });
+        if (byId.length > 0) targetLiability = byId[0];
+      }
 
-      if (existing.length > 0) {
-        liabilityId = existing[0].id;
-      } else {
+      if (!targetLiability && loanName) {
+        const existing = await db.selectWhere('liabilities', { category_id: 'loans', name: loanName });
+        if (existing.length > 0) {
+          targetLiability = existing[0];
+          liabilityId = targetLiability.id;
+        }
+      }
+
+      if (!targetLiability) {
         const inserted = await db.insert('liabilities', {
           category_id: 'loans',
           name: loanName,
@@ -1864,10 +1908,12 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           outstanding_balance: 0,
           updated_at: new Date().toISOString()
         });
-        liabilityId = inserted[0]?.id || inserted.id;
+        targetLiability = inserted[0] || inserted;
+        liabilityId = targetLiability.id;
       }
 
       const txDate = entryDate || new Date().toISOString().split('T')[0];
+      const finalName = targetLiability.name || loanName;
 
       if (amount !== undefined && Number(amount) > 0) {
         const amt = Number(amount);
@@ -1884,11 +1930,11 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           currency: 'INR',
           date: txDate,
           symbol: 'LOAN',
-          name: loanName,
+          name: finalName,
           notes: notes || ''
         });
       } else if (balance !== undefined) {
-        const currentBal = existing.length > 0 ? (Number(existing[0].outstanding_balance) || 0) : 0;
+        const currentBal = Number(targetLiability.outstanding_balance) || 0;
         const targetBal = Math.max(0, Number(balance));
         const diff = targetBal - currentBal;
 
@@ -1905,7 +1951,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
             currency: 'INR',
             date: txDate,
             symbol: 'LOAN',
-            name: loanName,
+            name: finalName,
             notes: notes || `Loan Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
           });
         }
@@ -1918,15 +1964,25 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
 
     // Handle Credit Card
     if (portfolio === 'credit_cards') {
-      const { name: cardName, balance, amount, type: rawType, date: entryDate, notes } = data;
-      if (!cardName) return res.status(400).json({ error: 'Card name is required' });
+      const { name: cardName, balance, amount, type: rawType, date: entryDate, notes, liabilityId: inputLiabilityId, holdingId: inputHoldingId } = data;
+      const targetId = inputLiabilityId || inputHoldingId;
+      let targetCard = null;
+      let cardId = targetId;
 
-      const existing = await db.selectWhere('liabilities', { category_id: 'credit_cards', name: cardName });
-      let cardId;
+      if (cardId) {
+        const byId = await db.selectWhere('liabilities', { id: cardId });
+        if (byId.length > 0) targetCard = byId[0];
+      }
 
-      if (existing.length > 0) {
-        cardId = existing[0].id;
-      } else {
+      if (!targetCard && cardName) {
+        const existing = await db.selectWhere('liabilities', { category_id: 'credit_cards', name: cardName });
+        if (existing.length > 0) {
+          targetCard = existing[0];
+          cardId = targetCard.id;
+        }
+      }
+
+      if (!targetCard) {
         const newCard = await db.insert('liabilities', {
           category_id: 'credit_cards',
           name: cardName,
@@ -1934,10 +1990,12 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           outstanding_balance: 0,
           updated_at: new Date().toISOString()
         });
-        cardId = newCard[0]?.id || newCard.id;
+        targetCard = newCard[0] || newCard;
+        cardId = targetCard.id;
       }
 
       const txDate = entryDate || new Date().toISOString().split('T')[0];
+      const finalName = targetCard.name || cardName;
 
       if (amount !== undefined && Number(amount) > 0) {
         const amt = Number(amount);
@@ -1954,11 +2012,11 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           currency: 'INR',
           date: txDate,
           symbol: 'CARD',
-          name: cardName,
+          name: finalName,
           notes: notes || ''
         });
       } else if (balance !== undefined) {
-        const currentBal = existing.length > 0 ? (Number(existing[0].outstanding_balance) || 0) : 0;
+        const currentBal = Number(targetCard.outstanding_balance) || 0;
         const targetBal = Math.max(0, Number(balance));
         const diff = targetBal - currentBal;
 
@@ -1975,7 +2033,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
             currency: 'INR',
             date: txDate,
             symbol: 'CARD',
-            name: cardName,
+            name: finalName,
             notes: notes || `Card Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
           });
         }

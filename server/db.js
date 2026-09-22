@@ -57,7 +57,7 @@ export function saveCacheSnapshotToDisk() {
     fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify({
       savedAt: Date.now(),
       tables: serialized
-    }), 'utf-8');
+    }, null, 2), 'utf-8');
   } catch (e) {
     console.warn('[DB Cache] Failed to save disk snapshot:', e.message);
   }
@@ -135,10 +135,15 @@ export function invalidateCache(tableName) {
     return;
   }
   const sTable = getSupabaseTableName(tableName);
+
+  // STRICT RULE: Write-through tables are kept resident in RAM and updated in-place.
+  // Never evict them to prevent cloud egress spikes, dropped data, or race conditions.
+  if (['transactions', 'holdings', 'dividends', 'categories', 'liabilities'].includes(sTable)) {
+    return;
+  }
+
   dbCache.delete(sTable);
 
-  // STRICT EGRESS RULE: Holding price changes must NEVER invalidate transactions!
-  // Only invalidate tightly coupled sub-tables where rows are split or amortized:
   if (sTable === 'liabilities' || sTable === 'loan_amortization') {
     dbCache.delete('liabilities');
     dbCache.delete('loan_amortization');
@@ -153,6 +158,12 @@ export function invalidateCache(tableName) {
   }
 }
 
+function ensureTableCached(sTable) {
+  if (!dbCache.has(sTable)) {
+    restoreCacheSnapshotFromDisk();
+  }
+}
+
 // Supabase Async Database Interface with Mandatory Pagination Guard & In-Memory Cache
 export const db = {
   select: async (tableName, options = {}) => {
@@ -163,49 +174,71 @@ export const db = {
     const { forceRefresh = false } = options;
     const sTable = getSupabaseTableName(tableName);
 
-    // Check in-memory cache first
+    // 1. Check in-memory cache first
     let cached = getCacheEntry(sTable);
-    if (cached !== null && !forceRefresh) {
+    if (cached !== null && Array.isArray(cached) && cached.length > 0 && !forceRefresh) {
       return cached;
     }
 
-    // Try restoring from local disk snapshot before any cloud call
-    if (cached === null) {
+    // 2. Try restoring from local disk snapshot before any cloud call if cache is missing or empty
+    if (cached === null || (Array.isArray(cached) && cached.length === 0)) {
       restoreCacheSnapshotFromDisk();
       cached = getCacheEntry(sTable);
-      if (cached !== null && !forceRefresh) {
+      if (cached !== null && Array.isArray(cached) && cached.length > 0 && !forceRefresh) {
         return cached;
       }
     }
 
-    // If in offline mode, return whatever is in cache or initialize empty array
+    // 3. If in offline mode, return whatever is in cache or initialize empty array
     if (isOfflineMode) {
       const fallback = cached || [];
       setCacheEntry(sTable, fallback);
       return fallback;
     }
 
-    // Fetch from Supabase with pagination safety
+    // 4. Fetch from Supabase with pagination safety and resilient cache fallback
     let allRows = [];
     let from = 0;
     const batchSize = 1000;
-    while (true) {
-      const { data, error } = await supabase
-        .from(sTable)
-        .select('*')
-        .range(from, from + batchSize - 1);
-      if (error) {
-        console.error(`[DB Select Error - ${sTable}]:`, error.message);
-        throw new Error(`Failed to read ${sTable}: ${error.message}`);
+    try {
+      while (true) {
+        const { data, error } = await supabase
+          .from(sTable)
+          .select('*')
+          .range(from, from + batchSize - 1);
+        if (error) {
+          console.warn(`[DB Select Network/Egress Warning - ${sTable}]:`, error.message);
+          if (cached !== null && Array.isArray(cached) && cached.length > 0) return cached;
+          break;
+        }
+        if (!data || data.length === 0) break;
+        allRows.push(...data);
+        if (data.length < batchSize) break;
+        from += batchSize;
       }
-      if (!data || data.length === 0) break;
-      allRows.push(...data);
-      if (data.length < batchSize) break;
-      from += batchSize;
+    } catch (netErr) {
+      console.warn(`[DB Select Network Exception - ${sTable}]:`, netErr.message);
+      if (cached !== null && Array.isArray(cached) && cached.length > 0) return cached;
     }
 
-    setCacheEntry(sTable, allRows);
-    return allRows;
+    if (allRows.length > 0) {
+      setCacheEntry(sTable, allRows);
+      return allRows;
+    }
+
+    // Never wipe out an existing cached collection if cloud returned empty/error
+    if (cached !== null && Array.isArray(cached) && cached.length > 0) {
+      return cached;
+    }
+
+    // Final fallback to disk snapshot before giving up
+    restoreCacheSnapshotFromDisk();
+    const diskCached = getCacheEntry(sTable);
+    if (diskCached !== null && Array.isArray(diskCached) && diskCached.length > 0) {
+      return diskCached;
+    }
+
+    return cached || [];
   },
 
   selectWhere: async (tableName, matchObj, options = {}) => {
@@ -220,21 +253,16 @@ export const db = {
     const { forceRefresh = false } = options;
     const sTable = getSupabaseTableName(tableName);
 
-    // If table is cached, filter in-memory with 0 network egress
-    const cached = getCacheEntry(sTable);
-    if (cached !== null && !forceRefresh) {
-      if (!matchObj || Object.keys(matchObj).length === 0) return cached;
-      return cached.filter(row => {
-        return Object.entries(matchObj).every(([k, v]) => row[k] === v);
+    // Filter resident in-memory cached rows first (0 Supabase egress)
+    const allRows = await db.select(sTable, { forceRefresh });
+    if (Array.isArray(allRows)) {
+      if (!matchObj || Object.keys(matchObj).length === 0) return allRows;
+      return allRows.filter(row => {
+        return Object.entries(matchObj).every(([k, v]) => String(row[k]) === String(v));
       });
     }
 
-    // Otherwise fetch table into cache and filter
-    const allRows = await db.select(sTable, { forceRefresh });
-    if (!matchObj || Object.keys(matchObj).length === 0) return allRows;
-    return allRows.filter(row => {
-      return Object.entries(matchObj).every(([k, v]) => row[k] === v);
-    });
+    return [];
   },
 
   insert: async (tableName, row) => {
@@ -248,6 +276,8 @@ export const db = {
     }
 
     const sTable = getSupabaseTableName(tableName);
+    ensureTableCached(sTable);
+
     const newId = row.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
     const insertedRow = { id: newId, created_at: new Date().toISOString(), ...row };
 
@@ -255,9 +285,10 @@ export const db = {
     const cached = dbCache.get(sTable);
     if (cached && Array.isArray(cached.data)) {
       cached.data.push(insertedRow);
-      debouncedSaveSnapshot();
+      saveCacheSnapshotToDisk();
     } else {
       setCacheEntry(sTable, [insertedRow]);
+      saveCacheSnapshotToDisk();
     }
 
     if (!isOfflineMode) {
@@ -284,6 +315,7 @@ export const db = {
     }
 
     const sTable = getSupabaseTableName(tableName);
+    ensureTableCached(sTable);
 
     // Write-through update: mutate in-memory cache directly
     const cached = dbCache.get(sTable);
@@ -293,7 +325,7 @@ export const db = {
       if (idx !== -1) {
         cached.data[idx] = { ...cached.data[idx], ...updates, updated_at: new Date().toISOString() };
         updatedRow = cached.data[idx];
-        debouncedSaveSnapshot();
+        saveCacheSnapshotToDisk();
       }
     }
 
@@ -318,12 +350,13 @@ export const db = {
     }
 
     const sTable = getSupabaseTableName(tableName);
+    ensureTableCached(sTable);
 
     // Write-through update: remove from RAM cache directly
     const cached = dbCache.get(sTable);
     if (cached && Array.isArray(cached.data)) {
       cached.data = cached.data.filter(u => String(u.id) !== String(id));
-      debouncedSaveSnapshot();
+      saveCacheSnapshotToDisk();
     }
 
     if (!isOfflineMode) {

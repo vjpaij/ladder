@@ -181,9 +181,11 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
       const rawDelta = curWealth - prevWealth;
       const isWk = isWeekendDay(cur.date);
+      const isOffMarketToday = (cur.date === todayStr && isOffMarketOrPreMarket);
       const hasTx = txDatesWithActivity.has(cur.date);
-      const pnl = isWk ? (hasTx ? rawDelta : 0) : rawDelta;
-      const pct = isWk
+      const isZeroPnlDay = isWk || isOffMarketToday;
+      const pnl = isZeroPnlDay ? (hasTx ? rawDelta : 0) : rawDelta;
+      const pct = isZeroPnlDay
         ? (hasTx && prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0)
         : (prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0);
       cur.daily_pnl = Number(pnl.toFixed(2));
@@ -245,9 +247,11 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
 
       const prevWealth = wPrev !== undefined ? wPrev : wCurr;
       const isWk = isWeekendDay(item.date);
+      const isOffMarketToday = (item.date === todayStr && isOffMarketOrPreMarket);
       const hasTx = txDatesWithActivity.has(item.date);
-      const dailyPnl = isWk ? (hasTx ? (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth)) : 0) : (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth));
-      const pct = isWk ? (hasTx && prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0) : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
+      const isZeroPnlDay = isWk || isOffMarketToday;
+      const dailyPnl = isZeroPnlDay ? (hasTx ? (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth)) : 0) : (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth));
+      const pct = isZeroPnlDay ? (hasTx && prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0) : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
 
       const wealth = wCurr || 0;
       const debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));

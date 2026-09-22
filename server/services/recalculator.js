@@ -1,5 +1,6 @@
 import { db } from '../db.js';
 import { supabase } from '../supabaseClient.js';
+import { liveQuoteCache } from './priceEngine.js';
 
 /**
  * Universal Chronological Position Recalculation Engine
@@ -89,14 +90,22 @@ export async function recalculateHoldingState(holdingId) {
         netBalance = Math.max(0, netBalance);
 
         const status = netBalance > 0.01 ? 'ACTIVE' : 'REDEEMED';
+        const roundedBal = parseFloat(netBalance.toFixed(2));
 
         await db.update('holdings', holdingId, {
-          current_price: parseFloat(netBalance.toFixed(2)),
-          avg_buy_price: parseFloat(netBalance.toFixed(2)),
+          current_price: roundedBal,
+          avg_buy_price: roundedBal,
           quantity: 1,
           status: status,
           updated_at: new Date().toISOString()
         });
+
+        if (holding.symbol) {
+          liveQuoteCache.set(holding.symbol, {
+            price: roundedBal,
+            quoteDate: new Date().toISOString().split('T')[0]
+          });
+        }
 
         return { holdingId, type: 'balance', currentBalance: netBalance, status };
       }

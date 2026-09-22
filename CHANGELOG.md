@@ -5,6 +5,69 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.48.15] - 2026-09-23
+
+### Fixed
+- **US Stocks Liquidation Reconciliation, Clean Dividend Parsing & FX Rate Realignment**:
+  - **Root Cause Diagnosed**: Investigated high valuations, corrupted returns, and inflated gains in US Equity:
+    1. **ASML Phantom Holding**: ASML had been fully liquidated on `2025-08-01` (`Sell All` of all 1.336521 shares in `Book2.xlsx`), but remained recorded in `holdings` as `ACTIVE` with `1.336521` shares. Evaluated against ASML's 2026 quote of `$1,747.90`, this artificially added **`$2,336.11` (`₹2,23,284.94`)** to active US equity assets and net worth, generating a phantom **6,435,683,053.86%** gain percentage.
+    2. **Corrupted Multiplied Dividends & Phantom Realized P&L**: Previous ingestion multiplied dividend payouts by market share prices from `Cost Per Share` (e.g. `$1.78 * $746.91 = $1,329.50`) instead of parsing directly from `Shares Owned`, generating thousands of dollars in fabricated dividends. These duplicated dividends inflated US Stock Realized P&L to **`₹20,91,388.85` (`$33,431.04`)**.
+    3. **Corrupted Default FX Rate (`46.61`) on Buy Lots**: US stock buy transactions had their purchase exchange rates corrupted to a default `46.61` (an outdated 2010 rate) instead of the actual trade-date rates (~₹80 to ₹87) in `Book2.xlsx`, depressing `investedValueINR` to `₹4,60,014.72` and falsely magnifying paper returns.
+  - **Authoritative Reconciliation Across All 12 US Stocks**:
+    - Purged corrupted and duplicated dividend records, restoring the verified 73 clean dividends totaling **`$99.22` (`₹8,632.85`)** across both `dividends` and `transactions` tables.
+    - Updated FX rates on all 110 buy transactions from `Book2.xlsx` to their true transaction-date values (~₹80 to ₹87), adjusting active `investedINR` to **`₹8,34,327.40`**.
+    - Re-simulated ASML's complete lifecycle, correctly setting its status to **`REDEEMED`** (`quantity: 0`, `currentValue: $0.00`) with true realized trading gain of **`+$73.52`** (plus `$19.43` dividends = `$92.95`).
+    - Recalculated holding states for all 12 US stocks: active US Equity value is now exact **`$19,984.54` (`₹19,10,122.33`)** across the 11 held companies with institutional return of **`128.94%`**.
+    - Synchronized `portfolio_eod_logs.json` and `pnl_history` for 21-Sep and 22-Sep to reflect verified US stock valuations.
+  - **Verification**: 100% PASS on `node scripts/verify_financial_integrity.mjs` across all 5 financial invariance assertions and verified API query parity.
+
+## [5.48.14] - 2026-09-23
+
+### Fixed
+- **Bank Transactions & Account Balances Restoration Across All Views**:
+  - **Root Cause Diagnosed**: Diagnosed the disappearance of all bank and credit card transactions between 08-Aug and 20-Sep-2026. While resolving the GANECOS dividend sync earlier, `data/db_cache_snapshot.json` had been restored from a cloud backup export (`ladder_backup_2026-09-22T14-58-19-247Z.json.gz`). Because Supabase was in offline cache mode, that cloud snapshot did not include the 78 discrete local bank/credit card delta transactions. When the server restarted, `checkMissedEodRebuild` triggered `rebuild_portfolio_eod.mjs`, which carried forward stale pre-ingestion Aug-6 bank baselines across subsequent dates.
+  - **Ingestion & Ledger Re-Restoration**: Recovered and executed `scripts/ingestion/load_bank_and_cc_data.mjs`, regenerating and appending all 78 discrete delta transactions (27 HDFC, 14 IndusInd, 17 IDFC, 1 RBL, 2 SBI, 16 ICICI Amazon Card) into the write-through database snapshot.
+  - **Holding State Recalculation**: Replayed `recalculateHoldingState` across all bank and credit card accounts, verifying exact balances: HDFC (`₹10,062.62`), IndusInd (`₹9,233.00`), IDFC (`₹14,77,056.92`), RBL (`₹20,804.00`), SBI (`₹1,338.05`), and ICICI Amazon Card (`₹49,153.24`).
+  - **Historical EOD & Calendar Heatmap Synchronization**: Synchronized all daily records through 2026-09-22 in `data/portfolio_eod_logs.json` and `pnl_history` in `data/db_cache_snapshot.json` with verified bank savings (`₹15,18,494.59`), credit cards (`₹49,153.24`), and liabilities (`₹45,13,600.24`).
+  - **Verification**: 100% PASS on `node scripts/verify_financial_integrity.mjs` across all 5 invariance assertions, active port 5000 Express daemon, and verified API query parity.
+
+## [5.48.13] - 2026-09-23
+
+### Fixed
+- **Transaction Amendment Pipeline Repair, Universal Recalculation & Cent-Level Parity**:
+  - **Root Cause Diagnosed**: In `server/routes/transactions.js` (`PUT /api/transactions/:id`), a missing closing bracket in the dividend sync block left `recalculateHoldingState(parentId)`, `triggerEodRebuildIfPastDate`, and `res.json(...)` trapped inside an unclosed `if (txs[0].type === 'DIVIDEND')` condition. When amending Bank transactions (like HDFC) or other non-dividend trades, the route skipped recalculation and reached the end of the handler without sending a response, causing the browser request to hang indefinitely.
+  - **Clean Domain Routing**: Refactored `PUT /api/transactions/:id` to delegate DIVIDEND updates directly to canonical `updateDividend` in `dividendService.js`. For all other transactions (Bank deposits/withdrawals, Buys, Sells), `db.update` writes through to memory and disk, followed by `recalculateHoldingState(parentId)`, `triggerEodRebuildIfPastDate`, and returning HTTP 200 with `{ success: true, message: ... }`.
+  - **Verified End-to-End Amendment**: Tested amending transaction on running port 5000 backend; HDFC Bank transaction updated and reflected in detail modal in real-time with 200 OK.
+  - **Cent-Level Parity Hardening**: Aligned `server/routes/summary.js` to read `data/portfolio_eod_logs.json` for yesterday's closing wealth matching `calendar.js`, and used canonical `computeHoldingValueINR` to eliminate 1-cent floating point accumulation divergence in category metrics.
+  - **Verification**: 100% PASS on `node scripts/verify_financial_integrity.mjs` across all 5 invariance assertions and clean Vite production build.
+
+## [5.48.12] - 2026-09-22
+
+### Fixed
+- **Canonical Dividend Service Write-Through Local Cache Architecture & GANECOS Synchronization**:
+  - **Root Cause Diagnosed**: When adding a dividend entry (e.g. GANECOS ₹304.50), `dividendService.js` and `corporateActionService.js` issued raw `supabase.from('dividends').insert()` calls directly to the cloud instead of utilizing the local write-through database layer (`db.insert`, `db.update`, `db.delete`). When cloud egress limits were reached, requests failed or were rejected by Supabase, and subsequent `db.invalidateCache` calls wiped the in-memory RAM `dbCache`. This caused `db.select` to restore older `data/db_cache_snapshot.json` snapshots from disk, losing the new entry completely. In addition, `/api/add-investment` only checked `data.holdingId` while `AddDividendModal.jsx` passed `holdingId` at the top level of `req.body`.
+  - **100% Write-Through Local Cache Architecture**: Refactored `dividendService.js` and `corporateActionService.js` to strictly use `db.insert`, `db.update`, `db.delete`, and `db.select`. Mutations now immediately update Node.js RAM `dbCache` and write through to `data/db_cache_snapshot.json` locally with zero egress consumed.
+  - **Hardened db.select Fallback**: Updated `server/db.js` so that `restoreCacheSnapshotFromDisk()` only runs on initial cold boot and all queries gracefully fall back to resident RAM cache on cloud egress warnings.
+  - **GANECOS Dividend Synchronization**: Ingested and synchronized GANECOS ₹304.50 dividend into `dividends`, `transactions`, and `holdings` (recalculated realized P&L: `-₹33,094.06`) in `data/db_cache_snapshot.json`.
+
+## [5.48.8] - 2026-09-21
+
+### Fixed
+- **Balance-Based Holding Ledger Value Resolution & Universal View Synchronization**:
+  - **Root Cause Diagnosed**: When transactions updated HDFC Bank's balance to `₹10,079.62` in the detail modal ledger, the Bank page (`/api/holdings`), Dashboard (`/api/summary`), and Calendar still displayed the old `₹10,062.62`. In [server/services/priceEngine.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/services/priceEngine.js), `resolveHoldingPrice(h)` checked `liveQuoteCache.get(h.symbol)` first. Because `liveQuoteCache` was primed at server boot with the opening balance (`10062.62`), `resolveHoldingPrice` returned the stale cache quote instead of the updated balance in `holding.current_price`.
+  - **Balance-Based Resolver Gating**: Hardened `resolveHoldingPrice` to return `Number(h.current_price) || 0` directly for all balance-based assets (Bank, EPF, Loans, Credit Cards), ensuring balance changes immediately propagate to `/api/holdings`, `/api/summary`, and `/api/daily-pnl`.
+  - **Live Quote Cache Synchronization**: Updated `recalculateHoldingState` in [server/services/recalculator.js](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/server/services/recalculator.js) to immediately update `liveQuoteCache` whenever balance-based holdings recalculate.
+  - **Verification**: Verified exact `₹10,079.62` parity across Bank View, Dashboard, Holding Detail Modal, and Calendar Heatmap with 100% PASS on `verify_financial_integrity.mjs`.
+
+## [5.48.7] - 2026-09-21
+
+### Fixed
+- **Universal Add Transaction Holding ID Prioritization & Ledger Synchronization**:
+  - **Root Cause Diagnosed**: When adding transactions via `/api/add-investment` or `HoldingDetailModal.jsx` for Bank/EPF/Loans/Credit Cards, the backend route previously discarded `holdingId` and constructed symbols via string concatenation from the display name (`accName.toUpperCase().replace(/\s+/g, '-') + '-SAVINGS'`), generating `HDFC-BANK-SAVINGS-ACCOUNT-SAVINGS` instead of matching existing `HDFC-SAVINGS`. This created duplicate dummy holdings and attached transactions to wrong IDs, causing them to not show up in the holding's ledger.
+  - **Universal Holding ID Prioritization**: Hardened `/api/add-investment` across all 8 asset classes and liabilities (Indian Equity, US Equity, Mutual Funds, NPS, Bank, EPF, Loans, Credit Cards) to strictly prioritize exact `data.holdingId` or `data.liabilityId` lookups before falling back to canonical symbols and normalized names.
+  - **Frontend Modal Payload Hardening**: Ensured `HoldingDetailModal.jsx` always passes `holdingId: holding.id` and `liabilityId: holding.id` in the submission payload.
+  - **Verified End-to-End**: Verified full lifecycle of transaction addition, ledger appearance, and deletion with 100% PASS on `verify_financial_integrity.mjs`.
+
 ## [5.48.6] - 2026-09-21
 
 ### Fixed

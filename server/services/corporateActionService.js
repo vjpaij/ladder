@@ -22,15 +22,8 @@ import { triggerEodRebuildIfPastDate } from './eodSync.js';
 export async function revertStockSplit(holdingId) {
   if (!holdingId) return [];
 
-  const { data: txs, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('holding_id', holdingId);
-
-  if (error || !txs) {
-    console.error('[CorporateActionService] Error fetching transactions for revert:', error);
-    return [];
-  }
+  const allTxs = await db.select('transactions');
+  const txs = (allTxs || []).filter(t => String(t.holding_id) === String(holdingId));
 
   const revertedIds = [];
 
@@ -43,23 +36,18 @@ export async function revertStockSplit(holdingId) {
       const origTotal = parseFloat((origQty * origPrice).toFixed(2));
       const cleanedNotes = tx.notes.replace(/\s*\[Split orig:\s*[\d.]+\s*@\s*[\d.]+\]/, '').trim();
 
-      await supabase
-        .from('transactions')
-        .update({
-          quantity: origQty,
-          price: origPrice,
-          total_amount: origTotal,
-          notes: cleanedNotes || null
-        })
-        .eq('id', tx.id);
+      await db.update('transactions', tx.id, {
+        quantity: origQty,
+        price: origPrice,
+        total_amount: origTotal,
+        notes: cleanedNotes || null
+      });
 
       revertedIds.push(tx.id);
     }
   }
 
   if (revertedIds.length > 0) {
-    db.invalidateCache('transactions');
-    db.invalidateCache('holdings');
     await recalculateHoldingState(holdingId);
     console.log(`[CorporateActionService] Reverted ${revertedIds.length} split-adjusted transactions for holding ${holdingId}`);
   }
@@ -94,14 +82,16 @@ export async function applyStockSplit({
   const cleanDate = (date || new Date().toISOString().split('T')[0]).split('T')[0];
 
   // 1. Fetch all transactions for holding ordered chronologically
-  const { data: allTxs, error } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('holding_id', holdingId)
-    .order('date', { ascending: true })
-    .order('created_at', { ascending: true });
+  const allDbTxs = await db.select('transactions');
+  const allTxs = (allDbTxs || [])
+    .filter(t => String(t.holding_id) === String(holdingId))
+    .sort((a, b) => {
+      const dDiff = (a.date || '').localeCompare(b.date || '');
+      if (dDiff !== 0) return dDiff;
+      return (a.created_at || '').localeCompare(b.created_at || '');
+    });
 
-  if (error || !allTxs || allTxs.length === 0) {
+  if (!allTxs || allTxs.length === 0) {
     throw new Error('No transactions found for holding to apply split');
   }
 
@@ -151,28 +141,22 @@ export async function applyStockSplit({
       const origTag = `[Split orig: ${tx.quantity}@${tx.price}]`;
       const updatedNotes = tx.notes ? `${tx.notes} ${origTag}` : origTag;
 
-      await supabase
-        .from('transactions')
-        .update({
-          quantity: newQty,
-          price: newPrice,
-          total_amount: newTotal,
-          notes: updatedNotes
-        })
-        .eq('id', tx.id);
+      await db.update('transactions', tx.id, {
+        quantity: newQty,
+        price: newPrice,
+        total_amount: newTotal,
+        notes: updatedNotes
+      });
 
       postSplitOpenQty += newQty;
     } else {
       const closedQty = parseFloat((lot.origQty - lot.remQty).toFixed(9));
       const closedTotal = parseFloat((closedQty * tx.price).toFixed(2));
 
-      await supabase
-        .from('transactions')
-        .update({
-          quantity: closedQty,
-          total_amount: closedTotal
-        })
-        .eq('id', tx.id);
+      await db.update('transactions', tx.id, {
+        quantity: closedQty,
+        total_amount: closedTotal
+      });
 
       const openScaledQty = parseFloat((lot.remQty * splitMultiplier).toFixed(9));
       const openScaledPrice = parseFloat((tx.price / splitMultiplier).toFixed(4));
@@ -180,21 +164,19 @@ export async function applyStockSplit({
       const origTag = `[Split orig: ${lot.remQty}@${tx.price}]`;
       const newNotes = tx.notes ? `${tx.notes} ${origTag}` : origTag;
 
-      await supabase
-        .from('transactions')
-        .insert({
-          holding_id: holdingId,
-          type: tx.type,
-          quantity: openScaledQty,
-          price: openScaledPrice,
-          total_amount: openScaledTotal,
-          charges: 0,
-          currency: tx.currency || currency,
-          date: tx.date,
-          symbol: tx.symbol || symbol,
-          name: tx.name || name,
-          notes: newNotes
-        });
+      await db.insert('transactions', {
+        holding_id: holdingId,
+        type: tx.type,
+        quantity: openScaledQty,
+        price: openScaledPrice,
+        total_amount: openScaledTotal,
+        charges: 0,
+        currency: tx.currency || currency,
+        date: tx.date,
+        symbol: tx.symbol || symbol,
+        name: tx.name || name,
+        notes: newNotes
+      });
 
       postSplitOpenQty += openScaledQty;
     }
@@ -202,7 +184,7 @@ export async function applyStockSplit({
 
   // 4. Record the SPLIT corporate action row (quantity: 0 so lots are not double-counted)
   const splitNotes = notes || `Stock split ${oldR}:${newR} — holding scaled from ${preSplitOpenQty} to ${postSplitOpenQty} shares`;
-  await supabase.from('transactions').insert({
+  await db.insert('transactions', {
     holding_id: holdingId,
     type: 'SPLIT',
     quantity: 0,
@@ -215,9 +197,6 @@ export async function applyStockSplit({
     name: name || null,
     notes: splitNotes
   });
-
-  db.invalidateCache('transactions');
-  db.invalidateCache('holdings');
 
   await recalculateHoldingState(holdingId);
   triggerEodRebuildIfPastDate(cleanDate);
@@ -235,10 +214,10 @@ export async function applyStockSplit({
 export async function deleteStockSplit(txId) {
   if (!txId) throw new Error('Transaction ID required');
 
-  const { data: txRows } = await supabase.from('transactions').select('*').eq('id', txId);
-  if (!txRows || txRows.length === 0) throw new Error('SPLIT transaction not found');
+  const allTxs = await db.select('transactions');
+  const tx = (allTxs || []).find(t => String(t.id) === String(txId));
+  if (!tx) throw new Error('SPLIT transaction not found');
 
-  const tx = txRows[0];
   const holdingId = tx.holding_id;
   const splitDate = tx.date;
 
@@ -248,10 +227,7 @@ export async function deleteStockSplit(txId) {
   }
 
   // 2. Delete the SPLIT transaction row
-  await supabase.from('transactions').delete().eq('id', txId);
-
-  db.invalidateCache('transactions');
-  db.invalidateCache('holdings');
+  await db.delete('transactions', txId);
 
   if (holdingId) {
     await recalculateHoldingState(holdingId);
@@ -273,10 +249,10 @@ export async function deleteStockSplit(txId) {
 export async function updateStockSplit(txId, updates) {
   if (!txId) throw new Error('Transaction ID required');
 
-  const { data: txRows } = await supabase.from('transactions').select('*').eq('id', txId);
-  if (!txRows || txRows.length === 0) throw new Error('SPLIT transaction not found');
+  const allTxs = await db.select('transactions');
+  const tx = (allTxs || []).find(t => String(t.id) === String(txId));
+  if (!tx) throw new Error('SPLIT transaction not found');
 
-  const tx = txRows[0];
   const holdingId = tx.holding_id;
   const oldDate = tx.date;
   const newDate = (updates.date || oldDate).split('T')[0];
@@ -293,16 +269,16 @@ export async function updateStockSplit(txId, updates) {
     const splitMultiplier = newR / oldR;
 
     // Apply scaling logic
-    const { data: allTxs } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('holding_id', holdingId)
-      .neq('id', txId)
-      .order('date', { ascending: true })
-      .order('created_at', { ascending: true });
+    const holdingTxs = (allTxs || [])
+      .filter(t => String(t.holding_id) === String(holdingId) && String(t.id) !== String(txId))
+      .sort((a, b) => {
+        const dDiff = (a.date || '').localeCompare(b.date || '');
+        if (dDiff !== 0) return dDiff;
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      });
 
     const lots = [];
-    for (const t of (allTxs || [])) {
+    for (const t of holdingTxs) {
       const tDate = (t.date || '').split('T')[0];
       if (tDate > newDate) continue;
       const qty = Number(t.quantity) || 0;
@@ -331,28 +307,25 @@ export async function updateStockSplit(txId, updates) {
       const origTag = `[Split orig: ${t.quantity}@${t.price}]`;
       const updatedNotes = t.notes ? `${t.notes} ${origTag}` : origTag;
 
-      await supabase.from('transactions').update({
+      await db.update('transactions', t.id, {
         quantity: newQty,
         price: newPrice,
         total_amount: newTotal,
         notes: updatedNotes
-      }).eq('id', t.id);
+      });
     }
   }
 
   // 3. Update the SPLIT transaction row
   const splitNotes = updates.notes || `Stock split ${oldR}:${newR}`;
-  await supabase.from('transactions').update({
+  await db.update('transactions', txId, {
     date: newDate,
     quantity: 0,
     price: 0,
     total_amount: 0,
     charges: 0,
     notes: splitNotes
-  }).eq('id', txId);
-
-  db.invalidateCache('transactions');
-  db.invalidateCache('holdings');
+  });
 
   if (holdingId) {
     await recalculateHoldingState(holdingId);

@@ -3,7 +3,7 @@ import axios from 'axios';
 import AdmZip from 'adm-zip';
 import { db, updateCacheRow, getCacheEntry } from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { storeRate, getPersistedRate, scheduleRetry, registerFetchFunction } from './fxRateStore.js';
+import { storeRate, getPersistedRate, scheduleRetry, registerFetchFunction, recordDailyFxRate } from './fxRateStore.js';
 
 export const liveQuoteCache = new Map();
 
@@ -13,6 +13,10 @@ export const liveQuoteCache = new Map();
  */
 export function resolveHoldingPrice(h, liveQuote = null) {
   if (!h) return 0;
+  // Balance-based holdings (Bank, EPF, Debt) are invariant to market quotes; their value is strictly the ledger balance in holding.current_price
+  if (h.category_id === 'bank' || h.category_id === 'epf' || h.category_id === 'loans' || h.category_id === 'credit_cards') {
+    return Number(h.current_price) || 0;
+  }
   const quote = liveQuote || liveQuoteCache.get(h.symbol);
   let price = (quote && quote.price > 0) ? Number(quote.price) : (Number(h.current_price) || 0);
 
@@ -40,6 +44,7 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * logs a critical warning and returns null -- callers must handle this gracefully.
  */
 export async function fetchFxRate() {
+  const todayStr = new Date().toISOString().split('T')[0];
   // Attempt 1: Yahoo Finance (primary) with retry & exponential backoff
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
@@ -47,6 +52,7 @@ export async function fetchFxRate() {
       if (quote && quote.price > 0) {
         liveQuoteCache.set('USDINR', quote);
         storeRate('USD_INR', quote.price, 'yahoo-finance');
+        recordDailyFxRate(todayStr, quote.price);
         return quote.price;
       }
     } catch (err) {
@@ -62,6 +68,7 @@ export async function fetchFxRate() {
       if (res.data && res.data.rates && res.data.rates.INR) {
         const rate = res.data.rates.INR;
         storeRate('USD_INR', rate, 'open-exchange-rates');
+        recordDailyFxRate(todayStr, rate);
         return rate;
       }
     } catch (err) {

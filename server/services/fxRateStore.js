@@ -214,6 +214,19 @@ export function getHistoricalFxRate(dateStr) {
   return getPersistedRate('USD_INR') || null;
 }
 
+export function recordDailyFxRate(dateStr, rate) {
+  if (!dateStr || typeof rate !== 'number' || rate <= 0 || !isFinite(rate)) return;
+  const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+  historicalFxCache[cleanDate] = Number(rate.toFixed(2));
+  try {
+    const dir = path.dirname(HISTORICAL_FX_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(HISTORICAL_FX_FILE, JSON.stringify(historicalFxCache, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[FX Store] Failed to save historical FX file:', e.message);
+  }
+}
+
 // Load on module import
 loadPersistedRates();
 loadHistoricalFxRates();

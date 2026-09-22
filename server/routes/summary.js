@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
@@ -142,18 +144,18 @@ router.get('/summary', async (req, res) => {
         const liveRate = h.currency === 'USD' ? fxRate : 1.0;
         const liveQuote = liveQuoteCache.get(h.symbol);
         const currentPriceNum = resolveHoldingPrice(h, liveQuote);
-        const currentVal = (Number(h.quantity) || 0) * currentPriceNum * liveRate;
+        const currentVal = computeHoldingValueINR(h, currentPriceNum, liveRate);
 
         let txRate = 1.0;
         if (h.currency === 'USD') {
           const m = usFxMap[h.id] || usFxMap[h.symbol];
           txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : (getHistoricalFxRate(h.created_at) || fxRate);
         }
-        const investedVal = (Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * txRate;
+        const investedVal = Number(((Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * txRate).toFixed(2));
 
-        cat.currentINR += currentVal;
-        cat.investedINR += investedVal;
-        cat.unrealizedINR += (currentVal - investedVal);
+        cat.currentINR = Number((cat.currentINR + currentVal).toFixed(2));
+        cat.investedINR = Number((cat.investedINR + investedVal).toFixed(2));
+        cat.unrealizedINR = Number((cat.unrealizedINR + (currentVal - investedVal)).toFixed(2));
 
         if (validXirrCategories.has(h.category_id)) {
           xirrFinalAssetsINR += currentVal;
@@ -371,24 +373,42 @@ router.get('/summary', async (req, res) => {
     let yesterdayWealth = null;
     let yesterdayAssets = null;
     const todayStr = getTodayIST();
+
     try {
-      const pnlHistory = await db.select('pnl_history');
-      if (pnlHistory && pnlHistory.length > 0) {
-        const normalizedLogs = pnlHistory.map(l => {
-          const parts = (l.log_date || '').split('-');
-          const iso = (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4)
-            ? `${parts[2]}-${parts[1]}-${parts[0]}`
-            : l.log_date;
-          return { ...l, isoDate: iso };
-        });
-        const pastLogs = normalizedLogs.filter(l => l.isoDate < todayStr).sort((a, b) => b.isoDate.localeCompare(a.isoDate));
+      const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+      if (fs.existsSync(eodPath)) {
+        const raw = fs.readFileSync(eodPath, 'utf8');
+        const eodLogs = JSON.parse(raw);
+        const pastLogs = (eodLogs || []).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
         if (pastLogs.length > 0) {
-          yesterdayWealth = pastLogs[0].net_worth_inr;
-          yesterdayAssets = pastLogs[0].total_assets_inr;
+          yesterdayWealth = pastLogs[0].total_wealth !== undefined ? pastLogs[0].total_wealth : pastLogs[0].wealth;
+          yesterdayAssets = pastLogs[0].total_assets !== undefined ? pastLogs[0].total_assets : (yesterdayWealth + (pastLogs[0].debt || 0));
         }
       }
     } catch (e) {
-      console.warn('[EOD db.select pnl_history Warning]:', e.message);
+      console.warn('[EOD Local Logs Read Warning]:', e.message);
+    }
+
+    if (yesterdayWealth === null) {
+      try {
+        const pnlHistory = await db.select('pnl_history');
+        if (pnlHistory && pnlHistory.length > 0) {
+          const normalizedLogs = pnlHistory.map(l => {
+            const parts = (l.log_date || '').split('-');
+            const iso = (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4)
+              ? `${parts[2]}-${parts[1]}-${parts[0]}`
+              : l.log_date;
+            return { ...l, isoDate: iso };
+          });
+          const pastLogs = normalizedLogs.filter(l => l.isoDate < todayStr).sort((a, b) => b.isoDate.localeCompare(a.isoDate));
+          if (pastLogs.length > 0) {
+            yesterdayWealth = pastLogs[0].net_worth_inr;
+            yesterdayAssets = pastLogs[0].total_assets_inr;
+          }
+        }
+      } catch (e) {
+        console.warn('[EOD db.select pnl_history Warning]:', e.message);
+      }
     }
     if (yesterdayWealth === null) {
       try {

@@ -219,7 +219,7 @@ export async function recordDividend({
   const isUs = currency === 'USD';
   const amountInr = isUs ? parseFloat((numAmount * numFx).toFixed(2)) : numAmount;
 
-  // 1. Insert into `dividends` table
+  // 1. Insert into `dividends` table via write-through db.insert
   const divRecord = {
     holding_id: holdingId || null,
     amount_original: numAmount,
@@ -232,16 +232,10 @@ export async function recordDividend({
     name: name || null
   };
 
-  const { data: divInsert, error: divErr } = await supabase
-    .from('dividends')
-    .insert(divRecord)
-    .select('id')
-    .single();
-
-  if (divErr) console.warn('[DividendService] Error inserting into dividends table:', divErr.message);
+  const divInsert = await db.insert('dividends', divRecord);
   const divId = divInsert?.id;
 
-  // 2. Insert matching transaction row into `transactions` table
+  // 2. Insert matching transaction row into `transactions` table via write-through db.insert
   const txRecord = {
     holding_id: holdingId || null,
     type: 'DIVIDEND',
@@ -258,19 +252,8 @@ export async function recordDividend({
     notes: notes || `Dividend ${isUs ? '$' : '₹'}${numAmount}`
   };
 
-  const { data: txInsert, error: txErr } = await supabase
-    .from('transactions')
-    .insert(txRecord)
-    .select('id')
-    .single();
-
-  if (txErr) console.warn('[DividendService] Error inserting into transactions table:', txErr.message);
+  const txInsert = await db.insert('transactions', txRecord);
   const txId = txInsert?.id;
-
-  // Invalidate in-memory caches
-  db.invalidateCache('dividends');
-  db.invalidateCache('transactions');
-  db.invalidateCache('holdings');
 
   // Recalculate holding state & trigger past EOD rebuild if past-dated
   if (holdingId) {
@@ -295,12 +278,17 @@ export async function updateDividend(id, updates) {
   const numAmount = updates.amount !== undefined ? Number(updates.amount) : undefined;
   const numFx = updates.fx_rate ? Number(updates.fx_rate) : undefined;
 
-  // Check if id exists in `dividends`
-  const { data: existingDiv } = await supabase.from('dividends').select('*').eq('id', cleanId).maybeSingle();
-  // Check if id exists in `transactions`
-  const { data: existingTx } = await supabase.from('transactions').select('*').eq('id', cleanId).maybeSingle();
+  const [allDivs, allTxs] = await Promise.all([
+    db.select('dividends'),
+    db.select('transactions')
+  ]);
+
+  const existingDiv = (allDivs || []).find(d => String(d.id) === cleanId);
+  const existingTx = (allTxs || []).find(t => String(t.id) === cleanId);
 
   const holdingId = existingDiv?.holding_id || existingTx?.holding_id;
+  const symbol = existingDiv?.symbol || existingTx?.symbol;
+  const name = existingDiv?.name || existingTx?.name;
   const targetDate = cleanDate || existingDiv?.payment_date || existingTx?.date;
   const oldDate = existingDiv?.payment_date || existingTx?.date;
   const curr = updates.currency || existingDiv?.currency || existingTx?.currency || 'INR';
@@ -311,49 +299,86 @@ export async function updateDividend(id, updates) {
 
   // 1. Update `dividends` table
   if (existingDiv) {
-    await supabase.from('dividends').update({
+    await db.update('dividends', existingDiv.id, {
       amount_original: amtOrig,
       amount_inr: amtInr,
       currency: curr,
       fx_rate: fx,
       payment_date: targetDate,
       ex_date: targetDate
-    }).eq('id', existingDiv.id);
-  } else if (holdingId && oldDate) {
-    await supabase.from('dividends').update({
-      amount_original: amtOrig,
-      amount_inr: amtInr,
-      currency: curr,
-      fx_rate: fx,
-      payment_date: targetDate,
-      ex_date: targetDate
-    }).eq('holding_id', holdingId).eq('payment_date', oldDate);
+    });
+  } else if (holdingId || symbol) {
+    const matchedDiv = (allDivs || []).find(d =>
+      ((holdingId && d.holding_id === holdingId) || (symbol && d.symbol === symbol)) &&
+      (d.payment_date === oldDate || d.ex_date === oldDate)
+    );
+    if (matchedDiv) {
+      await db.update('dividends', matchedDiv.id, {
+        amount_original: amtOrig,
+        amount_inr: amtInr,
+        currency: curr,
+        fx_rate: fx,
+        payment_date: targetDate,
+        ex_date: targetDate
+      });
+    } else {
+      await db.insert('dividends', {
+        holding_id: holdingId || null,
+        symbol: symbol || null,
+        name: name || null,
+        amount_original: amtOrig,
+        amount_inr: amtInr,
+        currency: curr,
+        fx_rate: fx,
+        payment_date: targetDate,
+        ex_date: targetDate
+      });
+    }
   }
 
   // 2. Update `transactions` table
   if (existingTx) {
-    await supabase.from('transactions').update({
+    await db.update('transactions', existingTx.id, {
       total_amount: amtOrig,
       net_amount: amtOrig,
       currency: curr,
       fx_rate: fx,
       date: targetDate,
       notes: updates.notes !== undefined ? updates.notes : existingTx.notes
-    }).eq('id', existingTx.id);
-  } else if (holdingId && oldDate) {
-    await supabase.from('transactions').update({
-      total_amount: amtOrig,
-      net_amount: amtOrig,
-      currency: curr,
-      fx_rate: fx,
-      date: targetDate,
-      notes: updates.notes !== undefined ? updates.notes : undefined
-    }).eq('holding_id', holdingId).eq('type', 'DIVIDEND').eq('date', oldDate);
+    });
+  } else if (holdingId || symbol) {
+    const matchedTx = (allTxs || []).find(t =>
+      ((holdingId && t.holding_id === holdingId) || (symbol && t.symbol === symbol)) &&
+      t.type === 'DIVIDEND' &&
+      t.date === oldDate
+    );
+    if (matchedTx) {
+      await db.update('transactions', matchedTx.id, {
+        total_amount: amtOrig,
+        net_amount: amtOrig,
+        currency: curr,
+        fx_rate: fx,
+        date: targetDate,
+        notes: updates.notes !== undefined ? updates.notes : matchedTx.notes
+      });
+    } else {
+      await db.insert('transactions', {
+        holding_id: holdingId || null,
+        symbol: symbol || null,
+        name: name || null,
+        type: 'DIVIDEND',
+        quantity: 0,
+        price: 0,
+        total_amount: amtOrig,
+        currency: curr,
+        fx_rate: fx,
+        charges: 0,
+        net_amount: amtOrig,
+        date: targetDate,
+        notes: updates.notes || `Dividend ${isUs ? '$' : '₹'}${amtOrig}`
+      });
+    }
   }
-
-  db.invalidateCache('dividends');
-  db.invalidateCache('transactions');
-  db.invalidateCache('holdings');
 
   if (holdingId) {
     await recalculateHoldingState(holdingId);
@@ -374,8 +399,13 @@ export async function deleteDividend(id) {
 
   const cleanId = String(id).replace(/^(div-|tx-)/, '');
 
-  const { data: divRow } = await supabase.from('dividends').select('*').eq('id', cleanId).maybeSingle();
-  const { data: txRow } = await supabase.from('transactions').select('*').eq('id', cleanId).maybeSingle();
+  const [allDivs, allTxs] = await Promise.all([
+    db.select('dividends'),
+    db.select('transactions')
+  ]);
+
+  const divRow = (allDivs || []).find(d => String(d.id) === cleanId);
+  const txRow = (allTxs || []).find(t => String(t.id) === cleanId);
 
   const holdingId = divRow?.holding_id || txRow?.holding_id;
   const symbol = divRow?.symbol || txRow?.symbol;
@@ -383,31 +413,25 @@ export async function deleteDividend(id) {
 
   // 1. Delete from `dividends`
   if (divRow) {
-    await supabase.from('dividends').delete().eq('id', divRow.id);
+    await db.delete('dividends', divRow.id);
   } else if (holdingId && date) {
-    await supabase.from('dividends').delete().eq('holding_id', holdingId).eq('payment_date', date);
+    const matched = (allDivs || []).filter(d => d.holding_id === holdingId && (d.payment_date === date || d.ex_date === date));
+    for (const m of matched) await db.delete('dividends', m.id);
   } else if (symbol && date) {
-    await supabase.from('dividends').delete().eq('symbol', symbol).eq('payment_date', date);
+    const matched = (allDivs || []).filter(d => d.symbol === symbol && (d.payment_date === date || d.ex_date === date));
+    for (const m of matched) await db.delete('dividends', m.id);
   }
 
   // 2. Delete from `transactions`
   if (txRow) {
-    await supabase.from('transactions').delete().eq('id', txRow.id);
+    await db.delete('transactions', txRow.id);
   } else if (holdingId && date) {
-    await supabase.from('transactions').delete()
-      .eq('holding_id', holdingId)
-      .eq('type', 'DIVIDEND')
-      .eq('date', date);
+    const matched = (allTxs || []).filter(t => t.holding_id === holdingId && t.type === 'DIVIDEND' && t.date === date);
+    for (const m of matched) await db.delete('transactions', m.id);
   } else if (symbol && date) {
-    await supabase.from('transactions').delete()
-      .eq('symbol', symbol)
-      .eq('type', 'DIVIDEND')
-      .eq('date', date);
+    const matched = (allTxs || []).filter(t => t.symbol === symbol && t.type === 'DIVIDEND' && t.date === date);
+    for (const m of matched) await db.delete('transactions', m.id);
   }
-
-  db.invalidateCache('dividends');
-  db.invalidateCache('transactions');
-  db.invalidateCache('holdings');
 
   if (holdingId) {
     await recalculateHoldingState(holdingId);
@@ -425,34 +449,27 @@ export async function deleteDividend(id) {
 export async function deleteSchemeDividends(idOrSymbol) {
   if (!idOrSymbol) throw new Error('holding_id or symbol required');
 
-  const { data: holding } = await supabase
-    .from('holdings')
-    .select('id, symbol')
-    .or(`id.eq.${idOrSymbol},symbol.eq.${idOrSymbol}`)
-    .maybeSingle();
+  const [allHoldings, allDivs, allTxs] = await Promise.all([
+    db.select('holdings'),
+    db.select('dividends'),
+    db.select('transactions')
+  ]);
 
+  const holding = (allHoldings || []).find(h => h.id === idOrSymbol || h.symbol === idOrSymbol);
   const hId = holding?.id || (idOrSymbol.length === 36 ? idOrSymbol : null);
   const sym = holding?.symbol || idOrSymbol;
 
   // 1. Delete from `dividends`
-  if (hId) {
-    await supabase.from('dividends').delete().eq('holding_id', hId);
-  }
-  if (sym) {
-    await supabase.from('dividends').delete().eq('symbol', sym);
+  const targetDivs = (allDivs || []).filter(d => (hId && d.holding_id === hId) || (sym && d.symbol === sym));
+  for (const d of targetDivs) {
+    await db.delete('dividends', d.id);
   }
 
   // 2. Delete from `transactions`
-  if (hId) {
-    await supabase.from('transactions').delete().eq('holding_id', hId).eq('type', 'DIVIDEND');
+  const targetTxs = (allTxs || []).filter(t => ((hId && t.holding_id === hId) || (sym && t.symbol === sym)) && t.type === 'DIVIDEND');
+  for (const t of targetTxs) {
+    await db.delete('transactions', t.id);
   }
-  if (sym) {
-    await supabase.from('transactions').delete().eq('symbol', sym).eq('type', 'DIVIDEND');
-  }
-
-  db.invalidateCache('dividends');
-  db.invalidateCache('transactions');
-  db.invalidateCache('holdings');
 
   if (hId) {
     await recalculateHoldingState(hId);

@@ -111,6 +111,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       const isLiability = holding?.category_id === 'loans' || holding?.category_id === 'credit_cards';
 
       let payloadData = {
+        holdingId: holding.id,
+        liabilityId: holding.id,
         symbol: holding.symbol || holding.name,
         name: holding.name,
         date: newTxDate,

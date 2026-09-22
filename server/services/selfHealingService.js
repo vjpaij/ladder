@@ -1,6 +1,7 @@
+import axios from 'axios';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { getHistoricalFxRate, getPersistedRate } from './fxRateStore.js';
+import { getHistoricalFxRate, getHistoricalFxRatesMap, recordDailyFxRate, getPersistedRate } from './fxRateStore.js';
 import { recalculateHoldingState } from './recalculator.js';
 import { 
   fetchStockQuote, 
@@ -13,12 +14,57 @@ import {
  * Background Self-Healing Service
  * 
  * Automatically checks for data gaps and corrects them once fresh data is available:
- * 1. Transaction FX Rate Healing: Resolves missing or 0 FX rates for past USD transactions
+ * 1. Historical FX Rate Backfill: Resolves any missing dates in historical_fx_rates.json.
+ * 2. Transaction FX Rate Healing: Resolves missing or 0 FX rates for past USD transactions
  *    using verified historical FX rates, re-simulating the affected holding state.
- * 2. Missing Holding Price Healing: Resolves missing/zero current_price on active holdings
+ * 3. Missing Holding Price Healing: Resolves missing/zero current_price on active holdings
  *    by attempting live price fetches from official exchanges/APIs.
- * 3. NAV Gap Synchronization: Backfills any missing daily NAVs across NPS and Mutual Funds.
+ * 4. NAV Gap Synchronization: Backfills any missing daily NAVs across NPS and Mutual Funds.
  */
+
+export async function healMissingHistoricalFxRates() {
+  const healedCount = { updated: 0 };
+  try {
+    const fxMap = getHistoricalFxRatesMap();
+    const existingDates = new Set(Object.keys(fxMap));
+    const today = new Date().toISOString().split('T')[0];
+
+    // Check if recent 14 trading days have any gaps
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/INR=X?interval=1d&range=1mo`;
+    const res = await axios.get(url, {
+      timeout: 8000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+
+    const result = res.data?.chart?.result?.[0];
+    if (result && result.timestamp && result.indicators?.quote?.[0]) {
+      const timestamps = result.timestamp;
+      const quote = result.indicators.quote[0];
+      const adjclose = result.indicators?.adjclose?.[0]?.adjclose || [];
+
+      timestamps.forEach((t, i) => {
+        const tDate = new Date(t * 1000);
+        const offsetDate = new Date(tDate.getTime() - (tDate.getTimezoneOffset() * 60000));
+        const dStr = offsetDate.toISOString().split('T')[0];
+        const val = adjclose[i] !== null && adjclose[i] !== undefined ? adjclose[i] : quote.close[i];
+
+        if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
+          if (!existingDates.has(dStr)) {
+            recordDailyFxRate(dStr, Number(Number(val).toFixed(2)));
+            healedCount.updated++;
+            existingDates.add(dStr);
+          }
+        }
+      });
+    }
+    if (healedCount.updated > 0) {
+      console.log(`[Self-Healing] Backfilled ${healedCount.updated} missing historical FX dates.`);
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] Historical FX sync warning:', err.message);
+  }
+  return healedCount;
+}
 
 export async function healTransactionFxRates() {
   const healedCount = { updated: 0, holdingsRecalculated: 0 };
@@ -106,6 +152,7 @@ export async function healMissingHoldingPrices() {
  */
 export async function runComprehensiveSelfHealing() {
   console.log('[Self-Healing Service] Starting comprehensive self-healing scan...');
+  const fxHeal = await healMissingHistoricalFxRates();
   const txHeal = await healTransactionFxRates();
   const priceHeal = await healMissingHoldingPrices();
   let navHeal = null;
@@ -115,8 +162,9 @@ export async function runComprehensiveSelfHealing() {
     console.warn('[Self-Healing Service] NAV sync warning:', err.message);
   }
 
-  console.log(`[Self-Healing Service] Completed scan. Healed FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Prices: ${priceHeal.updated}`);
+  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Prices: ${priceHeal.updated}`);
   return {
+    fxHealed: fxHeal,
     transactionsHealed: txHeal,
     pricesHealed: priceHeal,
     navSync: navHeal
