@@ -5,6 +5,41 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.50.0] - 2026-09-27
+
+### Fixed
+- **Whole-Portfolio Calendar Status Engine & Historical Credit Card Liability Discrepancy Reconciliation**:
+  - **Whole-Portfolio Net Worth Calendar Evaluation**:
+    - Refactored `server/routes/calendar.js` and `server/routes/summary.js` so that daily P&L and card status (Green = Positive, Red = Negative, Blue = Neutral/Zero change) evaluate the change in the **whole portfolio net worth** (`today's net worth - yesterday's net worth`) rather than assuming zero movement on non-trading days.
+    - Eliminated artificial `pnl = 0` gating when `todayTxs.length === 0`, ensuring that any changes across Bank Accounts, EPF, Loans, or Credit Cards naturally flow into the daily P&L and card indicator.
+  - **Credit Card Liability Historical Discrepancy Permanent Resolution**:
+    - **Root Cause Diagnosed**: Identified a historical ₹19.25 offset originating on 2026-06-21 where an ICICI Amazon Card expense was entered as `total_amount = ₹1,944.65` while the historical spreadsheet had used `₹1,925.40`. When `scripts/rebuild_portfolio_eod.mjs` initialized baseline credit card liability from the Excel baseline (`₹1,862.16` on 2026-08-07), it under-reported credit card debt by exactly ₹19.25 across all post-baseline dates (recording `₹50,193.38` instead of `₹50,212.63`). When compared against today's live database balance (`₹50,212.63`), the calendar falsely displayed a `+₹19.25` change.
+    - **Dynamic Baseline Ingestion Engine**: Updated `scripts/rebuild_portfolio_eod.mjs` to calculate baseline credit card liabilities dynamically from the verified transaction ledger up to the baseline date (`₹1,881.41`), guaranteeing 100% mathematical parity across all historical dates.
+    - **Historical Rebuild & Synchronization**: Rebuilt all 6,940 historical records in `data/portfolio_eod_logs.json` and Supabase `pnl_history`, accurately establishing 25-Sep and 26-Sep closing credit card liabilities at `₹50,212.63` and net worth at `₹1,90,81,746.98`.
+    - **Balance Sheet Equation Hardened**: Synchronized `server/routes/summary.js` so that `finalTotalAssetsINR - totalLiabilitiesINR === finalNetWorthINR` strictly holds on all sessions.
+  - **Verification**:
+    - 100% PASS on `node scripts/verify_financial_integrity.mjs` across all 5 financial invariance assertions.
+    - Verified `GET /api/daily-pnl?range=1M` shows 27-Sep credit card delta is strictly `₹0.00` (`Changes (0)`), and card is cleanly Blue.
+    - Verified dual-port health (Port 3000: 200 OK, Port 5000: 200 OK).
+
+## [5.49.2] - 2026-09-27
+
+### Added
+- **Codification of Rule 26 (Automated Server Restart & Stale Session Purge Protocol)**:
+  - Formally codified and appended permanent Rule 26 to `.agents/AGENTS.md` mandating that whenever code changes or refactors are made to the codebase, the agent must autonomously terminate all stale/frozen development sessions (`Get-Process -Name node | Stop-Process -Force`) and cleanly restart `npm start` as a daemon.
+  - Mandated dual-port live verification of both the Vite frontend (port 3000) and Express backend (port 5000) prior to handoff, permanently eliminating "Failed to fetch dynamically imported module" errors, blank screens, and frozen dev sessions.
+
+## [5.49.1] - 2026-09-27
+
+### Fixed
+- **US Stocks Currency Switcher Reactivity & Transaction-Date Aggregated USD Invested Value Parity**:
+  - **Root Cause Diagnosed**: In `ThemeAuthContext.jsx`, `isUSD` was omitted from the `ThemeAuthContext.Provider` export value, evaluating as `undefined` in consumers; all cells and indicators in `UsStocksView.jsx` defaulted to the INR branch.
+  - **High-Clarity Segmented Currency Switcher**: Replaced the ambiguous single button (`$ INR (₹)`) with a high-contrast segmented pill switcher showing `USD ($)` and `INR (₹)` side-by-side with active purple styling and direct currency setting triggers.
+  - **Aggregated USD Invested Value Engine**: Enforced that invested value in USD strictly computes from the aggregated USD of all discrete transaction-date buy lots and charges (`openCostUSD` / `totalBuyCostUSD` / `investedValueUSD`) rather than converting INR cost using latest exchange rates (`investedINR / fxRate`).
+  - **Backend Route Parity**: Updated `/api/holdings` in `server/routes/holdings.js` to explicitly return `investedValueUSD` derived from open lot cost basis.
+  - **Day Change Formatting**: Aligned daily price delta formatting to show `+$X.XX` in USD mode and `+₹X.XX` in INR mode.
+  - **Verification**: 100% PASS on `node scripts/verify_financial_integrity.mjs` and clean Vite production build.
+
 ## [5.49.0] - 2026-09-27
 
 ### Fixed

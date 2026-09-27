@@ -455,7 +455,7 @@ router.get('/summary', async (req, res) => {
         dayPnlPct = 0;
         if (yesterdayWealth !== null) {
           finalNetWorthINR = yesterdayWealth;
-          finalTotalAssetsINR = yesterdayAssets !== null ? yesterdayAssets : (yesterdayWealth + totalLiabilitiesINR);
+          finalTotalAssetsINR = Number((yesterdayWealth + totalLiabilitiesINR).toFixed(2));
         }
       } else {
         dayPnlINR = wealthDelta;

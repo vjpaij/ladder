@@ -12,7 +12,7 @@ export default defineConfig({
     watch: {
       ignored: [
         // Single function covers all ignored paths — no need for redundant glob strings.
-        (file) => /[\\/](data|server|scripts|scratch|\.agents)[\\/]|\.(json|csv|xlsx|xls|log)$/i.test(file)
+        (file) => /[\\/](data|server|scripts|scratch|\.agents)[\\/]|\.(json|csv|xlsx|xls|log|md)$/i.test(file)
       ],
     },
     proxy: {

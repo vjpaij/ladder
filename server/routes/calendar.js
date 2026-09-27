@@ -118,47 +118,35 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     let todayEntry;
     if (isOffMarketOrPreMarket && lastTradingLog) {
       const liveDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
-      if (todayTxs.length === 0) {
-        // Non-trading session & pre-market invariance: zero market movement against last trading session.
-        todayEntry = {
-          ...lastTradingLog,
-          date: todayStr,
-          debt: liveDebt,
-          credits: liveTodayValuation.credits,
-          loan: liveTodayValuation.loan,
-          daily_pnl: 0,
-          pnl_pct: 0
-        };
-      } else {
-        // User performed cash/debt transactions. Equity/MF/NPS strictly carry forward last session.
-        const totalAssets = Number((
-          (liveTodayValuation.savings || 0) +
-          (liveTodayValuation.epf || 0) +
-          Number(lastTradingLog.mutual_funds || 0) +
-          Number(lastTradingLog.indian_stocks || 0) +
-          Number(lastTradingLog.us_stocks || 0) +
-          Number(lastTradingLog.nps || 0)
-        ).toFixed(2));
-        const wealth = Number((totalAssets - liveDebt).toFixed(2));
-        const prevWealth = Number(lastTradingLog.total_wealth ?? lastTradingLog.wealth ?? 0);
-        const pnl = Number((wealth - prevWealth).toFixed(2));
-        const pct = prevWealth !== 0 ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
-        todayEntry = {
-          ...lastTradingLog,
-          ...liveTodayValuation,
-          date: todayStr,
-          indian_stocks: lastTradingLog.indian_stocks,
-          us_stocks: lastTradingLog.us_stocks,
-          mutual_funds: lastTradingLog.mutual_funds,
-          nps: lastTradingLog.nps,
-          total_assets: totalAssets,
-          debt: liveDebt,
-          wealth,
-          total_wealth: wealth,
-          daily_pnl: pnl,
-          pnl_pct: pct
-        };
-      }
+      // Non-trading session & pre-market: Equity, MF, and NPS carry forward finalized closing valuations from last session (Rule 5: Zero synthetic fluctuation).
+      // Bank savings, EPF, and Debt reflect live balances (Rule 2: Whole portfolio value).
+      const totalAssets = Number((
+        (liveTodayValuation.savings || 0) +
+        (liveTodayValuation.epf || 0) +
+        Number(lastTradingLog.mutual_funds || 0) +
+        Number(lastTradingLog.indian_stocks || 0) +
+        Number(lastTradingLog.us_stocks || 0) +
+        Number(lastTradingLog.nps || 0)
+      ).toFixed(2));
+      const wealth = Number((totalAssets - liveDebt).toFixed(2));
+      const prevWealth = Number(lastTradingLog.total_wealth ?? lastTradingLog.wealth ?? 0);
+      const pnl = Number((wealth - prevWealth).toFixed(2));
+      const pct = prevWealth !== 0 ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
+      todayEntry = {
+        ...lastTradingLog,
+        ...liveTodayValuation,
+        date: todayStr,
+        indian_stocks: lastTradingLog.indian_stocks,
+        us_stocks: lastTradingLog.us_stocks,
+        mutual_funds: lastTradingLog.mutual_funds,
+        nps: lastTradingLog.nps,
+        total_assets: totalAssets,
+        debt: liveDebt,
+        wealth,
+        total_wealth: wealth,
+        daily_pnl: pnl,
+        pnl_pct: pct
+      };
     } else {
       todayEntry = {
         date: todayStr,
@@ -183,17 +171,13 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       const prev = i > 0 ? eodLogs[i - 1] : cur;
       const curWealth = cur.total_wealth !== undefined ? cur.total_wealth : (cur.wealth || 0);
       const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
-      const rawDelta = curWealth - prevWealth;
-      const isWk = isWeekendDay(cur.date);
-      const isOffMarketToday = (cur.date === todayStr && isOffMarketOrPreMarket);
-      const hasTx = txDatesWithActivity.has(cur.date);
-      const isZeroPnlDay = isWk || isOffMarketToday;
-      const pnl = isZeroPnlDay ? (hasTx ? rawDelta : 0) : rawDelta;
-      const pct = isZeroPnlDay
-        ? (hasTx && prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0)
-        : (prevWealth !== 0 ? ((pnl / prevWealth) * 100) : 0);
-      cur.daily_pnl = Number(pnl.toFixed(2));
-      cur.pnl_pct = Number(pct.toFixed(2));
+      const rawDelta = Number((curWealth - prevWealth).toFixed(2));
+      
+      // Daily P&L reflects change in WHOLE portfolio net worth against previous day
+      const pnl = rawDelta;
+      const pct = prevWealth !== 0 ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
+      cur.daily_pnl = pnl;
+      cur.pnl_pct = pct;
       cur.total_wealth = curWealth;
       cur.wealth = curWealth;
     }

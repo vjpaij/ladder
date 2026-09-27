@@ -291,6 +291,11 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       // Rule 5: Zero-quantity assets must have investedValueINR = 0
       const investedValueOriginal = !isClosed ? (qty * finalAvgBuyPrice) : 0;
       const investedValueINR = !isClosed ? (isUSD ? (openCostINR > 0 ? openCostINR : investedValueOriginal * txRate) : investedValueOriginal) : 0;
+      const investedValueUSD = isUSD
+        ? (!isClosed
+            ? (openCostUSD > 0 ? openCostUSD : (qty * finalAvgBuyPrice))
+            : (totalBuyCostUSD > 0 ? totalBuyCostUSD : (soldQty * finalAvgBuyPrice)))
+        : (fxRate > 0 ? investedValueINR / fxRate : 0);
 
       const gainINR = !isClosed ? (currentValueINR - investedValueINR) : 0;
       const gainPct = (!isClosed && investedValueINR > 0) ? Number(((gainINR / investedValueINR) * 100).toFixed(2)) : 0;
@@ -371,6 +376,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         currentValueINR: Number(currentValueINR.toFixed(2)),
         investedValueINR: Number(investedValueINR.toFixed(2)),
         investedValueOriginal: Number(investedValueOriginal.toFixed(2)),
+        investedValueUSD: Number(investedValueUSD.toFixed(2)),
         gainINR: Number(gainINR.toFixed(2)),
         gainPct: Number(gainPct),
         unrealized_pnl: Number((isUSD ? unrealizedPnlOriginal : unrealizedPnlINR).toFixed(2)),

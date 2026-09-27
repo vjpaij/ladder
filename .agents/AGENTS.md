@@ -135,6 +135,10 @@
     - **MANDATORY IDENTIFIER KEY & DYNAMIC DERIVATION**: All modals MUST store strictly an identifier key (`const [selectedModalKey, setSelectedModalKey] = useState(null)`) and dynamically derive the active record via `useMemo` from the parent polling collection (`const modalLog = useMemo(() => displayLogs.find(...), [displayLogs, selectedModalKey])`), guaranteeing that background polling updates immediately update on-screen modal metrics reactively without requiring closing and reopening.
     - **MANDATORY 6-TIER PROPAGATION AUDIT BEFORE HANDOFF**: Any modification to quotes, transactions, corporate actions, balance adjustments, or calculations MUST autonomously verify full 6-tier propagation across Database -> Calculation Engine -> API Controllers -> Global Client Polling -> Primary Views -> Open Modal Popups with 100% mathematical parity and zero human intervention.
 
+26. **MANDATORY AUTOMATED SERVER RESTART & STALE SESSION PURGE PROTOCOL**:
+    - **AUTOMATIC STALE PROCESS PURGE & CLEAN REBOOT**: Whenever any code changes, refactors, or feature updates are applied to the codebase (frontend or backend), the agent MUST NOT leave old or frozen dev server processes running. The agent MUST proactively terminate stale Node.js sessions (`Get-Process -Name node | Stop-Process -Force`) and cleanly launch `npm start` as a daemon.
+    - **MANDATORY DUAL-PORT LIVE VERIFICATION (3000 & 5000)**: Before completing any task, the agent MUST autonomously verify that both the Vite frontend server on port 3000 and the Express backend server on port 5000 are actively listening and successfully serving fresh code (e.g. testing `GET http://localhost:3000/` and `GET http://localhost:5000/api/summary`), eliminating "Failed to fetch dynamically imported module", white screens, or frozen dev sessions without requiring manual user restarts.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:
@@ -161,5 +165,5 @@ When asked to commit, release, or push code to Git:
 6. **Build & Verify Before Finalizing Changes**:
    - Before completing any task or pushing code, you **MUST** ensure the current code doesn't break by verifying it. Run `npm run build` or the corresponding test/build commands to catch syntax errors or unresolved variables (e.g. `ReferenceError` during mapping). Never leave a file with untested breaking changes.
 
-7. **Backend Daemon & Port 5000 Health Check**:
-   - Before handing over any task, you **MUST** verify that the Express backend server (`node server/index.js`) is active on port 5000 and responds to `GET http://127.0.0.1:5000/api/summary` with HTTP 200 without ECONNREFUSED. If not running, start it as a background daemon process so the user never encounters connection errors.
+7. **Dual-Port Dev & Backend Daemon Health Check**:
+   - Before handing over any task, you **MUST** verify that both the Vite dev server (port 3000) and the Express backend server (port 5000) are active and healthy. If either is down, restart the dev environment cleanly via `npm start`.

@@ -14,7 +14,7 @@ Ladder is an institutional-grade personal finance and investment management dash
 
 2. **Multi-Pass Daily NAV & Market Data Engine**
    - **Indian Equities**: Live quotes comparing NSE and BSE prices, automatically locking the higher market quote (`NSE/BSE MAX`). Stock search automatically prioritizes NSE, falls back to BSE only if absent, and strips all exchange tags for clean single-entry prompts.
-   - **US Equities**: Real-time quotes from NASDAQ/NYSE with dynamic USD to INR conversion. Entries are strictly in USD ($) with real-time INR preview and automated historical FX rate lookups on date selection.
+   - **US Equities**: Real-time quotes from NASDAQ/NYSE with dynamic USD to INR conversion. Dedicated segmented switcher (`USD ($)` / `INR (₹)`) with active highlighting, live table conversions, and invested values strictly aggregated from discrete transaction-date USD buy lots and charges rather than converting INR at current FX rates. Automated historical FX rate lookups on date selection.
    - **Mutual Funds**: Real-time NAV synchronization via AMFI Scheme API. Full uniformity across asset lifecycle with standardized SELL transactions and borderless transaction ledgers.
    - **NPS (National Pension System)**: Automated daily scraper extracting official NAV files directly from Protean CRA archives (`nps_daily_navs` table in Supabase) with resilient historical backfill fallback. Authoritative database NAV synchronization guarantees 100% mathematical parity across Dashboard, NPS page, Calendar Heatmap, Reports, and Holding Detail Modals.
    - **Automated Historical Price Population**: Whenever a new or past-dated transaction is recorded for any stock, Mutual Fund, or NPS scheme, historical daily closing quotes/NAVs from the transaction date to present are automatically retrieved and populated into `data/historical_prices.json` and in-memory cache, ensuring holding detail charts immediately track real daily trajectories instead of flat lines.
@@ -34,6 +34,7 @@ Ladder is an institutional-grade personal finance and investment management dash
 5. **Historical Time-Series & Real-Time Multi-Granularity Calendar**
    - Daily, monthly, and yearly portfolio valuation history spanning 19 years (2007-2026) across 18 asset and liability columns (`data/portfolio_eod_logs.json`).
    - Dynamic real-time single-source-of-truth engine: today's current valuation updates live from real-time price feeds with 0 delay and zero scripts needed.
+   - Whole-portfolio net worth evaluation: daily P&L and status indicators (Green, Red, Blue) reflect the change in the total net worth of the portfolio, ensuring real movements in Bank Accounts, EPF, Loans, and Credit Cards are faithfully represented alongside market assets.
    - Interactive color-coded heatmap grid, period trend tables, and dynamic drill-down popup modals that update reactively in real time with live price ticks.
 
 6. **High-Performance Growth Benchmark & Reports Suite**

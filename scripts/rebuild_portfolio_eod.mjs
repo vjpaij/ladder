@@ -338,11 +338,39 @@ async function rebuildEod() {
   let curEpf = Number(lastExcelLog.epf || 0);
   let curLoan = Number(lastExcelLog.loan || 0);
   let curCredits = Number(lastExcelLog.credits || 0);
+  // Calculate baseline credit card debt directly from verified transaction ledger up to lastExcelLog.date
+  // to avoid undercounting historical transactions (such as 21-Jun-2026 ICICI Amazon Card expense)
+  const baselineCardTxs = allTxs.filter(t => t.date <= lastExcelLog.date && (
+    t.liability_id === '00000000-0000-0000-0000-000000000011' ||
+    t.symbol === 'ICICI-AMAZON-CC' ||
+    (t.name || '').includes('Amazon Card')
+  ));
+  if (baselineCardTxs.length > 0) {
+    let cardSum = 0;
+    baselineCardTxs.forEach(t => {
+      const amt = Number(t.total_amount) || Number(t.price) || 0;
+      const type = (t.type || '').toUpperCase();
+      if (['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'BUY'].includes(type)) {
+        cardSum += amt;
+      } else if (['EMI_PAYMENT', 'PREPAYMENT', 'BILL_PAYMENT', 'REPAYMENT', 'PAY', 'SELL'].includes(type)) {
+        cardSum -= amt;
+      }
+    });
+    if (cardSum > 0) {
+      curCredits = Number(cardSum.toFixed(2));
+    }
+  }
 
   let curDate = new Date(`${lastExcelLog.date}T00:00:00Z`);
   const endDate = new Date(`${targetEndDate}T00:00:00Z`);
   
-  let prevLog = { ...lastExcelLog };
+  let prevLog = { 
+    ...lastExcelLog,
+    credits: curCredits,
+    debt: Number((Number(lastExcelLog.loan || 0) + curCredits).toFixed(2)),
+    wealth: Number((Number(lastExcelLog.total_assets || 0) - (Number(lastExcelLog.loan || 0) + curCredits)).toFixed(2)),
+    total_wealth: Number((Number(lastExcelLog.total_assets || 0) - (Number(lastExcelLog.loan || 0) + curCredits)).toFixed(2))
+  };
 
   // Generate daily logs from day after Excel date up to targetEndDate
   while (true) {

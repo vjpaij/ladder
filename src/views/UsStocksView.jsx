@@ -9,7 +9,8 @@ import HoldingDetailModal from '../components/HoldingDetailModal';
 import HoldingLogo from '../components/HoldingLogo';
 
 export default function UsStocksView({ summary, holdings, onDeleteHolding, onEditHolding, onOpenAddModal, onRefresh }) {
-  const { currency, toggleCurrency, formatMoney, formatRawUSD, fxRate, liveFxRate, isUSD } = useThemeAuth();
+  const { currency, setCurrency, toggleCurrency, formatMoney, formatRawUSD, fxRate, liveFxRate } = useThemeAuth();
+  const isUSD = currency === 'USD';
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'closed'
   const [sortField, setSortField] = useState('name'); // Default sort by name
@@ -83,7 +84,14 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
   }, [searchFiltered, sortField, sortOrder]);
 
   const totalUSD = useMemo(() => statusFiltered.reduce((sum, h) => sum + ((Number(h.quantity) || 0) * (Number(h.current_price) || 0)), 0), [statusFiltered]);
-  const totalInvestedUSD = useMemo(() => statusFiltered.reduce((sum, h) => sum + ((Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0)), 0), [statusFiltered]);
+  const totalInvestedUSD = useMemo(() => statusFiltered.reduce((sum, h) => {
+    const invUSD = Number(h.investedValueUSD) > 0 
+      ? Number(h.investedValueUSD) 
+      : (Number(h.investedValueOriginal) > 0 
+        ? Number(h.investedValueOriginal) 
+        : ((Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0)));
+    return sum + invUSD;
+  }, 0), [statusFiltered]);
   const totalInvestedINR = useMemo(() => statusFiltered.reduce((sum, h) => sum + (Number(h.investedValueINR) || 0), 0), [statusFiltered]);
   const totalConvertedINR = totalUSD * fxRate;
   const totalGainINR = totalConvertedINR - totalInvestedINR;
@@ -103,7 +111,9 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
     statusFiltered.forEach(h => {
       const soldQty = Number(h.sell_qty) || Number(h.sold_qty) || Number(h.buy_qty) || 0;
       const avgBuyUSD = Number(h.avg_buy_price) || 0;
-      const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : 0;
+      const investedUSD = Number(h.investedValueUSD) > 0 
+        ? Number(h.investedValueUSD) 
+        : (soldQty > 0 ? (soldQty * avgBuyUSD) : (Number(h.investedValueOriginal) || 0));
       const txRate = h.txFxRate || (investedUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / investedUSD : fxRate) || 1.0;
       const investedINR = Number(h.investedValueINR) || (investedUSD * txRate);
       const realizedPnlUSD = Number(h.realized_pnl) || 0;
@@ -141,9 +151,10 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
       // Active cost
       const activeQty = Number(h.quantity) || 0;
       const avgBuyUSD = Number(h.avg_buy_price) || 0;
-      const txRate = h.txFxRate || (activeQty * avgBuyUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / (activeQty * avgBuyUSD) : fxRate) || 1.0;
-      
-      const activeInvestedUSD = activeQty * avgBuyUSD;
+      const activeInvestedUSD = Number(h.investedValueUSD) > 0
+        ? Number(h.investedValueUSD)
+        : (Number(h.investedValueOriginal) > 0 ? Number(h.investedValueOriginal) : (activeQty * avgBuyUSD));
+      const txRate = h.txFxRate || (activeInvestedUSD > 0 && Number(h.investedValueINR) ? Number(h.investedValueINR) / activeInvestedUSD : fxRate) || 1.0;
       const activeInvestedINR = Number(h.investedValueINR) || (activeInvestedUSD * txRate);
       
       totalCostUSD += activeInvestedUSD;
@@ -152,7 +163,9 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
       // Redeemed cost
       const soldQty = Number(h.sell_qty) || (Number(h.quantity) === 0 ? Number(h.buy_qty) || 0 : 0);
       if (soldQty > 0) {
-        const closedInvestedUSD = soldQty * avgBuyUSD;
+        const closedInvestedUSD = (Number(h.quantity) === 0 && Number(h.investedValueUSD) > 0)
+          ? Number(h.investedValueUSD)
+          : (soldQty * avgBuyUSD);
         const closedInvestedINR = closedInvestedUSD * txRate;
         totalCostUSD += closedInvestedUSD;
         totalCostINR += closedInvestedINR;
@@ -326,16 +339,36 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                 </button>
               </div>
 
-              {/* Right: Currency Switcher & Search Box */}
+              {/* Right: Segmented Currency Switcher & Search Box */}
               <div className="flex items-center gap-2.5 w-full sm:w-auto">
-                <button
-                  onClick={toggleCurrency}
-                  className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-purple-500/50 rounded-xl text-xs font-mono font-bold text-purple-300 hover:text-white transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
-                  title="Toggle Currency"
-                >
-                  <DollarSign className="w-3.5 h-3.5 text-purple-400" />
-                  <span>{isUSD ? 'USD ($)' : 'INR (₹)'}</span>
-                </button>
+                <div className="flex items-center bg-slate-900/90 p-1 rounded-2xl border border-slate-800 text-xs font-bold shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => currency !== 'USD' && (setCurrency ? setCurrency('USD') : toggleCurrency())}
+                    className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                      isUSD 
+                        ? 'bg-purple-600 text-white shadow-md font-black' 
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Switch display to USD ($)"
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>USD ($)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => currency !== 'INR' && (setCurrency ? setCurrency('INR') : toggleCurrency())}
+                    className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                      !isUSD 
+                        ? 'bg-purple-600 text-white shadow-md font-black' 
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Switch display to INR (₹)"
+                  >
+                    <span className="font-semibold text-xs leading-none">₹</span>
+                    <span>INR (₹)</span>
+                  </button>
+                </div>
 
                 {/* Search Box */}
                 <div className="relative w-full sm:w-64">
@@ -462,7 +495,9 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                   const soldQty = Number(h.sell_qty) || Number(h.sold_qty) || Number(h.buy_qty) || 0;
                   const avgBuyUSD = Number(h.avg_buy_price) || 0;
                   const avgBuyINR = avgBuyUSD * fxRate;
-                  const investedUSD = soldQty > 0 ? (soldQty * avgBuyUSD) : (Number(h.investedValueUSD) || 0);
+                  const investedUSD = Number(h.investedValueUSD) > 0 
+                    ? Number(h.investedValueUSD) 
+                    : (soldQty > 0 ? (soldQty * avgBuyUSD) : (Number(h.investedValueOriginal) || 0));
                   const investedINR = Number(h.investedValueINR) || (investedUSD * fxRate);
                   const realizedPnlUSD = Number(h.realized_pnl) || 0;
                   const realizedPnlINR = Number(h.realized_pnl_inr) || (realizedPnlUSD * fxRate);
@@ -476,7 +511,11 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                   // Active position values
                   const usdVal = qty * (Number(h.current_price) || 0);
                   const inrVal = usdVal * fxRate;
-                  const usdInvested = qty * (Number(h.avg_buy_price) || 0);
+                  const usdInvested = Number(h.investedValueUSD) > 0 
+                    ? Number(h.investedValueUSD) 
+                    : (Number(h.investedValueOriginal) > 0 
+                      ? Number(h.investedValueOriginal) 
+                      : (qty * (Number(h.avg_buy_price) || 0)));
                   const inrInvested = Number(h.investedValueINR) || 0;
                   const usdGain = usdVal - usdInvested;
                   const inrGain = inrVal - inrInvested;
@@ -593,7 +632,7 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                                 ) : (
                                   <ArrowDown className="w-2.5 h-2.5 stroke-[3] shrink-0" />
                                 )}
-                                <span>{(h.day_change || 0) >= 0 ? '+' : '-'}${Math.abs(h.day_change).toFixed(2)}</span>
+                                <span>{(h.day_change || 0) >= 0 ? '+' : '-'}{isUSD ? `$${Math.abs(h.day_change).toFixed(2)}` : `₹${Math.abs((h.day_change || 0) * fxRate).toFixed(2)}`}</span>
                                 <span className="opacity-80">({(h.day_change_pct || 0) >= 0 ? '+' : ''}{h.day_change_pct || 0}%)</span>
                               </div>
                             )}
