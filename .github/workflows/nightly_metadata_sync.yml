@@ -1,9 +1,11 @@
-name: Nightly Asset Metadata & Benchmark Sync
+name: Nightly Asset Metadata & Benchmark Sync (Manual)
 
 on:
-  schedule:
-    # Runs every night at 23:00 IST (17:30 UTC)
-    - cron: '30 17 * * *'
+  # CRON DISABLED (Rule 20 - Dual-Execution Ban):
+  # The local Express daemon handles nightly self-healing and metadata sync.
+  # Re-enable only if the local daemon is not running (quota quarantine mode).
+  # schedule:
+  #   - cron: '30 17 * * *'
   workflow_dispatch: # Allows manual 1-click trigger from GitHub Actions UI
 
 jobs:
@@ -35,14 +37,9 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: node scripts/sync_asset_metadata.mjs
 
-      - name: Synchronize Mutual Fund Constituent Holdings
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        run: node scripts/sync_mf_holdings.mjs
-
       - name: Synchronize Benchmark Indices Daily History
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: node scripts/sync_index_history.mjs
+

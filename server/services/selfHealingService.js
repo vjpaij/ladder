@@ -7,7 +7,9 @@ import {
   fetchStockQuote, 
   fetchMutualFundNav, 
   fetchNpsNavFallback, 
-  syncAllMissingNavs 
+  syncAllMissingNavs,
+  isTradingDay,
+  getTodayIST
 } from './priceEngine.js';
 
 /**
@@ -148,6 +150,103 @@ export async function healMissingHoldingPrices() {
 }
 
 /**
+ * Detects and fills missing NPS NAV entries for held schemes across the last
+ * 7 trading days. Uses npsnav.in as the data source and persists gaps to
+ * Supabase nps_daily_navs for permanent resolution.
+ *
+ * This addresses the Protean CRA T+1 publication lag where NAVs for trading
+ * day T are only published on T+1 (sometimes late morning), causing stale
+ * carry-forward values in EOD logs that were never corrected.
+ */
+export async function healNpsNavGaps() {
+  const healedCount = { updated: 0 };
+  try {
+    const holdings = await db.select('holdings');
+    const npsHoldings = holdings.filter(h => h.category_id === 'nps' && Number(h.quantity) > 0 && h.symbol);
+    if (npsHoldings.length === 0) return healedCount;
+
+    const heldCodes = npsHoldings.map(h => h.symbol);
+    const today = getTodayIST();
+
+    // Collect the last 7 trading days
+    const tradingDays = [];
+    const checkDate = new Date(`${today}T00:00:00Z`);
+    for (let i = 0; i < 14 && tradingDays.length < 7; i++) {
+      checkDate.setUTCDate(checkDate.getUTCDate() - 1);
+      const ds = checkDate.toISOString().slice(0, 10);
+      if (isTradingDay(ds, 'NSE')) {
+        tradingDays.push(ds);
+      }
+    }
+    if (tradingDays.length === 0) return healedCount;
+
+    // Query existing NAVs for held schemes across these trading days
+    const { data: existingNavs } = await supabase
+      .from('nps_daily_navs')
+      .select('scheme_code,nav_date')
+      .in('scheme_code', heldCodes)
+      .in('nav_date', tradingDays);
+
+    const existingSet = new Set((existingNavs || []).map(r => `${r.scheme_code}_${r.nav_date}`));
+
+    for (const code of heldCodes) {
+      const missingDates = tradingDays.filter(d => !existingSet.has(`${code}_${d}`));
+      if (missingDates.length === 0) continue;
+
+      // Fetch full history from npsnav.in once for this scheme
+      try {
+        const res = await axios.get(`https://npsnav.in/api/historical/${code}`, { timeout: 10000 });
+        if (res.data && Array.isArray(res.data.data)) {
+          const navByDate = {};
+          for (const item of res.data.data) {
+            let isoDate = item.date;
+            if (/^\d{2}-\d{2}-\d{4}$/.test(isoDate)) {
+              const [d, m, y] = isoDate.split('-');
+              isoDate = `${y}-${m}-${d}`;
+            }
+            const nav = parseFloat(item.nav);
+            if (!isNaN(nav) && nav > 0) {
+              navByDate[isoDate] = nav;
+            }
+          }
+
+          const rowsToUpsert = [];
+          for (const date of missingDates) {
+            if (navByDate[date]) {
+              rowsToUpsert.push({
+                scheme_code: code,
+                scheme_name: npsHoldings.find(h => h.symbol === code)?.name || code,
+                nav: navByDate[date],
+                nav_date: date
+              });
+            }
+          }
+
+          if (rowsToUpsert.length > 0) {
+            const { error } = await supabase
+              .from('nps_daily_navs')
+              .upsert(rowsToUpsert, { onConflict: 'scheme_code,nav_date' });
+            if (!error) {
+              healedCount.updated += rowsToUpsert.length;
+              console.log(`[Self-Healing] Backfilled ${rowsToUpsert.length} NPS NAV gaps for ${code}: ${rowsToUpsert.map(r => r.nav_date).join(', ')}`);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`[Self-Healing] NPS NAV gap fetch error for ${code}:`, e.message);
+      }
+    }
+
+    if (healedCount.updated > 0) {
+      console.log(`[Self-Healing] Total NPS NAV gaps filled: ${healedCount.updated}`);
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] NPS NAV gap healing warning:', err.message);
+  }
+  return healedCount;
+}
+
+/**
  * Runs all self-healing routines in sequence
  */
 export async function runComprehensiveSelfHealing() {
@@ -155,6 +254,7 @@ export async function runComprehensiveSelfHealing() {
   const fxHeal = await healMissingHistoricalFxRates();
   const txHeal = await healTransactionFxRates();
   const priceHeal = await healMissingHoldingPrices();
+  const npsGapHeal = await healNpsNavGaps();
   let navHeal = null;
   try {
     navHeal = await syncAllMissingNavs();
@@ -162,7 +262,7 @@ export async function runComprehensiveSelfHealing() {
     console.warn('[Self-Healing Service] NAV sync warning:', err.message);
   }
 
-  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Prices: ${priceHeal.updated}`);
+  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Prices: ${priceHeal.updated}, NPS NAV Gaps: ${npsGapHeal.updated}`);
   return {
     fxHealed: fxHeal,
     transactionsHealed: txHeal,

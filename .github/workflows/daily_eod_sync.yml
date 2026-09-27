@@ -1,16 +1,19 @@
 name: Daily Portfolio EOD Sync
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/daily_eod_sync.yml'
-      - 'scripts/load_historical_prices.mjs'
-      - 'scripts/rebuild_portfolio_eod.mjs'
-  schedule:
-    # Run after both Indian and US market activity has settled (23:45 UTC).
-    - cron: '45 23 * * *'
+  # CRON DISABLED (Rule 20 - Dual-Execution Ban):
+  # The local Express daemon runs EOD rebuild at 06:30 PM IST and 07:00 AM IST.
+  # Re-enable only if the local daemon is not running (quota quarantine mode).
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - '.github/workflows/daily_eod_sync.yml'
+  #     - 'scripts/load_historical_prices.mjs'
+  #     - 'scripts/rebuild_portfolio_eod.mjs'
+  # schedule:
+  #   - cron: '45 23 * * *'
   workflow_dispatch:
+
 
 jobs:
   sync-eod:

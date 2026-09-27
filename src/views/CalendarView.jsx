@@ -92,10 +92,11 @@ export default function CalendarView() {
 
   useEffect(() => {
     fetchLogs();
-    // Real-time automatic background polling every 5 seconds
+    // Background polling: calendar data is historical, refreshes once per day.
+    // 60s is well above the 30s minimum per Rule 19.
     const interval = setInterval(() => {
       fetchLogs(true);
-    }, 5000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [calendarRangeFilter]);
 

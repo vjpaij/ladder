@@ -464,12 +464,31 @@ router.put('/holdings/:id', authenticateToken, async (req, res) => {
 router.delete('/holdings/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Surgically remove children from write-through cache then delete from Supabase.
+    // This prevents ghost rows from remaining in RAM after deletion.
+    const allTxs = await db.select('transactions');
+    const childTxIds = (allTxs || []).filter(t => String(t.holding_id) === String(id)).map(t => t.id);
+    for (const txId of childTxIds) {
+      db.removeFromCache('transactions', txId);
+    }
     await supabase.from('transactions').delete().eq('holding_id', id);
+
+    const allDivs = await db.select('dividends');
+    const childDivIds = (allDivs || []).filter(d => String(d.holding_id) === String(id)).map(d => d.id);
+    for (const divId of childDivIds) {
+      db.removeFromCache('dividends', divId);
+    }
     await supabase.from('dividends').delete().eq('holding_id', id);
+
+    // SIPs are NOT a write-through-protected table; delete + invalidate is fine.
     await supabase.from('sips').delete().eq('holding_id', id);
+    db.invalidateCache('sips');
+
+    // Delete the holding itself from cloud then remove from RAM cache.
     const { error: holdErr } = await supabase.from('holdings').delete().eq('id', id);
     if (holdErr) throw new Error(holdErr.message);
-    db.invalidateCache();
+    db.removeFromCache('holdings', id);
 
     res.json({ success: true, message: 'Holding and all associated records deleted successfully.' });
   } catch (err) {
@@ -544,9 +563,17 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       const eodLogsPath = path.join(__dirname, '../../data/portfolio_eod_logs.json');
       let eodLogs = [];
       try {
-        if (fs.existsSync(eodLogsPath)) {
-          eodLogs = JSON.parse(fs.readFileSync(eodLogsPath, 'utf-8'));
+        // In-memory cache to avoid re-parsing the 3MB EOD file on every modal poll.
+        const now = Date.now();
+        if (!router._eodLogsCache || !router._eodLogsCacheAt || (now - router._eodLogsCacheAt) > 5 * 60 * 1000) {
+          if (fs.existsSync(eodLogsPath)) {
+            router._eodLogsCache = JSON.parse(fs.readFileSync(eodLogsPath, 'utf-8'));
+          } else {
+            router._eodLogsCache = [];
+          }
+          router._eodLogsCacheAt = now;
         }
+        eodLogs = router._eodLogsCache;
       } catch (err) {
         console.error('[Detail API] Error reading eodLogs:', err.message);
       }
@@ -611,10 +638,12 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           };
         }
 
+        // Fetch real transactions from cache. Return empty array if none exist —
+        // NEVER fabricate synthetic BUY/SELL rows from EOD log data (Rule 5).
         let txs = [];
         try {
           const allTxs = await db.select('transactions');
-          const matched = (allTxs || []).filter(t => 
+          const matched = (allTxs || []).filter(t =>
             String(t.holding_id) === String(holding.id) ||
             String(t.liability_id) === String(holding.id) ||
             (t.symbol && t.symbol === holding.symbol)
@@ -624,6 +653,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           console.warn('[Detail API db.select transactions Warning]:', e.message);
         }
         if (txs.length === 0) {
+          // Last-resort direct Supabase query (0 egress if cache is warm, only fires on cold boot)
           const { data: realTxs } = await supabase
             .from('transactions')
             .select('*')
@@ -631,29 +661,8 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
             .order('date', { ascending: false });
           if (realTxs && realTxs.length > 0) {
             txs = realTxs;
-          } else {
-            let prevVal = 0;
-            const txStep = Math.max(1, Math.floor(validLogs.length / 60));
-            for (let i = 0; i < validLogs.length; i += txStep) {
-              const l = validLogs[i];
-              const val = l[eodKey] || 0;
-              const diff = val - prevVal;
-              txs.push({
-                id: `eod_${l.date}_${i}`,
-                holding_id: holding.id,
-                symbol: holding.symbol || 'EOD',
-                name: holding.name,
-                type: diff >= 0 ? 'BUY' : 'SELL',
-                quantity: 1,
-                price: val,
-                total_amount: Math.abs(diff),
-                date: l.date,
-                notes: `EOD Balance: ₹${val.toLocaleString('en-IN')}`
-              });
-              prevVal = val;
-            }
-            txs = txs.reverse();
           }
+          // If still empty, txs remains [] — no fabricated rows are inserted.
         }
 
         if (holding.category_id === 'loans') {
@@ -684,6 +693,12 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           fxRate: 1.0,
           transactions: txs,
           dividends: [],
+          // balanceHistory provides the daily EOD balance series for Bank/EPF/Liability accounts.
+          // The HoldingDetailModal uses this to render the daily balance ledger and chart.
+          balanceHistory: validLogs.map(l => ({
+            date: l.date,
+            balance: Number((l[eodKey] || 0).toFixed(2))
+          })),
           timelineUSD: timelineINR,
           timelineINR,
           metricsUSD: {

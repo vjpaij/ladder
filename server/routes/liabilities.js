@@ -67,11 +67,24 @@ router.put('/liabilities/:id', authenticateToken, async (req, res) => {
 router.delete('/liabilities/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Surgically remove child transactions from write-through cache before cloud delete.
+    const allTxs = await db.select('transactions');
+    const childTxIds = (allTxs || []).filter(t => String(t.liability_id) === String(id)).map(t => t.id);
+    for (const txId of childTxIds) {
+      db.removeFromCache('transactions', txId);
+    }
     await supabase.from('transactions').delete().eq('liability_id', id);
+
+    // Amortization is not write-through-protected; evict and delete.
     await supabase.from('loan_amortization').delete().eq('liability_id', id);
+    db.invalidateCache('loan_amortization');
+
+    // Delete liability from cloud then remove from RAM cache.
     const { error: liabErr } = await supabase.from('liabilities').delete().eq('id', id);
     if (liabErr) throw new Error(liabErr.message);
-    db.invalidateCache();
+    db.removeFromCache('liabilities', id);
+
     res.json({ success: true, message: 'Liability and associated records deleted successfully.' });
   } catch (err) {
     console.error('[Delete Liability Error]:', err.message);
@@ -100,7 +113,7 @@ router.get('/loan/amortization', authenticateToken, async (req, res) => {
 router.post('/loan/amortization/entry', authenticateToken, async (req, res) => {
   try {
     const result = await addLoanAmortizationEntry(req.body);
-    db.invalidateCache('liabilities');
+    db.invalidateCache('loan_amortization');
     res.json({ success: true, entry: result });
   } catch (err) {
     console.error('[API Error - /api/loan/amortization/entry]:', err);
@@ -112,7 +125,7 @@ router.put('/loan/amortization/entry/:id', authenticateToken, async (req, res) =
   try {
     const { id } = req.params;
     const result = await updateLoanAmortizationEntry(id, req.body);
-    db.invalidateCache('liabilities');
+    db.invalidateCache('loan_amortization');
     res.json({ success: true, entry: result });
   } catch (err) {
     console.error('[API Error - update loan entry]:', err);
@@ -124,7 +137,7 @@ router.delete('/loan/amortization/entry/:id', authenticateToken, async (req, res
   try {
     const { id } = req.params;
     const result = await deleteLoanAmortizationEntry(id);
-    db.invalidateCache('liabilities');
+    db.invalidateCache('loan_amortization');
     res.json(result);
   } catch (err) {
     console.error('[API Error - delete loan entry]:', err);

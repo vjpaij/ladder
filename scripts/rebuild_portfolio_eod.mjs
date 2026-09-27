@@ -5,7 +5,7 @@ import axios from 'axios';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs } from '../server/services/priceEngine.js';
+import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache } from '../server/services/priceEngine.js';
 import { getYesterdayIST } from '../server/services/marketCalendar.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
@@ -61,6 +61,9 @@ function parseExcelDate(excelDate) {
 
 async function rebuildEod() {
   initDatabase();
+  // Force fresh NPS NAV data by clearing stale Protean/historical caches.
+  // This prevents T+1 publication lag from persisting stale carry-forward NAVs.
+  clearProteanCache();
   console.log('Rebuilding portfolio EOD logs from portfolio.xlsx and Supabase holdings...');
 
   // 1. Read base historical rows from Excel up to 2026-08-07, or fallback to JSON / Supabase for prior history
@@ -297,7 +300,11 @@ async function rebuildEod() {
   };
 
   // Pre-load transactions and liabilities for bank/EPF/loan timeline replay
-  const allTxs = await db.select('transactions');
+  const allTxs = (await db.select('transactions')).sort((a,b) => {
+    const dDiff = (a.date || '').localeCompare(b.date || '');
+    if (dDiff !== 0) return dDiff;
+    return (a.created_at || '').localeCompare(b.created_at || '');
+  });
   const allLiabilities = await db.select('liabilities');
   const hMap = Object.fromEntries(holdings.map(h => [h.id, h]));
   const lMap = Object.fromEntries(allLiabilities.map(l => [l.id, l]));
@@ -307,6 +314,19 @@ async function rebuildEod() {
   allTxs.filter(t => t.date > lastExcelLog.date).forEach(t => {
     if (!txsByDate.has(t.date)) txsByDate.set(t.date, []);
     txsByDate.get(t.date).push(t);
+  });
+
+  // Pre-compute baseline quantities up to lastExcelLog.date for market assets
+  const holdingQty = {};
+  holdings.forEach(h => holdingQty[h.id] = 0);
+  allTxs.filter(t => t.date <= lastExcelLog.date).forEach(tx => {
+    const qty = Number(tx.quantity) || 0;
+    const type = (tx.type || 'BUY').toUpperCase();
+    if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'BONUS', 'SPLIT'].includes(type)) {
+      holdingQty[tx.holding_id] = (holdingQty[tx.holding_id] || 0) + qty;
+    } else if (['SELL', 'WITHDRAWAL'].includes(type)) {
+      holdingQty[tx.holding_id] = Math.max(0, (holdingQty[tx.holding_id] || 0) - qty);
+    }
   });
 
   let curHdfc = Number(lastExcelLog.hdfc || 0);
@@ -365,21 +385,28 @@ async function rebuildEod() {
           } else if (sym.includes('FEDERAL')) {
             if (isPositive) curFederal += amt; else if (isNegative) curFederal -= amt;
           }
+        } else if (['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id)) {
+          const qty = Number(t.quantity) || 0;
+          if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'BONUS', 'SPLIT'].includes(type)) {
+            holdingQty[t.holding_id] = (holdingQty[t.holding_id] || 0) + qty;
+          } else if (['SELL', 'WITHDRAWAL'].includes(type)) {
+            holdingQty[t.holding_id] = Math.max(0, (holdingQty[t.holding_id] || 0) - qty);
+          }
         }
       }
 
-      if (t.liability_id) {
-        const l = lMap[t.liability_id];
-        const isLoan = l?.category_id === 'loans' || (l?.name || '').toLowerCase().includes('loan');
-        if (isLoan) {
-          if (isDebtIncr) curLoan += amt;
-          else if (isDebtDecr) curLoan -= amt;
-        } else {
-          if (isDebtIncr) curCredits += amt;
-          else if (isDebtDecr) curCredits -= amt;
+        if (t.liability_id) {
+          const l = lMap[t.liability_id];
+          const isLoan = l?.category_id === 'loans' || (l?.name || '').toLowerCase().includes('loan');
+          if (isLoan) {
+            if (isDebtIncr) curLoan += amt;
+            else if (isDebtDecr) curLoan -= amt;
+          } else {
+            if (isDebtIncr) curCredits += amt;
+            else if (isDebtDecr) curCredits -= amt;
+          }
         }
-      }
-    });
+      });
 
     const curSavings = Number((curHdfc + curIndusind + curIdfc + curRbl + curSbi + curFederal).toFixed(2));
     const curDebt = Number((curLoan + curCredits).toFixed(2));
@@ -451,7 +478,11 @@ async function rebuildEod() {
       });
 
       // Construct current snapshot with dynamically replayed bank & debt balances
-      const valuation = computePortfolioValuation(holdings, [], priceMap, fx);
+      const historicalHoldings = holdings.map(h => ({
+        ...h,
+        quantity: holdingQty[h.id] || 0
+      }));
+      const valuation = computePortfolioValuation(historicalHoldings, [], priceMap, fx);
       const totalAssets = Number((curSavings + curEpf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps).toFixed(2));
       const wealth = Number((totalAssets - curDebt).toFixed(2));
 

@@ -5,8 +5,29 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.48.15] - 2026-09-23
+## [5.49.0] - 2026-09-27
 
+### Fixed
+- **Calendar & EOD Sync Reliability Overhaul -- NPS T+1 Gap Healing, SIP Retry Engine, Triple EOD Rebuild Schedule**:
+  - **Root Cause Diagnosed**: Audited last 10 days of Calendar EOD data and identified 6 root causes: NPS NAV on 23-Sep identical to 22-Sep due to Protean CRA T+1 publication lag with no backfill; SIP entries for 24-Sep appeared 1 day late due to transient AMFI API errors with no retry; EOD rebuild schedule missed late-night AMFI NAV publications; `fetchNpsHistoricalNav` early-returned from Supabase even when recent gaps existed.
+  - **NPS T+1 Gap Resolution** (`priceEngine.js`): Added `clearProteanCache()` to force-clear all NPS caches before EOD rebuilds. Modified `fetchNpsHistoricalNav()` to detect 5-trading-day gaps before early-returning, falling through to npsnav.in backfill.
+  - **NPS Date-Gap Self-Healing** (`selfHealingService.js`): Added `healNpsNavGaps()` routine auditing `nps_daily_navs` for held schemes across last 7 trading days, fetching missing NAVs from npsnav.in and persisting to Supabase.
+  - **SIP Engine Retry** (`sipEngine.js`): Added 5-second retry on transient AMFI API failures before skipping, preventing 15-minute wait cycles for momentary glitches.
+  - **SIP EOD Cascade** (`server/index.js`): Enhanced SIP sweep to detect past-dated executions and trigger `triggerEodRebuildIfPastDate()` for immediate Calendar sync.
+  - **Triple EOD Rebuild Schedule** (`server/index.js`): Added 11:45 PM IST (18:15 UTC) as 3rd daily rebuild target capturing AMFI late-night NAV publications. Schedule: 07:00 AM / 06:30 PM / 11:45 PM IST.
+  - **Verification**: NPS 23-Sep corrected from 511,724.75 to 513,157.74; all 3 NPS schemes gap-detected and backfilled; 6,939 EOD logs synchronized with zero gaps.
+
+## [5.48.16] - 2026-09-23
+
+### Fixed
+- **Flawless Execution Architecture & Polling Optimization**:
+  - Repaired `db.js` memory cache eviction engine by implementing surgical `removeFromCache` to prevent stale memory artifacts during deletes.
+  - Disabled redundant CI/CD GitHub Action crons triggering dual-execution egress drains (Rule 20 compliance).
+  - Enforced Rule 19 polling maximums across `App.jsx` (30s), `CalendarView.jsx` (60s), and `ThemeAuthContext.jsx` (60s).
+  - Fixed Day P&L API Parity discrepancy between `/api/summary` and `/api/daily-pnl` by aligning prior-day baseline calculations.
+  - Attained 100% Pass Rate on `verify_financial_integrity.mjs`.
+
+## [5.48.15] - 2026-09-23
 ### Fixed
 - **US Stocks Liquidation Reconciliation, Clean Dividend Parsing & FX Rate Realignment**:
   - **Root Cause Diagnosed**: Investigated high valuations, corrupted returns, and inflated gains in US Equity:

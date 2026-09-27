@@ -40,7 +40,9 @@ export function computeHoldingValueINR(holding, overridePrice = null, fxRate = n
     let price = overridePrice !== null && overridePrice !== undefined && overridePrice > 0
       ? Number(overridePrice)
       : (Number(holding.current_price) || 0);
-    if (holding.category_id === 'in_stocks') {
+    
+    // Only apply the live exchange maximization logic if we are NOT using a historical override price
+    if ((overridePrice === null || overridePrice === undefined || overridePrice <= 0) && holding.category_id === 'in_stocks') {
       const maxEx = Math.max(Number(holding.nse_price) || 0, Number(holding.bse_price) || 0);
       if (maxEx > 0) price = Math.max(price, maxEx);
     }

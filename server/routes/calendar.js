@@ -72,9 +72,13 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       loan: l.loan,
       credits: l.credits
     }]));
+    // The local portfolio_eod_logs.json is the live canonical source.
+    // pnl_history (Supabase) only backfills dates where the local file has no entry.
+    // This guarantees /api/summary and /api/daily-pnl use the exact same wealth baseline.
+    const localDates = new Set(eodLogs.map(l => l.date));
     eodLogs = [
-      ...eodLogs.filter(l => !dbLogsByDate.has(l.date)),
-      ...dbLogsByDate.values()
+      ...eodLogs,
+      ...dbLogsByDate.values().filter ? [...dbLogsByDate.values()].filter(l => !localDates.has(l.date)) : [...dbLogsByDate.values()].filter(l => !localDates.has(l.date))
     ];
 
     // Universal Live Snapshot for Today (Single Source of Truth)

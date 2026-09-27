@@ -144,8 +144,7 @@ export function invalidateCache(tableName) {
 
   dbCache.delete(sTable);
 
-  if (sTable === 'liabilities' || sTable === 'loan_amortization') {
-    dbCache.delete('liabilities');
+  if (sTable === 'loan_amortization') {
     dbCache.delete('loan_amortization');
   }
   if (sTable === 'pnl_history' || sTable === 'daily_pnl_logs') {
@@ -156,6 +155,35 @@ export function invalidateCache(tableName) {
     dbCache.delete('recurring_sips');
     dbCache.delete('sip_history');
   }
+}
+
+/**
+ * Surgically removes a single row by ID from a write-through cached table.
+ * Used by DELETE operations so the cache stays consistent without needing
+ * to evict and re-fetch the entire table from the cloud.
+ */
+export function removeFromCache(tableName, id) {
+  const sTable = getSupabaseTableName(tableName);
+  const entry = dbCache.get(sTable);
+  if (entry && Array.isArray(entry.data)) {
+    const before = entry.data.length;
+    entry.data = entry.data.filter(r => String(r.id) !== String(id));
+    if (entry.data.length !== before) {
+      debouncedSaveSnapshot();
+    }
+  }
+}
+
+/**
+ * Force-evicts a table from the cache, bypassing write-through protection.
+ * ONLY for bulk destructive operations (restore backup, import wipe).
+ * Do NOT call this during normal CRUD — use removeFromCache() instead.
+ */
+export function forceEvict(tableName) {
+  const sTable = getSupabaseTableName(tableName);
+  dbCache.delete(sTable);
+  debouncedSaveSnapshot();
+  console.log(`[DB Cache] Force-evicted '${sTable}' (destructive operation path).`);
 }
 
 function ensureTableCached(sTable) {
@@ -372,6 +400,14 @@ export const db = {
 
   invalidateCache: (tableName) => {
     invalidateCache(tableName);
+  },
+
+  removeFromCache: (tableName, id) => {
+    removeFromCache(tableName, id);
+  },
+
+  forceEvict: (tableName) => {
+    forceEvict(tableName);
   }
 };
 

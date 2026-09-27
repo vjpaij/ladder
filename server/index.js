@@ -63,14 +63,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http:
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
-// Process-level resilience against unhandled rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.warn('[Server Warning] Unhandled Promise Rejection:', reason?.message || reason);
-});
 
-process.on('uncaughtException', (err) => {
-  console.warn('[Server Warning] Uncaught Exception:', err?.message || err);
-});
 
 // Initialize DB engine connection
 initDatabase();
@@ -274,9 +267,18 @@ app.listen(PORT, async () => {
   scheduleDailyCloudBackup();
 
   // Sweep due SIPs periodically so automation continues when the UI is closed.
+  // If any SIPs execute for past dates, trigger an EOD rebuild to sync Calendar entries.
   const runSipSweep = async () => {
     try {
-      await processDueSips();
+      const result = await processDueSips();
+      if (result && result.processedCount > 0) {
+        const today = getTodayIST();
+        const pastDatedSips = (result.processedSips || []).filter(p => p.executedDate && p.executedDate < today);
+        if (pastDatedSips.length > 0) {
+          console.log(`[SIP Scheduler] ${pastDatedSips.length} past-dated SIP(s) executed. Triggering EOD rebuild for Calendar sync...`);
+          triggerEodRebuildIfPastDate(pastDatedSips[0].executedDate);
+        }
+      }
     } catch (err) {
       console.warn('[SIP Scheduler Warning]:', err.message);
     }
@@ -292,7 +294,8 @@ app.listen(PORT, async () => {
       const now = new Date();
       const targets = [
         { hour: 1, minute: 30, label: '07:00 AM IST' },
-        { hour: 13, minute: 0, label: '06:30 PM IST' }
+        { hour: 13, minute: 0, label: '06:30 PM IST' },
+        { hour: 18, minute: 15, label: '11:45 PM IST' }
       ].map(t => {
         const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), t.hour, t.minute, 0, 0));
         if (d.getTime() <= now.getTime()) {

@@ -1,10 +1,13 @@
 name: Daily 08:25 AM IST Compressed Cloud Backup
 
 on:
-  schedule:
-    # Runs everyday just before 8:30 AM IST (08:25 AM IST = 02:55 AM UTC)
-    - cron: '55 2 * * *'
+  # CRON DISABLED (Rule 20 - Dual-Execution Ban):
+  # The local Express server daemon already runs this at 08:25 AM IST.
+  # Re-enable only if the local daemon is not running (quota quarantine mode).
+  # schedule:
+  #   - cron: '55 2 * * *'
   workflow_dispatch: # Allows manual 1-click trigger from GitHub Actions tab
+
 
 jobs:
   backup:

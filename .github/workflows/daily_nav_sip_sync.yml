@@ -1,19 +1,12 @@
-name: Hourly NAV & SIP Cloud Sync
+name: NAV & SIP Cloud Sync (Manual)
 
 on:
-  schedule:
-    # Trading-day guard is enforced inside sync_navs_and_sips.mjs itself.
-    # This workflow fires on schedule — the script exits early on weekends/holidays.
-    #
-    # NAV declaration windows (IST):
-    # Evening window: 21:07, 22:07, 23:07, 23:37  (Protean usually publishes by 21:00-22:30 IST)
-    # Catch-up morning window: 09:07, 10:07        (picks up any schemes missed from the prior night)
-    #
-    # UTC times (IST - 5:30):
-    # Evening:  15:37, 16:37, 17:37, 18:07  UTC
-    # Morning:  03:37, 04:37                UTC
-    - cron: '37 3,4,15,16,17 * * *'
-    - cron: '7 18 * * *'
+  # CRON DISABLED (Rule 20 - Dual-Execution Ban):
+  # The local Express daemon processes SIPs every 15 min and syncAllMissingNavs on boot.
+  # Re-enable only if the local daemon is not running (quota quarantine mode).
+  # schedule:
+  #   - cron: '37 3,4,15,16,17 * * *'
+  #   - cron: '7 18 * * *'
   workflow_dispatch: # Allows manual 1-click trigger from GitHub UI
 
 jobs:
@@ -39,8 +32,9 @@ jobs:
         if: steps.node-cache.outputs.cache-hit != 'true'
         run: npm ci --omit=dev
 
-      - name: Execute NAV Sync & SIP Processing
+      - name: Execute Daily Sync (NAV Backfill & SIP Processing)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        run: node scripts/sync_navs_and_sips.mjs
+        run: node scripts/daily_sync.mjs
+

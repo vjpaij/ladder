@@ -7,6 +7,8 @@ import { recalculateHoldingState } from './recalculator.js';
 
 const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 /**
  * Returns recorded SIP execution and skip history (latest first)
  * Reads from Supabase sip_history table with local JSON file fallback.
@@ -127,11 +129,18 @@ export async function processDueSips() {
       }
 
       const quote = await fetchMutualFundNav(sip.symbol, scheduledDate);
-      const nav = quote?.nav;
+      let nav = quote?.nav;
 
-      // Safety: do NOT execute if fresh market NAV is unavailable
+      // Retry once after 5s on transient AMFI API failure (prevents 15-min wait for momentary glitches)
       if (!nav || nav <= 0) {
-        console.warn(`[SIP Engine] Skipping SIP for ${sip.name}: could not fetch valid NAV (got ${nav}). Will retry on next market session.`);
+        await sleep(5000);
+        const retryQuote = await fetchMutualFundNav(sip.symbol, scheduledDate);
+        nav = retryQuote?.nav;
+      }
+
+      // Safety: do NOT execute if fresh market NAV is unavailable after retry
+      if (!nav || nav <= 0) {
+        console.warn(`[SIP Engine] Skipping SIP for ${sip.name}: could not fetch valid NAV after retry (got ${nav}). Will retry on next sweep.`);
         const skipItem = { sipId: sip.id, name: sip.name, symbol: sip.symbol, amount: Number(sip.amount), reason: 'NAV unavailable or market closed' };
         skippedSips.push(skipItem);
         historyEvents.push({

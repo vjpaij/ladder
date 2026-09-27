@@ -538,6 +538,16 @@ export function isProteanNavStale() {
 }
 
 /**
+ * Clears all in-memory NPS NAV caches (Protean batch, sync status, and historical).
+ * Must be called before EOD rebuilds to force fresh data fetches and prevent stale T+1 data.
+ */
+export function clearProteanCache() {
+  proteanBatchCache = null;
+  npsSyncStatusCache.clear();
+  npsHistoricalCache.clear();
+}
+
+/**
  * Scrapes latest Protean CRA NAVs and saves all schemes to Supabase nps_daily_navs
  */
 export async function syncDailyNpsNavs() {
@@ -802,16 +812,33 @@ export async function fetchNpsHistoricalNav(schemeCode) {
       });
     }
 
+    // Check for recent trading day gaps before caching — ensures T+1 Protean
+    // publication delays are resolved by falling through to npsnav.in backfill
     if (navMap.size > 0) {
-      npsHistoricalCache.set(schemeCode, { navMap, cachedAt: Date.now() });
-      return navMap;
+      const lastTD = getLastTradingDay(getTodayIST(), 'NSE');
+      let hasRecentGap = false;
+      const gapCheck = new Date(`${lastTD}T00:00:00Z`);
+      for (let gi = 0; gi < 5; gi++) {
+        const gds = gapCheck.toISOString().slice(0, 10);
+        if (isTradingDay(gds, 'NSE') && !navMap.has(gds)) {
+          hasRecentGap = true;
+          break;
+        }
+        gapCheck.setUTCDate(gapCheck.getUTCDate() - 1);
+      }
+      if (!hasRecentGap) {
+        npsHistoricalCache.set(schemeCode, { navMap, cachedAt: Date.now() });
+        return navMap;
+      }
+      // Recent gaps detected; fall through to npsnav.in to fill them
+      console.log(`[NPS Historical] Recent NAV gaps detected for ${schemeCode}. Attempting npsnav.in backfill...`);
     }
   } catch (err) {
     console.warn(`[NPS Historical Supabase Fetch] Failed for ${schemeCode}:`, err.message);
   }
 
-  // Fallback to npsnav.in only if completely missing from Supabase
-  console.warn(`[NPS Historical Fallback] Scheme ${schemeCode} missing or incomplete in Supabase; querying npsnav.in fallback...`);
+  // Fallback to npsnav.in when Supabase data is missing or has recent trading day gaps
+  console.log(`[NPS Historical Fallback] Scheme ${schemeCode} has gaps or missing data in Supabase; querying npsnav.in backfill...`);
   try {
     const res = await axios.get(`https://npsnav.in/api/historical/${schemeCode}`, { timeout: 10000 });
     if (res.data && Array.isArray(res.data.data)) {
