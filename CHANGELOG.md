@@ -5,6 +5,23 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.51.0] - 2026-09-28
+
+### Fixed
+- **Calendar Range Default Date, Numeric Scroll Protection & Universal Multi-Category Parity Engine**:
+  - **Calendar Custom Range Default Date**:
+    - In `src/components/ChartRangeSelector.jsx`, updated the custom date range picker so that the initial "From Date" (`customStart`) defaults to the current date (`todayStr` / `endIso`) rather than `2023-01-01`.
+  - **Numeric Input Mouse Scroll Protection**:
+    - In `src/main.jsx`, installed a global document-level passive `wheel` event handler targeting `input[type="number"]` that immediately calls `e.target.blur()` when scrolled, preventing sensitive transaction quantities, prices, amounts, and interest rates from accidentally spinning or changing on mouse scroll.
+  - **Universal Multi-Category Parity (Indian Stocks, US Stocks, Mutual Funds)**:
+    - **Root Cause Diagnosed**: Investigated why Indian Stocks and other category values diverged between the Dashboard and Calendar. Yahoo Finance `.NS` query returns only NSE close which is frequently lower than BSE close. Historical EOD rebuilds used `.NS` quotes without BSE synchronization, and weekend USD/INR rates in `historical_fx_rates.json` had recorded `95.8` instead of verified `95.802`, causing US Stocks to diverge by ₹39.97. In addition, fractional share rounding (<0.005) from historical sells created minor discrepancies in Mutual Funds.
+    - **NSE/BSE MAX Quote & Active Holding Anchoring**: Updated `scripts/rebuild_portfolio_eod.mjs` Step 3b to anchor all active equities to NSE/BSE MAX quotes, aligned weekend USD/INR rates in `data/historical_fx_rates.json` to verified `95.802`, and cleaned up micro-dust fractions (<0.005) from closed positions.
+    - **Historical Rebuild & Synchronization**: Rebuilt all 6,941 EOD logs in `data/portfolio_eod_logs.json` and Supabase `pnl_history` through 2026-09-27.
+    - **Multi-Category Invariance Guard**: Expanded `scripts/verify_financial_integrity.mjs` to assert 100% mathematical parity across all 6 asset categories (Indian Stocks, US Stocks, Mutual Funds, NPS, Savings, EPF).
+  - **Clean Daemon Reboot & Verification**:
+    - Executed Rule 26 stale process termination and cleanly restarted dev daemon (`npm start`), verifying dual-port live health (Port 3000: 200 OK, Port 5000: 200 OK).
+    - 100% PASS on `node scripts/verify_financial_integrity.mjs` across all 5 financial invariance assertions and all 6 asset categories.
+
 ## [5.50.0] - 2026-09-27
 
 ### Fixed

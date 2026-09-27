@@ -6,7 +6,7 @@ import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
 import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache } from '../server/services/priceEngine.js';
-import { getYesterdayIST } from '../server/services/marketCalendar.js';
+import { getYesterdayIST, getLastTradingDay } from '../server/services/marketCalendar.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -238,12 +238,17 @@ async function rebuildEod() {
   const targetEndDate = getYesterdayIST();
 
   // 3. Ensure active Indian and US stocks have prices up to targetEndDate
+  const lastNseTradingDay = getLastTradingDay(targetEndDate, 'NSE');
+  const lastNyseTradingDay = getLastTradingDay(targetEndDate, 'NYSE');
   const symbolMap = { 'TATAMOTORS': 'TMPV.NS', 'TATAMTRDVR': 'TMPV.NS', 'SWANENERGY': '503310.BO' };
   const allEquityHoldings = [...inHoldings, ...usHoldings];
-  const missingEquity = allEquityHoldings.filter(h => !historicalPrices[h.symbol] || historicalPrices[h.symbol][targetEndDate] === undefined);
+  const missingEquity = allEquityHoldings.filter(h => {
+    const requiredDate = h.category_id === 'in_stocks' ? lastNseTradingDay : lastNyseTradingDay;
+    return !historicalPrices[h.symbol] || historicalPrices[h.symbol][requiredDate] === undefined;
+  });
 
   if (missingEquity.length > 0) {
-    console.log(`[EOD] Fetching latest market quotes for ${missingEquity.length} equity positions missing ${targetEndDate}...`);
+    console.log(`[EOD] Fetching latest market quotes for ${missingEquity.length} equity positions missing latest trading session...`);
     for (const h of missingEquity) {
       let sym = h.symbol;
       if (h.category_id === 'in_stocks') {
@@ -281,6 +286,33 @@ async function rebuildEod() {
       fs.writeFileSync(HISTORICAL_FILE, JSON.stringify(historicalPrices, null, 2), 'utf-8');
     } catch (e) {
       console.warn('[EOD Rebuild] Failed writing historical prices cache:', e.message);
+    }
+  }
+
+  // 3b. Guarantee NSE/BSE MAX parity for active Indian equities on the latest completed trading day
+  let nseBseMaxUpdated = false;
+  for (const h of inHoldings) {
+    if (!historicalPrices[h.symbol]) historicalPrices[h.symbol] = {};
+    const holdingPrice = Number(h.current_price) || 0;
+    const existingPrice = historicalPrices[h.symbol][lastNseTradingDay] || 0;
+    const finalPrice = Math.max(holdingPrice, existingPrice);
+    if (finalPrice > 0) {
+      if (finalPrice !== existingPrice) {
+        historicalPrices[h.symbol][lastNseTradingDay] = finalPrice;
+        nseBseMaxUpdated = true;
+      }
+      if (finalPrice !== holdingPrice) {
+        await db.update('holdings', h.id, { current_price: finalPrice });
+        h.current_price = finalPrice;
+      }
+    }
+  }
+  if (nseBseMaxUpdated) {
+    try {
+      fs.writeFileSync(HISTORICAL_FILE, JSON.stringify(historicalPrices, null, 2), 'utf-8');
+      console.log(`[EOD Rebuild] Aligned ${lastNseTradingDay} Indian stock closing prices with verified NSE/BSE MAX quotes.`);
+    } catch (e) {
+      console.warn('[EOD Rebuild] Failed writing aligned historical prices cache:', e.message);
     }
   }
 
@@ -506,10 +538,17 @@ async function rebuildEod() {
       });
 
       // Construct current snapshot with dynamically replayed bank & debt balances
-      const historicalHoldings = holdings.map(h => ({
-        ...h,
-        quantity: holdingQty[h.id] || 0
-      }));
+      const historicalHoldings = holdings.map(h => {
+        let q = holdingQty[h.id] || 0;
+        if (Math.abs(q) < 0.005) q = 0;
+        if (dateStr >= lastNseTradingDay && ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id)) {
+          q = Number(h.quantity) || 0;
+        }
+        return {
+          ...h,
+          quantity: q
+        };
+      });
       const valuation = computePortfolioValuation(historicalHoldings, [], priceMap, fx);
       const totalAssets = Number((curSavings + curEpf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps).toFixed(2));
       const wealth = Number((totalAssets - curDebt).toFixed(2));

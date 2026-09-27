@@ -16,7 +16,7 @@ export function computeRangeDates(type, count = 1, unit = 'M', customStart = '',
 
   if (type === 'CUSTOM') {
     return {
-      startDate: customStart || '2020-01-01',
+      startDate: customStart || endIso,
       endDate: customEnd || endIso,
       label: 'Custom',
       rangeKey: 'CUSTOM'
@@ -92,7 +92,7 @@ export default function ChartRangeSelector({
   const [showCalendar, setShowCalendar] = useState(false);
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const [customStart, setCustomStart] = useState(controlledStartDate || '2023-01-01');
+  const [customStart, setCustomStart] = useState(controlledStartDate || todayStr);
   const [customEnd, setCustomEnd] = useState(controlledEndDate || todayStr);
 
   const containerRef = useRef(null);

@@ -123,15 +123,25 @@ async function runIntegrityAudit() {
       catSums[cat] = Number((catSums[cat] + (h.currentValueINR || 0)).toFixed(2));
     });
 
-    const npsHoldingsSum = catSums['nps'] || 0;
-    const npsSummaryMetric = sumRes.categoryMetrics?.find(c => c.id === 'nps')?.currentINR || 0;
-    const npsCalendarLog = latestCalendarLog.nps || latestCalendarLog.breakdown?.nps || 0;
+    const categoryChecks = [
+      { id: 'in_stocks', logKey: 'indian_stocks', name: 'Indian Stocks' },
+      { id: 'us_stocks', logKey: 'us_stocks', name: 'US Stocks' },
+      { id: 'mutual_funds', logKey: 'mutual_funds', name: 'Mutual Funds' },
+      { id: 'nps', logKey: 'nps', name: 'NPS' },
+      { id: 'bank', logKey: 'savings', name: 'Savings' },
+      { id: 'epf', logKey: 'epf', name: 'EPF' }
+    ];
 
-    assert.strictEqual(npsHoldingsSum, npsSummaryMetric, `NPS Holdings table sum (₹${npsHoldingsSum}) must match Dashboard Summary metric (₹${npsSummaryMetric})`);
-    assert.strictEqual(npsHoldingsSum, npsCalendarLog, `NPS Holdings table sum (₹${npsHoldingsSum}) must match Calendar breakdown (₹${npsCalendarLog})`);
+    for (const cat of categoryChecks) {
+      const hSum = catSums[cat.id] || 0;
+      const sVal = Number((sumRes.categoryMetrics?.find(c => c.id === cat.id)?.currentINR || 0).toFixed(2));
+      const cVal = Number((latestCalendarLog[cat.logKey] ?? latestCalendarLog.breakdown?.[cat.logKey] ?? 0).toFixed(2));
+      assert.strictEqual(hSum, sVal, `${cat.name} Holdings sum (₹${hSum}) must match Dashboard Summary (₹${sVal})`);
+      assert.strictEqual(hSum, cVal, `${cat.name} Holdings sum (₹${hSum}) must match Calendar breakdown (₹${cVal})`);
+    }
 
     console.log(`✓ Holding-Level Zero-Quantity & Individual Valuation Invariance Verified across ${holdingsRes.length} assets.`);
-    console.log(`✓ Universal Categorical Breakdown Parity Verified (NPS: Holdings ₹${npsHoldingsSum} === Dashboard ₹${npsSummaryMetric} === Calendar ₹${npsCalendarLog}).`);
+    console.log(`✓ Universal Categorical Breakdown Parity Verified across all categories (Indian Stocks, US Stocks, MFs, NPS, Savings, EPF).`);
 
     console.log(`✓ API Parity Verified (Exact 1-to-1 Cent Match across Dashboard and Calendar):`);
     console.log(`  - Net Worth:   Dashboard ₹${sumRes.netWorthINR} === Calendar ₹${latestCalendarLog.net_worth_inr}`);
