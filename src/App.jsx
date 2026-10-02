@@ -78,6 +78,8 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     fetchDashboardData();
+    // Auto-sync all assets on login/webpage mount to show latest quotes at that moment
+    handleRefreshPrices({ trigger: 'LOGIN', silent: true });
 
     // Refresh periodically while the dashboard is open (30s minimum per Rule 19).
     const pollInterval = setInterval(() => {
@@ -184,21 +186,27 @@ function AuthenticatedApp() {
     }
   };
 
-  const handleRefreshPrices = async () => {
+  const handleRefreshPrices = async (options = {}) => {
     setIsRefreshing(true);
     try {
-      const res = await axios.post('/api/refresh-prices');
-      await fetchDashboardData();
-      setToast({
-        type: 'success',
-        message: 'Live prices, mutual fund NAVs & FX rates synced successfully!'
-      });
+      const isSilent = options.silent || false;
+      const trigger = options.trigger || 'MANUAL';
+      const res = await axios.post('/api/refresh-prices', { trigger });
+      await fetchDashboardData(true);
+      if (!isSilent) {
+        setToast({
+          type: 'success',
+          message: 'Live prices, mutual fund NAVs & FX rates synced successfully!'
+        });
+      }
     } catch (err) {
       console.error('[App] Error refreshing prices:', err);
-      setToast({
-        type: 'error',
-        message: 'Could not refresh prices: ' + (err.response?.data?.error || err.message)
-      });
+      if (!options.silent) {
+        setToast({
+          type: 'error',
+          message: 'Could not refresh prices: ' + (err.response?.data?.error || err.message)
+        });
+      }
     } finally {
       setIsRefreshing(false);
     }

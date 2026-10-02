@@ -289,30 +289,13 @@ async function rebuildEod() {
     }
   }
 
-  // 3b. Guarantee NSE/BSE MAX parity for active Indian equities on the latest completed trading day
-  let nseBseMaxUpdated = false;
+  // 3b. Synchronize active Indian equities in DB with verified closing quotes on the latest completed trading day
   for (const h of inHoldings) {
     if (!historicalPrices[h.symbol]) historicalPrices[h.symbol] = {};
-    const holdingPrice = Number(h.current_price) || 0;
-    const existingPrice = historicalPrices[h.symbol][lastNseTradingDay] || 0;
-    const finalPrice = Math.max(holdingPrice, existingPrice);
-    if (finalPrice > 0) {
-      if (finalPrice !== existingPrice) {
-        historicalPrices[h.symbol][lastNseTradingDay] = finalPrice;
-        nseBseMaxUpdated = true;
-      }
-      if (finalPrice !== holdingPrice) {
-        await db.update('holdings', h.id, { current_price: finalPrice });
-        h.current_price = finalPrice;
-      }
-    }
-  }
-  if (nseBseMaxUpdated) {
-    try {
-      fs.writeFileSync(HISTORICAL_FILE, JSON.stringify(historicalPrices, null, 2), 'utf-8');
-      console.log(`[EOD Rebuild] Aligned ${lastNseTradingDay} Indian stock closing prices with verified NSE/BSE MAX quotes.`);
-    } catch (e) {
-      console.warn('[EOD Rebuild] Failed writing aligned historical prices cache:', e.message);
+    const settledPrice = historicalPrices[h.symbol][lastNseTradingDay];
+    if (settledPrice && settledPrice > 0 && settledPrice !== Number(h.current_price)) {
+      await db.update('holdings', h.id, { current_price: settledPrice });
+      h.current_price = settledPrice;
     }
   }
 

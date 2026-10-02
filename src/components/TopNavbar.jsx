@@ -21,12 +21,14 @@ import {
   Edit3, 
   ArrowLeft,
   CloudUpload,
-  History 
+  History,
+  Activity
 } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import FxRateModal from './FxRateModal';
 import RestoreBackupModal from './RestoreBackupModal';
+import SyncLogsModal from './SyncLogsModal';
 
 export default function TopNavbar({ 
   currentView,
@@ -64,6 +66,7 @@ export default function TopNavbar({
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isQuickBackingUp, setIsQuickBackingUp] = useState(false);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [isSyncLogsModalOpen, setIsSyncLogsModalOpen] = useState(false);
   const [latestBackup, setLatestBackup] = useState(null);
 
   const activeTheme = availableThemes?.find(t => t.id === theme) || availableThemes?.[0];
@@ -517,6 +520,21 @@ export default function TopNavbar({
                     </button>
                   )}
 
+                  {/* Logs */}
+                  <button
+                    onClick={() => {
+                      setIsSyncLogsModalOpen(true);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Activity className="w-4 h-4 text-amber-400" />
+                      <span>Logs</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-mono">10 Days</span>
+                  </button>
+
                   {/* Backup Now */}
                   <button
                     onClick={handleQuickBackup}
@@ -585,6 +603,12 @@ export default function TopNavbar({
         isOpen={isRestoreModalOpen}
         onClose={() => setIsRestoreModalOpen(false)}
         onRefresh={onRefreshPrices}
+      />
+
+      {/* Automated Sync & Scheduler Logs Modal */}
+      <SyncLogsModal
+        isOpen={isSyncLogsModalOpen}
+        onClose={() => setIsSyncLogsModalOpen(false)}
       />
     </header>
   );

@@ -5,6 +5,24 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.53.0] - 2026-10-02
+
+### Fixed
+- **Indian Stocks 10-Day Historical Parity & Oct 1 Reconciliation**:
+  - Diagnosed and resolved issue where 78 of 82 Indian stocks on 2026-10-01 had inflated prices in `data/historical_prices.json` due to an artificial `Math.max(holdingPrice, existingPrice)` heuristic in `scripts/rebuild_portfolio_eod.mjs` that had overwritten Yahoo Finance closing quotes with older holding prices.
+  - Eliminated the `Math.max` heuristic and patched `data/historical_prices.json` with authentic Yahoo Finance `close` quotes for all 82 Indian stocks across the last 14 trading days (yielding exact 0 discrepancies on all dates).
+  - Fixed `ReferenceError: adjclose is not defined` bug in `scripts/sync_daily_prices.mjs`.
+  - Rebuilt all 6,945 EOD records in `data/portfolio_eod_logs.json` and Supabase `pnl_history`, accurately establishing Oct 1 Indian stocks valuation at `₹1,01,88,381.38` and net worth at `₹1,87,10,315.69`.
+
+### Added
+- **Webpage Login & Initial Mount Asset Auto-Sync**:
+  - Updated `src/App.jsx` to automatically execute `handleRefreshPrices({ trigger: 'LOGIN', silent: true })` on login and initial webpage mount, pulling the newest live quotes across Indian Equities, US Equities, Mutual Funds, NPS, and USD/INR FX conversions immediately upon login.
+- **Automated Sync & Scheduler Logs Hub (`SyncLogsModal.jsx`)**:
+  - Added "Logs" menu action directly above "Backup Now" in the user profile dropdown in `src/components/TopNavbar.jsx`.
+  - Created `SyncLogsModal.jsx` conforming to Rule 7 design system (`modal-surface reports-card`, `reports-subcard`, `createPortal`), displaying a 10-day audit table of all automated sync jobs with scheduled time, executed timestamp (`DD-MM-YYYY HH:mm:ss`), status (green checkmark or red X), duration, and itemized results.
+  - Created backend `server/services/syncLogService.js` and route `server/routes/syncLogs.js` serving `GET /api/sync-logs` and `POST /api/sync-logs/trigger`.
+  - Hooked automated sync logging into all background daemons in `server/index.js` and `/api/refresh-prices`.
+
 ## [5.52.1] - 2026-10-02
 
 ### Changed

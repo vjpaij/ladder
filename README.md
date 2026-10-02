@@ -18,6 +18,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Mutual Funds**: Real-time NAV synchronization via AMFI Scheme API. Full uniformity across asset lifecycle with standardized SELL transactions and borderless transaction ledgers.
    - **NPS (National Pension System)**: Automated daily scraper extracting official NAV files directly from Protean CRA archives (`nps_daily_navs` table in Supabase) with resilient historical backfill fallback. Authoritative database NAV synchronization guarantees 100% mathematical parity across Dashboard, NPS page, Calendar Heatmap, Reports, and Holding Detail Modals.
    - **Automated Historical Price Population**: Whenever a new or past-dated transaction is recorded for any stock, Mutual Fund, or NPS scheme, historical daily closing quotes/NAVs from the transaction date to present are automatically retrieved and populated into `data/historical_prices.json` and in-memory cache, ensuring holding detail charts immediately track real daily trajectories instead of flat lines.
+   - **Webpage Login Auto-Sync**: Whenever the user logs in or mounts the dashboard, the system immediately dispatches an on-demand sync across all asset classes (Indian Equities, US Equities, Mutual Funds, NPS, and FX conversions) to present the freshest live prices and valuations at that moment.
    - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI, server boot synchronization, and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).
 
 3. **Delta-Ledger Architecture for Cash, EPF & Debt**
@@ -60,7 +61,13 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Profile Menu Integration**: Instant 1-click 'Backup Database Now' (with active feedback) and 'Restore Database' buttons directly accessible from the user Profile Dropdown menu in the top navigation bar.
    - **Point-in-Time Restoration Modal**: Themed, keyboard-accessible restore modal (`RestoreBackupModal.jsx`) with asynchronous job polling (`GET /api/cloud-backups/restore/status`), background historical EOD recalculation with 5-minute timeout protections, unmount cleanup, and failure circuit breakers.
 
-8. **Dynamic Housing Loan Amortization & Prepayment Engine**
+8. **Automated Sync Scheduler & 10-Day Execution Audit Hub (`SyncLogsModal.jsx`)**
+   - **Full Job Audit Trail**: Tracks every automated background and on-demand synchronization event with exact scheduled time, actual execution timestamp, duration, status (success checkmark or failure X), and itemized operational results.
+   - **Multi-Category Job Coverage**: Logs executions across EOD Valuation Rebuilds (06:30 PM, 11:45 PM, 07:00 AM IST), Daily Automated Cloud Backups (08:25 AM IST), Midnight Comprehensive Self-Healing (00:05 AM IST), Trading-Session Live Price Polls, SIP Execution Sweeps, and Webpage Login Auto-Syncs.
+   - **Profile Window Integration**: Instant access via the 'Logs' button located directly above 'Backup Now' in the user profile dropdown in `TopNavbar.jsx`.
+   - **Interactive Modal Interface**: Theme-matched (`modal-surface reports-card`), keyboard-accessible modal featuring category filter tabs (`All`, `EOD Rebuilds`, `Price Sync`, `Self-Healing`, `Backups`), real-time search filtering, and an on-demand 'Sync Now' trigger button.
+
+9. **Dynamic Housing Loan Amortization & Prepayment Engine**
    - Ingests verified historical loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest) from Excel into Supabase `loan_amortization`.
    - Dynamic projection engine (`server/services/loanEngine.js`) calculating monthly principal and interest splits right up to loan payoff date.
    - Interactive Recharts visualization with Balance Payoff Trajectory area chart, Annual Breakdown bar chart, and Prepayment What-If simulator.
@@ -68,7 +75,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments) that immediately recalculate future amortization schedules and interest savings.
    - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
 
-9. **Dividends Scheme Hub & Transaction Management**
+10. **Dividends Scheme Hub & Transaction Management**
    - **Aggregated Scheme Portfolio View**: Aggregates dividend payouts per scheme/stock (Indian & US Equities) displaying Logo, Clean Name, Symbol, Market Badge, Payouts Count, Total Original Payout, Total Credited INR/USD, and Latest Payment Date.
    - **Scheme Deletion**: Action column on main table includes Delete icon button (`Trash2`) with mandatory user confirmation prompt to delete all dividend records for a scheme (`DELETE /api/dividends/scheme/:idOrSymbol`).
    - **Transaction-Level CRUD & Reports**: Clicking any scheme row opens `AssetDividendDetailModal.jsx` displaying Annual Breakdown bar charts, Cumulative Growth curves, KPI metric cards, and an Itemized Distribution Ledger table equipped with inline **Edit** (`Edit3`) and **Delete** (`Trash2`) actions under its Action column.
@@ -79,7 +86,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Canonical Dividend Domain Service Architecture**: Managed exclusively by `server/services/dividendService.js` as the single authoritative domain controller. Any dividend addition, amendment, or deletion from either view (Dividends Hub, Asset Dividend Modal, or Holding Detail Transaction Ledger) executes an atomic dual-write/delete across both `dividends` and `transactions` tables, immediately triggers `recalculateHoldingState`, and invalidates in-memory caches, guaranteeing 100% real-time cross-page parity without ad-hoc background sync scripts.
    - **Canonical Corporate Actions Domain Service**: Managed by `server/services/corporateActionService.js`, orchestrating stock splits and bonus issues. When a stock split is added via the UI, preceding un-sold open buy lots are adjusted in quantity and price with metadata tags (`[Split orig: Q@P]`) to maintain perfect alignment with split-adjusted market price feeds, with complete reversibility when amended or deleted.
 
-10. **In-Memory Reactive Caching, Disk Snapshots & Cloud Egress Lockdown**
+11. **In-Memory Reactive Caching, Disk Snapshots & Cloud Egress Lockdown**
     - High-performance in-memory cache layer (`dbCache` in `server/db.js`) eliminating repetitive multi-megabyte network sweeps across Supabase Cloud.
     - All read-heavy operations (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`, `asset_metadata`, `mutual_fund_holdings`, `sips`, `sip_history`) serve responses in sub-milliseconds from local RAM.
     - Automatic reactive cache invalidation and write-through row updates across interdependent tables on all INSERT, UPDATE, and DELETE mutations.

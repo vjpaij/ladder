@@ -7,6 +7,7 @@ import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { runComprehensiveSelfHealing } from '../services/selfHealingService.js';
 import { processDueSips } from '../services/sipEngine.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { logSyncEvent } from '../services/syncLogService.js';
 
 const router = express.Router();
 
@@ -231,11 +232,34 @@ router.post('/refresh-navs', authenticateToken, async (req, res) => {
 
 // Live Price Engine API Refresh
 router.post('/refresh-prices', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  const isLogin = req.body?.trigger === 'LOGIN' || req.query?.trigger === 'LOGIN';
   try {
     await loadHistoricalPricesAsync();
     const result = await refreshAllHoldingsPrices();
+    const durationMs = Date.now() - startTime;
+    logSyncEvent({
+      jobType: isLogin ? 'LOGIN_SYNC' : 'MANUAL_SYNC',
+      jobName: isLogin ? 'Webpage Login Asset Auto-Sync' : 'Live Asset Price Refresh',
+      scheduledTime: isLogin ? 'On Webpage Login' : 'Manual / UI Trigger',
+      runTime: new Date().toISOString(),
+      status: 'SUCCESS',
+      durationMs,
+      details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedHoldings || 'all'} holdings updated).`
+    });
     res.json({ success: true, ...result });
   } catch (err) {
+    const durationMs = Date.now() - startTime;
+    logSyncEvent({
+      jobType: isLogin ? 'LOGIN_SYNC' : 'MANUAL_SYNC',
+      jobName: isLogin ? 'Webpage Login Asset Auto-Sync' : 'Live Asset Price Refresh',
+      scheduledTime: isLogin ? 'On Webpage Login' : 'Manual / UI Trigger',
+      runTime: new Date().toISOString(),
+      status: 'FAILED',
+      durationMs,
+      details: 'Sync failed: ' + err.message,
+      error: err.message
+    });
     res.status(500).json({ error: err.message });
   }
 });

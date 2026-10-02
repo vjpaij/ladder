@@ -48,6 +48,8 @@ import databaseRouter from './routes/database.js';
 import sipsRouter from './routes/sips.js';
 import searchRouter from './routes/search.js';
 import reportsRouter from './routes/reports.js';
+import syncLogsRouter from './routes/syncLogs.js';
+import { logSyncEvent } from './services/syncLogService.js';
 
 // Re-export background EOD rebuild helper for backward compatibility
 export { triggerEodRebuildIfPastDate };
@@ -84,6 +86,7 @@ app.use('/api', databaseRouter);
 app.use('/api', sipsRouter);
 app.use('/api', searchRouter);
 app.use('/api', reportsRouter);
+app.use('/api', syncLogsRouter);
 
 // -------------------------------------------------------------
 // Server Boot & Background Schedulers
@@ -194,11 +197,31 @@ app.listen(PORT, async () => {
       const delay = getNextMidnightDelay();
       console.log(`[Self-Healing Scheduler] Next automated daily self-healing scheduled in ${(delay / 3600000).toFixed(2)}h`);
       setTimeout(async () => {
+        const startTime = Date.now();
         try {
           console.log('[Self-Healing Scheduler] Running scheduled daily self-healing scan...');
-          await runComprehensiveSelfHealing();
+          const result = await runComprehensiveSelfHealing();
+          logSyncEvent({
+            jobType: 'SELF_HEALING',
+            jobName: 'Midnight Comprehensive Self-Healing',
+            scheduledTime: '00:05 AM IST',
+            runTime: new Date().toISOString(),
+            status: 'SUCCESS',
+            durationMs: Date.now() - startTime,
+            details: `Self-healing completed. Healed FX dates: ${result.fxHealed?.updated || 0}, Healed Prices: ${result.pricesHealed?.updated || 0}.`
+          });
         } catch (err) {
           console.warn('[Self-Healing Scheduler Warning]:', err.message);
+          logSyncEvent({
+            jobType: 'SELF_HEALING',
+            jobName: 'Midnight Comprehensive Self-Healing',
+            scheduledTime: '00:05 AM IST',
+            runTime: new Date().toISOString(),
+            status: 'FAILED',
+            durationMs: Date.now() - startTime,
+            details: err.message,
+            error: err.message
+          });
         } finally {
           armNextHealing();
         }
@@ -250,11 +273,31 @@ app.listen(PORT, async () => {
       console.log(`[Backup Scheduler] Next automated 08:25 AM IST cloud backup scheduled for ${targetTime.toISOString()} (in ${(delay / 3600000).toFixed(2)}h)`);
       setTimeout(async () => {
         console.log('[Backup Scheduler] Running daily 08:25 AM IST cloud backup...');
+        const startBackup = Date.now();
         try {
-          await createCloudBackup();
+          const res = await createCloudBackup();
           console.log('[Backup Scheduler] Daily backup finished successfully.');
+          logSyncEvent({
+            jobType: 'CLOUD_BACKUP',
+            jobName: 'Automated Daily Cloud Backup',
+            scheduledTime: '08:25 AM IST',
+            runTime: new Date().toISOString(),
+            status: 'SUCCESS',
+            durationMs: Date.now() - startBackup,
+            details: `Lossless gzip backup saved to Supabase Storage (${res.filename || 'success'}).`
+          });
         } catch (err) {
           console.error('[Backup Scheduler] Daily backup error:', err.message);
+          logSyncEvent({
+            jobType: 'CLOUD_BACKUP',
+            jobName: 'Automated Daily Cloud Backup',
+            scheduledTime: '08:25 AM IST',
+            runTime: new Date().toISOString(),
+            status: 'FAILED',
+            durationMs: Date.now() - startBackup,
+            details: err.message,
+            error: err.message
+          });
         } finally {
           armNext();
         }
@@ -313,6 +356,7 @@ app.listen(PORT, async () => {
       console.log(`[EOD Scheduler] Next automated EOD rebuild (${label}) scheduled for ${date.toISOString()} (in ${(delay / 3600000).toFixed(2)}h)`);
       setTimeout(async () => {
         console.log(`[EOD Scheduler] Triggering scheduled EOD rebuild (${label})...`);
+        const startRebuild = Date.now();
         try {
           // Persist official closing prices to Supabase holdings table once at session close
           await persistHoldingClosingPrices();
@@ -322,10 +366,32 @@ app.listen(PORT, async () => {
         const child = fork('./scripts/rebuild_portfolio_eod.mjs');
         child.on('exit', (code) => {
           console.log(`[EOD Scheduler] Scheduled rebuild (${label}) completed with exit code ${code}`);
+          logSyncEvent({
+            jobType: 'EOD_REBUILD',
+            jobName: `EOD Valuation Rebuild (${label})`,
+            scheduledTime: label,
+            runTime: new Date().toISOString(),
+            status: code === 0 ? 'SUCCESS' : 'FAILED',
+            durationMs: Date.now() - startRebuild,
+            details: code === 0 
+              ? `Rebuilt portfolio EOD logs and synchronized historical valuations.`
+              : `Rebuild failed with exit code ${code}.`,
+            error: code === 0 ? null : `Exit code ${code}`
+          });
           armNextRebuild();
         });
         child.on('error', (err) => {
           console.error(`[EOD Scheduler] Error forking rebuild script:`, err.message);
+          logSyncEvent({
+            jobType: 'EOD_REBUILD',
+            jobName: `EOD Valuation Rebuild (${label})`,
+            scheduledTime: label,
+            runTime: new Date().toISOString(),
+            status: 'FAILED',
+            durationMs: Date.now() - startRebuild,
+            details: err.message,
+            error: err.message
+          });
           armNextRebuild();
         });
       }, delay);

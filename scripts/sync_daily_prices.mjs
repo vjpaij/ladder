@@ -23,6 +23,7 @@ async function fetchYahooFinanceHistorical(symbol, startDate = '2015-01-01') {
     if (result && result.timestamp && result.indicators?.quote?.[0]) {
       const timestamps = result.timestamp;
       const quote = result.indicators.quote[0];
+      const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
       const meta = result.meta || {};
       timestamps.forEach((t, i) => {
         const tDate = new Date(t * 1000);
