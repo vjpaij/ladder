@@ -520,7 +520,7 @@ export default function TopNavbar({
                     </button>
                   )}
 
-                  {/* Logs */}
+                  {/* Sync Logs */}
                   <button
                     onClick={() => {
                       setIsSyncLogsModalOpen(true);
@@ -530,7 +530,7 @@ export default function TopNavbar({
                   >
                     <div className="flex items-center gap-3">
                       <Activity className="w-4 h-4 text-amber-400" />
-                      <span>Logs</span>
+                      <span>Sync Logs</span>
                     </div>
                     <span className="text-[10px] text-slate-500 font-mono">10 Days</span>
                   </button>

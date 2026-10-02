@@ -7,7 +7,7 @@ import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/pr
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getTodayIST, isAnyMarketOpen, isTradingDay } from '../services/marketCalendar.js';
+import { getTodayIST, isAnyMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -372,6 +372,7 @@ router.get('/summary', async (req, res) => {
     // Dynamic Day P&L (Computed relative to yesterday's closing wealth for real-time parity)
     let yesterdayWealth = null;
     let yesterdayAssets = null;
+    let yesterdayLog = null;
     const todayStr = getTodayIST();
 
     try {
@@ -381,6 +382,7 @@ router.get('/summary', async (req, res) => {
         const eodLogs = JSON.parse(raw);
         const pastLogs = (eodLogs || []).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
         if (pastLogs.length > 0) {
+          yesterdayLog = pastLogs[0];
           yesterdayWealth = pastLogs[0].total_wealth !== undefined ? pastLogs[0].total_wealth : pastLogs[0].wealth;
           yesterdayAssets = pastLogs[0].total_assets !== undefined ? pastLogs[0].total_assets : (yesterdayWealth + (pastLogs[0].debt || 0));
         }
@@ -402,6 +404,7 @@ router.get('/summary', async (req, res) => {
           });
           const pastLogs = normalizedLogs.filter(l => l.isoDate < todayStr).sort((a, b) => b.isoDate.localeCompare(a.isoDate));
           if (pastLogs.length > 0) {
+            yesterdayLog = pastLogs[0];
             yesterdayWealth = pastLogs[0].net_worth_inr;
             yesterdayAssets = pastLogs[0].total_assets_inr;
           }
@@ -430,34 +433,81 @@ router.get('/summary', async (req, res) => {
       yesterdayWealth = netWorthINR;
     }
 
-    const dIST = new Date(`${todayStr}T00:00:00Z`);
-    const isWeekend = (dIST.getUTCDay() === 0 || dIST.getUTCDay() === 6);
-    const isTradingToday = isTradingDay(todayStr, 'NSE');
-    const anyMarketOpen = isAnyMarketOpen();
-    const isOffMarketOrPreMarket = !isTradingToday || !anyMarketOpen;
+    // Multi-Asset Dynamic Valuation Engine (Parity with Calendar & Holding Details)
+    const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
+    const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
+    const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
+    const npsStatus = getAssetSessionStatus('nps', todayStr);
 
-    const wealthDelta = Number((netWorthINR - yesterdayWealth).toFixed(2));
-    
+    const prevInStocks = Number((yesterdayLog?.indian_stocks ?? yesterdayLog?.stocks_val_inr ?? 0).toFixed(2));
+    const prevUsStocks = Number((yesterdayLog?.us_stocks ?? yesterdayLog?.us_stocks_val_inr ?? 0).toFixed(2));
+    const prevMf = Number((yesterdayLog?.mutual_funds ?? yesterdayLog?.mutual_funds_val_inr ?? 0).toFixed(2));
+    const prevNps = Number((yesterdayLog?.nps ?? yesterdayLog?.nps_val_inr ?? 0).toFixed(2));
+    const prevSavings = Number((yesterdayLog?.savings ?? yesterdayLog?.savings_val_inr ?? 0).toFixed(2));
+    const prevEpf = Number((yesterdayLog?.epf ?? yesterdayLog?.epf_val_inr ?? 0).toFixed(2));
+    const prevDebt = Number((yesterdayLog?.debt ?? yesterdayLog?.liabilities_inr ?? 0).toFixed(2));
+
     // Check if any user transactions occurred today strictly by trade date (Rule 5 & Rule 9)
     const todayTxs = (txs || []).filter(t => t.date === todayStr);
-    const hasTxToday = todayTxs && todayTxs.length > 0;
-
-    // Rule 5 & Rule 22: Outside active market hours (pre-market, nights, weekends, holidays),
-    // P&L is strictly 0 and equity/MF/NPS valuations carry forward previous finalized close unless a transaction occurred
-    let finalNetWorthINR = netWorthINR;
-    let finalTotalAssetsINR = totalAssetsINR;
-    let dayPnlINR = wealthDelta;
-    let dayPnlPct = yesterdayWealth > 0 ? Number(((wealthDelta / yesterdayWealth) * 100).toFixed(2)) : 0;
-
-    if (isOffMarketOrPreMarket) {
-      if (!hasTxToday) {
-        dayPnlINR = 0;
-        dayPnlPct = 0;
-      } else {
-        dayPnlINR = wealthDelta;
-        dayPnlPct = yesterdayWealth > 0 ? Number(((wealthDelta / yesterdayWealth) * 100).toFixed(2)) : 0;
+    const categoriesWithTodayTxs = new Set();
+    const holdingMapById = new Map((holdings || []).map(h => [h.id, h]));
+    todayTxs.forEach(t => {
+      const h = holdingMapById.get(t.holding_id);
+      if (h && h.category_id) {
+        categoriesWithTodayTxs.add(h.category_id);
       }
+    });
+
+    const hasInTx = categoriesWithTodayTxs.has('in_stocks');
+    const resolvedInStocks = (!hasInTx && (inStocksStatus.status === 'NON_TRADING_DAY' || inStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevInStocks : Number((val.indian_stocks || 0).toFixed(2))) : Number((val.indian_stocks || 0).toFixed(2));
+
+    const hasUsTx = categoriesWithTodayTxs.has('us_stocks');
+    const resolvedUsStocks = (!hasUsTx && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevUsStocks : Number((val.us_stocks || 0).toFixed(2))) : Number((val.us_stocks || 0).toFixed(2));
+
+    const hasMfTx = categoriesWithTodayTxs.has('mutual_funds');
+    const resolvedMf = (!hasMfTx && (mfStatus.status === 'NON_TRADING_DAY' || mfStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevMf : Number((val.mutual_funds || 0).toFixed(2))) : Number((val.mutual_funds || 0).toFixed(2));
+
+    const hasNpsTx = categoriesWithTodayTxs.has('nps');
+    const resolvedNps = (!hasNpsTx && (npsStatus.status === 'NON_TRADING_DAY' || npsStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevNps : Number((val.nps || 0).toFixed(2))) : Number((val.nps || 0).toFixed(2));
+
+    const hasBankTx = categoriesWithTodayTxs.has('bank');
+    const resolvedSavings = hasBankTx ? Number((val.savings || 0).toFixed(2)) : (yesterdayLog ? prevSavings : Number((val.savings || 0).toFixed(2)));
+
+    const hasEpfTx = categoriesWithTodayTxs.has('epf');
+    const resolvedEpf = hasEpfTx ? Number((val.epf || 0).toFixed(2)) : (yesterdayLog ? prevEpf : Number((val.epf || 0).toFixed(2)));
+
+    const hasDebtTx = categoriesWithTodayTxs.has('loans') || categoriesWithTodayTxs.has('credit_cards');
+    const resolvedDebt = hasDebtTx ? Number((val.debt || 0).toFixed(2)) : (yesterdayLog ? prevDebt : Number((val.debt || 0).toFixed(2)));
+
+    const finalTotalAssetsINR = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
+    const finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));
+
+    const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||
+                             (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    const hasAnyTxToday = todayTxs.length > 0;
+
+    let dayPnlINR = Number((finalNetWorthINR - yesterdayWealth).toFixed(2));
+    let dayPnlPct = yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0;
+
+    if (!anyMarketTrading && !hasAnyTxToday) {
+      dayPnlINR = 0;
+      dayPnlPct = 0;
     }
+
+    // Synchronize categoryMetrics currentINR so Category Breakdowns match finalTotalAssetsINR with 1-to-1 cent precision
+    const categoryOverrides = {
+      'in_stocks': resolvedInStocks,
+      'us_stocks': resolvedUsStocks,
+      'mutual_funds': resolvedMf,
+      'nps': resolvedNps,
+      'bank': resolvedSavings,
+      'epf': resolvedEpf
+    };
+    categoryMetrics.forEach(c => {
+      if (categoryOverrides[c.id] !== undefined) {
+        c.currentINR = categoryOverrides[c.id];
+      }
+    });
 
     // Asset Breakdown by Category (clean names)
     const categoryValues = {};

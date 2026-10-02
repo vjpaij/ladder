@@ -1,5 +1,60 @@
 [
   {
+    "id": "log_1790946094220_u0w3q",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (06:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-02T13:01:34.220Z",
+    "status": "SUCCESS",
+    "durationMs": 94211,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
+    "id": "log_1790945935549_3chnn",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-02T12:58:55.549Z",
+    "status": "SUCCESS",
+    "durationMs": 10609,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1790945935545_0zrkl",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-02T12:58:55.544Z",
+    "status": "SUCCESS",
+    "durationMs": 10594,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1790944415670_1u2bz",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-02T12:33:35.670Z",
+    "status": "SUCCESS",
+    "durationMs": 10070,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1790944415581_4k9et",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-02T12:33:35.580Z",
+    "status": "SUCCESS",
+    "durationMs": 9985,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
     "id": "log_1790942198547_0z09w",
     "jobType": "LOGIN_SYNC",
     "jobName": "Webpage Login Asset Auto-Sync",

@@ -68,8 +68,9 @@ function getTableTrendClass(log, field, previousLog) {
   if (!previousLog) return 'bg-sky-500/[0.10] ring-1 ring-inset ring-sky-400/[0.18]';
   const value = getTableValue(log, field);
   const previousValue = getTableValue(previousLog, field);
-  if (value > previousValue) return 'bg-emerald-500/[0.10] ring-1 ring-inset ring-emerald-400/[0.18]';
-  if (value < previousValue) return 'bg-rose-500/[0.12] ring-1 ring-inset ring-rose-400/[0.22]';
+  const diff = Number((value - previousValue).toFixed(2));
+  if (diff > 0.01) return 'bg-emerald-500/[0.10] ring-1 ring-inset ring-emerald-400/[0.18]';
+  if (diff < -0.01) return 'bg-rose-500/[0.12] ring-1 ring-inset ring-rose-400/[0.22]';
   return 'bg-sky-500/[0.10] ring-1 ring-inset ring-sky-400/[0.18]';
 }
 

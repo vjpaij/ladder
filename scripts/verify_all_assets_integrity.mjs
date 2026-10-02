@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { supabase } from '../server/supabaseClient.js';
+import { isTradingDay } from '../server/services/marketCalendar.js';
 import axios from 'axios';
 
 async function verifyAllAssetsIntegrity() {
@@ -70,7 +71,8 @@ async function verifyAllAssetsIntegrity() {
     const expectedWealth = Number((recordedAssets - recordedDebt).toFixed(2));
     const recordedWealth = Number((row.net_worth_inr || row.wealth || 0).toFixed(2));
     if (Math.abs(expectedWealth - recordedWealth) > 0.10) { equationMismatches++; if (equationMismatches <= 3) console.error(`  FAIL Net Worth equation on ${dStr}: assets-debt=${expectedWealth} vs recorded=${recordedWealth}`); }
-    if (isWeekend && i > 0 && dStr >= '2026-08-08') {
+    const isNonTradingWeekend = isWeekend && !isTradingDay(dStr, 'NSE') && !isTradingDay(dStr, 'NYSE');
+    if (isNonTradingWeekend && i > 0 && dStr >= '2026-08-08') {
       const prevRow = allRows[i - 1];
       const marketVal = Number(((row.mutual_funds || 0) + (row.indian_stocks || 0) + (row.us_stocks || 0) + (row.nps || 0)).toFixed(2));
       const prevMarketVal = Number(((prevRow.mutual_funds || 0) + (prevRow.indian_stocks || 0) + (prevRow.us_stocks || 0) + (prevRow.nps || 0)).toFixed(2));

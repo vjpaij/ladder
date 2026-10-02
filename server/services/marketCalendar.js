@@ -259,7 +259,106 @@ export function getIndianMarketHolidays(year) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Memory-Cached Master Holiday Maps per Year
+// 4. Verified Special Trading Sessions & Extraordinary Closures
+// ---------------------------------------------------------------------------
+
+/**
+ * Verified Special Trading Sessions across Indian Exchanges (NSE/BSE).
+ * Covers:
+ * 1. Muhurat Trading on Diwali evening (conducted even when regular day session is a holiday, and even on weekends).
+ * 2. Special Saturday Live Trading Sessions (e.g. Disaster Recovery site failover, Union Budget sessions).
+ */
+const SPECIAL_TRADING_SESSIONS = [
+  // Special Saturday Disaster Recovery & Live Trading Sessions
+  { date: '2015-02-28', market: 'NSE', name: 'Union Budget Live Trading Session', type: 'SATURDAY_SESSION', startTime: '09:15', endTime: '15:30' },
+  { date: '2020-02-01', market: 'NSE', name: 'Union Budget Live Trading Session', type: 'SATURDAY_SESSION', startTime: '09:15', endTime: '15:30' },
+  { date: '2024-03-02', market: 'NSE', name: 'Disaster Recovery Live Trading Session', type: 'SATURDAY_SESSION', startTime: '09:15', endTime: '12:30' },
+  { date: '2024-05-18', market: 'NSE', name: 'Disaster Recovery Live Trading Session', type: 'SATURDAY_SESSION', startTime: '09:15', endTime: '12:30' },
+
+  // Annual Diwali Muhurat Trading Sessions (Evening 1-hour festive trading)
+  { date: '2024-11-01', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:00', endTime: '19:00' },
+  { date: '2025-10-21', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
+  { date: '2026-10-20', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
+  { date: '2027-10-29', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
+  { date: '2028-10-18', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' }
+];
+
+/**
+ * Unscheduled Extraordinary Market Closures (State mourning, unexpected public holidays, emergency halts)
+ */
+const SPECIAL_NON_TRADING_DAYS = [
+  { date: '2024-01-22', market: 'NSE', name: 'Ram Mandir Pran Pratishtha (Special Holiday)' },
+  { date: '2024-11-20', market: 'NSE', name: 'Maharashtra Assembly General Elections' }
+];
+
+/**
+ * Dynamic registry allows runtime registration of custom special trading sessions without code rewrites.
+ */
+export function registerSpecialTradingSession(session) {
+  if (session && session.date && session.market) {
+    SPECIAL_TRADING_SESSIONS.push({
+      startTime: '09:15',
+      endTime: '15:30',
+      type: 'SPECIAL_SESSION',
+      ...session
+    });
+  }
+}
+
+/**
+ * Dynamic registry allows runtime registration of unexpected market closures.
+ */
+export function registerSpecialHoliday(holiday) {
+  if (holiday && holiday.date && holiday.market) {
+    SPECIAL_NON_TRADING_DAYS.push(holiday);
+  }
+}
+
+/**
+ * Checks if a date has a special trading session for a given market.
+ */
+export function getSpecialTradingSession(dateISO, market = 'NSE') {
+  if (!dateISO) return null;
+  const cleanDate = dateISO.includes('T') ? dateISO.split('T')[0] : dateISO.trim();
+  const norm = (market || 'NSE').toUpperCase();
+  
+  // 1. Direct registry lookup
+  const match = SPECIAL_TRADING_SESSIONS.find(s => s.date === cleanDate && (s.market === norm || norm === 'ALL'));
+  if (match) return match;
+
+  // 2. Dynamic Algorithmic Detection for Diwali Muhurat Trading (Rule 13 multi-year compliance):
+  // If the date matches Diwali Laxmi Pujan in the festival calendar for that year, it is automatically Muhurat Trading
+  const year = parseInt(cleanDate.split('-')[0], 10);
+  if (!isNaN(year) && (norm === 'NSE' || norm === 'BSE' || norm === 'ALL')) {
+    const holidays = getIndianMarketHolidays(year);
+    const diwaliHoliday = holidays.find(h => h.date === cleanDate && h.name.toLowerCase().includes('diwali laxmi pujan'));
+    if (diwaliHoliday) {
+      return {
+        date: cleanDate,
+        market: 'NSE',
+        name: 'Diwali Muhurat Trading',
+        type: 'MUHURAT',
+        startTime: '18:15',
+        endTime: '19:15'
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Checks if a date is an extraordinary unscheduled non-trading day.
+ */
+export function isSpecialNonTradingDay(dateISO, market = 'NSE') {
+  if (!dateISO) return false;
+  const cleanDate = dateISO.includes('T') ? dateISO.split('T')[0] : dateISO.trim();
+  const norm = (market || 'NSE').toUpperCase();
+  return SPECIAL_NON_TRADING_DAYS.some(h => h.date === cleanDate && (h.market === norm || norm === 'ALL'));
+}
+
+// ---------------------------------------------------------------------------
+// 5. Memory-Cached Master Holiday Maps per Year
 // ---------------------------------------------------------------------------
 
 const yearCache = new Map();
@@ -287,7 +386,7 @@ function getCachedYearHolidays(year) {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Universal Exported Market Calendar APIs
+// 6. Universal Exported Market Calendar APIs
 // ---------------------------------------------------------------------------
 
 /**
@@ -309,10 +408,14 @@ export function getYesterdayIST() {
 
 /**
  * Determines whether a given ISO date is an active trading session for a specified market.
+ * Decoupled from rigid weekend/holiday assumptions:
+ * - Special Saturday live trading sessions (e.g. Disaster Recovery failovers, Budget sessions) return TRUE.
+ * - Diwali Muhurat trading sessions on festival holidays return TRUE.
+ * - Extraordinary emergency closures return FALSE.
  * 
  * @param {string} dateISO - Date string formatted as YYYY-MM-DD
  * @param {'NSE'|'BSE'|'NYSE'|'NASDAQ'|'AMFI'|'NPS'} [market='NSE'] - Target market exchange
- * @returns {boolean} - True if market is open, false on weekends and exchange holidays
+ * @returns {boolean} - True if market is open, false if non-trading
  */
 export function isTradingDay(dateISO, market = 'NSE') {
   if (!dateISO || typeof dateISO !== 'string') return false;
@@ -320,22 +423,72 @@ export function isTradingDay(dateISO, market = 'NSE') {
   const parts = cleanDate.split('-');
   if (parts.length !== 3) return false;
 
+  const normalizedMarket = (market || 'NSE').toUpperCase();
+
+  // 1. Check Extraordinary Non-Trading Days (Special Closures)
+  if (isSpecialNonTradingDay(cleanDate, normalizedMarket)) {
+    return false;
+  }
+
+  // 2. Check Special Trading Sessions (Supercedes standard weekend and holiday rules)
+  const specialSession = getSpecialTradingSession(cleanDate, normalizedMarket);
+  if (specialSession) {
+    return true; // Explicitly open for trading!
+  }
+
   const year = parseInt(parts[0], 10);
   const d = new Date(cleanDate + 'T00:00:00Z');
   const dow = d.getUTCDay(); // 0 = Sun, 6 = Sat
 
-  // All exchange markets are closed on Saturday and Sunday
+  // 3. Regular Weekend Rules (closed unless a special session was registered above)
   if (dow === 0 || dow === 6) return false;
 
+  // 4. Market-Specific Holiday Calendars
   const cache = getCachedYearHolidays(year);
-  const normalizedMarket = (market || 'NSE').toUpperCase();
 
   if (normalizedMarket === 'NYSE' || normalizedMarket === 'NASDAQ' || normalizedMarket === 'US') {
     return !cache.nyseSet.has(cleanDate);
   }
 
-  // NSE, BSE, AMFI, NPS (Indian Financial Markets)
+  if (normalizedMarket === 'AMFI' || normalizedMarket === 'MF') {
+    // Mutual fund AMCs do not declare new NAVs on exchange holidays
+    return !cache.nseSet.has(cleanDate);
+  }
+
+  if (normalizedMarket === 'NPS') {
+    // Protean CRA does not publish NAVs on gazetted national holidays
+    return !cache.nseSet.has(cleanDate);
+  }
+
+  // Standard Indian Equity Markets (NSE/BSE)
   return !cache.nseSet.has(cleanDate);
+}
+
+/**
+ * Maps a holding category to its primary exchange/market identifier.
+ */
+export function getMarketForCategory(categoryId) {
+  switch (categoryId) {
+    case 'in_stocks':
+      return 'NSE';
+    case 'us_stocks':
+      return 'NYSE';
+    case 'mutual_funds':
+      return 'AMFI';
+    case 'nps':
+      return 'NPS';
+    default:
+      return null; // Ledger-based (bank, epf, loans, credit_cards)
+  }
+}
+
+/**
+ * Determines whether a specific asset category is scheduled for market trading on a given date.
+ */
+export function isAssetTradingDay(dateISO, categoryId) {
+  const market = getMarketForCategory(categoryId);
+  if (!market) return false; // Non-market ledger assets
+  return isTradingDay(dateISO, market);
 }
 
 /**
@@ -412,12 +565,14 @@ export function getHolidaysForYear(year, market = 'ALL') {
 
 /**
  * Checks if Indian Equity/MF markets (NSE/BSE) are currently in active trading session.
- * Trading hours: Monday-Friday, non-holiday, 09:15 to 15:30 IST.
+ * Supports:
+ * - Regular sessions: Monday-Friday, non-holiday, 09:15 to 15:30 IST.
+ * - Special Saturday Live Sessions (e.g. Disaster Recovery, Budget Day): scheduled session hours.
+ * - Diwali Muhurat Trading Sessions: scheduled evening festive window (e.g. 18:15 to 19:15 IST).
  */
 export function isIndianMarketOpen() {
   const now = new Date();
   const todayIST = getTodayIST();
-  if (!isTradingDay(todayIST, 'NSE')) return false;
 
   const istFormatter = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Kolkata',
@@ -430,7 +585,20 @@ export function isIndianMarketOpen() {
   const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
   const totalMinutes = hour * 60 + minute;
 
-  return totalMinutes >= 555 && totalMinutes <= 930;
+  // 1. Check if today has a special trading session (Muhurat trading or Saturday DR session)
+  const specialSession = getSpecialTradingSession(todayIST, 'NSE');
+  if (specialSession) {
+    const [startH, startM] = (specialSession.startTime || '09:15').split(':').map(Number);
+    const [endH, endM] = (specialSession.endTime || '15:30').split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+    return totalMinutes >= startMinutes && totalMinutes <= endMinutes;
+  }
+
+  // 2. Check if today is a regular trading day
+  if (!isTradingDay(todayIST, 'NSE')) return false;
+
+  return totalMinutes >= 555 && totalMinutes <= 930; // 09:15 to 15:30 IST
 }
 
 /**
@@ -453,7 +621,21 @@ export function isUsMarketOpen() {
   const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
   const totalMinutes = hour * 60 + minute;
 
-  return totalMinutes >= 570 && totalMinutes <= 960;
+  return totalMinutes >= 570 && totalMinutes <= 960; // 09:30 to 16:00 ET
+}
+
+/**
+ * Checks whether the market for a specific asset category is actively open right now.
+ */
+export function isAssetMarketOpenNow(categoryId) {
+  switch (categoryId) {
+    case 'in_stocks':
+      return isIndianMarketOpen();
+    case 'us_stocks':
+      return isUsMarketOpen();
+    default:
+      return false; // MFs, NPS, Bank, EPF do not have continuous live order books
+  }
 }
 
 /**
@@ -461,5 +643,94 @@ export function isUsMarketOpen() {
  */
 export function isAnyMarketOpen() {
   return isIndianMarketOpen() || isUsMarketOpen();
+}
+
+/**
+ * Returns detailed trading session status for an asset category on a given date.
+ * Allows independent, non-hardcoded valuation decisions across each asset.
+ * 
+ * @param {'in_stocks'|'us_stocks'|'mutual_funds'|'nps'|'bank'|'epf'|'loans'|'credit_cards'} categoryId
+ * @param {string} [dateISO=getTodayIST()]
+ * @returns {{ isTradingDay: boolean, isOpenNow: boolean, sessionType: string, status: 'NON_TRADING_DAY'|'PRE_MARKET'|'MARKET_OPEN'|'POST_MARKET' }}
+ */
+export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
+  const isToday = (dateISO === getTodayIST());
+  const tradingDay = isAssetTradingDay(dateISO, categoryId);
+
+  if (!tradingDay) {
+    return {
+      isTradingDay: false,
+      isOpenNow: false,
+      sessionType: 'NONE',
+      status: 'NON_TRADING_DAY'
+    };
+  }
+
+  if (!isToday) {
+    return {
+      isTradingDay: true,
+      isOpenNow: false,
+      sessionType: 'COMPLETED',
+      status: 'POST_MARKET'
+    };
+  }
+
+  const openNow = isAssetMarketOpenNow(categoryId);
+  if (openNow) {
+    return {
+      isTradingDay: true,
+      isOpenNow: true,
+      sessionType: 'LIVE',
+      status: 'MARKET_OPEN'
+    };
+  }
+
+  // Determine if current time is before market open or after market close
+  const now = new Date();
+  if (categoryId === 'in_stocks') {
+    const special = getSpecialTradingSession(dateISO, 'NSE');
+    const [startH, startM] = (special?.startTime || '09:15').split(':').map(Number);
+    const istFormatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+    const parts = istFormatter.formatToParts(now);
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    const curMin = hour * 60 + minute;
+    const startMin = startH * 60 + startM;
+
+    if (curMin < startMin) {
+      return { isTradingDay: true, isOpenNow: false, sessionType: special ? special.type : 'REGULAR', status: 'PRE_MARKET' };
+    }
+    return { isTradingDay: true, isOpenNow: false, sessionType: special ? special.type : 'REGULAR', status: 'POST_MARKET' };
+  }
+
+  if (categoryId === 'us_stocks') {
+    const nyFormatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'America/New_York',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+    const parts = nyFormatter.formatToParts(now);
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    const curMin = hour * 60 + minute;
+    if (curMin < 570) { // 09:30 AM ET
+      return { isTradingDay: true, isOpenNow: false, sessionType: 'REGULAR', status: 'PRE_MARKET' };
+    }
+    return { isTradingDay: true, isOpenNow: false, sessionType: 'REGULAR', status: 'POST_MARKET' };
+  }
+
+  // For Mutual Funds and NPS, NAV updates arrive in the evening (usually 21:00 to 23:30)
+  return {
+    isTradingDay: true,
+    isOpenNow: false,
+    sessionType: 'EOD_NAV',
+    status: 'POST_MARKET'
+  };
 }
 

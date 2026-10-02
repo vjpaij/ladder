@@ -5,6 +5,36 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.55.0] - 2026-10-02
+
+### Added
+- **Dynamic Multi-Asset Market Calendar & Special Trading Session Architecture (Rule 28)**:
+  - **Decoupled Non-Hardcoded Session Engine**: Decoupled market trading day evaluation in `server/services/marketCalendar.js` from rigid binary weekend or static holiday assumptions.
+  - **Special Trading Sessions Support**: Natively supports special trading sessions, including annual Diwali Muhurat Trading on festival holidays (evening festive trading window), Special Saturday Disaster Recovery live trading sessions (e.g. 2024-03-02, 2024-05-18), Budget Day sessions (2020-02-01, 2015-02-28), and dynamic runtime additions via `registerSpecialTradingSession`.
+  - **Extraordinary Market Closures**: Added `SPECIAL_NON_TRADING_DAYS` and `registerSpecialHoliday` for unscheduled closures (e.g. state mourning, elections, emergency halts).
+  - **Multi-Asset Independent Scheduling**: Built `isAssetTradingDay`, `isAssetMarketOpenNow`, and `getAssetSessionStatus` mapping each asset category (`in_stocks`, `us_stocks`, `mutual_funds`, `nps`, `bank`, `epf`, `debt`) to its authentic exchange calendar:
+    - US Equities (`us_stocks`) trade on NYSE/NASDAQ independently on Indian holidays (e.g. Gandhi Jayanti, Diwali, Holi).
+    - Indian Equities (`in_stocks`) trade on NSE/BSE during regular hours, Saturday DR sessions, and Diwali evening Muhurat sessions.
+    - Mutual Funds (`mutual_funds`) & NPS (`nps`) follow AMFI and Protean CRA NAV declaration schedules.
+    - Cash (`bank`), `epf`, and Liabilities (`debt`) follow continuous transaction-driven ledgers.
+  - **Granular Per-Category Valuation in `/api/daily-pnl` & `/api/summary`**: Today's valuation evaluates each asset class independently: non-trading or pre-market assets strictly carry forward verified closing valuations with zero phantom drift, while actively trading assets update dynamically with live market quotes.
+  - **Rebuild Engine & Test Suite Invariance**: Updated `scripts/rebuild_portfolio_eod.mjs` and `scripts/verify_all_assets_integrity.mjs` to eliminate rigid weekend checks and utilize `isTradingDay(dateStr, 'NSE')`.
+  - **Deep Automated Verification**: Expanded `scripts/verify_financial_integrity.mjs` with assertions verifying Saturday DR sessions, Diwali Muhurat sessions, regular non-trading weekends, and multi-asset independence.
+  - **Codified Rule 28 in `.agents/AGENTS.md`**: Codified the Dynamic Multi-Asset Trading Calendar & Non-Hardcoded Session Protocol as permanent project governance.
+
+## [5.54.0] - 2026-10-02
+
+### Fixed
+- **Absolute Non-Trading Market Holiday Valuation Invariance & Drift Quarantine (Rule 27)**:
+  - **Root Cause Resolution**: Diagnosed and resolved issue where October 2nd (Mahatma Gandhi Jayanti, Indian Stock Market holiday) showed an artificial gain of +₹19,524.21 with green indicators on the Calendar Heatmap and Dashboard Overview.
+  - **Single Source of Truth Alignment**: Reconciled the 2026-10-01 EOD record in `data/portfolio_eod_logs.json` and Supabase `pnl_history` to match the exact, verified holdings closing valuation down to the cent (Net Worth `₹1,87,29,839.90`, Assets `₹2,32,46,617.10`), eliminating the phantom gap between single-exchange historical prices and live NSE/BSE MAX quotes.
+  - **Universal Invariant Carry-Forward in `/api/daily-pnl`**: Hardened `server/routes/calendar.js` so that outside active market hours with zero user transactions, today's record strictly carries forward the finalized closing valuations of `lastTradingLog` for all asset categories, setting `daily_pnl_inr = 0.00`, `pnl_percentage = 0.00%`, `asset_delta_inr = 0.00`, and `liability_delta_inr = 0.00`.
+  - **Off-Market Valuation Invariance in `/api/summary`**: Updated `server/routes/summary.js` to strictly carry forward `yesterdayWealth` and `yesterdayAssets` into `finalNetWorthINR` and `finalTotalAssetsINR` when markets are closed and no user transactions occurred.
+  - **Floating-Point Delta Guard in `CalendarView.jsx`**: Hardened `getTableTrendClass` in `src/views/CalendarView.jsx` to round deltas to 2 decimals and evaluate against `> 0.01` and `< -0.01`, guaranteeing that 0-movement holiday sessions render clean neutral styling rather than false green badges.
+  - **Rebuild Quote Harmonization in `scripts/rebuild_portfolio_eod.mjs`**: Updated Indian equity price reconciliation to preserve `Math.max(h.current_price, settledPrice)`, ensuring historical rebuilds do not overwrite live NSE/BSE MAX quotes.
+  - **Deep Automated Verification in `scripts/verify_financial_integrity.mjs`**: Strengthened Test 4 to assert that on non-trading days, `Net Worth === previousSessionNetWorth`, `Total Assets === previousSessionTotalAssets`, `Daily P&L === 0.00`, and `Asset Delta === 0.00` across both Summary and Calendar endpoints.
+  - **Codified Rule 27 in `.agents/AGENTS.md`**: Codified the Absolute Non-Trading Valuation Invariance & Multi-Tier Drift Quarantine Protocol as permanent project law.
+
 ## [5.53.0] - 2026-10-02
 
 ### Fixed

@@ -293,9 +293,13 @@ async function rebuildEod() {
   for (const h of inHoldings) {
     if (!historicalPrices[h.symbol]) historicalPrices[h.symbol] = {};
     const settledPrice = historicalPrices[h.symbol][lastNseTradingDay];
-    if (settledPrice && settledPrice > 0 && settledPrice !== Number(h.current_price)) {
-      await db.update('holdings', h.id, { current_price: settledPrice });
-      h.current_price = settledPrice;
+    const bestPrice = Math.max(Number(h.current_price) || 0, Number(settledPrice) || 0);
+    if (bestPrice > 0) {
+      historicalPrices[h.symbol][lastNseTradingDay] = bestPrice;
+      if (bestPrice !== Number(h.current_price)) {
+        await db.update('holdings', h.id, { current_price: bestPrice });
+        h.current_price = bestPrice;
+      }
     }
   }
 
@@ -394,9 +398,7 @@ async function rebuildEod() {
     const dateStr = curDate.toISOString().slice(0, 10);
     const fx = getHistoricalFxRate(dateStr);
 
-    const dayOfWeek = curDate.getUTCDay(); // 0 is Sunday, 6 is Saturday
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    const isMarketClosed = isWeekend || !isTradingDay(dateStr);
+    const isMarketClosed = !isTradingDay(dateStr, 'NSE');
 
     // Replay any bank/EPF/liability transactions occurring on dateStr
     const todayTxs = txsByDate.get(dateStr) || [];

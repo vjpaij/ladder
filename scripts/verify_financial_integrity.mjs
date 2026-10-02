@@ -153,15 +153,24 @@ async function runIntegrityAudit() {
     throw err;
   }
 
-  // 5. Market Hours & Non-Trading Settlement Invariance Verification
-  console.log('[Test 4] Verifying Market Hours & Non-Trading Settlement Invariance...');
+  // 5. Market Hours, Multi-Asset Independence & Special Trading Session Verification
+  console.log('[Test 4] Verifying Market Hours, Multi-Asset Independence & Special Sessions...');
+
+  // 5a. Non-Hardcoded Dynamic Trading Schedule Assertions
+  assert.strictEqual(isTradingDay('2024-03-02', 'NSE'), true, 'Special Saturday Disaster Recovery session (2024-03-02) must be recognized as a trading day');
+  assert.strictEqual(isTradingDay('2024-05-18', 'NSE'), true, 'Special Saturday Disaster Recovery session (2024-05-18) must be recognized as a trading day');
+  assert.strictEqual(isTradingDay('2024-11-01', 'NSE'), true, 'Diwali Muhurat Trading on festival holiday (2024-11-01) must be recognized as a trading day');
+  assert.strictEqual(isTradingDay('2026-10-20', 'NSE'), true, 'Diwali Muhurat Trading on festival holiday (2026-10-20) must be recognized as a trading day');
+  assert.strictEqual(isTradingDay('2026-10-03', 'NSE'), false, 'Standard non-trading Saturday (2026-10-03) must be recognized as non-trading');
+  assert.strictEqual(isTradingDay('2026-10-04', 'NSE'), false, 'Standard non-trading Sunday (2026-10-04) must be recognized as non-trading');
+  assert.strictEqual(isTradingDay('2026-10-02', 'NSE'), false, 'Gandhi Jayanti (2026-10-02) must be recognized as non-trading for Indian Equities');
+  assert.strictEqual(isTradingDay('2026-10-02', 'NYSE'), true, 'US Market NYSE on 2026-10-02 must be recognized as trading independently of Indian holidays');
+  console.log('✓ Special Sessions & Multi-Asset Decoupling Verified: Saturday DR sessions & Diwali Muhurat are trading days; US trades independently of Indian holidays.');
+
   const todayStr = getTodayIST();
-  const dIST = new Date(`${todayStr}T00:00:00Z`);
-  const dayOfWeek = dIST.getUTCDay(); // 0 is Sunday, 6 is Saturday
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const isTradingToday = isTradingDay(todayStr, 'NSE');
+  const isTradingTodayNSE = isTradingDay(todayStr, 'NSE');
   const anyMarketOpen = isAnyMarketOpen();
-  const isOffMarketOrPreMarket = isWeekend || !isTradingToday || !anyMarketOpen;
+  const isOffMarketOrPreMarket = !isTradingTodayNSE && !anyMarketOpen;
 
   if (isOffMarketOrPreMarket) {
     let authHeaders = {};
@@ -172,10 +181,27 @@ async function runIntegrityAudit() {
     } catch (e) {
       console.warn('[Integrity Audit] Local test token warning:', e.message);
     }
-    const sumRes = await fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json());
+    const [sumRes, pnlRes] = await Promise.all([
+      fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json()),
+      fetch('http://127.0.0.1:5000/api/daily-pnl?range=1M', { headers: authHeaders }).then(r => r.json())
+    ]);
+    const latestLog = pnlRes[pnlRes.length - 1];
+    const prevLog = pnlRes.length > 1 ? pnlRes[pnlRes.length - 2] : null;
+
     assert.strictEqual(sumRes.dayPnlINR, 0, 'Outside active trading hours (pre-market/off-market/weekend), Day PnL must strictly equal 0.00 unless manual transactions occurred');
     assert.strictEqual(sumRes.dayPnlPct, 0, 'Outside active trading hours, Day PnL % must strictly equal 0.00%');
-    console.log(`✓ Off-Market / Pre-Market Invariance Verified (Markets Closed) -> Day PnL = ₹0.00 (0.00%).\n`);
+    assert.strictEqual(latestLog.daily_pnl_inr, 0, 'Calendar Day PnL must strictly equal 0.00 on non-trading days');
+    assert.strictEqual(latestLog.pnl_percentage, 0, 'Calendar Day PnL % must strictly equal 0.00% on non-trading days');
+    assert.strictEqual(latestLog.asset_delta_inr, 0, 'Calendar Asset Delta must strictly equal 0.00 on non-trading days without transactions');
+    assert.strictEqual(latestLog.liability_delta_inr, 0, 'Calendar Liability Delta must strictly equal 0.00 on non-trading days without transactions');
+
+    if (prevLog) {
+      assert.strictEqual(latestLog.net_worth_inr, prevLog.net_worth_inr, 'Calendar Net Worth on non-trading day must strictly carry forward previous session');
+      assert.strictEqual(latestLog.total_assets_inr, prevLog.total_assets_inr, 'Calendar Total Assets on non-trading day must strictly carry forward previous session');
+      assert.strictEqual(sumRes.netWorthINR, prevLog.net_worth_inr, 'Dashboard Net Worth on non-trading day must strictly carry forward previous session');
+      assert.strictEqual(sumRes.totalAssetsINR, prevLog.total_assets_inr, 'Dashboard Total Assets on non-trading day must strictly carry forward previous session');
+    }
+    console.log(`✓ Off-Market / Pre-Market Invariance Verified (Markets Closed) -> Day PnL = ₹0.00 (0.00%), Net Worth & Assets strictly invariant.\n`);
   } else {
     console.log(`✓ Current session (${todayStr}) is active market trading hours.\n`);
   }

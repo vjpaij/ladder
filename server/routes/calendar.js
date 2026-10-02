@@ -6,7 +6,7 @@ import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, isAnyMarketOpen } from '../services/marketCalendar.js';
+import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, isAnyMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,59 +94,149 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     const liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
     const todayStr = getTodayIST();
 
-    const isWeekendDay = (dStr) => {
-      if (!dStr) return false;
-      const d = new Date(`${dStr}T00:00:00Z`);
-      const day = d.getUTCDay();
-      return day === 0 || day === 6;
-    };
-
     // Load transactions strictly by trade/transaction date (Rule 5 & Rule 9)
     const allTxs = await db.select('transactions');
     const txDatesWithActivity = new Set((allTxs || []).map(t => t.date));
     const todayTxs = (allTxs || []).filter(t => t.date === todayStr);
 
-    // Identify last trading day log before today (e.g. Friday)
+    // Identify which asset categories had user transactions today
+    const categoriesWithTodayTxs = new Set();
+    const holdingMapById = new Map((holdings || []).map(h => [h.id, h]));
+    todayTxs.forEach(t => {
+      const h = holdingMapById.get(t.holding_id);
+      if (h && h.category_id) {
+        categoriesWithTodayTxs.add(h.category_id);
+      }
+    });
+
+    // Identify last trading day log before today (e.g. previous finalized session)
     const priorLogs = eodLogs.filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
     const lastTradingLog = priorLogs[0];
 
-    const isWeekend = isWeekendDay(todayStr);
-    const isTradingToday = isTradingDay(todayStr, 'NSE');
-    const anyMarketOpen = isAnyMarketOpen();
-    const isOffMarketOrPreMarket = isWeekend || !isTradingToday || !anyMarketOpen;
+    // Multi-Asset Dynamic Valuation Engine:
+    // Decoupled from rigid weekend or fixed holiday assumptions.
+    // Each asset class is evaluated independently based on its actual market schedule:
+    // - Indian Stocks (NSE/BSE): Active on regular weekdays, special Saturday sessions (DR/Budget), and Diwali Muhurat trading.
+    // - US Stocks (NYSE/NASDAQ): Active on US trading days (trades independently on Indian holidays like Gandhi Jayanti, Diwali, Holi).
+    // - Mutual Funds (AMFI) & NPS (CRA): NAV publication schedules.
+    // - Bank, EPF, Liabilities: Continuous ledgers updated on user transactions.
 
-    let todayEntry;
-    if (isOffMarketOrPreMarket && lastTradingLog) {
-      const liveDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
-      const totalAssets = Number((liveTodayValuation.total_assets ?? (liveTodayValuation.totalAssets || 0)).toFixed(2));
-      const wealth = Number((totalAssets - liveDebt).toFixed(2));
-      const prevWealth = Number(lastTradingLog.total_wealth ?? lastTradingLog.wealth ?? wealth);
-      const hasTx = txDatesWithActivity.has(todayStr);
-      const pnl = hasTx ? Number((wealth - prevWealth).toFixed(2)) : 0;
-      const pct = (hasTx && prevWealth !== 0) ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
-      todayEntry = {
-        ...lastTradingLog,
-        ...liveTodayValuation,
-        date: todayStr,
-        indian_stocks: liveTodayValuation.indian_stocks,
-        us_stocks: liveTodayValuation.us_stocks,
-        mutual_funds: liveTodayValuation.mutual_funds,
-        nps: liveTodayValuation.nps,
-        savings: liveTodayValuation.savings,
-        epf: liveTodayValuation.epf,
-        total_assets: totalAssets,
-        debt: liveDebt,
-        wealth,
-        total_wealth: wealth,
-        daily_pnl: pnl,
-        pnl_pct: pct
-      };
+    const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
+    const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
+    const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
+    const npsStatus = getAssetSessionStatus('nps', todayStr);
+
+    const prevInStocks = Number((lastTradingLog?.indian_stocks ?? lastTradingLog?.stocks_val_inr ?? 0).toFixed(2));
+    const prevUsStocks = Number((lastTradingLog?.us_stocks ?? lastTradingLog?.us_stocks_val_inr ?? 0).toFixed(2));
+    const prevMf = Number((lastTradingLog?.mutual_funds ?? lastTradingLog?.mutual_funds_val_inr ?? 0).toFixed(2));
+    const prevNps = Number((lastTradingLog?.nps ?? lastTradingLog?.nps_val_inr ?? 0).toFixed(2));
+    const prevSavings = Number((lastTradingLog?.savings ?? lastTradingLog?.savings_val_inr ?? 0).toFixed(2));
+    const prevEpf = Number((lastTradingLog?.epf ?? lastTradingLog?.epf_val_inr ?? 0).toFixed(2));
+    const prevDebt = Number((lastTradingLog?.debt ?? lastTradingLog?.liabilities_inr ?? 0).toFixed(2));
+
+    // Resolve Indian Stocks
+    const hasInTx = categoriesWithTodayTxs.has('in_stocks');
+    let resolvedInStocks;
+    if (!hasInTx && (inStocksStatus.status === 'NON_TRADING_DAY' || inStocksStatus.status === 'PRE_MARKET')) {
+      resolvedInStocks = prevInStocks;
     } else {
-      todayEntry = {
-        date: todayStr,
-        ...liveTodayValuation
-      };
+      resolvedInStocks = Number((liveTodayValuation.indian_stocks ?? 0).toFixed(2));
     }
+
+    // Resolve US Stocks (active on US market days even when Indian markets are closed!)
+    const hasUsTx = categoriesWithTodayTxs.has('us_stocks');
+    let resolvedUsStocks;
+    if (!hasUsTx && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
+      resolvedUsStocks = prevUsStocks;
+    } else {
+      resolvedUsStocks = Number((liveTodayValuation.us_stocks ?? 0).toFixed(2));
+    }
+
+    // Resolve Mutual Funds
+    const hasMfTx = categoriesWithTodayTxs.has('mutual_funds');
+    let resolvedMf;
+    if (!hasMfTx && (mfStatus.status === 'NON_TRADING_DAY' || mfStatus.status === 'PRE_MARKET')) {
+      resolvedMf = prevMf;
+    } else {
+      resolvedMf = Number((liveTodayValuation.mutual_funds ?? 0).toFixed(2));
+    }
+
+    // Resolve NPS
+    const hasNpsTx = categoriesWithTodayTxs.has('nps');
+    let resolvedNps;
+    if (!hasNpsTx && (npsStatus.status === 'NON_TRADING_DAY' || npsStatus.status === 'PRE_MARKET')) {
+      resolvedNps = prevNps;
+    } else {
+      resolvedNps = Number((liveTodayValuation.nps ?? 0).toFixed(2));
+    }
+
+    // Resolve Bank (Savings) & EPF
+    const hasBankTx = categoriesWithTodayTxs.has('bank');
+    const resolvedSavings = hasBankTx ? Number((liveTodayValuation.savings ?? 0).toFixed(2)) : (lastTradingLog ? prevSavings : Number((liveTodayValuation.savings ?? 0).toFixed(2)));
+
+    const hasEpfTx = categoriesWithTodayTxs.has('epf');
+    const resolvedEpf = hasEpfTx ? Number((liveTodayValuation.epf ?? 0).toFixed(2)) : (lastTradingLog ? prevEpf : Number((liveTodayValuation.epf ?? 0).toFixed(2)));
+
+    // Resolve Debt
+    const hasDebtTx = categoriesWithTodayTxs.has('loans') || categoriesWithTodayTxs.has('credit_cards');
+    const liveDebtVal = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
+    const resolvedDebt = hasDebtTx ? liveDebtVal : (lastTradingLog ? prevDebt : liveDebtVal);
+
+    // Dynamic Balance Sheet Totals
+    const totalAssets = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
+    const totalWealth = Number((totalAssets - resolvedDebt).toFixed(2));
+
+    const prevTotalWealth = Number((lastTradingLog?.total_wealth ?? lastTradingLog?.wealth ?? lastTradingLog?.net_worth_inr ?? totalWealth).toFixed(2));
+    const prevTotalAssets = Number((lastTradingLog?.total_assets ?? lastTradingLog?.total_assets_inr ?? totalAssets).toFixed(2));
+    const prevLiabilities = Number((lastTradingLog?.debt ?? lastTradingLog?.liabilities_inr ?? resolvedDebt).toFixed(2));
+
+    // If all held market assets are non-trading or pre-market, and no transactions occurred today, P&L is strictly 0.00
+    const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||
+                             (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    const hasAnyTxToday = todayTxs.length > 0;
+
+    let dailyPnl = Number((totalWealth - prevTotalWealth).toFixed(2));
+    let pnlPct = prevTotalWealth > 0 ? Number(((dailyPnl / prevTotalWealth) * 100).toFixed(2)) : 0;
+    let assetDelta = Number((totalAssets - prevTotalAssets).toFixed(2));
+    let liabilityDelta = Number((resolvedDebt - prevLiabilities).toFixed(2));
+
+    if (!anyMarketTrading && !hasAnyTxToday) {
+      dailyPnl = 0;
+      pnlPct = 0;
+      assetDelta = 0;
+      liabilityDelta = 0;
+    }
+
+    const todayEntry = {
+      ...(lastTradingLog || {}),
+      date: todayStr,
+      indian_stocks: resolvedInStocks,
+      us_stocks: resolvedUsStocks,
+      mutual_funds: resolvedMf,
+      nps: resolvedNps,
+      savings: resolvedSavings,
+      epf: resolvedEpf,
+      stocks_val_inr: resolvedInStocks,
+      us_stocks_val_inr: resolvedUsStocks,
+      mutual_funds_val_inr: resolvedMf,
+      nps_val_inr: resolvedNps,
+      savings_val_inr: resolvedSavings,
+      epf_val_inr: resolvedEpf,
+      total_assets: totalAssets,
+      total_assets_inr: totalAssets,
+      debt: resolvedDebt,
+      liabilities_inr: resolvedDebt,
+      wealth: totalWealth,
+      total_wealth: totalWealth,
+      net_worth_inr: totalWealth,
+      daily_pnl: dailyPnl,
+      daily_pnl_inr: dailyPnl,
+      pnl_pct: pnlPct,
+      pnl_percentage: pnlPct,
+      asset_delta: assetDelta,
+      asset_delta_inr: assetDelta,
+      liability_delta_inr: liabilityDelta
+    };
 
     // Merge or append today's valuation
     const existingTodayIdx = eodLogs.findIndex(l => l.date === todayStr);
@@ -159,19 +249,16 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     // Sort chronologically
     eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
-    // Recompute daily_pnl and pnl_pct across all logs so today is accurate against yesterday
+    // Recompute daily_pnl and pnl_pct across all historical logs
     for (let i = 0; i < eodLogs.length; i++) {
       const cur = eodLogs[i];
+      if (cur.date === todayStr) continue; // todayEntry is already precisely computed
       const prev = i > 0 ? eodLogs[i - 1] : cur;
       const curWealth = cur.total_wealth !== undefined ? cur.total_wealth : (cur.wealth || 0);
       const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
       const rawDelta = Number((curWealth - prevWealth).toFixed(2));
-      
-      // Daily P&L reflects change in WHOLE portfolio net worth against previous day
-      const pnl = rawDelta;
-      const pct = prevWealth !== 0 ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
-      cur.daily_pnl = pnl;
-      cur.pnl_pct = pct;
+      cur.daily_pnl = rawDelta;
+      cur.pnl_pct = prevWealth !== 0 ? Number(((rawDelta / prevWealth) * 100).toFixed(2)) : 0;
       cur.total_wealth = curWealth;
       cur.wealth = curWealth;
     }
@@ -228,22 +315,35 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       const wPrev = prevItem.total_wealth !== undefined ? prevItem.total_wealth : prevItem.wealth;
 
       const prevWealth = wPrev !== undefined ? wPrev : wCurr;
-      const isWk = isWeekendDay(item.date);
-      const isOffMarketToday = (item.date === todayStr && isOffMarketOrPreMarket);
       const hasTx = txDatesWithActivity.has(item.date);
-      const isZeroPnlDay = isWk || isOffMarketToday;
-      const dailyPnl = isZeroPnlDay ? (hasTx ? (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth)) : 0) : (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth));
-      const pct = isZeroPnlDay ? (hasTx && prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0) : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
 
-      const wealth = wCurr || 0;
-      const debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));
-      const assets = item.total_assets !== undefined ? item.total_assets : (wealth + debt);
+      let dailyPnl, pct, wealth, debt, assets, assetDelta, liabilityDelta;
 
-      const prevDebt = prevItem.debt !== undefined ? prevItem.debt : ((prevItem.loan || 0) + (prevItem.credits || 0));
-      const prevAssets = prevItem.total_assets !== undefined ? prevItem.total_assets : (prevWealth + prevDebt);
+      if (item.date === todayStr) {
+        // Use todayEntry's rigorously calculated multi-asset figures
+        wealth = item.wealth !== undefined ? item.wealth : (item.total_wealth ?? wCurr);
+        debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));
+        assets = item.total_assets !== undefined ? item.total_assets : (wealth + debt);
+        dailyPnl = item.daily_pnl !== undefined ? item.daily_pnl : Number((wealth - prevWealth).toFixed(2));
+        pct = item.pnl_pct !== undefined ? item.pnl_pct : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
+        const prevDebt = prevItem.debt !== undefined ? prevItem.debt : ((prevItem.loan || 0) + (prevItem.credits || 0));
+        const prevAssets = prevItem.total_assets !== undefined ? prevItem.total_assets : (prevWealth + prevDebt);
+        assetDelta = item.asset_delta !== undefined ? item.asset_delta : Number((assets - prevAssets).toFixed(2));
+        liabilityDelta = item.liability_delta_inr !== undefined ? item.liability_delta_inr : Number((debt - prevDebt).toFixed(2));
+      } else {
+        const isItemTradingDay = isTradingDay(item.date, 'NSE') || isTradingDay(item.date, 'NYSE');
+        const isZeroPnlDay = !isItemTradingDay && !hasTx;
+        dailyPnl = isZeroPnlDay ? 0 : (item.daily_pnl !== undefined ? item.daily_pnl : (wCurr - prevWealth));
+        pct = isZeroPnlDay ? 0 : (prevWealth !== 0 ? Number(((dailyPnl / prevWealth) * 100).toFixed(2)) : 0);
+        wealth = isZeroPnlDay ? prevWealth : (wCurr || 0);
+        debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));
+        assets = isZeroPnlDay ? (prevWealth + debt) : (item.total_assets !== undefined ? item.total_assets : (wealth + debt));
 
-      const assetDelta = assets - prevAssets;
-      const liabilityDelta = debt - prevDebt;
+        const prevDebt = prevItem.debt !== undefined ? prevItem.debt : ((prevItem.loan || 0) + (prevItem.credits || 0));
+        const prevAssets = prevItem.total_assets !== undefined ? prevItem.total_assets : (prevWealth + prevDebt);
+        assetDelta = isZeroPnlDay ? 0 : Number((assets - prevAssets).toFixed(2));
+        liabilityDelta = isZeroPnlDay ? 0 : Number((debt - prevDebt).toFixed(2));
+      }
 
       resultLogs.push({
         log_date: item.date,

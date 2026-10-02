@@ -139,6 +139,25 @@
     - **AUTOMATIC STALE PROCESS PURGE & CLEAN REBOOT**: Whenever any code changes, refactors, or feature updates are applied to the codebase (frontend or backend), the agent MUST NOT leave old or frozen dev server processes running. The agent MUST proactively terminate stale Node.js sessions (`Get-Process -Name node | Stop-Process -Force`) and cleanly launch `npm start` as a daemon.
     - **MANDATORY DUAL-PORT LIVE VERIFICATION (3000 & 5000)**: Before completing any task, the agent MUST autonomously verify that both the Vite frontend server on port 3000 and the Express backend server on port 5000 are actively listening and successfully serving fresh code (e.g. testing `GET http://localhost:3000/` and `GET http://localhost:5000/api/summary`), eliminating "Failed to fetch dynamically imported module", white screens, or frozen dev sessions without requiring manual user restarts.
 
+27. **ABSOLUTE NON-TRADING VALUATION INVARIANCE & MULTI-TIER DRIFT QUARANTINE PROTOCOL**:
+    - **UNIVERSAL INVARIANT CARRY-FORWARD**: On non-trading days and outside active market trading hours for an asset, the valuation across ALL endpoints and views (`/api/summary`, `/api/daily-pnl`, Calendar Heatmap, Dashboard Overview, Trend Chart, Category Ledgers, and Holdings Tables) MUST strictly carry forward the finalized closing valuations of the last completed trading session.
+    - **ZERO PHANTOM DELTA GUARANTEE**: Net Worth, Total Assets, Total Liabilities, Category Breakdowns (Indian Equity, US Equity, Mutual Funds, NPS, Fixed Income, Debt), Asset Deltas, and Daily P&L MUST remain strictly invariant with ₹0.00 (0.00%) change unless a verified user cash deposit or withdrawal transaction occurred on that date.
+    - **ZERO SPREAD INJECTION BAN**: Off-market route handlers must NEVER inject live price ticks, forex fluctuations, or in-memory holding prices into non-trading day valuation snapshots.
+    - **PREVENTATIVE MULTI-ASSERTION INTEGRITY TEST**: Automated pre-handoff verification (`verify_financial_integrity.mjs`) MUST strictly assert not only `Day P&L === 0` and `Day P&L % === 0`, but also that `Net Worth === previousSessionNetWorth`, `Total Assets === previousSessionTotalAssets`, and `Asset Delta === 0` across both Summary and Calendar endpoints, mathematically barring phantom holiday gains or losses from ever reaching the UI.
+
+28. **DYNAMIC MULTI-ASSET TRADING CALENDAR & NON-HARDCODED SESSION PROTOCOL**:
+    - **NO RIGID BINARY WEEKEND OR FIXED HOLIDAY ASSUMPTIONS**: Trading vs. non-trading day status MUST NEVER be hard-bound to blunt day-of-week checks (e.g. `dow === 6 || dow === 0`) or static holiday lists.
+    - **SPECIAL TRADING SESSIONS NATIVE SUPPORT**: The calendar engine (`marketCalendar.js`) MUST natively support special trading sessions:
+      1. Special Saturday live trading sessions (e.g. Disaster Recovery site failovers, Budget Day sessions) which ARE active trading days for Indian equities.
+      2. Diwali Muhurat Trading on festival holidays (evening festive trading window, e.g. 18:15 to 19:15 IST) which IS an active trading session with live price ticks.
+      3. Dynamic extensible registry (`SPECIAL_TRADING_SESSIONS`, `registerSpecialTradingSession`, `SPECIAL_NON_TRADING_DAYS`, `registerSpecialHoliday`).
+    - **MULTI-ASSET INDEPENDENT VALUATION**: Each asset class MUST evaluate independently based on its underlying exchange and market:
+      - Indian Equities (`in_stocks`): NSE/BSE calendar (including Muhurat & Saturday DR sessions).
+      - US Equities (`us_stocks`): NYSE/NASDAQ calendar (trades independently on Indian holidays like Gandhi Jayanti, Diwali, Holi).
+      - Mutual Funds (`mutual_funds`) & NPS (`nps`): AMFI and Protean CRA NAV declaration schedules.
+      - Cash (`bank`), `epf`, and Liabilities (`debt`): Continuous transaction-driven ledgers.
+    - **GRANULAR ASSET-LEVEL INVARIANCE**: An asset that is non-trading or pre-market carries forward its verified last-known closing valuation with zero artificial drift. An asset that is actively trading updates dynamically with live market quotes. Total portfolio metrics reflect the exact mathematical sum of all active and invariant assets.
+
 ## Mandatory Git Push & Release Workflow Rules
 
 When asked to commit, release, or push code to Git:
