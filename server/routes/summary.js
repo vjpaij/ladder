@@ -453,10 +453,6 @@ router.get('/summary', async (req, res) => {
       if (!hasTxToday) {
         dayPnlINR = 0;
         dayPnlPct = 0;
-        if (yesterdayWealth !== null) {
-          finalNetWorthINR = yesterdayWealth;
-          finalTotalAssetsINR = Number((yesterdayWealth + totalLiabilitiesINR).toFixed(2));
-        }
       } else {
         dayPnlINR = wealthDelta;
         dayPnlPct = yesterdayWealth > 0 ? Number(((wealthDelta / yesterdayWealth) * 100).toFixed(2)) : 0;

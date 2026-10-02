@@ -123,6 +123,12 @@ Ladder is an institutional-grade personal finance and investment management dash
     - **Quick Shortcut Controls**: Bottom action bar with `Today`, `Yesterday`, `-1Y` (decrement 1 year), `+1Y` (increment 1 year), and `Clear` buttons.
     - **Scroll & Viewport Isolation with Portal Event Protection**: Rendered via React Portal (`createPortal(..., document.body)`) with dynamic anchoring, avoiding drawer/modal overflow clipping while tracking scroll and window resize. Parent components (such as `ChartRangeSelector`) incorporate `data-datepicker-portal` containment checks in outside-click handlers to prevent calendar interactions from prematurely closing parent selectors.
 
+15. **Multi-Metric Dashboard Trend Chart & Focus-Dimming Visualization**
+    - **Multi-Select Asset & Debt Series**: Replaced the static single-line wealth chart with an interactive multi-metric trend engine (`src/components/DashboardTrendChart.jsx`) supporting up to 11 concurrent time-series: Portfolio Totals (Net Worth, Total Assets, Total Liabilities), Individual Asset Classes (Indian Stocks, US Stocks, Mutual Funds, NPS, EPF, Bank Savings), and Liabilities (Loans, Credit Cards).
+    - **Zero-Congestion Focus Hover Architecture**: Solves visual clutter by maintaining standard stroke width on all active lines while dimming non-hovered series to 20% opacity on pill hover, providing instant clarity across overlapping financial trajectories.
+    - **Sleek Popover & 1-Click Presets**: Integrated quick 1-click presets (`Net Worth Only`, `Balance Sheet`, `All Assets`) alongside a categorized popover selector displaying real-time values, color badges, and toggles, keeping header controls compact and elegant.
+    - **Dynamic Scaling & Currency Synchronization**: Computes dynamic Y-axis domain padding across active series with smooth Framer Motion animations, custom SVG gradients, unified `DD-MM-YYYY` tooltips sorted by value descending, persistent user selections in `localStorage`, and full USD/INR currency conversion synchronization.
+
 ---
 
 ## Tech Stack

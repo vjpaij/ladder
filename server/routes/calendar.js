@@ -118,28 +118,22 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     let todayEntry;
     if (isOffMarketOrPreMarket && lastTradingLog) {
       const liveDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
-      // Non-trading session & pre-market: Equity, MF, and NPS carry forward finalized closing valuations from last session (Rule 5: Zero synthetic fluctuation).
-      // Bank savings, EPF, and Debt reflect live balances (Rule 2: Whole portfolio value).
-      const totalAssets = Number((
-        (liveTodayValuation.savings || 0) +
-        (liveTodayValuation.epf || 0) +
-        Number(lastTradingLog.mutual_funds || 0) +
-        Number(lastTradingLog.indian_stocks || 0) +
-        Number(lastTradingLog.us_stocks || 0) +
-        Number(lastTradingLog.nps || 0)
-      ).toFixed(2));
+      const totalAssets = Number((liveTodayValuation.total_assets ?? (liveTodayValuation.totalAssets || 0)).toFixed(2));
       const wealth = Number((totalAssets - liveDebt).toFixed(2));
-      const prevWealth = Number(lastTradingLog.total_wealth ?? lastTradingLog.wealth ?? 0);
-      const pnl = Number((wealth - prevWealth).toFixed(2));
-      const pct = prevWealth !== 0 ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
+      const prevWealth = Number(lastTradingLog.total_wealth ?? lastTradingLog.wealth ?? wealth);
+      const hasTx = txDatesWithActivity.has(todayStr);
+      const pnl = hasTx ? Number((wealth - prevWealth).toFixed(2)) : 0;
+      const pct = (hasTx && prevWealth !== 0) ? Number(((pnl / prevWealth) * 100).toFixed(2)) : 0;
       todayEntry = {
         ...lastTradingLog,
         ...liveTodayValuation,
         date: todayStr,
-        indian_stocks: lastTradingLog.indian_stocks,
-        us_stocks: lastTradingLog.us_stocks,
-        mutual_funds: lastTradingLog.mutual_funds,
-        nps: lastTradingLog.nps,
+        indian_stocks: liveTodayValuation.indian_stocks,
+        us_stocks: liveTodayValuation.us_stocks,
+        mutual_funds: liveTodayValuation.mutual_funds,
+        nps: liveTodayValuation.nps,
+        savings: liveTodayValuation.savings,
+        epf: liveTodayValuation.epf,
         total_assets: totalAssets,
         debt: liveDebt,
         wealth,

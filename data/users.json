@@ -2,7 +2,7 @@
   {
     "id": 1,
     "email": "admin@ladder.com",
-    "password_hash": "$2a$10$Dzqhht4Q2D/Jx65KzTeCUeTQf9FuJ0EO00vMKbgTz2RWE9e5Mt/Xi",
+    "password_hash": "$2a$10$rPmK16Q8vxp1tf1gt4DDPOSzNq1fn5gSgWbm4xnwG.jrsWGzfY3JO",
     "name": "Vijay Pai",
     "created_at": "2026-08-08T15:48:20.140Z"
   },

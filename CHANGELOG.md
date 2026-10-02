@@ -5,6 +5,40 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.52.1] - 2026-10-02
+
+### Changed
+- **Trend Chart Control Bar Layout Realignment & Typography Refinement (`DashboardTrendChart.jsx`)**:
+  - Removed duplicate right-hand side `Net Worth` and `Balance Sheet` preset buttons (which were already available inside the `Select Assets & Debt` popover).
+  - Repositioned the `Select Assets & Debt` trigger button to the right-hand side of the control bar with right-anchored popover alignment (`right-0`), keeping controls balanced and compact.
+  - Positioned all selected active metric pills (`Net Worth`, `Assets`, `Liabilities`, etc.) on the left-hand side with sleek spacing and quick-remove controls.
+  - Scaled down typography across active pills (`text-[11px] font-medium`), popovers (`text-[11px]`), chart axes (`fontSize: 9`), and tooltips (`text-[10px]`) for a clean, non-congested fintech aesthetic.
+  - Scoped metric arrays to module level without component file exports, enabling instantaneous Vite Fast Refresh (HMR).
+
+## [5.52.0] - 2026-10-02
+
+### Added
+- **Multi-Asset & Liability Trend Chart Multiselect Engine (`DashboardTrendChart.jsx`)**:
+  - **Customizable Multi-Metric Time Series**:
+    - Replaced the single-metric Net Worth chart on the executive dashboard with a modular, highly capable `DashboardTrendChart.jsx` visualizer.
+    - Accommodates multiselect across individual asset classes (**Indian Stocks**, **US Stocks**, **Mutual Funds**, **NPS**, **Bank Savings**, **EPF**) and liabilities (**Loans**, **Credit Cards**) alongside portfolio totals (**Net Worth**, **Total Assets**, **Total Liabilities**).
+    - Preserves user series selections across browser reloads via `localStorage` caching (`ladder_dashboard_trend_series`).
+  - **Clean & Uncongested Fintech UI/UX**:
+    - Clean control bar with quick 1-click presets: `Net Worth Only`, `Balance Sheet` (Net Worth, Assets, Debt), and `All Assets`.
+    - Compact glassmorphic metric selector popover (`Select Assets & Debt`) with themed checkboxes, glowing indicator swatches, and real-time current balances for each metric.
+    - Interactive active series pills with remove `×` buttons and focus-dimming hover animations: hovering over any metric pill instantly highlights that line with `strokeWidth: 3.5` while smoothly dimming all other lines to `opacity: 0.20`, eliminating chart congestion.
+  - **Dynamic Multi-Series Scaling & Monotone Curves**:
+    - Calculates dynamic Y-axis domains across only the active selected series with intelligent 6% padding.
+    - Uses smooth monotone curve interpolation, Framer Motion entry transitions, and Recharts linear gradient glow fills.
+    - Institutional custom tooltip displaying formatted date (`DD-MM-YYYY`) and all active series values sorted descending by value, supporting real-time currency conversion for USD mode.
+
+### Fixed
+- **Single Source of Truth Valuation & Off-Market Parity Engine**:
+  - Harmonized `server/routes/calendar.js` and `server/routes/summary.js` on non-trading days/sessions (`isOffMarketOrPreMarket`) so that today's category breakdown and asset values dynamically derive from `liveTodayValuation`, eliminating discrepancy between holdings and calendar.
+  - Aligned latest closing prices across Indian stock holdings in `data/db_cache_snapshot.json` and refreshed portfolio EOD history through 2026-10-01.
+  - Verified 100% PASS on `node scripts/verify_financial_integrity.mjs` across all 5 financial invariance assertions and all 6 asset categories.
+  - Verified clean daemon reboot and live health on Port 3000 (200 OK) and Port 5000 (200 OK).
+
 ## [5.51.0] - 2026-09-28
 
 ### Fixed

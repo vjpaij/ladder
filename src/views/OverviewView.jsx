@@ -21,18 +21,12 @@ import {
   PieChart, 
   Pie, 
   Cell, 
-  Tooltip, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid,
-  ReferenceLine 
+  Tooltip 
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
-import ChartRangeSelector from '../components/ChartRangeSelector';
+import DashboardTrendChart from '../components/DashboardTrendChart';
 
 const PIE_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#06B6D4', '#64748B'];
 
@@ -138,66 +132,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
     };
   }, [rangeFilter]);
 
-  const netWorthData = useMemo(() => {
-    if (!eodLogs || eodLogs.length === 0) return [];
-    
-    const step = Math.max(1, Math.floor(eodLogs.length / 100)); // Sample gracefully if >100 points
-    const sampled = [];
-    for (let i = 0; i < eodLogs.length; i += step) {
-      const item = eodLogs[i];
-      const dParts = (item.log_date || '').split('-');
-      let dateLabel = item.log_date;
-      if (dParts.length === 3) {
-        const dObj = new Date(`${item.log_date}T00:00:00Z`);
-        dateLabel = dObj.toLocaleDateString('en-IN', {
-          month: 'short',
-          day: eodLogs.length <= 90 ? 'numeric' : undefined,
-          year: eodLogs.length > 365 ? '2-digit' : undefined,
-          timeZone: 'UTC'
-        });
-      }
-      sampled.push({
-        date: dateLabel,
-        rawDate: item.log_date,
-        NetWorth: item.net_worth_inr || item.wealth || 0
-      });
-    }
-
-    // Ensure last point is always included
-    const lastItem = eodLogs[eodLogs.length - 1];
-    if (sampled.length > 0 && sampled[sampled.length - 1].rawDate !== lastItem.log_date) {
-      const dObj = new Date(`${lastItem.log_date}T00:00:00Z`);
-      sampled.push({
-        date: dObj.toLocaleDateString('en-IN', {
-          month: 'short',
-          day: eodLogs.length <= 90 ? 'numeric' : undefined,
-          year: eodLogs.length > 365 ? '2-digit' : undefined,
-          timeZone: 'UTC'
-        }),
-        rawDate: lastItem.log_date,
-        NetWorth: lastItem.net_worth_inr || lastItem.wealth || 0
-      });
-    }
-
-    return sampled;
-  }, [eodLogs]);
-
-  // --- Dynamic Y-Axis Scale Domain with 2 decimal precision ---
-  const netWorthMinMax = useMemo(() => {
-    if (!netWorthData || netWorthData.length === 0) return [0, 100000];
-    const vals = netWorthData.map(d => d.NetWorth);
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    const pad = Math.max((max - min) * 0.08, min * 0.015);
-    return [Math.floor(min - pad), Math.ceil(max + pad)];
-  }, [netWorthData]);
-
   if (!summary) return null;
-
-  const isChartNegative = netWorthData && netWorthData.length >= 2 
-    ? netWorthData[netWorthData.length - 1].NetWorth < netWorthData[0].NetWorth 
-    : false;
-  const chartColor = isChartNegative ? "#EF4444" : "#10B981";
 
   // --- Custom Pie Chart with 3D effect ---
   const allocationData = summary.assetAllocation || [];
@@ -625,97 +560,15 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
           </div>
         </AnimatedItem>
 
-        {/* Net Worth History Chart */}
+        {/* Multi-Select Trend History Chart */}
         <AnimatedItem className="lg:col-span-7">
-          <div className="glass-card p-5 rounded-3xl border border-slate-800 relative">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-1">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
-                Trend
-              </h3>
-              
-              <ChartRangeSelector
-                initialRange="ALL"
-                onChange={(range) => setRangeFilter(range)}
-              />
-            </div>
-
-            <p className="text-[10px] text-slate-500 mb-5">Portfolio value over time</p>
-            
-            <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={netWorthData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.35}/>
-                      <stop offset="95%" stopColor={chartColor} stopOpacity={0.0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" stroke="#475569" tick={{ fontSize: 10 }} />
-                  <YAxis 
-                    stroke="#475569" 
-                    tick={{ fontSize: 10 }} 
-                    domain={netWorthMinMax} 
-                    ticks={(() => {
-                      const [min, max] = netWorthMinMax;
-                      if (min <= 0 && max >= 0) {
-                        // Ensure 0 is explicitly included as a tick
-                        return [min, 0, max];
-                      }
-                      return undefined;
-                    })()}
-                    tickFormatter={(v) => {
-                      if (v === 0) return '0';
-                      const absV = Math.abs(v);
-                      const sign = v < 0 ? '-' : '';
-                      if (absV >= 10000000) return `${sign}₹${(absV / 10000000).toFixed(2)}Cr`;
-                      return `${sign}₹${(absV / 100000).toFixed(2)}L`;
-                    }} 
-                  />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
-                  
-                  {/* Subtle 0 Value Reference Line */}
-                  {netWorthMinMax[0] <= 0 && netWorthMinMax[1] >= 0 && (
-                    <ReferenceLine 
-                      y={0} 
-                      stroke="#f43f5e" 
-                      strokeDasharray="4 4" 
-                      strokeWidth={1.5}
-                      strokeOpacity={0.6}
-                    />
-                  )}
-
-                  <Tooltip 
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0];
-                        const raw = data.payload?.rawDate;
-                        let fullDate = raw;
-                        if (raw) {
-                          const parts = String(raw).split('-');
-                          if (parts.length === 3) {
-                            fullDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                          }
-                        }
-                        return (
-                          <div className="bg-slate-900/95 border border-slate-700/80 p-3 rounded-2xl shadow-2xl backdrop-blur-xl text-xs space-y-1 z-50">
-                            <p className="text-[10px] font-bold text-slate-300 font-mono tracking-wider">{fullDate || data.payload?.date}</p>
-                            <p className="text-sm font-black font-mono" style={{ color: chartColor }}>
-                              {isUSD 
-                                ? (data.value < 0 ? '-' : '') + '$' + Math.abs(data.value / summary.fxRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                : (data.value < 0 ? '-₹' : '₹') + Math.abs(Number(data.value)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }} 
-                  />
-                  <Area type="linear" dataKey="NetWorth" stroke={chartColor} strokeWidth={2} fillOpacity={1} fill="url(#nwGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <DashboardTrendChart
+            eodLogs={eodLogs}
+            loading={loadingEod}
+            rangeFilter={rangeFilter}
+            onRangeChange={(range) => setRangeFilter(range)}
+            summary={summary}
+          />
         </AnimatedItem>
 
       </div>
