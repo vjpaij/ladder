@@ -5,6 +5,7 @@ import db from '../db.js';
 import { createCloudBackup, listCloudBackups } from '../../scripts/backup_manager.mjs';
 import { restoreCloudBackup } from '../../scripts/restore_backup.mjs';
 import { authenticateToken } from '../middleware/auth.js';
+import { getWalStatus, flushWal } from '../services/walFlusherService.js';
 
 const router = express.Router();
 
@@ -24,7 +25,10 @@ router.get('/cloud-backups', authenticateToken, async (req, res) => {
 router.post('/cloud-backups/create', authenticateToken, async (req, res) => {
   try {
     const result = await createCloudBackup();
-    res.json({ success: true, message: 'Cloud backup created successfully in Supabase Storage!', result });
+    const message = result.isPartial
+      ? `Backup created with PARTIAL sync warning: ${result.integrity?.walPendingAtBackup || 0} entries pending cloud sync. Local data captured.`
+      : 'Cloud backup created successfully from live data.';
+    res.json({ success: true, message, result });
   } catch (err) {
     console.error('[API Cloud Backup Create Error]:', err.message);
     res.status(500).json({ error: err.message });
@@ -46,29 +50,42 @@ router.post('/cloud-backups/restore', authenticateToken, async (req, res) => {
 
   restoreInProgress = true;
   const jobId = `restore_${Date.now()}`;
-  restoreJobs.set(jobId, { status: 'initiated', message: 'Restore initiated, waiting for process...', startedAt: new Date().toISOString() });
+  restoreJobs.set(jobId, {
+    status: 'initiated',
+    message: 'Restore initiated...',
+    startedAt: new Date().toISOString(),
+    progress: { table: null, done: 0, total: 0 }
+  });
 
   try {
     const job = restoreJobs.get(jobId);
     job.status = 'running';
     job.message = 'Restoring database tables from cloud snapshot...';
 
-    const result = await restoreCloudBackup(filename);
+    // Progress callback — updates job for polling
+    const onProgress = (table, done, total) => {
+      job.progress = { table, done, total };
+      job.message = `Restoring ${table} (${done}/${total})...`;
+    };
+
+    const result = await restoreCloudBackup(filename || null, onProgress);
+
+    // Invalidate RAM cache — warmCache(forceRefresh) is called inside restoreCloudBackup
     db.invalidateCache();
 
     job.status = 'running';
     job.message = 'Database restored. Rebuilding historical EOD valuation records in background...';
 
-    // Respond immediately so HTTP connection does not time out on long EOD rebuilds
+    // Respond immediately so HTTP connection does not time out
     res.json({
       success: true,
       jobId,
       status: 'running',
-      message: 'Database restored. Rebuilding historical EOD valuation records in background...',
+      message: job.message,
       result
     });
 
-    // Run EOD rebuild asynchronously in background with process timeout protection
+    // EOD rebuild asynchronously in background
     (async () => {
       try {
         await new Promise((resolve, reject) => {
@@ -95,8 +112,9 @@ router.post('/cloud-backups/restore', authenticateToken, async (req, res) => {
         job.completedAt = new Date().toISOString();
       } catch (bgErr) {
         console.error('[API Cloud Backup Background EOD Rebuild Error]:', bgErr.message);
-        job.status = 'failed';
-        job.error = bgErr.message;
+        // EOD rebuild failure is non-fatal — restore itself succeeded
+        job.status = 'succeeded';
+        job.message = `Restore complete. EOD rebuild had a warning: ${bgErr.message}`;
         job.completedAt = new Date().toISOString();
       } finally {
         restoreInProgress = false;

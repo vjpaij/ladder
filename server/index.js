@@ -11,8 +11,9 @@ process.on('unhandledRejection', (reason) => {
   console.warn('[Server Resilience] Unhandled promise rejection intercepted:', reason?.message || reason);
 });
 
-import db, { initDatabase, warmCache } from './db.js';
+import db, { initDatabase, warmCache, getFullCacheSnapshot } from './db.js';
 import { supabase } from './supabaseClient.js';
+import { supabaseAdmin } from './supabaseAdminClient.js';
 import { 
   refreshAllHoldingsPrices, 
   refreshActiveHoldingsPrices, 
@@ -33,6 +34,8 @@ import { JWT_SECRET } from './middleware/auth.js';
 import { triggerEodRebuildIfPastDate } from './services/eodSync.js';
 import { runComprehensiveSelfHealing } from './services/selfHealingService.js';
 import { processDueSips } from './services/sipEngine.js';
+import { initWalFlusher, flushWal, getWalStatus } from './services/walFlusherService.js';
+import { authenticateToken } from './middleware/auth.js';
 
 // Import Modular API Route Controllers
 import authRouter from './routes/auth.js';
@@ -89,6 +92,74 @@ app.use('/api', reportsRouter);
 app.use('/api', syncLogsRouter);
 
 // -------------------------------------------------------------
+// Sync Status API — surfaces WAL gaps and cache/Supabase divergence
+// -------------------------------------------------------------
+const SYNC_STATUS_TABLES = ['categories', 'holdings', 'transactions', 'dividends', 'liabilities'];
+let _syncStatusCache = null;
+let _syncStatusLastRun = 0;
+const SYNC_STATUS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+app.get('/api/sync-status', authenticateToken, async (req, res) => {
+  try {
+    const now = Date.now();
+    // Return cached result if fresh enough (avoids repeated Supabase COUNT queries)
+    if (_syncStatusCache && (now - _syncStatusLastRun) < SYNC_STATUS_TTL_MS && !req.query.force) {
+      return res.json(_syncStatusCache);
+    }
+
+    const walStatus = getWalStatus();
+    const tableCounts = {};
+    let totalGap = 0;
+
+    for (const table of SYNC_STATUS_TABLES) {
+      const cacheRows = await db.select(table);
+      const cacheCount = Array.isArray(cacheRows) ? cacheRows.length : 0;
+      let supabaseCount = null;
+      try {
+        const { count, error } = await supabase
+          .from(table)
+          .select('*', { count: 'exact', head: true });
+        if (!error) supabaseCount = count;
+      } catch (_) { /* non-fatal */ }
+      const gap = supabaseCount !== null ? Math.max(0, cacheCount - supabaseCount) : 0;
+      totalGap += gap;
+      tableCounts[table] = { cache: cacheCount, supabase: supabaseCount, gap };
+    }
+
+    const result = {
+      ok: totalGap === 0 && walStatus.pendingCount === 0,
+      walPending: walStatus.pendingCount,
+      walHasAlert: walStatus.hasAlert,
+      walEntries: walStatus.entries,
+      totalRowGap: totalGap,
+      tableCounts,
+      checkedAt: new Date().toISOString()
+    };
+
+    _syncStatusCache = result;
+    _syncStatusLastRun = now;
+    res.json(result);
+  } catch (err) {
+    console.error('[API Sync Status Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// Internal full-snapshot endpoint — used by backup_manager to read live cache
+// Protected by auth token; not exposed to the public internet
+// -------------------------------------------------------------
+app.get('/api/internal/full-snapshot', authenticateToken, (req, res) => {
+  try {
+    const snapshot = getFullCacheSnapshot();
+    res.json({ success: true, tables: snapshot });
+  } catch (err) {
+    console.error('[API Internal Snapshot Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // Server Boot & Background Schedulers
 // -------------------------------------------------------------
 app.listen(PORT, async () => {
@@ -100,6 +171,96 @@ app.listen(PORT, async () => {
   } catch (err) {
     console.warn('[WarmCache Error]:', err.message);
   }
+
+  // 1c. Start WAL flusher — retries any pending Supabase writes from prior sessions
+  try {
+    initWalFlusher();
+  } catch (err) {
+    console.warn('[WAL Flusher Init Error]:', err.message);
+  }
+
+  // 1d. Startup divergence reconciliation — compare cache vs Supabase row counts
+  //     If local cache has more rows than Supabase, upsert the missing rows directly.
+  setTimeout(async () => {
+    if (!supabaseAdmin) {
+      console.warn('[Startup Reconciliation] supabaseAdmin not available — skipping divergence check.');
+      return;
+    }
+    try {
+      console.log('[Startup Reconciliation] Comparing cache row counts vs Supabase...');
+      const reconcileTables = ['categories', 'holdings', 'transactions', 'dividends', 'liabilities'];
+      let totalUpserted = 0;
+
+      for (const table of reconcileTables) {
+        const cacheRows = await db.select(table);
+        const cacheCount = Array.isArray(cacheRows) ? cacheRows.length : 0;
+
+        const { count, error: countErr } = await supabase
+          .from(table).select('*', { count: 'exact', head: true });
+
+        if (countErr || count === null) {
+          console.warn(`[Startup Reconciliation] Could not get ${table} count from Supabase — skipping.`);
+          continue;
+        }
+
+        const gap = Math.max(0, cacheCount - count);
+        if (gap === 0) {
+          console.log(`[Startup Reconciliation] ${table}: cache=${cacheCount}, supabase=${count} — IN SYNC`);
+          continue;
+        }
+
+        console.warn(
+          `[Startup Reconciliation] DIVERGENCE DETECTED: ${table} — ` +
+          `cache has ${cacheCount} rows, Supabase has ${count} rows (gap: ${gap}). Reconciling...`
+        );
+
+        // Fetch all existing IDs from Supabase to find what's missing
+        let supabaseIds = new Set();
+        let from = 0;
+        const batchSize = 1000;
+        while (true) {
+          const { data: idRows, error: idErr } = await supabaseAdmin
+            .from(table).select('id').range(from, from + batchSize - 1);
+          if (idErr || !idRows || idRows.length === 0) break;
+          idRows.forEach(r => supabaseIds.add(String(r.id)));
+          if (idRows.length < batchSize) break;
+          from += batchSize;
+        }
+
+        // Find cache rows whose IDs are absent in Supabase
+        const missingRows = cacheRows.filter(r => !supabaseIds.has(String(r.id)));
+        if (missingRows.length === 0) {
+          console.log(`[Startup Reconciliation] ${table}: no missing IDs found — counts may differ due to deletes. Skipping.`);
+          continue;
+        }
+
+        console.log(`[Startup Reconciliation] ${table}: upserting ${missingRows.length} missing row(s) to Supabase...`);
+
+        // Upsert in batches of 200 using service role (bypasses RLS)
+        const upsertBatch = 200;
+        let upserted = 0;
+        for (let i = 0; i < missingRows.length; i += upsertBatch) {
+          const chunk = missingRows.slice(i, i + upsertBatch);
+          const { error: upsertErr } = await supabaseAdmin.from(table).upsert(chunk);
+          if (upsertErr) {
+            console.error(`[Startup Reconciliation] Failed to upsert ${table} batch:`, upsertErr.message);
+          } else {
+            upserted += chunk.length;
+          }
+        }
+        totalUpserted += upserted;
+        console.log(`[Startup Reconciliation] ${table}: ${upserted}/${missingRows.length} missing rows synced to Supabase.`);
+      }
+
+      if (totalUpserted > 0) {
+        console.log(`[Startup Reconciliation] Complete. Upserted ${totalUpserted} total row(s) to Supabase.`);
+      } else {
+        console.log('[Startup Reconciliation] All write-through tables are in sync with Supabase.');
+      }
+    } catch (reconcileErr) {
+      console.warn('[Startup Reconciliation Warning]:', reconcileErr.message);
+    }
+  }, 15000);
 
   // 1b. Prime liveQuoteCache from cached holdings on server boot (0 Supabase egress)
   try {

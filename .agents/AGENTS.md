@@ -186,3 +186,32 @@ When asked to commit, release, or push code to Git:
 
 7. **Dual-Port Dev & Backend Daemon Health Check**:
    - Before handing over any task, you **MUST** verify that both the Vite dev server (port 3000) and the Express backend server (port 5000) are active and healthy. If either is down, restart the dev environment cleanly via `npm start`.
+
+---
+
+## Data Integrity, Cache Safety & Persistence Guardrails
+
+28. **MANDATORY DUAL-WRITE VERIFICATION & WAL PERSISTENCE PROTOCOL**:
+   - Every `db.insert()`, `db.update()`, and `db.delete()` call in `server/db.js` MUST record the operation in `data/pending_writes.json` (Write-Ahead Log / WAL) BEFORE attempting the Supabase remote write. This guarantees that no user data entry is ever silently lost due to transient network failures or Supabase RLS errors.
+   - The WAL flusher background service (`server/services/walFlusherService.js`) MUST run at server startup and retry all WAL entries on a 30-second interval. Entries are removed from the WAL ONLY after Supabase confirms the write.
+   - Supabase write failures MUST NEVER be silently caught and discarded with only a `console.warn`. They MUST result in WAL recording AND surface a non-blocking amber warning to the UI via the `/api/sync-status` endpoint.
+   - Agents MUST NEVER modify `db.insert()`, `db.update()`, or `db.delete()` without preserving the WAL recording code path. Any agent removing or bypassing the WAL without explicit user consent is in direct violation of this rule.
+
+29. **MANDATORY DUAL-SNAPSHOT CACHE PROTECTION & ATOMIC WRITE PROTOCOL**:
+   - `saveCacheSnapshotToDisk()` MUST ALWAYS perform an atomic two-phase write: (1) write to `data/db_cache_snapshot.tmp.json`, (2) `fs.renameSync()` to `data/db_cache_snapshot.json`, (3) copy to `data/db_cache_snapshot.bak.json`. Every snapshot MUST include a `"checksum"` (SHA-256 of the `tables` payload) verified on every read before the file is trusted.
+   - If both `db_cache_snapshot.json` and `db_cache_snapshot.bak.json` fail checksum validation, the system MUST fall back to the Supabase cold-fetch path and log a critical error. It MUST NEVER silently serve corrupted or empty data.
+   - `data/db_cache_snapshot.json`, `data/db_cache_snapshot.bak.json`, and `data/pending_writes.json` are SACRED FILES. No agent script, ingestion script, cleanup routine, or refactor may delete, truncate, or overwrite these files outside of `server/db.js` internal methods. Any agent that does so is in direct violation of this rule.
+   - `vite.config.js` `server.watch.ignored` must permanently exclude all `data/**` files. Any agent modifying `vite.config.js` MUST preserve these exclusions.
+
+30. **MANDATORY LIVE-CACHE-FIRST BACKUP SOURCE OF TRUTH PROTOCOL**:
+   - The backup system MUST NEVER read directly from Supabase to produce a backup. Backups MUST read from the server's live in-memory `dbCache` via the internal `GET /api/internal/full-snapshot` endpoint, which is the canonical source of truth including all uncommitted WAL entries.
+   - Before any backup executes, the WAL flusher MUST be invoked to completion (with a 30-second per-table timeout). If WAL entries remain after the flush attempt, the backup MUST still include them from local cache and MUST mark the backup filename and metadata as `PARTIAL` to signal incomplete cloud sync.
+   - Every backup JSON MUST include an `"integrity"` section with per-table row counts from both cache and Supabase, and a `"synced": true/false` flag per table.
+   - The UI backup trigger MUST call `/api/sync-status` first and display a divergence warning confirmation dialog before proceeding if any sync gaps are detected.
+
+31. **MANDATORY SUPABASE RESTORE SERVICE-ROLE KEY & RLS BYPASS PROTOCOL**:
+   - The restore operation (`scripts/restore_backup.mjs` and `POST /api/cloud-backups/restore`) MUST use the **Supabase Service Role key** (`SUPABASE_SERVICE_ROLE_KEY` from `.env`), never the anonymous `anon` key. The anon key is subject to Row-Level Security `WITH CHECK` policies that will reject bulk inserts on protected tables such as `categories`.
+   - The restore route MUST perform a pre-restore safety backup BEFORE wiping any table. If the safety backup fails, the restore MUST abort.
+   - The `users` table MUST NEVER be wiped and restored via the backup/restore system. User credentials are managed exclusively via `data/users.json` and the local auth system.
+   - After a restore completes, the system MUST: (1) rebuild the in-memory cache from the freshly restored Supabase data, (2) overwrite `data/db_cache_snapshot.json` with the fresh data, (3) clear `data/pending_writes.json`.
+   - Agents modifying the restore path MUST preserve service-role client usage and MUST NOT downgrade to the anon key.

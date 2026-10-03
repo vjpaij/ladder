@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
 import axios from 'axios';
-import { db, initDatabase } from '../server/db.js';
+import { db, initDatabase, saveCacheSnapshotToDisk, dbCache } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
 import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache, resolveHoldingPrice } from '../server/services/priceEngine.js';
@@ -692,19 +692,12 @@ async function rebuildEod() {
     }
     console.log(`[Supabase Sync] Successfully synchronized ${totalUpserted} of ${baseLogs.length} daily logs to Supabase pnl_history.`);
 
-    // Persist full pnl_history to local disk snapshot for offline cache mode
+    // Persist full pnl_history to local disk snapshot with verified SHA-256 checksum
     try {
-      const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'db_cache_snapshot.json');
-      if (fs.existsSync(SNAPSHOT_FILE)) {
-        const snap = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf8'));
-        const allDbRecords = baseLogs.map(mapLogToDbRecord);
-        snap.tables = snap.tables || {};
-        snap.tables.pnl_history = {
-          data: allDbRecords,
-          timestamp: Date.now()
-        };
-        fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(snap, null, 2), 'utf8');
-      }
+      const allDbRecords = baseLogs.map(mapLogToDbRecord);
+      dbCache.set('pnl_history', { data: allDbRecords, timestamp: Date.now() });
+      saveCacheSnapshotToDisk();
+      console.log('[EOD Rebuild] pnl_history cached and snapshot saved with valid checksum.');
     } catch (snapErr) {
       console.warn('[EOD Rebuild Snapshot Sync Warning]:', snapErr.message);
     }

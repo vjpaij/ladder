@@ -1,5 +1,104 @@
 [
   {
+    "id": "log_1791039987985_f3zqo",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T15:06:27.985Z",
+    "status": "SUCCESS",
+    "durationMs": 10462,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791039987974_vcma4",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T15:06:27.972Z",
+    "status": "SUCCESS",
+    "durationMs": 10441,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791034434711_qglkh",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T13:33:54.711Z",
+    "status": "SUCCESS",
+    "durationMs": 11369,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791034434699_0otl9",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T13:33:54.699Z",
+    "status": "SUCCESS",
+    "durationMs": 11375,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791032570854_jlkrb",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (06:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-03T13:02:50.850Z",
+    "status": "FAILED",
+    "durationMs": 121169,
+    "details": "Rebuild failed with exit code 3221226505.",
+    "error": "Exit code 3221226505"
+  },
+  {
+    "id": "log_1791017275361_wx5jo",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T08:47:55.361Z",
+    "status": "SUCCESS",
+    "durationMs": 17346,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791017273462_3c3w8",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T08:47:53.461Z",
+    "status": "SUCCESS",
+    "durationMs": 15441,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791016183655_2g7tx",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T08:29:43.655Z",
+    "status": "SUCCESS",
+    "durationMs": 7259,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791016183095_87qb2",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-03T08:29:43.095Z",
+    "status": "SUCCESS",
+    "durationMs": 6692,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
     "id": "log_1791015982575_svvs9",
     "jobType": "EOD_REBUILD",
     "jobName": "EOD Valuation Rebuild (07:00 AM IST)",
