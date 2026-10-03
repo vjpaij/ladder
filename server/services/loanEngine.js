@@ -380,3 +380,88 @@ export async function deleteLoanAmortizationEntry(id) {
 
   return { success: true, id };
 }
+
+/**
+ * Settle the amortization schedule row for a given liability and month.
+ * Called automatically whenever an EMI_PAYMENT or BORROW transaction is
+ * added via the Transaction Ledger in HoldingDetailModal.
+ *
+ * Logic:
+ * 1. Look up all rows for `liabilityId` whose date starts with `monthPrefix` (YYYY-MM)
+ *    and where is_settled = false (i.e. still projected).
+ * 2. If a matching projected row exists, update it:
+ *    - is_settled = true
+ *    - emi_amount = actualEmi (the total amount paid this month)
+ *    - updated_at = now
+ * 3. If no projected row exists (the user paid an extra/out-of-schedule month),
+ *    do nothing — the loanEngine will dynamically regenerate future projections
+ *    from the latest settled row on the next GET /api/loan/amortization call.
+ */
+export async function settleAmortizationForMonth(liabilityId, txDate, actualEmi) {
+  if (!liabilityId || !txDate) return;
+
+  const monthPrefix = txDate.slice(0, 7); // YYYY-MM
+
+  try {
+    // Find the projected row for this month
+    const { data: rows, error } = await supabase
+      .from('loan_amortization')
+      .select('id, date, is_settled, emi_amount, bulk_payment')
+      .eq('liability_id', liabilityId)
+      .like('date', `${monthPrefix}%`)
+      .order('date', { ascending: true });
+
+    if (error) {
+      console.warn('[loanEngine.settleAmortizationForMonth] Supabase query error:', error.message);
+      return;
+    }
+
+    if (!rows || rows.length === 0) {
+      // No pre-existing row for this month — nothing to settle (projections will regenerate)
+      console.log(`[loanEngine.settleAmortizationForMonth] No amortization row found for ${monthPrefix}. Projections will regenerate dynamically.`);
+      return;
+    }
+
+    // Pick the first (usually only) row for this month
+    const row = rows[0];
+
+    // If already settled, nothing to do
+    if (row.is_settled === true) {
+      console.log(`[loanEngine.settleAmortizationForMonth] Row ${row.id} for ${monthPrefix} is already settled. Skipping.`);
+      return;
+    }
+
+    const updatePayload = {
+      is_settled: true,
+      emi_amount: Number(actualEmi) || Number(row.emi_amount) || 0,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error: updateError } = await supabase
+      .from('loan_amortization')
+      .update(updatePayload)
+      .eq('id', row.id);
+
+    if (updateError) {
+      console.warn('[loanEngine.settleAmortizationForMonth] Supabase update error:', updateError.message);
+      return;
+    }
+
+    // Sync local JSON file
+    try {
+      if (fs.existsSync(DATA_JSON_PATH)) {
+        let current = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
+        current = current.map(item =>
+          item.id === row.id ? { ...item, ...updatePayload } : item
+        );
+        fs.writeFileSync(DATA_JSON_PATH, JSON.stringify(current, null, 2));
+      }
+    } catch (e) {
+      console.warn('[loanEngine.settleAmortizationForMonth] Could not sync local JSON:', e.message);
+    }
+
+    console.log(`[loanEngine.settleAmortizationForMonth] ✅ Settled amortization row ${row.id} for ${monthPrefix} | EMI: ₹${actualEmi}`);
+  } catch (err) {
+    console.warn('[loanEngine.settleAmortizationForMonth] Unexpected error:', err.message);
+  }
+}

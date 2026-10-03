@@ -21,7 +21,7 @@ import { recalculateHoldingState } from '../services/recalculator.js';
 import { calculateXirr } from '../services/xirrCalculator.js';
 import { invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
-import { getLoanAmortizationData } from '../services/loanEngine.js';
+import { getLoanAmortizationData, settleAmortizationForMonth } from '../services/loanEngine.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { recordDividend, getHoldingDividends } from '../services/dividendService.js';
 import { applyStockSplit } from '../services/corporateActionService.js';
@@ -1954,6 +1954,15 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           name: finalName,
           notes: notes || ''
         });
+
+        // Auto-settle the matching projected amortization row for this month
+        if (txType === 'EMI_PAYMENT' || txType === 'PREPAYMENT') {
+          try {
+            await settleAmortizationForMonth(liabilityId, txDate, amt);
+          } catch (amortErr) {
+            console.warn('[Loan EMI] Amortization settle failed (non-fatal):', amortErr.message);
+          }
+        }
       } else if (balance !== undefined) {
         const currentBal = Number(targetLiability.outstanding_balance) || 0;
         const targetBal = Math.max(0, Number(balance));
@@ -1961,20 +1970,30 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
 
         if (Math.abs(diff) > 0.001) {
           const txType = diff > 0 ? 'BORROW' : 'EMI_PAYMENT';
+          const absDiff = Math.abs(diff);
           await db.insert('transactions', {
             holding_id: null,
             liability_id: liabilityId,
             type: txType,
             quantity: 1,
-            price: Math.abs(diff),
-            total_amount: Math.abs(diff),
+            price: absDiff,
+            total_amount: absDiff,
             charges: 0,
             currency: 'INR',
             date: txDate,
             symbol: 'LOAN',
             name: finalName,
-            notes: notes || `Loan Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
+            notes: notes || `Loan Adjustment (${diff > 0 ? '+' : '-'}₹${absDiff.toFixed(2)})`
           });
+
+          // Auto-settle the matching projected amortization row for this month
+          if (txType === 'EMI_PAYMENT') {
+            try {
+              await settleAmortizationForMonth(liabilityId, txDate, absDiff);
+            } catch (amortErr) {
+              console.warn('[Loan Balance Adjust] Amortization settle failed (non-fatal):', amortErr.message);
+            }
+          }
         }
       }
 

@@ -28,6 +28,9 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(activeHolding?.category_id);
   const [loanViewTab, setLoanViewTab] = useState(activeHolding?.initialTab || 'history');
   const [chartRangeFilter, setChartRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
+  // Amortization refresh tick — incremented on every successful transaction save/delete
+  // so LoanAmortizationSection re-fetches its schedule data reactively.
+  const [amortRefreshTick, setAmortRefreshTick] = useState(0);
 
   // Transaction Edit/Delete state
   const [editingTxId, setEditingTxId] = useState(null);
@@ -192,6 +195,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       // Reload holding details
       const detailRes = await axios.get(`/api/holding/${holding.id}/detail`);
       setDetail(detailRes.data);
+      // Trigger amortization re-fetch for loan holdings
+      if (holding?.category_id === 'loans') setAmortRefreshTick(t => t + 1);
       if (onRefresh) onRefresh();
     } catch (err) {
       if (showError) showError('Failed to add transaction: ' + (err.response?.data?.error || err.message));
@@ -353,6 +358,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       await axios.delete(`/api/transactions/${deleteConfirmTx.id}`);
       setDeleteConfirmTx(null);
       await fetchDetail(false);
+      // Trigger amortization re-fetch for loan holdings (un-settles deleted EMI row)
+      if (holding?.category_id === 'loans') setAmortRefreshTick(t => t + 1);
       if (onRefresh) await onRefresh();
     } catch (err) {
       showError('Error deleting transaction: ' + (err.response?.data?.error || err.message));
@@ -624,7 +631,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                   )}
 
                   {isLoan && loanViewTab === 'amortization' ? (
-                    <LoanAmortizationSection liabilityId={holding.id} />
+                    <LoanAmortizationSection liabilityId={holding.id} refreshTick={amortRefreshTick} />
                   ) : (
                     <>
                       {/* ---- Market Stats Snapshot (Open, High, Low, Prev Close, 52W Range) ---- */}

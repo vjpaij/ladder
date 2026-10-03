@@ -459,25 +459,25 @@ router.get('/summary', async (req, res) => {
     });
 
     const hasInTx = categoriesWithTodayTxs.has('in_stocks');
-    const resolvedInStocks = (!hasInTx && (inStocksStatus.status === 'NON_TRADING_DAY' || inStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevInStocks : Number((val.indian_stocks || 0).toFixed(2))) : Number((val.indian_stocks || 0).toFixed(2));
+    const resolvedInStocks = (!hasInTx && (inStocksStatus.status === 'NON_TRADING_DAY' || inStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevInStocks : Number((valuation.indian_stocks || 0).toFixed(2))) : Number((valuation.indian_stocks || 0).toFixed(2));
 
     const hasUsTx = categoriesWithTodayTxs.has('us_stocks');
-    const resolvedUsStocks = (!hasUsTx && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevUsStocks : Number((val.us_stocks || 0).toFixed(2))) : Number((val.us_stocks || 0).toFixed(2));
+    const resolvedUsStocks = (!hasUsTx && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevUsStocks : Number((valuation.us_stocks || 0).toFixed(2))) : Number((valuation.us_stocks || 0).toFixed(2));
 
     const hasMfTx = categoriesWithTodayTxs.has('mutual_funds');
-    const resolvedMf = (!hasMfTx && (mfStatus.status === 'NON_TRADING_DAY' || mfStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevMf : Number((val.mutual_funds || 0).toFixed(2))) : Number((val.mutual_funds || 0).toFixed(2));
+    const resolvedMf = (!hasMfTx && (mfStatus.status === 'NON_TRADING_DAY' || mfStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevMf : Number((valuation.mutual_funds || 0).toFixed(2))) : Number((valuation.mutual_funds || 0).toFixed(2));
 
     const hasNpsTx = categoriesWithTodayTxs.has('nps');
-    const resolvedNps = (!hasNpsTx && (npsStatus.status === 'NON_TRADING_DAY' || npsStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevNps : Number((val.nps || 0).toFixed(2))) : Number((val.nps || 0).toFixed(2));
+    const resolvedNps = (!hasNpsTx && (npsStatus.status === 'NON_TRADING_DAY' || npsStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevNps : Number((valuation.nps || 0).toFixed(2))) : Number((valuation.nps || 0).toFixed(2));
 
     const hasBankTx = categoriesWithTodayTxs.has('bank');
-    const resolvedSavings = hasBankTx ? Number((val.savings || 0).toFixed(2)) : (yesterdayLog ? prevSavings : Number((val.savings || 0).toFixed(2)));
+    const resolvedSavings = hasBankTx ? Number((valuation.savings || 0).toFixed(2)) : (yesterdayLog ? prevSavings : Number((valuation.savings || 0).toFixed(2)));
 
     const hasEpfTx = categoriesWithTodayTxs.has('epf');
-    const resolvedEpf = hasEpfTx ? Number((val.epf || 0).toFixed(2)) : (yesterdayLog ? prevEpf : Number((val.epf || 0).toFixed(2)));
+    const resolvedEpf = hasEpfTx ? Number((valuation.epf || 0).toFixed(2)) : (yesterdayLog ? prevEpf : Number((valuation.epf || 0).toFixed(2)));
 
     const hasDebtTx = categoriesWithTodayTxs.has('loans') || categoriesWithTodayTxs.has('credit_cards');
-    const resolvedDebt = hasDebtTx ? Number((val.debt || 0).toFixed(2)) : (yesterdayLog ? prevDebt : Number((val.debt || 0).toFixed(2)));
+    const resolvedDebt = hasDebtTx ? Number((valuation.debt || 0).toFixed(2)) : (yesterdayLog ? prevDebt : Number((valuation.debt || 0).toFixed(2)));
 
     const finalTotalAssetsINR = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     const finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));

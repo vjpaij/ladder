@@ -5,6 +5,7 @@ import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { deleteDividend, updateDividend } from '../services/dividendService.js';
 import { deleteStockSplit, updateStockSplit } from '../services/corporateActionService.js';
+import { supabase } from '../supabaseClient.js';
 
 const router = express.Router();
 
@@ -41,6 +42,36 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
     if (parentId) {
       await recalculateHoldingState(parentId);
     }
+
+    // If deleting an EMI_PAYMENT for a loan, un-settle the matching amortization row
+    const deletedTx = txs[0];
+    if (
+      (deletedTx.type === 'EMI_PAYMENT' || deletedTx.type === 'PREPAYMENT') &&
+      deletedTx.liability_id
+    ) {
+      try {
+        const monthPrefix = (deletedTx.date || '').slice(0, 7); // YYYY-MM
+        if (monthPrefix) {
+          const { data: amortRows } = await supabase
+            .from('loan_amortization')
+            .select('id, is_settled')
+            .eq('liability_id', deletedTx.liability_id)
+            .like('date', `${monthPrefix}%`)
+            .order('date', { ascending: true });
+
+          if (amortRows && amortRows.length > 0 && amortRows[0].is_settled === true) {
+            await supabase
+              .from('loan_amortization')
+              .update({ is_settled: false, updated_at: new Date().toISOString() })
+              .eq('id', amortRows[0].id);
+            console.log(`[Delete EMI] Un-settled amortization row ${amortRows[0].id} for ${monthPrefix} after transaction deletion.`);
+          }
+        }
+      } catch (amortErr) {
+        console.warn('[Delete EMI] Amortization un-settle failed (non-fatal):', amortErr.message);
+      }
+    }
+
     triggerEodRebuildIfPastDate(txs[0].date);
 
     res.json({ success: true, message: 'Transaction deleted and holding position automatically recalculated.' });

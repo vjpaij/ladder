@@ -408,19 +408,25 @@ app.listen(PORT, async () => {
       const yesterday = getYesterdayIST();
       const lastCompletedTradingDay = getLastTradingDay(yesterday, 'NSE');
 
-      // Check cached pnl_history first (0 egress)
-      const pnlHistory = await db.select('pnl_history');
       let latestLogDate = null;
-      if (pnlHistory && pnlHistory.length > 0) {
-        latestLogDate = pnlHistory.reduce((max, r) => (!max || r.log_date > max) ? r.log_date : max, null);
-      } else {
-        const { data, error } = await supabase
-          .from('pnl_history')
-          .select('log_date')
-          .order('log_date', { ascending: false })
-          .limit(1);
-        if (!error && data?.[0]) {
-          latestLogDate = data[0].log_date;
+      try {
+        const eodFile = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+        if (fs.existsSync(eodFile)) {
+          const raw = fs.readFileSync(eodFile, 'utf8');
+          const logs = JSON.parse(raw);
+          if (Array.isArray(logs) && logs.length > 0) {
+            latestLogDate = logs[logs.length - 1].date;
+          }
+        }
+      } catch (fileErr) {
+        // Fall back to DB cache
+      }
+
+      if (!latestLogDate) {
+        // Check cached pnl_history (0 egress)
+        const pnlHistory = await db.select('pnl_history');
+        if (pnlHistory && pnlHistory.length > 0) {
+          latestLogDate = pnlHistory.reduce((max, r) => (!max || r.log_date > max) ? r.log_date : max, null);
         }
       }
 

@@ -38,7 +38,7 @@ function StatTile({ label, value, sub, accent, positive, icon: Icon }) {
   );
 }
 
-export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0000-0000-000000000010' }) {
+export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0000-0000-000000000010', refreshTick = 0 }) {
   const { theme, showError } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
 
@@ -115,7 +115,10 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
 
   useEffect(() => {
     fetchData();
-  }, [liabilityId]);
+  // refreshTick is incremented by the parent (HoldingDetailModal) after a successful
+  // EMI_PAYMENT or PREPAYMENT transaction is saved, triggering an automatic re-fetch
+  // so the Amortization Schedule table instantly reflects the newly settled row.
+  }, [liabilityId, refreshTick]);
 
   const summary = data?.summary || {};
   const settledEntries = data?.settledEntries || [];

@@ -655,7 +655,23 @@ export function isAnyMarketOpen() {
  */
 export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
   const isToday = (dateISO === getTodayIST());
-  const tradingDay = isAssetTradingDay(dateISO, categoryId);
+
+  // 1. If the asset's exchange is actively open right now, it is undeniably MARKET_OPEN
+  if (isToday && isAssetMarketOpenNow(categoryId)) {
+    return {
+      isTradingDay: true,
+      isOpenNow: true,
+      sessionType: 'LIVE',
+      status: 'MARKET_OPEN'
+    };
+  }
+
+  // 2. For US stocks, resolve trading day based on US exchange timezone (America/New_York)
+  const effectiveDate = (categoryId === 'us_stocks' && isToday)
+    ? new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    : dateISO;
+
+  const tradingDay = isAssetTradingDay(effectiveDate, categoryId);
 
   if (!tradingDay) {
     return {
@@ -672,16 +688,6 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
       isOpenNow: false,
       sessionType: 'COMPLETED',
       status: 'POST_MARKET'
-    };
-  }
-
-  const openNow = isAssetMarketOpenNow(categoryId);
-  if (openNow) {
-    return {
-      isTradingDay: true,
-      isOpenNow: true,
-      sessionType: 'LIVE',
-      status: 'MARKET_OPEN'
     };
   }
 

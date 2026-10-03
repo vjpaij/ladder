@@ -5,7 +5,7 @@ import axios from 'axios';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache } from '../server/services/priceEngine.js';
+import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache, resolveHoldingPrice } from '../server/services/priceEngine.js';
 import { getYesterdayIST, getLastTradingDay } from '../server/services/marketCalendar.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
@@ -398,7 +398,9 @@ async function rebuildEod() {
     const dateStr = curDate.toISOString().slice(0, 10);
     const fx = getHistoricalFxRate(dateStr);
 
-    const isMarketClosed = !isTradingDay(dateStr, 'NSE');
+    const isNseOpen = isTradingDay(dateStr, 'NSE');
+    const isNyseOpen = isTradingDay(dateStr, 'NYSE');
+    const isMarketClosed = !isNseOpen && !isNyseOpen;
 
     // Replay any bank/EPF/liability transactions occurring on dateStr
     const todayTxs = txsByDate.get(dateStr) || [];
@@ -513,11 +515,20 @@ async function rebuildEod() {
           prices = historicalPrices[h.symbol] || {};
         }
 
-        let p = prices[dateStr];
-        if (p === undefined) {
-          const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
-          if (prevDates.length > 0) p = prices[prevDates[0]];
-          else p = Number(h.current_price) || 0;
+        let p;
+        const isCurrentSession = (h.category_id === 'us_stocks')
+          ? (dateStr >= lastNyseTradingDay)
+          : (dateStr >= lastNseTradingDay);
+
+        if (isCurrentSession) {
+          p = resolveHoldingPrice(h);
+        } else {
+          p = prices[dateStr];
+          if (p === undefined) {
+            const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
+            if (prevDates.length > 0) p = prices[prevDates[0]];
+            else p = resolveHoldingPrice(h);
+          }
         }
         priceMap[h.symbol] = p;
       });
@@ -526,7 +537,10 @@ async function rebuildEod() {
       const historicalHoldings = holdings.map(h => {
         let q = holdingQty[h.id] || 0;
         if (Math.abs(q) < 0.005) q = 0;
-        if (dateStr >= lastNseTradingDay && ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id)) {
+        const isCurrentSession = (h.category_id === 'us_stocks')
+          ? (dateStr >= lastNyseTradingDay)
+          : (dateStr >= lastNseTradingDay);
+        if (isCurrentSession && ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id)) {
           q = Number(h.quantity) || 0;
         }
         return {
@@ -535,7 +549,13 @@ async function rebuildEod() {
         };
       });
       const valuation = computePortfolioValuation(historicalHoldings, [], priceMap, fx);
-      const totalAssets = Number((curSavings + curEpf + valuation.mutual_funds + valuation.indian_stocks + valuation.us_stocks + valuation.nps).toFixed(2));
+
+      const resolvedIn = isNseOpen ? valuation.indian_stocks : prevLog.indian_stocks;
+      const resolvedMf = isNseOpen ? valuation.mutual_funds : prevLog.mutual_funds;
+      const resolvedNps = isNseOpen ? valuation.nps : prevLog.nps;
+      const resolvedUs = isNyseOpen ? valuation.us_stocks : prevLog.us_stocks;
+
+      const totalAssets = Number((curSavings + curEpf + resolvedMf + resolvedIn + resolvedUs + resolvedNps).toFixed(2));
       const wealth = Number((totalAssets - curDebt).toFixed(2));
 
       const newLog = {
@@ -547,10 +567,10 @@ async function rebuildEod() {
         sbi: Number(curSbi.toFixed(2)),
         federal: Number(curFederal.toFixed(2)),
         savings: curSavings,
-        mutual_funds: valuation.mutual_funds,
-        indian_stocks: valuation.indian_stocks,
-        us_stocks: valuation.us_stocks,
-        nps: valuation.nps,
+        mutual_funds: resolvedMf,
+        indian_stocks: resolvedIn,
+        us_stocks: resolvedUs,
+        nps: resolvedNps,
         epf: Number(curEpf.toFixed(2)),
         loan: Number(curLoan.toFixed(2)),
         credits: Number(curCredits.toFixed(2)),
