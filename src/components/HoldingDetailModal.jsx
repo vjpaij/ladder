@@ -339,6 +339,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
       setEditingTxId(null);
       setEditForm({});
       await fetchDetail(false);
+      if (holding?.category_id === 'loans') setAmortRefreshTick(t => t + 1);
       if (onRefresh) await onRefresh();
     } catch (err) {
       showError('Error updating transaction: ' + (err.response?.data?.error || err.message));

@@ -78,10 +78,14 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Interactive Modal Interface**: Theme-matched (`modal-surface reports-card`), keyboard-accessible modal featuring category filter tabs (`All`, `EOD Rebuilds`, `Price Sync`, `Self-Healing`, `Backups`), real-time search filtering, and an on-demand 'Sync Now' trigger button.
 
 9. **Dynamic Housing Loan Amortization & Prepayment Engine**
-   - Ingests verified historical loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest) from Excel into Supabase `loan_amortization`.
-   - Dynamic projection engine (`server/services/loanEngine.js`) calculating monthly principal and interest splits right up to loan payoff date.
-   - Interactive Recharts visualization with Balance Payoff Trajectory area chart, Annual Breakdown bar chart, and Prepayment What-If simulator.
-   - Differentiates contractual EMI (₹52,653.00) from active monthly installment payments (₹60,000.00) with quick inline installment editing.
+   - Ingests verified authoritative loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest, charges) from statements into Supabase `loan_amortization` and `data/loan_amortization.json`.
+   - Dynamic projection engine (`server/services/loanEngine.js`) calculating monthly principal and interest splits right up to loan payoff date (~Dec 2034) with daily interest compounding.
+   - Interactive Recharts visualization with 3 specialized modes:
+     - **Balance Curve**: Long-term outstanding balance trajectory separating settled actuals from dynamic projections.
+     - **Payment Breakdown**: Dedicated monthly payment split chart displaying exact Principal Repaid (green) vs Interest Charges (rose) across past and projected lifecycles.
+     - **Annual Breakdown**: Stacked annual repayment distribution.
+   - Prepayment What-If simulator dynamically evaluating monthly extra payments and lump-sum prepayments against interest saved and months shaved.
+   - Accurately tracks active monthly installment payments (₹60,000.00) with true active interest rate (7.25% p.a.).
    - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments) that immediately recalculate future amortization schedules and interest savings.
    - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
 

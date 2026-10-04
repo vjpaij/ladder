@@ -438,7 +438,7 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
         />
         <StatTile
           label="Actual EMI"
-          value={fmtFullINR(summary.actualEmi || 52653)}
+          value={fmtFullINR(summary.actualEmi || 60000)}
           sub="Contractual EMI"
           icon={Clock}
           accent="text-indigo-400"
@@ -480,6 +480,12 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${chartMode === 'trajectory' ? 'bg-slate-800 text-rose-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
               >
                 Balance Curve
+              </button>
+              <button
+                onClick={() => setChartMode('payment_split')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${chartMode === 'payment_split' ? 'bg-slate-800 text-rose-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                Payment Breakdown
               </button>
               <button
                 onClick={() => setChartMode('breakdown')}
@@ -555,13 +561,13 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                               <span className="font-mono font-bold">+{fmtFullINR(item.bulkPayment)}</span>
                             </div>
                           )}
-                          <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px]">
+                          <div className="flex items-center justify-between gap-4 text-emerald-400 text-[10px]">
                             <span>Principal Repaid:</span>
-                            <span className="font-mono">{fmtFullINR(item?.principal)}</span>
+                            <span className="font-mono font-bold">{fmtFullINR(item?.principal)}</span>
                           </div>
-                          <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px]">
+                          <div className="flex items-center justify-between gap-4 text-rose-400 text-[10px]">
                             <span>Interest Paid:</span>
-                            <span className="font-mono">{fmtFullINR(item?.interest)}</span>
+                            <span className="font-mono font-bold">{fmtFullINR(item?.interest)}</span>
                           </div>
                         </div>
                       </div>
@@ -592,6 +598,82 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
                   fill="url(#projBalGrad)" 
                   dot={false}
                 />
+              </ComposedChart>
+            ) : chartMode === 'payment_split' ? (
+              <ComposedChart data={chartData} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>
+                <defs>
+                  <linearGradient id="prinBarGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.9} />
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.6} />
+                  </linearGradient>
+                  <linearGradient id="intBarGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.9} />
+                    <stop offset="95%" stopColor="#e11d48" stopOpacity={0.6} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
+                <XAxis 
+                  dataKey="ym" 
+                  tick={{ fill: '#64748b', fontSize: 10 }} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  minTickGap={40} 
+                />
+                <YAxis 
+                  tick={{ fill: '#64748b', fontSize: 10 }} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} 
+                  width={75} 
+                />
+                <Tooltip 
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const item = payload[0]?.payload;
+                    const totalPaid = (item?.principal || 0) + (item?.interest || 0) + (item?.bulkPayment || 0);
+                    return (
+                      <div className="bg-slate-900/95 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs shadow-2xl backdrop-blur-md">
+                        <div className="text-slate-400 font-mono font-bold mb-1.5 flex items-center justify-between gap-3">
+                          <span>{item?.label || label}</span>
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-black ${item?.isSettled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
+                            {item?.isSettled ? 'SETTLED' : 'PROJECTED'}
+                          </span>
+                        </div>
+                        <div className="space-y-1.5 font-mono">
+                          <div className="flex items-center justify-between gap-4 text-emerald-400 font-bold">
+                            <span>Principal Repaid:</span>
+                            <span>{fmtFullINR(item?.principal)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4 text-rose-400 font-bold">
+                            <span>Interest Charged:</span>
+                            <span>{fmtFullINR(item?.interest)}</span>
+                          </div>
+                          {item?.bulkPayment > 0 && (
+                            <div className="flex items-center justify-between gap-4 text-cyan-400 font-bold">
+                              <span>Prepayment:</span>
+                              <span>+{fmtFullINR(item.bulkPayment)}</span>
+                            </div>
+                          )}
+                          <div className="border-t border-slate-800 pt-1 flex items-center justify-between gap-4 text-white font-black text-[11px]">
+                            <span>Total Payment:</span>
+                            <span>{fmtFullINR(totalPaid)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px] pt-0.5">
+                            <span>Remaining Balance:</span>
+                            <span>{fmtFullINR(item?.balance)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend 
+                  verticalAlign="top" 
+                  height={32} 
+                  formatter={val => <span className="text-[11px] font-bold text-slate-400">{val}</span>} 
+                />
+                <Bar dataKey="principal" name="Principal Repaid" stackId="monthlyPay" fill="url(#prinBarGrad)" radius={[0, 0, 4, 4]} />
+                <Bar dataKey="interest" name="Interest Charges" stackId="monthlyPay" fill="url(#intBarGrad)" radius={[4, 4, 0, 0]} />
               </ComposedChart>
             ) : (
               <ComposedChart data={annualBreakdown} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>

@@ -188,20 +188,36 @@ async function runIntegrityAudit() {
     const latestLog = pnlRes[pnlRes.length - 1];
     const prevLog = pnlRes.length > 1 ? pnlRes[pnlRes.length - 2] : null;
 
-    assert.strictEqual(sumRes.dayPnlINR, 0, 'Outside active trading hours (pre-market/off-market/weekend), Day PnL must strictly equal 0.00 unless manual transactions occurred');
+    const allTxs = await db.select('transactions');
+    const todayTxs = allTxs.filter(t => t.date === todayStr);
+
+    assert.strictEqual(sumRes.dayPnlINR, 0, 'Outside active trading hours (pre-market/off-market/weekend), Day PnL must strictly equal 0.00');
     assert.strictEqual(sumRes.dayPnlPct, 0, 'Outside active trading hours, Day PnL % must strictly equal 0.00%');
     assert.strictEqual(latestLog.daily_pnl_inr, 0, 'Calendar Day PnL must strictly equal 0.00 on non-trading days');
     assert.strictEqual(latestLog.pnl_percentage, 0, 'Calendar Day PnL % must strictly equal 0.00% on non-trading days');
-    assert.strictEqual(latestLog.asset_delta_inr, 0, 'Calendar Asset Delta must strictly equal 0.00 on non-trading days without transactions');
-    assert.strictEqual(latestLog.liability_delta_inr, 0, 'Calendar Liability Delta must strictly equal 0.00 on non-trading days without transactions');
 
-    if (prevLog) {
-      assert.strictEqual(latestLog.net_worth_inr, prevLog.net_worth_inr, 'Calendar Net Worth on non-trading day must strictly carry forward previous session');
-      assert.strictEqual(latestLog.total_assets_inr, prevLog.total_assets_inr, 'Calendar Total Assets on non-trading day must strictly carry forward previous session');
-      assert.strictEqual(sumRes.netWorthINR, prevLog.net_worth_inr, 'Dashboard Net Worth on non-trading day must strictly carry forward previous session');
-      assert.strictEqual(sumRes.totalAssetsINR, prevLog.total_assets_inr, 'Dashboard Total Assets on non-trading day must strictly carry forward previous session');
+    if (todayTxs.length === 0) {
+      assert.strictEqual(latestLog.asset_delta_inr, 0, 'Calendar Asset Delta must strictly equal 0.00 on non-trading days without transactions');
+      assert.strictEqual(latestLog.liability_delta_inr, 0, 'Calendar Liability Delta must strictly equal 0.00 on non-trading days without transactions');
+
+      if (prevLog) {
+        assert.strictEqual(latestLog.net_worth_inr, prevLog.net_worth_inr, 'Calendar Net Worth on non-trading day must strictly carry forward previous session');
+        assert.strictEqual(latestLog.total_assets_inr, prevLog.total_assets_inr, 'Calendar Total Assets on non-trading day must strictly carry forward previous session');
+        assert.strictEqual(sumRes.netWorthINR, prevLog.net_worth_inr, 'Dashboard Net Worth on non-trading day must strictly carry forward previous session');
+        assert.strictEqual(sumRes.totalAssetsINR, prevLog.total_assets_inr, 'Dashboard Total Assets on non-trading day must strictly carry forward previous session');
+      }
+      console.log(`✓ Off-Market / Pre-Market Invariance Verified (Markets Closed, No Transactions) -> Day PnL = ₹0.00 (0.00%), Net Worth & Assets strictly invariant.\n`);
+    } else {
+      if (prevLog) {
+        const expectedAssets = Number((prevLog.total_assets_inr + latestLog.asset_delta_inr).toFixed(2));
+        const expectedLiabilities = Number((prevLog.liabilities_inr + latestLog.liability_delta_inr).toFixed(2));
+        assert.strictEqual(latestLog.total_assets_inr, expectedAssets, 'Calendar Total Assets on non-trading day with transactions must equal prev total assets + asset delta');
+        assert.strictEqual(latestLog.liabilities_inr, expectedLiabilities, 'Calendar Liabilities on non-trading day with transactions must equal prev liabilities + liability delta');
+        assert.strictEqual(sumRes.netWorthINR, latestLog.net_worth_inr, 'Dashboard Net Worth must match Calendar Net Worth');
+        assert.strictEqual(sumRes.totalAssetsINR, latestLog.total_assets_inr, 'Dashboard Total Assets must match Calendar Total Assets');
+      }
+      console.log(`✓ Off-Market / Pre-Market Invariance Verified (Markets Closed, ${todayTxs.length} manual transactions) -> Day PnL = ₹0.00 (0.00%), Cash flow deltas verified.\n`);
     }
-    console.log(`✓ Off-Market / Pre-Market Invariance Verified (Markets Closed) -> Day PnL = ₹0.00 (0.00%), Net Worth & Assets strictly invariant.\n`);
   } else {
     console.log(`✓ Current session (${todayStr}) is active market trading hours.\n`);
   }

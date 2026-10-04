@@ -1,5 +1,148 @@
 [
   {
+    "id": "log_1791138903437_16ikx",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T18:35:03.437Z",
+    "status": "SUCCESS",
+    "durationMs": 10621,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791138903342_yxi71",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T18:35:03.342Z",
+    "status": "SUCCESS",
+    "durationMs": 10531,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791138901131_33uov",
+    "jobType": "SELF_HEALING",
+    "jobName": "Midnight Comprehensive Self-Healing",
+    "scheduledTime": "00:05 AM IST",
+    "runTime": "2026-10-04T18:35:01.128Z",
+    "status": "SUCCESS",
+    "durationMs": 1125,
+    "details": "Self-healing completed. Healed FX dates: 0, Healed Prices: 0.",
+    "error": null
+  },
+  {
+    "id": "log_1791138729339_1igtp",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T18:32:09.339Z",
+    "status": "SUCCESS",
+    "durationMs": 10786,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791138729239_iu9ib",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T18:32:09.236Z",
+    "status": "SUCCESS",
+    "durationMs": 10698,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791137739069_2eai5",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T18:15:39.069Z",
+    "status": "SUCCESS",
+    "durationMs": 10504,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791137739065_39grz",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T18:15:39.064Z",
+    "status": "SUCCESS",
+    "durationMs": 10507,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791134734203_rkg1q",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T17:25:34.203Z",
+    "status": "SUCCESS",
+    "durationMs": 13816,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791134734195_da5yk",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T17:25:34.195Z",
+    "status": "SUCCESS",
+    "durationMs": 13810,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791125782720_nbpxr",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T14:56:22.720Z",
+    "status": "SUCCESS",
+    "durationMs": 13149,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791125782713_ufjln",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T14:56:22.712Z",
+    "status": "SUCCESS",
+    "durationMs": 13138,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791125229756_vwxvs",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T14:47:09.756Z",
+    "status": "SUCCESS",
+    "durationMs": 14473,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1791125229750_dv4yc",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-04T14:47:09.749Z",
+    "status": "SUCCESS",
+    "durationMs": 14469,
+    "details": "Refreshed live quotes and NAVs across all asset classes (all holdings updated).",
+    "error": null
+  },
+  {
     "id": "log_1791122434098_a45zi",
     "jobType": "LOGIN_SYNC",
     "jobName": "Webpage Login Asset Auto-Sync",

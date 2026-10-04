@@ -168,8 +168,13 @@ export async function getLoanAmortizationData(liabilityId) {
   const latestSettled = settledEntries[settledEntries.length - 1];
 
   const currentOutstanding = Number(latestSettled.closing_balance) || 0;
-  const currentInterestRate = Number(latestSettled.interest_rate) || 0;
-  const standardEmi = Number(latestSettled.emi_amount) || 0;
+  
+  // Find latest valid rate and EMI (fall back to previous rows if latest was a pure prepayment or disbursement)
+  const lastWithRate = [...settledEntries].reverse().find(e => Number(e.interest_rate) > 0);
+  const currentInterestRate = lastWithRate ? Number(lastWithRate.interest_rate) : (Number(latestSettled.interest_rate) || 7.25);
+
+  const lastWithEmi = [...settledEntries].reverse().find(e => Number(e.emi_amount) > 0);
+  const standardEmi = lastWithEmi ? Number(lastWithEmi.emi_amount) : 60000;
 
   // 2. Generate Dynamic Future Monthly Amortization Schedule
   let currentBal = currentOutstanding;
@@ -300,26 +305,6 @@ export async function getLoanAmortizationData(liabilityId) {
   // Compute how much time & interest prepayments have saved
   const baselineMonths = Math.ceil(currentOutstanding / (standardEmi - (currentOutstanding * (currentInterestRate / 100 / 12))));
 
-  // Autonomous synchronization guard: guarantee all settled entries exist in transactions table
-  try {
-    const allTxs = await db.select('transactions');
-    const loanTxs = (allTxs || []).filter(t => String(t.liability_id) === String(liabilityId));
-    const txDates = new Set(loanTxs.map(t => t.date));
-    let syncedAny = false;
-
-    for (const settled of settledEntries) {
-      if (!txDates.has(settled.date)) {
-        await syncAmortizationToTransaction(liabilityId, settled, 'UPSERT');
-        syncedAny = true;
-      }
-    }
-    if (syncedAny) {
-      db.invalidateCache('transactions');
-    }
-  } catch (syncErr) {
-    console.warn('[loanEngine] Autonomous sync error:', syncErr.message);
-  }
-
   return {
     summary: {
       liabilityId,
@@ -330,7 +315,7 @@ export async function getLoanAmortizationData(liabilityId) {
       totalPrincipalPaid,
       currentOutstandingBalance: currentOutstanding,
       currentInterestRate,
-      actualEmi: 52653,
+      actualEmi: standardEmi,
       monthlyPayment: standardEmi,
       currentMonthlyEmi: standardEmi,
       projectedPayoffDate,
