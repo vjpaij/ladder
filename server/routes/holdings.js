@@ -569,107 +569,159 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       const eodLogsPath = path.join(__dirname, '../../data/portfolio_eod_logs.json');
       let eodLogs = [];
       try {
-        // In-memory cache to avoid re-parsing the 3MB EOD file on every modal poll.
-        const now = Date.now();
-        if (!router._eodLogsCache || !router._eodLogsCacheAt || (now - router._eodLogsCacheAt) > 5 * 60 * 1000) {
-          if (fs.existsSync(eodLogsPath)) {
-            router._eodLogsCache = JSON.parse(fs.readFileSync(eodLogsPath, 'utf-8'));
-          } else {
-            router._eodLogsCache = [];
-          }
-          router._eodLogsCacheAt = now;
+        if (fs.existsSync(eodLogsPath)) {
+          eodLogs = JSON.parse(fs.readFileSync(eodLogsPath, 'utf-8'));
         }
-        eodLogs = router._eodLogsCache;
       } catch (err) {
         console.error('[Detail API] Error reading eodLogs:', err.message);
       }
 
-      if (eodLogs.length > 0) {
+      // Fetch real transactions from cache first
+      let txs = [];
+      try {
+        const allTxs = await db.select('transactions');
+        const matched = (allTxs || []).filter(t =>
+          String(t.holding_id) === String(holding.id) ||
+          String(t.liability_id) === String(holding.id) ||
+          (t.symbol && t.symbol === holding.symbol)
+        ).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        if (matched.length > 0) txs = matched;
+      } catch (e) {
+        console.warn('[Detail API db.select transactions Warning]:', e.message);
+      }
+      if (txs.length === 0) {
+        // Last-resort direct Supabase query (0 egress if cache is warm, only fires on cold boot)
+        const { data: realTxs } = await supabase
+          .from('transactions')
+          .select('*')
+          .or(`holding_id.eq.${holding.id},liability_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
+          .order('date', { ascending: false });
+        if (realTxs && realTxs.length > 0) {
+          txs = realTxs;
+        }
+      }
+
+      if (eodLogs.length > 0 || txs.length > 0) {
         const activeLogs = eodLogs.filter(l => l[eodKey] !== undefined && l[eodKey] !== null);
         const firstNonZeroIdx = activeLogs.findIndex(l => l[eodKey] > 0);
         const validLogs = firstNonZeroIdx >= 0 ? activeLogs.slice(firstNonZeroIdx) : (activeLogs.length > 0 ? activeLogs : [{ date: today, [eodKey]: 0 }]);
 
         const livePrice = holding.current_price !== undefined && holding.current_price !== null ? Number(holding.current_price) : NaN;
+
+        // Baseline historical logs up to 2026-08-07 from portfolio_eod_logs.json
+        const baseCutoff = '2026-08-07';
+        const timelineINR = [];
+
+        for (const item of validLogs) {
+          if (item.date <= baseCutoff) {
+            const val = Number((item[eodKey] || 0).toFixed(2));
+            timelineINR.push({
+              label: item.date,
+              invested: val,
+              value: val,
+              balance: val
+            });
+          }
+        }
+
+        let runningBal = timelineINR.length > 0 ? timelineINR[timelineINR.length - 1].balance : 0;
+        if (eodKey === 'credits') {
+          const baselineCardTxs = txs.filter(t => (t.date || '') <= baseCutoff);
+          if (baselineCardTxs.length > 0) {
+            let cardSum = 0;
+            baselineCardTxs.forEach(t => {
+              const amt = Number(t.total_amount) || Number(t.price) || 0;
+              const type = (t.type || '').toUpperCase();
+              if (['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'BUY', 'DEBIT'].includes(type)) {
+                cardSum += amt;
+              } else if (['EMI_PAYMENT', 'PREPAYMENT', 'PAYMENT', 'REPAYMENT', 'PAY', 'SELL', 'CREDIT'].includes(type)) {
+                cardSum -= amt;
+              }
+            });
+            if (cardSum > 0) runningBal = Number(cardSum.toFixed(2));
+          }
+        }
+
+        // Map transactions occurring after baseCutoff by date
+        const txMap = new Map();
+        for (const t of txs) {
+          const tDate = (t.date || '').slice(0, 10);
+          if (tDate > baseCutoff) {
+            const arr = txMap.get(tDate) || [];
+            arr.push(t);
+            txMap.set(tDate, arr);
+          }
+        }
+
+        // Generate dense day-by-day timeline from day after baseCutoff through today
+        let curDate = new Date(`${baseCutoff}T00:00:00Z`);
+        const endDate = new Date(`${today}T00:00:00Z`);
+
+        while (true) {
+          curDate.setUTCDate(curDate.getUTCDate() + 1);
+          if (curDate > endDate) break;
+          const dStr = curDate.toISOString().slice(0, 10);
+          const dayTxs = txMap.get(dStr) || [];
+          for (const t of dayTxs) {
+            const amt = Number(t.total_amount || t.price || 0);
+            const type = (t.type || '').toUpperCase();
+            if (holding.category_id === 'loans' || holding.category_id === 'credit_cards') {
+              if (['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'BUY', 'DEBIT'].includes(type)) {
+                runningBal += amt;
+              } else if (['EMI_PAYMENT', 'PREPAYMENT', 'PAYMENT', 'REPAYMENT', 'PAY', 'SELL', 'CREDIT'].includes(type)) {
+                runningBal -= amt;
+              }
+            } else {
+              if (['OPENING_BALANCE', 'DEPOSIT', 'CREDIT', 'CONTRIBUTION', 'INTEREST', 'BUY'].includes(type)) {
+                runningBal += amt;
+              } else if (['WITHDRAWAL', 'DEBIT', 'SELL'].includes(type)) {
+                runningBal -= amt;
+              }
+            }
+          }
+          const rounded = Number(runningBal.toFixed(2));
+          timelineINR.push({
+            label: dStr,
+            invested: rounded,
+            value: rounded,
+            balance: rounded
+          });
+        }
+
         const currentVal = !isNaN(livePrice)
           ? livePrice
-          : (validLogs[validLogs.length - 1]?.[eodKey] || 0);
-        const peakVal = Math.max(...validLogs.map(l => l[eodKey] || 0), currentVal);
-        const minVal = Math.min(...validLogs.map(l => l[eodKey] || 0), currentVal);
-        const startVal = validLogs[0]?.[eodKey] || 0;
-        const startDate = validLogs[0]?.date || '—';
+          : (timelineINR[timelineINR.length - 1]?.balance || 0);
+
+        // Anchor today's terminal point exactly to live holding / liability valuation
+        if (timelineINR.length > 0) {
+          const lastIdx = timelineINR.length - 1;
+          if (timelineINR[lastIdx].label === today) {
+            timelineINR[lastIdx].invested = currentVal;
+            timelineINR[lastIdx].value = currentVal;
+            timelineINR[lastIdx].balance = currentVal;
+          } else {
+            timelineINR.push({
+              label: today,
+              invested: currentVal,
+              value: currentVal,
+              balance: currentVal
+            });
+          }
+        }
+
+        const peakVal = Math.max(...timelineINR.map(l => l.balance || 0), currentVal);
+        const minVal = Math.min(...timelineINR.map(l => l.balance || 0), currentVal);
+        const startVal = timelineINR[0]?.balance || 0;
+        const startDate = timelineINR[0]?.label || '—';
 
         // Calculate 1 Year Delta
         const oneYearAgoDate = new Date();
         oneYearAgoDate.setFullYear(oneYearAgoDate.getFullYear() - 1);
         const oneYearAgoStr = oneYearAgoDate.toISOString().split('T')[0];
-        const yearAgoLog = validLogs.find(l => l.date >= oneYearAgoStr) || validLogs[0];
-        const yearAgoVal = yearAgoLog?.[eodKey] || startVal;
+        const yearAgoLog = timelineINR.find(l => l.label >= oneYearAgoStr) || timelineINR[0];
+        const yearAgoVal = yearAgoLog?.balance || startVal;
         const oneYearDelta = currentVal - yearAgoVal;
         const oneYearPct = yearAgoVal > 0 ? ((oneYearDelta / yearAgoVal) * 100).toFixed(2) : 0;
-
-        const timelineINR = [];
-        for (let i = 0; i < validLogs.length; i++) {
-          const item = validLogs[i];
-          const val = Number((item[eodKey] || 0).toFixed(2));
-          timelineINR.push({
-            label: item.date,
-            invested: val,
-            value: val,
-            balance: val
-          });
-        }
-        const lastLog = validLogs[validLogs.length - 1];
-        if (timelineINR.length > 0 && lastLog && timelineINR[timelineINR.length - 1].label !== lastLog.date) {
-          const lastVal = Number((lastLog[eodKey] || 0).toFixed(2));
-          timelineINR.push({
-            label: lastLog.date,
-            invested: lastVal,
-            value: lastVal,
-            balance: lastVal
-          });
-        }
-        if (timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label < today) {
-          timelineINR.push({
-            label: today,
-            invested: currentVal,
-            value: currentVal,
-            balance: currentVal
-          });
-        } else if (timelineINR.length > 0 && timelineINR[timelineINR.length - 1].label === today) {
-          timelineINR[timelineINR.length - 1] = {
-            label: today,
-            invested: currentVal,
-            value: currentVal,
-            balance: currentVal
-          };
-        }
-
-        // Fetch real transactions from cache. Return empty array if none exist —
-        // NEVER fabricate synthetic BUY/SELL rows from EOD log data (Rule 5).
-        let txs = [];
-        try {
-          const allTxs = await db.select('transactions');
-          const matched = (allTxs || []).filter(t =>
-            String(t.holding_id) === String(holding.id) ||
-            String(t.liability_id) === String(holding.id) ||
-            (t.symbol && t.symbol === holding.symbol)
-          ).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-          if (matched.length > 0) txs = matched;
-        } catch (e) {
-          console.warn('[Detail API db.select transactions Warning]:', e.message);
-        }
-        if (txs.length === 0) {
-          // Last-resort direct Supabase query (0 egress if cache is warm, only fires on cold boot)
-          const { data: realTxs } = await supabase
-            .from('transactions')
-            .select('*')
-            .or(`holding_id.eq.${holding.id},liability_id.eq.${holding.id},symbol.eq.${holding.symbol}`)
-            .order('date', { ascending: false });
-          if (realTxs && realTxs.length > 0) {
-            txs = realTxs;
-          }
-          // If still empty, txs remains [] — no fabricated rows are inserted.
-        }
 
         if (holding.category_id === 'loans') {
           try {
@@ -1998,6 +2050,9 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       }
 
       await recalculateHoldingState(liabilityId);
+      db.invalidateCache('liabilities');
+      db.invalidateCache('transactions');
+      db.invalidateCache('loan_amortization');
       triggerEodRebuildIfPastDate(txDate);
       return res.json({ success: true, liabilityId, action: 'loan_ledger_updated' });
     }
@@ -2061,7 +2116,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
         const diff = targetBal - currentBal;
 
         if (Math.abs(diff) > 0.001) {
-          const txType = diff > 0 ? 'CHARGE' : 'BILL_PAYMENT';
+          const txType = diff > 0 ? 'CHARGE' : 'PAYMENT';
           await db.insert('transactions', {
             holding_id: null,
             liability_id: cardId,

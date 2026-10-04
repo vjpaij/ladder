@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { motion } from 'framer-motion';
 import { 
   Building2, ShieldCheck, TrendingUp, ChevronRight, 
@@ -45,11 +46,9 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
     let isMounted = true;
     async function loadDetail() {
       try {
-        const res = await fetch(`/api/holding/${encodeURIComponent(epfHolding.id)}/detail`);
-        if (res.ok) {
-          const json = await res.json();
-          if (isMounted) setDetailData(json);
-        }
+        if (!epfHolding.id) return;
+        const res = await axios.get(`/api/holding/${encodeURIComponent(epfHolding.id)}/detail`);
+        if (isMounted) setDetailData(res.data);
       } catch (err) {
         console.error('[EpfView] Error fetching detail:', err);
       }
@@ -181,9 +180,9 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
               </h3>
             </div>
 
-            <button className="px-4 py-2 rounded-2xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
+            <button className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-600/20 group-hover:scale-105">
               <span>View</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
         </div>

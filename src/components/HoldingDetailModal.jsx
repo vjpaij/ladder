@@ -11,6 +11,7 @@ import HoldingMetricCards from './holding-detail/HoldingMetricCards';
 import HoldingChartsSection from './holding-detail/HoldingChartsSection';
 import HoldingTransactionLedger from './holding-detail/HoldingTransactionLedger';
 import SipManagerModal from './SipManagerModal';
+import { computeRangeDates } from './ChartRangeSelector';
 
 export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const { currency, theme, fxRate, formatMoney, showError, showSuccess } = useThemeAuth();
@@ -27,7 +28,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const isLoan = activeHolding?.category_id === 'loans';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(activeHolding?.category_id);
   const [loanViewTab, setLoanViewTab] = useState(activeHolding?.initialTab || 'history');
-  const [chartRangeFilter, setChartRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
+  const [chartRangeFilter, setChartRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
   // Amortization refresh tick — incremented on every successful transaction save/delete
   // so LoanAmortizationSection re-fetches its schedule data reactively.
   const [amortRefreshTick, setAmortRefreshTick] = useState(0);
@@ -631,7 +632,14 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                   )}
 
                   {isLoan && loanViewTab === 'amortization' ? (
-                    <LoanAmortizationSection liabilityId={holding.id} refreshTick={amortRefreshTick} />
+                    <LoanAmortizationSection 
+                      liabilityId={holding.id} 
+                      refreshTick={amortRefreshTick} 
+                      onDataChanged={async () => {
+                        await loadDetail();
+                        if (onRefresh) await onRefresh();
+                      }}
+                    />
                   ) : (
                     <>
                       {/* ---- Market Stats Snapshot (Open, High, Low, Prev Close, 52W Range) ---- */}

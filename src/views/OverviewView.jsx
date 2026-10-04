@@ -27,13 +27,14 @@ import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
 import DashboardTrendChart from '../components/DashboardTrendChart';
+import { computeRangeDates } from '../components/ChartRangeSelector';
 
 const PIE_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#06B6D4', '#64748B'];
 
 export default function OverviewView({ summary, holdings, liabilities, onNavigate }) {
   const { formatMoney, fxRate, currency } = useThemeAuth();
   const [returnMetric, setReturnMetric] = useState('xirr'); // 'xirr' | 'absolute'
-  const [rangeFilter, setRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
+  const [rangeFilter, setRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
   const [sortColumn, setSortColumn] = useState('currentINR');
   const [sortDirection, setSortDirection] = useState('desc');
   const [perfSearch, setPerfSearch] = useState('');
@@ -104,7 +105,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
   const [eodLogs, setEodLogs] = useState([]);
   const [loadingEod, setLoadingEod] = useState(false);
 
-  useEffect(() => {
+  const fetchEodLogs = React.useCallback(() => {
     let isMounted = true;
     setLoadingEod(true);
     let url = `/api/daily-pnl?range=ALL`;
@@ -131,6 +132,16 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
       isMounted = false;
     };
   }, [rangeFilter]);
+
+  useEffect(() => {
+    fetchEodLogs();
+  }, [fetchEodLogs, summary?.netWorthINR, summary?.totalAssetsINR, summary?.totalLiabilitiesINR]);
+
+  useEffect(() => {
+    const handleUpdate = () => fetchEodLogs();
+    window.addEventListener('ladder-data-updated', handleUpdate);
+    return () => window.removeEventListener('ladder-data-updated', handleUpdate);
+  }, [fetchEodLogs]);
 
   if (!summary) return null;
 

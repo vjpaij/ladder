@@ -422,18 +422,16 @@ export const db = {
       saveCacheSnapshotToDisk();
     }
 
-    // Dual-write to Supabase — record to WAL on any failure
-    if (!isOfflineMode) {
-      try {
-        const { error } = await supabase.from(sTable).insert(insertedRow);
-        if (error) {
-          console.warn(`[DB Insert Supabase Warning - ${sTable}]:`, error.message);
-          recordToWal('insert', sTable, newId, insertedRow);
-        }
-      } catch (e) {
-        console.warn(`[DB Insert Network Exception - ${sTable}]:`, e.message);
+    // Dual-write to Supabase (Ingress is always attempted) — record to WAL on any failure
+    try {
+      const { error } = await supabase.from(sTable).insert(insertedRow);
+      if (error) {
+        console.warn(`[DB Insert Supabase Warning - ${sTable}]:`, error.message);
         recordToWal('insert', sTable, newId, insertedRow);
       }
+    } catch (e) {
+      console.warn(`[DB Insert Network Exception - ${sTable}]:`, e.message);
+      recordToWal('insert', sTable, newId, insertedRow);
     }
 
     return insertedRow;
@@ -466,18 +464,24 @@ export const db = {
       }
     }
 
-    // Dual-write to Supabase — record to WAL on any failure
-    if (!isOfflineMode) {
-      try {
-        const { error } = await supabase.from(sTable).update(updates).eq('id', id);
+    // Dual-write to Supabase (Ingress is always attempted) — record to WAL on any failure
+    try {
+      let supaUpdates = { ...updates };
+      if (sTable === 'holdings') {
+        delete supaUpdates.day_change;
+        delete supaUpdates.day_change_pct;
+        delete supaUpdates.quote_date;
+      }
+      if (Object.keys(supaUpdates).length > 0) {
+        const { error } = await supabase.from(sTable).update(supaUpdates).eq('id', id);
         if (error) {
           console.warn(`[DB Update Supabase Warning - ${sTable}]:`, error.message);
-          recordToWal('update', sTable, id, updates);
+          recordToWal('update', sTable, id, supaUpdates);
         }
-      } catch (e) {
-        console.warn(`[DB Update Network Exception - ${sTable}]:`, e.message);
-        recordToWal('update', sTable, id, updates);
       }
+    } catch (e) {
+      console.warn(`[DB Update Network Exception - ${sTable}]:`, e.message);
+      recordToWal('update', sTable, id, updates);
     }
 
     return updatedRow || { id, ...updates };
@@ -501,18 +505,16 @@ export const db = {
       saveCacheSnapshotToDisk();
     }
 
-    // Dual-write delete to Supabase — record to WAL on any failure
-    if (!isOfflineMode) {
-      try {
-        const { error } = await supabase.from(sTable).delete().eq('id', id);
-        if (error) {
-          console.warn(`[DB Delete Supabase Warning - ${sTable}]:`, error.message);
-          recordToWal('delete', sTable, id, { id });
-        }
-      } catch (e) {
-        console.warn(`[DB Delete Network Exception - ${sTable}]:`, e.message);
+    // Dual-write delete to Supabase (Ingress is always attempted) — record to WAL on any failure
+    try {
+      const { error } = await supabase.from(sTable).delete().eq('id', id);
+      if (error) {
+        console.warn(`[DB Delete Supabase Warning - ${sTable}]:`, error.message);
         recordToWal('delete', sTable, id, { id });
       }
+    } catch (e) {
+      console.warn(`[DB Delete Network Exception - ${sTable}]:`, e.message);
+      recordToWal('delete', sTable, id, { id });
     }
 
     return true;

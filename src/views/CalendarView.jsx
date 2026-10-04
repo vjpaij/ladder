@@ -101,6 +101,13 @@ export default function CalendarView() {
     return () => clearInterval(interval);
   }, [calendarRangeFilter]);
 
+  // Instantly refresh calendar when any transaction or holding is updated anywhere in the app
+  useEffect(() => {
+    const handleUpdate = () => fetchLogs(true);
+    window.addEventListener('ladder-data-updated', handleUpdate);
+    return () => window.removeEventListener('ladder-data-updated', handleUpdate);
+  }, []);
+
   // Global keydown listener for Esc and Enter across modals and popovers
   useEffect(() => {
     const handleKeyDown = (e) => {

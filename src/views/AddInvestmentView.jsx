@@ -64,7 +64,7 @@ const TX_TYPES = {
   bank: ['CREDIT', 'DEBIT'],
   epf: ['CONTRIBUTION', 'WITHDRAWAL'],
   loans: ['EMI_PAYMENT', 'BORROW'],
-  credit_cards: ['CHARGE', 'BILL_PAYMENT']
+  credit_cards: ['CHARGE', 'PAYMENT']
 };
 
 // Autocomplete dropdown component
@@ -455,7 +455,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
 
   const getTxTypeColor = (type) => {
     switch (type) {
-      case 'BUY': case 'CREDIT': case 'CONTRIBUTION': case 'BILL_PAYMENT': return 'transaction-type-option transaction-type-buy';
+      case 'BUY': case 'CREDIT': case 'CONTRIBUTION': case 'PAYMENT': return 'transaction-type-option transaction-type-buy';
       case 'SELL': case 'WITHDRAWAL': case 'DEBIT': case 'EMI_PAYMENT': case 'CHARGE': return 'transaction-type-option transaction-type-sell';
       case 'BONUS': case 'BORROW': return 'transaction-type-option transaction-type-bonus';
       case 'DIVIDEND': return 'transaction-type-option transaction-type-dividend';
@@ -1367,13 +1367,13 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
   };
 
   const renderCreditCardForm = (portfolio) => {
-    const txTypes = ['CHARGE', 'BILL_PAYMENT'];
+    const txTypes = ['CHARGE', 'PAYMENT'];
     const currentType = formData.type || 'CHARGE';
 
     const accountLiab = liabilities.find(l => l.name === formData.name);
     const currentBal = accountLiab ? Number(accountLiab.outstanding_balance || 0) : 0;
     const txAmt = Math.abs(Number(formData.amount) || 0);
-    const isPayment = currentType === 'BILL_PAYMENT';
+    const isPayment = currentType === 'PAYMENT';
     const projectedBal = isPayment ? Math.max(0, currentBal - txAmt) : currentBal + txAmt;
 
     return (
@@ -1394,8 +1394,8 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
             </button>
             <button
               type="button"
-              onClick={() => updateField('type', 'BILL_PAYMENT')}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${getTransactionActionClass('BILL_PAYMENT', currentType === 'BILL_PAYMENT')}`}
+              onClick={() => updateField('type', 'PAYMENT')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer ${getTransactionActionClass('PAYMENT', currentType === 'PAYMENT')}`}
             >
               <TrendingDown className="w-3.5 h-3.5" />
               <span>Bill Payment / Refund (Reduces Debt)</span>

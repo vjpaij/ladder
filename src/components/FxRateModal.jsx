@@ -26,7 +26,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
-import ChartRangeSelector from './ChartRangeSelector';
+import ChartRangeSelector, { computeRangeDates } from './ChartRangeSelector';
 
 function formatDateDDMMYYYY(dateStr) {
   if (!dateStr) return '—';
@@ -41,7 +41,7 @@ function formatDateDDMMYYYY(dateStr) {
 export default function FxRateModal({ isOpen, onClose }) {
   const { formatMoney } = useThemeAuth();
 
-  const [fxRangeFilter, setFxRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
+  const [fxRangeFilter, setFxRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -257,7 +257,7 @@ export default function FxRateModal({ isOpen, onClose }) {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <ChartRangeSelector
-                  initialRange="ALL"
+                  initialRange="1M"
                   onChange={(range) => setFxRangeFilter(range)}
                 />
 

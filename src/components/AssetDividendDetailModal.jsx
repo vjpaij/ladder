@@ -14,7 +14,7 @@ import {
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
 import formatDateDDMMYYYY from '../utils/dateFormatter';
-import ChartRangeSelector from './ChartRangeSelector';
+import ChartRangeSelector, { computeRangeDates } from './ChartRangeSelector';
 import DatePicker from './common/DatePicker';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -156,7 +156,7 @@ export default function AssetDividendDetailModal({
   const { theme, fxRate, currency: globalCurrency, showError, showConfirm } = useThemeAuth();
   const [chartTab, setChartTab] = useState('annual'); // 'annual' | 'cumulative'
   const [localCurrency, setLocalCurrency] = useState('DEFAULT'); // 'DEFAULT' | 'INR' | 'USD'
-  const [divRangeFilter, setDivRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
+  const [divRangeFilter, setDivRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
   
   const [divSearch, setDivSearch] = useState('');
   const [divSort, setDivSort] = useState({ field: 'raw_date', direction: 'desc' });
@@ -723,7 +723,7 @@ export default function AssetDividendDetailModal({
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Calendar Range Selector */}
                   <ChartRangeSelector
-                    initialRange="ALL"
+                    initialRange="1M"
                     onChange={(range) => setDivRangeFilter(range)}
                   />
 

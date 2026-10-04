@@ -3,6 +3,7 @@ import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getLoanAmortizationData, addLoanAmortizationEntry, updateLoanAmortizationEntry, deleteLoanAmortizationEntry } from '../services/loanEngine.js';
+import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 
 const router = express.Router();
 
@@ -114,6 +115,9 @@ router.post('/loan/amortization/entry', authenticateToken, async (req, res) => {
   try {
     const result = await addLoanAmortizationEntry(req.body);
     db.invalidateCache('loan_amortization');
+    db.invalidateCache('transactions');
+    db.invalidateCache('liabilities');
+    if (req.body?.date) triggerEodRebuildIfPastDate(req.body.date);
     res.json({ success: true, entry: result });
   } catch (err) {
     console.error('[API Error - /api/loan/amortization/entry]:', err);
@@ -126,6 +130,9 @@ router.put('/loan/amortization/entry/:id', authenticateToken, async (req, res) =
     const { id } = req.params;
     const result = await updateLoanAmortizationEntry(id, req.body);
     db.invalidateCache('loan_amortization');
+    db.invalidateCache('transactions');
+    db.invalidateCache('liabilities');
+    if (req.body?.date) triggerEodRebuildIfPastDate(req.body.date);
     res.json({ success: true, entry: result });
   } catch (err) {
     console.error('[API Error - update loan entry]:', err);
@@ -138,6 +145,9 @@ router.delete('/loan/amortization/entry/:id', authenticateToken, async (req, res
     const { id } = req.params;
     const result = await deleteLoanAmortizationEntry(id);
     db.invalidateCache('loan_amortization');
+    db.invalidateCache('transactions');
+    db.invalidateCache('liabilities');
+    triggerEodRebuildIfPastDate(id);
     res.json(result);
   } catch (err) {
     console.error('[API Error - delete loan entry]:', err);

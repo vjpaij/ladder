@@ -116,6 +116,16 @@ export async function flushWal({ timeoutMs = 30_000 } = {}) {
     let success = false;
 
     try {
+      if (entry.table === 'holdings' && entry.payload) {
+        delete entry.payload.day_change;
+        delete entry.payload.day_change_pct;
+        if (Object.keys(entry.payload).length === 0) {
+          remaining.splice(i, 1);
+          flushed++;
+          continue;
+        }
+      }
+
       if (entry.operation === 'insert') {
         const { error } = await supabaseAdmin.from(entry.table).upsert(entry.payload);
         success = !error;

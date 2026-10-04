@@ -32,14 +32,18 @@ if (typeof window !== 'undefined' && !window.__ladderFetchIntercepted) {
   window.__ladderFetchIntercepted = true;
   const rawFetch = window.fetch.bind(window);
   window.fetch = async (input, init = {}) => {
-    const url = typeof input === 'string' ? input : (input?.url || '');
-    const currentToken = localStorage.getItem('ladder_token');
-    if (currentToken && typeof url === 'string' && (url.startsWith('/api') || url.includes('/api/'))) {
-      const headers = new Headers(init.headers || (typeof input === 'object' && input.headers ? input.headers : {}));
-      if (!headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${currentToken}`);
+    try {
+      const url = typeof input === 'string' ? input : (input?.url || '');
+      const currentToken = localStorage.getItem('ladder_token');
+      if (currentToken && typeof url === 'string' && (url.startsWith('/api') || url.includes('/api/'))) {
+        const headers = new Headers(init?.headers || (typeof input === 'object' && input?.headers ? input.headers : {}));
+        if (!headers.get('authorization') && !headers.get('Authorization')) {
+          headers.set('Authorization', `Bearer ${currentToken}`);
+        }
+        init = { ...(init || {}), headers };
       }
-      init = { ...init, headers };
+    } catch (e) {
+      // Fall through to rawFetch if Header parsing fails
     }
     return rawFetch(input, init);
   };

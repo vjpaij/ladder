@@ -390,7 +390,7 @@ export default function DashboardTrendChart({
 
         {/* Chart Range Selector */}
         <ChartRangeSelector
-          initialRange="ALL"
+          initialRange="1M"
           onChange={onRangeChange}
         />
       </div>

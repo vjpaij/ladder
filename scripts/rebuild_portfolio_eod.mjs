@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import xlsx from 'xlsx';
 import axios from 'axios';
-import { db, initDatabase, saveCacheSnapshotToDisk, dbCache } from '../server/db.js';
+import { db, initDatabase, saveCacheSnapshotToDisk, setCacheEntry } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
 import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache, resolveHoldingPrice } from '../server/services/priceEngine.js';
@@ -371,7 +371,7 @@ async function rebuildEod() {
       const type = (t.type || '').toUpperCase();
       if (['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'BUY'].includes(type)) {
         cardSum += amt;
-      } else if (['EMI_PAYMENT', 'PREPAYMENT', 'BILL_PAYMENT', 'REPAYMENT', 'PAY', 'SELL'].includes(type)) {
+      } else if (['EMI_PAYMENT', 'PREPAYMENT', 'PAYMENT', 'REPAYMENT', 'PAY', 'SELL'].includes(type)) {
         cardSum -= amt;
       }
     });
@@ -410,7 +410,7 @@ async function rebuildEod() {
       const isPositive = ['OPENING_BALANCE', 'DEPOSIT', 'CREDIT', 'CONTRIBUTION', 'INTEREST', 'BUY'].includes(type);
       const isNegative = ['WITHDRAWAL', 'DEBIT', 'SELL'].includes(type);
       const isDebtIncr = ['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'TAKE'].includes(type);
-      const isDebtDecr = ['EMI_PAYMENT', 'PREPAYMENT', 'BILL_PAYMENT', 'REPAYMENT', 'PAY'].includes(type);
+      const isDebtDecr = ['EMI_PAYMENT', 'PREPAYMENT', 'PAYMENT', 'REPAYMENT', 'PAY'].includes(type);
 
       const h = hMap[t.holding_id];
       if (h) {
@@ -695,7 +695,7 @@ async function rebuildEod() {
     // Persist full pnl_history to local disk snapshot with verified SHA-256 checksum
     try {
       const allDbRecords = baseLogs.map(mapLogToDbRecord);
-      dbCache.set('pnl_history', { data: allDbRecords, timestamp: Date.now() });
+      setCacheEntry('pnl_history', allDbRecords);
       saveCacheSnapshotToDisk();
       console.log('[EOD Rebuild] pnl_history cached and snapshot saved with valid checksum.');
     } catch (snapErr) {

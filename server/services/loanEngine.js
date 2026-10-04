@@ -2,10 +2,92 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { supabase } from '../supabaseClient.js';
+import db from '../db.js';
+import { recalculateHoldingState } from './recalculator.js';
+import { triggerEodRebuildIfPastDate } from './eodSync.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_JSON_PATH = path.join(__dirname, '../../data/loan_amortization.json');
+
+/**
+ * Atomic two-way synchronization: guarantees that any settled loan amortization row
+ * has an exact matching transaction in the transactions table (Rule 2 & Rule 17).
+ */
+async function syncAmortizationToTransaction(liabilityId, amortRow, action = 'UPSERT') {
+  if (!liabilityId || !amortRow) return;
+  const isSettled = Boolean(amortRow.is_settled);
+  const date = amortRow.date;
+  if (!date) return;
+
+  try {
+    const allTxs = await db.select('transactions');
+    const existingTx = (allTxs || []).find(t => 
+      String(t.liability_id) === String(liabilityId) && t.date === date
+    );
+
+    if (action === 'DELETE' || !isSettled) {
+      if (existingTx) {
+        await db.delete('transactions', existingTx.id);
+        db.invalidateCache('transactions');
+        db.invalidateCache('liabilities');
+        db.invalidateCache('loan_amortization');
+        await recalculateHoldingState(liabilityId);
+        triggerEodRebuildIfPastDate(date);
+      }
+      return;
+    }
+
+    const entryType = (amortRow.entry_type || 'EMI').toUpperCase();
+    const bulk = Number(amortRow.bulk_payment) || 0;
+    const emi = Number(amortRow.emi_amount) || 0;
+    const disbursed = Number(amortRow.disbursed_amount) || 0;
+
+    let txType = 'EMI_PAYMENT';
+    let txAmt = emi;
+    if (entryType === 'PREPAYMENT' || bulk > 0) {
+      txType = 'PREPAYMENT';
+      txAmt = bulk > 0 ? bulk : emi;
+    } else if (entryType === 'DISBURSEMENT' || disbursed > 0) {
+      txType = 'BORROW';
+      txAmt = disbursed > 0 ? disbursed : emi;
+    }
+
+    const allLiabilities = await db.select('liabilities');
+    const liability = (allLiabilities || []).find(l => String(l.id) === String(liabilityId));
+    const name = liability ? `${liability.name} (${liability.lender || 'Loan'})` : 'Housing Loan (SBI Bank)';
+    const symbol = liability?.category_id === 'loans' ? 'SBI-LOAN' : 'LOAN';
+
+    const txData = {
+      holding_id: null,
+      liability_id: liabilityId,
+      type: txType,
+      quantity: 1,
+      price: txAmt,
+      total_amount: txAmt,
+      charges: 0,
+      currency: 'INR',
+      date: date,
+      symbol: symbol,
+      name: name,
+      notes: amortRow.notes || (txType === 'EMI_PAYMENT' ? 'Settled Payment' : `Loan ${entryType}`)
+    };
+
+    if (existingTx) {
+      await db.update('transactions', existingTx.id, txData);
+    } else {
+      await db.insert('transactions', txData);
+    }
+
+    db.invalidateCache('transactions');
+    db.invalidateCache('liabilities');
+    db.invalidateCache('loan_amortization');
+    await recalculateHoldingState(liabilityId);
+    triggerEodRebuildIfPastDate(date);
+  } catch (err) {
+    console.warn('[loanEngine.syncAmortizationToTransaction] Warning:', err.message);
+  }
+}
 
 export async function getLoanAmortizationData(liabilityId) {
   if (!liabilityId) {
@@ -218,15 +300,35 @@ export async function getLoanAmortizationData(liabilityId) {
   // Compute how much time & interest prepayments have saved
   const baselineMonths = Math.ceil(currentOutstanding / (standardEmi - (currentOutstanding * (currentInterestRate / 100 / 12))));
 
+  // Autonomous synchronization guard: guarantee all settled entries exist in transactions table
+  try {
+    const allTxs = await db.select('transactions');
+    const loanTxs = (allTxs || []).filter(t => String(t.liability_id) === String(liabilityId));
+    const txDates = new Set(loanTxs.map(t => t.date));
+    let syncedAny = false;
+
+    for (const settled of settledEntries) {
+      if (!txDates.has(settled.date)) {
+        await syncAmortizationToTransaction(liabilityId, settled, 'UPSERT');
+        syncedAny = true;
+      }
+    }
+    if (syncedAny) {
+      db.invalidateCache('transactions');
+    }
+  } catch (syncErr) {
+    console.warn('[loanEngine] Autonomous sync error:', syncErr.message);
+  }
+
   return {
     summary: {
       liabilityId,
-      totalDisbursed: Number(totalDisbursed.toFixed(2)),
-      totalEmiPaid: Number(totalEmiPaid.toFixed(2)),
-      totalBulkPaid: Number(totalBulkPaid.toFixed(2)),
-      totalInterestPaid: Number(totalInterestPaid.toFixed(2)),
-      totalPrincipalPaid: Number(totalPrincipalPaid.toFixed(2)),
-      currentOutstandingBalance: Number(currentOutstanding.toFixed(2)),
+      totalDisbursed,
+      totalEmiPaid,
+      totalBulkPaid,
+      totalInterestPaid,
+      totalPrincipalPaid,
+      currentOutstandingBalance: currentOutstanding,
       currentInterestRate,
       actualEmi: 52653,
       monthlyPayment: standardEmi,
@@ -301,6 +403,11 @@ export async function addLoanAmortizationEntry(entry) {
     console.warn('[loanEngine] Could not update local JSON:', e.message);
   }
 
+  // Two-way atomic sync: sync to transactions table if settled
+  if (data && isSettled) {
+    await syncAmortizationToTransaction(liabilityId, data, 'UPSERT');
+  }
+
   return data;
 }
 
@@ -335,12 +442,31 @@ export async function updateLoanAmortizationEntry(id, updates) {
     console.warn('[loanEngine] Could not update local JSON on edit:', e.message);
   }
 
+  // Two-way atomic sync with transactions table
+  if (data) {
+    await syncAmortizationToTransaction(data.liability_id || updates.liability_id, data, data.is_settled ? 'UPSERT' : 'DELETE');
+  }
+
   return data;
 }
 
 export async function deleteLoanAmortizationEntry(id) {
   // Check if id is a valid UUID
   const isUuid = typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  let targetRow = null;
+
+  try {
+    if (isUuid) {
+      const { data: found } = await supabase.from('loan_amortization').select('*').eq('id', id).single();
+      targetRow = found;
+    } else {
+      const dateStr = typeof id === 'string' && id.startsWith('proj-') ? id.replace('proj-', '') : id;
+      const { data: found } = await supabase.from('loan_amortization').select('*').eq('date', dateStr).limit(1);
+      if (found && found.length > 0) targetRow = found[0];
+    }
+  } catch (lookupErr) {
+    console.warn('[loanEngine] Could not lookup entry before delete:', lookupErr.message);
+  }
 
   if (isUuid) {
     const { error } = await supabase
@@ -376,6 +502,11 @@ export async function deleteLoanAmortizationEntry(id) {
     }
   } catch (e) {
     console.warn('[loanEngine] Could not update local JSON on delete:', e.message);
+  }
+
+  // Sync delete with transactions
+  if (targetRow) {
+    await syncAmortizationToTransaction(targetRow.liability_id, targetRow, 'DELETE');
   }
 
   return { success: true, id };
@@ -459,6 +590,11 @@ export async function settleAmortizationForMonth(liabilityId, txDate, actualEmi)
     } catch (e) {
       console.warn('[loanEngine.settleAmortizationForMonth] Could not sync local JSON:', e.message);
     }
+
+    db.invalidateCache('loan_amortization');
+    db.invalidateCache('liabilities');
+    db.invalidateCache('transactions');
+    triggerEodRebuildIfPastDate(txDate);
 
     console.log(`[loanEngine.settleAmortizationForMonth] ✅ Settled amortization row ${row.id} for ${monthPrefix} | EMI: ₹${actualEmi}`);
   } catch (err) {

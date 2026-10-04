@@ -70,6 +70,8 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
       } catch (amortErr) {
         console.warn('[Delete EMI] Amortization un-settle failed (non-fatal):', amortErr.message);
       }
+      db.invalidateCache('liabilities');
+      db.invalidateCache('loan_amortization');
     }
 
     triggerEodRebuildIfPastDate(txs[0].date);
@@ -134,6 +136,10 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
 
     if (parentId) {
       await recalculateHoldingState(parentId);
+    }
+    if (txs[0].liability_id || updates.liability_id) {
+      db.invalidateCache('liabilities');
+      db.invalidateCache('loan_amortization');
     }
     triggerEodRebuildIfPastDate(updates.date || txs[0].date);
 

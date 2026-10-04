@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Calendar, TrendingDown, DollarSign, Plus, Trash2, Edit3, 
@@ -38,7 +39,7 @@ function StatTile({ label, value, sub, accent, positive, icon: Icon }) {
   );
 }
 
-export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0000-0000-000000000010', refreshTick = 0 }) {
+export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0000-0000-000000000010', refreshTick = 0, onDataChanged }) {
   const { theme, showError } = useThemeAuth();
   const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
 
@@ -98,16 +99,17 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/loan/amortization?liabilityId=${encodeURIComponent(liabilityId)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json);
-      if (json.summary?.currentInterestRate && !newRate) {
-        setNewRate(String(json.summary.currentInterestRate));
+      setError(null);
+      const res = await axios.get('/api/loan/amortization', {
+        params: { liabilityId }
+      });
+      setData(res.data);
+      if (res.data?.summary?.currentInterestRate && !newRate) {
+        setNewRate(String(res.data.summary.currentInterestRate));
       }
     } catch (err) {
       console.error('[LoanAmortizationSection] Error:', err);
-      setError(err.message);
+      setError(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
     }
@@ -268,18 +270,10 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
         notes: newNotes || (isPaymentUpdate ? `Monthly installment updated to ₹${newAmount}` : newEntryType === 'PREPAYMENT' ? `Voluntary Prepayment ₹${newAmount}` : null)
       };
 
-      const res = await fetch('/api/loan/amortization/entry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || 'Failed to add entry');
-      }
+      await axios.post('/api/loan/amortization/entry', payload);
 
       await fetchData();
+      if (onDataChanged) await onDataChanged();
       setIsAddModalOpen(false);
       setNewAmount('');
       setNewNotes('');
@@ -322,23 +316,14 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
 
       if (isProjectedRow) {
         // Convert projected row into custom user entry
-        const res = await fetch('/api/loan/amortization/entry', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error('Failed to save entry');
+        await axios.post('/api/loan/amortization/entry', payload);
       } else {
         // Update existing record
-        const res = await fetch(`/api/loan/amortization/entry/${encodeURIComponent(editingEntry.id)}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) throw new Error('Failed to update entry');
+        await axios.put(`/api/loan/amortization/entry/${encodeURIComponent(editingEntry.id)}`, payload);
       }
 
       await fetchData();
+      if (onDataChanged) await onDataChanged();
       setEditingEntry(null);
     } catch (err) {
       showError('Error saving edit: ' + err.message);
@@ -362,14 +347,9 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
     if (!deleteConfirmEntry) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/loan/amortization/entry/${encodeURIComponent(deleteConfirmEntry.id)}`, {
-        method: 'DELETE'
-      });
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Delete failed');
-      }
+      await axios.delete(`/api/loan/amortization/entry/${encodeURIComponent(deleteConfirmEntry.id)}`);
       await fetchData();
+      if (onDataChanged) await onDataChanged();
       setDeleteConfirmEntry(null);
     } catch (err) {
       showError('Error deleting entry: ' + err.message);

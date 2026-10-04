@@ -175,6 +175,7 @@ function AuthenticatedApp() {
       setLastUpdated(new Date().toLocaleTimeString());
       // Sync live FX rate into global context so all currency conversions use today's real rate
       if (sumRes.data.fxRate) setFxRate(sumRes.data.fxRate);
+      window.dispatchEvent(new CustomEvent('ladder-data-updated'));
     } catch (err) {
       if (!isSilent) {
         console.error('[App] Failed to fetch dashboard data:', err);

@@ -299,7 +299,7 @@ export async function recalculateHoldingState(holdingId) {
 
           if (['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'TAKE'].includes(type)) {
             netDebt += amt;
-          } else if (['EMI_PAYMENT', 'PREPAYMENT', 'BILL_PAYMENT', 'REPAYMENT', 'PAY'].includes(type)) {
+          } else if (['EMI_PAYMENT', 'PREPAYMENT', 'PAYMENT', 'REPAYMENT', 'PAY'].includes(type)) {
             netDebt -= amt;
           }
         }

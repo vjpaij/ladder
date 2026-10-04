@@ -102,10 +102,16 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     // Identify which asset categories had user transactions today
     const categoriesWithTodayTxs = new Set();
     const holdingMapById = new Map((holdings || []).map(h => [h.id, h]));
+    const liabilityMapById = new Map((liabilities || []).map(l => [l.id, l]));
     todayTxs.forEach(t => {
-      const h = holdingMapById.get(t.holding_id);
-      if (h && h.category_id) {
-        categoriesWithTodayTxs.add(h.category_id);
+      if (t.holding_id) {
+        const h = holdingMapById.get(t.holding_id);
+        if (h && h.category_id) categoriesWithTodayTxs.add(h.category_id);
+      }
+      if (t.liability_id) {
+        const l = liabilityMapById.get(t.liability_id);
+        if (l && l.category_id) categoriesWithTodayTxs.add(l.category_id);
+        else categoriesWithTodayTxs.add('loans');
       }
     });
 

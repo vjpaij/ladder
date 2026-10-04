@@ -16,7 +16,7 @@ import {
   Bar
 } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
-import ChartRangeSelector from './ChartRangeSelector';
+import ChartRangeSelector, { computeRangeDates } from './ChartRangeSelector';
 import { 
   PieChart, 
   BarChart3, 
@@ -128,7 +128,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
 
   // Benchmark Growth settings & Date Picker
   const [benchmark, setBenchmark] = useState('NIFTY_50');
-  const [growthRangeFilter, setGrowthRangeFilter] = useState({ type: 'ALL', startDate: null, endDate: null, rangeKey: 'ALL' });
+  const [growthRangeFilter, setGrowthRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
   const [growthData, setGrowthData] = useState(null);
   const [loadingGrowth, setLoadingGrowth] = useState(false);
 
@@ -2132,7 +2132,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
               </div>
 
               <ChartRangeSelector
-                initialRange="ALL"
+                initialRange="1M"
                 onChange={(range) => setGrowthRangeFilter(range)}
               />
             </div>
