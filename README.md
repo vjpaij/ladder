@@ -89,8 +89,14 @@ Ladder is an institutional-grade personal finance and investment management dash
    - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments) that immediately recalculate future amortization schedules and interest savings.
    - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
 
-10. **Dividends Scheme Hub & Transaction Management**
-   - **Aggregated Scheme Portfolio View**: Aggregates dividend payouts per scheme/stock (Indian & US Equities) displaying Logo, Clean Name, Symbol, Market Badge, Payouts Count, Total Original Payout, Total Credited INR/USD, and Latest Payment Date.
+10. **Dividends Scheme Hub, Analytics & Transaction Management**
+    - **Dedicated Dividends Report Suite (`ReportsView.jsx` -> `DividendReportView.jsx`)**:
+      - Integrated directly into the Reports section as a master navigation tab with 4 top KPI cards: Total Lifetime Dividends Received (with India INR vs US USD breakdown & total payouts count), Portfolio Dividend Yield on Cost %, Current Year Dividends CYTD (with YoY % growth), and Top Dividend Contributor.
+      - **Payouts & Growth**: Annual Growth stacked bar chart with in-place year expansion (clicking any year bar or pill card expands into that year's 12-month distribution chart, calendar matrix, and an itemized Company Distribution Ledger with instant search, sorting, and modal drilldown), 12-month Seasonality calendar distribution chart, and Cumulative Timeline area chart.
+      - **Asset Contribution**: Interactive Donut chart and ranked horizontal Bar Chart with side list and item hover synchronization.
+      - **Yield on Cost**: Ranks dividend-paying assets by effective return on invested capital.
+      - **Distribution Ledger**: Searchable, sortable multi-column table (Asset Logo, Clean Name, Symbol, Market, Payouts, Original Payout, Total INR, Share %, YoC %, Latest Date) with seamless drilldown into `AssetDividendDetailModal.jsx`.
+    - **Aggregated Scheme Portfolio View**: Aggregates dividend payouts per scheme/stock (Indian & US Equities) displaying Logo, Clean Name, Symbol, Market Badge, Payouts Count, Total Original Payout, Total Credited INR/USD, and Latest Payment Date.
    - **Scheme Deletion**: Action column on main table includes Delete icon button (`Trash2`) with mandatory user confirmation prompt to delete all dividend records for a scheme (`DELETE /api/dividends/scheme/:idOrSymbol`).
    - **Transaction-Level CRUD & Reports**: Clicking any scheme row opens `AssetDividendDetailModal.jsx` displaying Annual Breakdown bar charts, Cumulative Growth curves, KPI metric cards, and an Itemized Distribution Ledger table equipped with inline **Edit** (`Edit3`) and **Delete** (`Trash2`) actions under its Action column.
    - Dynamic currency toggle synchronization: displays primary values in INR with USD secondary in INR mode, and flips to primary USD with INR secondary in USD mode.

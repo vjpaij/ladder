@@ -64,6 +64,7 @@ import { CustomChartTooltip as ExtCustomChartTooltip, TrajectoryTooltip as ExtTr
 import ExtRankedBarList from './reports/RankedBarList';
 import ExtCleanBarChartView from './reports/CleanBarChartView';
 import CompanyMfBreakdownModal from './reports/CompanyMfBreakdownModal';
+import DividendReportView from './reports/DividendReportView';
 
 export default function ReportsView({ summary, holdings, registerBackHandler }) {
   const { formatMoney, isUSD } = useThemeAuth();
@@ -818,6 +819,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
               { key: 'CONSOLIDATED', label: 'Consolidated' },
               { key: 'EQUITY', label: 'Equity Hub' },
               { key: 'MF_COMPOSITION', label: 'MF Composition' },
+              { key: 'DIVIDENDS', label: 'Dividends' },
               { key: 'FIXED_INCOME', label: 'Fixed Income' },
               { key: 'NPS', label: 'NPS' }
             ].map(tab => (
@@ -831,6 +833,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                     setReportType('MARKET_CAP');
                   } else if (tab.key === 'CONSOLIDATED') {
                     setReportType('PERFORMANCE');
+                  } else if (tab.key === 'DIVIDENDS') {
+                    setReportType('DIVIDENDS');
                   } else {
                     setReportType('ALLOCATION');
                   }
@@ -885,7 +889,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         ) : <div />}
 
         {/* Global Chart Style Switcher (Shown ONLY for Allocation, Market Cap, and Sector) */}
-        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) && activeTab !== 'MF_COMPOSITION' && !currentSelectedSector && !currentSelectedMarketCap ? (
+        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) && activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && !currentSelectedSector && !currentSelectedMarketCap ? (
           <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl shadow-sm">
             <button
               onClick={() => setChartStyle('PIE')}
@@ -916,8 +920,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
       {/* ─── Main Content Container ─────────────────────────────────── */}
       <div className="reports-card rounded-3xl p-5 md:p-6 shadow-sm space-y-6">
         
-        {/* Navigation Tabs Bar (Hidden in dedicated MF_COMPOSITION tab) */}
-        {activeTab !== 'MF_COMPOSITION' && (
+        {/* Navigation Tabs Bar (Hidden in dedicated MF_COMPOSITION and DIVIDENDS tabs) */}
+        {activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && (
           <div className="flex items-center gap-2 border-b border-inherit opacity-95 pb-3 overflow-x-auto">
             {[
               { key: 'PERFORMANCE', label: 'Consolidated Performance' },
@@ -1170,7 +1174,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         )}
 
         {/* ─── VIEW 0: CONSOLIDATED ASSET PERFORMANCE ────────────────── */}
-        {reportType === 'PERFORMANCE' && activeTab !== 'MF_COMPOSITION' && (
+        {reportType === 'PERFORMANCE' && activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && (
           <div className="space-y-6">
             
             {/* Top KPI Metric Cards */}
@@ -1609,7 +1613,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         )}
 
         {/* ─── VIEW 1: ASSET ALLOCATION ──────────────────────────────── */}
-        {reportType === 'ALLOCATION' && activeTab !== 'MF_COMPOSITION' && (
+        {reportType === 'ALLOCATION' && activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && (
           <div className="space-y-4">
             {chartStyle === 'PIE' && (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
@@ -2095,7 +2099,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         )}
 
         {/* ─── VIEW 4: BENCHMARK GROWTH TRAJECTORY ────────────────────── */}
-        {reportType === 'TRAJECTORY' && activeTab !== 'MF_COMPOSITION' && (
+        {reportType === 'TRAJECTORY' && activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && (
           <div className="space-y-4">
             
             {/* Trajectory Controls & Date Range Selector */}
@@ -2214,6 +2218,15 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
               )}
             </div>
           </div>
+        )}
+
+        {/* ─── DEDICATED MASTER TAB: DIVIDENDS REPORT ────────────────── */}
+        {activeTab === 'DIVIDENDS' && (
+          <DividendReportView
+            summary={summary}
+            holdings={holdings}
+            registerBackHandler={registerBackHandler}
+          />
         )}
 
       </div>
