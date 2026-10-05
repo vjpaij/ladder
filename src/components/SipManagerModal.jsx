@@ -5,6 +5,7 @@ import { X, Play, Pause, Trash2, Edit2, Check, Plus, Repeat, AlertCircle, Calend
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import DatePicker from './common/DatePicker';
+import HoldingLogo from './HoldingLogo';
 
 const FREQUENCY_OPTIONS = [
   { value: 'MONTHLY', label: 'Monthly' },
@@ -444,34 +445,42 @@ export default function SipManagerModal({ isOpen, onClose, holdings, onRefresh, 
                           }`}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-xs">{sip.name}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider ${
-                                  isClosed
-                                    ? 'bg-slate-500/20 opacity-70'
-                                    : isPaused
-                                    ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
-                                    : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                                }`}>
-                                  {sip.status}
-                                </span>
-                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-slate-500/15 opacity-80 border border-inherit font-mono">
-                                  {formatFrequencyLabel(sip.frequency)}
-                                </span>
-                              </div>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <HoldingLogo 
+                                symbol={sip.symbol} 
+                                name={sip.name} 
+                                category_id="mutual_funds" 
+                                className="w-9 h-9 rounded-xl shrink-0 shadow-sm" 
+                              />
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-xs truncate">{sip.name}</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider ${
+                                    isClosed
+                                      ? 'bg-slate-500/20 opacity-70'
+                                      : isPaused
+                                      ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
+                                      : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                                  }`}>
+                                    {sip.status}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-slate-500/15 opacity-80 border border-inherit font-mono">
+                                    {formatFrequencyLabel(sip.frequency)}
+                                  </span>
+                                </div>
 
-                              <div className="text-[10px] opacity-60 font-mono">
-                                AMFI #{sip.symbol}
-                                {sip.start_date ? ` • Start: ${formatDateLabel(sip.start_date)}` : ''}
-                                {sip.end_date ? ` • End: ${formatDateLabel(sip.end_date)}` : ' • Open/Continuous'}
-                              </div>
+                                <div className="text-[10px] opacity-60 font-mono">
+                                  AMFI #{sip.symbol}
+                                  {sip.start_date ? ` • Start: ${formatDateLabel(sip.start_date)}` : ''}
+                                  {sip.end_date ? ` • End: ${formatDateLabel(sip.end_date)}` : ' • Open/Continuous'}
+                                </div>
 
-                              <div className="text-[10px] opacity-80 flex items-center gap-3">
-                                <span>Next Run: <strong className="font-mono">{formatDateLabel(sip.next_run_date)}</strong></span>
-                                {sip.last_run_date && (
-                                  <span>Last Run: <strong className="font-mono">{formatDateLabel(sip.last_run_date)}</strong></span>
-                                )}
+                                <div className="text-[10px] opacity-80 flex items-center gap-3">
+                                  <span>Next Run: <strong className="font-mono">{formatDateLabel(sip.next_run_date)}</strong></span>
+                                  {sip.last_run_date && (
+                                    <span>Last Run: <strong className="font-mono">{formatDateLabel(sip.last_run_date)}</strong></span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 

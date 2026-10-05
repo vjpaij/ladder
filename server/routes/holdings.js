@@ -25,6 +25,7 @@ import { getLoanAmortizationData, settleAmortizationForMonth } from '../services
 import { authenticateToken } from '../middleware/auth.js';
 import { recordDividend, getHoldingDividends } from '../services/dividendService.js';
 import { applyStockSplit } from '../services/corporateActionService.js';
+import { getAssetSessionStatus, getTodayIST } from '../services/marketCalendar.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,9 +122,36 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
     const historicalPricesCache = getHistoricalPricesMap();
 
+    const todayStr = getTodayIST();
+    const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
+    const todayUsTxs = allTxs.filter(t => t.currency === 'USD' && t.date === todayStr);
+    let effectiveUsFx = fxRate;
+
+    if (todayUsTxs.length === 0 && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
+      try {
+        const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+        if (fs.existsSync(eodPath)) {
+          const pastLogs = JSON.parse(fs.readFileSync(eodPath, 'utf8')).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+          if (pastLogs.length > 0 && pastLogs[0].us_stocks > 0) {
+            let totalUsdCurrent = 0;
+            holdings.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0).forEach(h => {
+              const liveQuote = liveQuoteCache.get(h.symbol);
+              const p = resolveHoldingPrice(h, liveQuote);
+              totalUsdCurrent += Number(h.quantity) * p;
+            });
+            if (totalUsdCurrent > 0) {
+              effectiveUsFx = pastLogs[0].us_stocks / totalUsdCurrent;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Holdings Route] Error computing invariant US FX rate:', e.message);
+      }
+    }
+
     const formatted = holdings.map(h => {
       const isUSD = h.currency === 'USD';
-      const liveRate = isUSD ? fxRate : 1.0;
+      const liveRate = isUSD ? effectiveUsFx : 1.0;
       let txRate = 1.0;
       if (isUSD) {
         const m = usFxMap[h.id] || usFxMap[h.symbol];
@@ -286,7 +314,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       const liveQuote = liveQuoteCache.get(h.symbol);
       const currentPriceNum = resolveHoldingPrice(h, liveQuote);
       const currentValueOriginal = qty * currentPriceNum;
-      const currentValueINR = computeHoldingValueINR(h, currentPriceNum, fxRate);
+      const currentValueINR = computeHoldingValueINR(h, currentPriceNum, liveRate);
 
       // Rule 5: Zero-quantity assets must have investedValueINR = 0
       const investedValueOriginal = !isClosed ? (qty * finalAvgBuyPrice) : 0;

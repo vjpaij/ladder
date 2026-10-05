@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search } from 'lucide-react';
+import HoldingLogo from '../HoldingLogo';
 
 export default function CompanyMfBreakdownModal({
   companyDetailTarget,
@@ -46,19 +47,27 @@ export default function CompanyMfBreakdownModal({
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 border-b border-inherit pb-4 shrink-0">
-              <div className="min-w-0">
-                <h3 className="text-base sm:text-lg font-black flex items-center gap-2 flex-wrap">
-                  <span className="truncate">{companyMfBreakdown.name}</span>
-                  {companyMfBreakdown.symbol && (
-                    <span className="text-xs px-2 py-0.5 rounded-md reports-subcard font-mono font-bold border border-inherit opacity-80 shrink-0">
-                      {companyMfBreakdown.symbol}
-                    </span>
-                  )}
-                </h3>
-                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs opacity-75 font-medium">
-                  {companyMfBreakdown.sector && <span>{companyMfBreakdown.sector}</span>}
-                  {companyMfBreakdown.sector && companyMfBreakdown.capTier && <span>•</span>}
-                  {companyMfBreakdown.capTier && <span className="font-bold">{companyMfBreakdown.capTier}</span>}
+              <div className="flex items-center gap-3 min-w-0">
+                <HoldingLogo 
+                  symbol={companyMfBreakdown.symbol} 
+                  name={companyMfBreakdown.name} 
+                  category_id="in_stocks" 
+                  className="w-10 h-10 rounded-2xl shadow-sm" 
+                />
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-black flex items-center gap-2 flex-wrap">
+                    <span className="truncate">{companyMfBreakdown.name}</span>
+                    {companyMfBreakdown.symbol && (
+                      <span className="text-xs px-2 py-0.5 rounded-md reports-subcard font-mono font-bold border border-inherit opacity-80 shrink-0">
+                        {companyMfBreakdown.symbol}
+                      </span>
+                    )}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs opacity-75 font-medium">
+                    {companyMfBreakdown.sector && <span>{companyMfBreakdown.sector}</span>}
+                    {companyMfBreakdown.sector && companyMfBreakdown.capTier && <span>•</span>}
+                    {companyMfBreakdown.capTier && <span className="font-bold">{companyMfBreakdown.capTier}</span>}
+                  </div>
                 </div>
               </div>
 
@@ -181,7 +190,15 @@ export default function CompanyMfBreakdownModal({
                         return list.map((s, idx) => (
                           <tr key={`${s.scheme_code}-${idx}`} className="reports-table-row transition-colors">
                             <td className="py-3 pl-4 font-sans font-bold sticky left-0 z-20 reports-table-sticky-cell border-r border-inherit min-w-[200px]">
-                              {s.scheme_name}
+                              <div className="flex items-center gap-2.5">
+                                <HoldingLogo 
+                                  name={s.scheme_name} 
+                                  symbol={s.scheme_code} 
+                                  category_id="mutual_funds" 
+                                  className="w-6 h-6 rounded-lg text-[9px]" 
+                                />
+                                <span className="truncate">{s.scheme_name}</span>
+                              </div>
                             </td>
                             <td className="py-3 text-right opacity-80 font-bold">
                               {s.fund_weight_pct}%

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import DatePicker from '../components/common/DatePicker';
+import HoldingLogo from '../components/HoldingLogo';
 
 // Portfolio type configurations
 const PORTFOLIOS = [
@@ -90,15 +91,22 @@ function AutocompleteDropdown({ items, onSelect, isLoading, highlightText }) {
             onClick={() => onSelect(item)}
             className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-slate-800/60 transition-colors border-b border-slate-800/30 last:border-b-0 group"
           >
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
-                {(item.schemeName || item.name || '').replace(/\s*[\(\[]?(NSE|BSE|NSI)[\)\]]?\s*$/i, '')}
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                {(item.symbol || item.schemeCode || '').replace(/\.(NS|BO)$/i, '')}
-                {item.exchange && !['NSE', 'BSE', 'NSI', 'Bombay'].includes(item.exchange) && (
-                  <span className="ml-1.5 text-slate-600">{item.exchange}</span>
-                )}
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <HoldingLogo 
+                symbol={item.symbol || item.schemeCode} 
+                name={item.schemeName || item.name} 
+                className="w-7 h-7 rounded-lg text-[10px] shrink-0" 
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
+                  {(item.schemeName || item.name || '').replace(/\s*[\(\[]?(NSE|BSE|NSI)[\)\]]?\s*$/i, '')}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                  {(item.symbol || item.schemeCode || '').replace(/\.(NS|BO)$/i, '')}
+                  {item.exchange && !['NSE', 'BSE', 'NSI', 'Bombay'].includes(item.exchange) && (
+                    <span className="ml-1.5 text-slate-600">{item.exchange}</span>
+                  )}
+                </div>
               </div>
             </div>
             <ArrowRight className="w-3 h-3 text-slate-600 group-hover:text-emerald-400 transition-colors shrink-0 ml-2" />
@@ -601,15 +609,21 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-2 flex items-center gap-2"
+                className="mt-2.5 flex items-center gap-2.5 p-2 bg-slate-900/80 border border-slate-700/80 rounded-xl"
               >
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold font-mono">
-                  {formData.symbol}
-                </span>
-                <span className="text-[10px] text-slate-400 truncate">{formData.name}</span>
+                <HoldingLogo 
+                  symbol={formData.symbol} 
+                  name={formData.name} 
+                  category_id={portfolio} 
+                  className="w-7 h-7 rounded-lg text-[10px] shrink-0" 
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-white truncate">{formData.name}</div>
+                  <div className="text-[10px] text-emerald-400 font-mono font-bold">{formData.symbol}</div>
+                </div>
                 {currentHolding && (
-                  <span className="text-[10px] text-slate-500 font-mono ml-auto">
-                    Active: <strong className="text-slate-200">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })}</strong> units
+                  <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                    Active: <strong className="text-slate-200">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })}</strong>
                   </span>
                 )}
                 <button
@@ -619,9 +633,10 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                     updateField('name', '');
                     setSearchQuery('');
                   }}
-                  className="text-slate-600 hover:text-rose-400 transition-colors ml-2"
+                  className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors ml-1 shrink-0"
+                  aria-label="Remove selection"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </motion.div>
             )}

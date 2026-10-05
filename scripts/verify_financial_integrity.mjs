@@ -73,22 +73,34 @@ async function runIntegrityAudit() {
   try {
     let authHeaders = {};
     try {
-      const jwtSecret = process.env.JWT_SECRET || 'ladder-secret-jwt-key-2026';
+      const jwtSecret = process.env.JWT_SECRET || '96c24c9ef352a71aecf5fcdc7227f752339475bf5190167985951bd95d8b5884';
       const token = jwt.sign({ id: 1, email: 'admin@ladder.com', role: 'authenticated' }, jwtSecret, { expiresIn: '1h' });
       authHeaders = { Authorization: `Bearer ${token}` };
     } catch (authErr) {
       // Proceed without token if auth not configured
     }
 
-    let sumRes, pnlRes, latestCalendarLog;
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      [sumRes, pnlRes] = await Promise.all([
+    let sumRes, pnlRes, holdingsRes, latestCalendarLog, catSums = {};
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      [sumRes, pnlRes, holdingsRes] = await Promise.all([
         fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json()),
-        fetch('http://127.0.0.1:5000/api/daily-pnl?range=1M', { headers: authHeaders }).then(r => r.json())
+        fetch('http://127.0.0.1:5000/api/daily-pnl?range=1M', { headers: authHeaders }).then(r => r.json()),
+        fetch('http://127.0.0.1:5000/api/holdings', { headers: authHeaders }).then(r => r.json())
       ]);
       latestCalendarLog = pnlRes[pnlRes.length - 1];
-      if (sumRes.netWorthINR === latestCalendarLog.net_worth_inr) break;
-      await new Promise(r => setTimeout(r, 150));
+      catSums = {};
+      holdingsRes.forEach(h => {
+        const cat = h.category_id;
+        if (!catSums[cat]) catSums[cat] = 0;
+        catSums[cat] = Number((catSums[cat] + (h.currentValueINR || 0)).toFixed(2));
+      });
+      const inStockSum = catSums['in_stocks'] || 0;
+      const inStockSummary = Number((sumRes.categoryMetrics?.find(c => c.id === 'in_stocks')?.currentINR || 0).toFixed(2));
+      const usStockSum = catSums['us_stocks'] || 0;
+      const usStockSummary = Number((sumRes.categoryMetrics?.find(c => c.id === 'us_stocks')?.currentINR || 0).toFixed(2));
+
+      if (sumRes.netWorthINR === latestCalendarLog.net_worth_inr && inStockSum === inStockSummary && usStockSum === usStockSummary) break;
+      await new Promise(r => setTimeout(r, 200));
     }
 
     // Net Worth Parity
@@ -106,7 +118,6 @@ async function runIntegrityAudit() {
     assert.strictEqual(sumRes.dayPnlPct, latestCalendarLog.pnl_percentage, 'Dashboard Day PnL % and Calendar Day PnL % must match exactly');
 
     // 4b. Holdings Level Individual Valuation & Zero-Quantity Invariance
-    const holdingsRes = await fetch('http://127.0.0.1:5000/api/holdings', { headers: authHeaders }).then(r => r.json());
     holdingsRes.forEach(h => {
       const isUnitBased = ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id);
       if (isUnitBased && Number(h.quantity) <= 0) {
@@ -116,7 +127,7 @@ async function runIntegrityAudit() {
     });
 
     // 4c. Universal Categorical Breakdown Parity across Holdings, Summary, and Calendar
-    const catSums = {};
+    catSums = {};
     holdingsRes.forEach(h => {
       const cat = h.category_id;
       if (!catSums[cat]) catSums[cat] = 0;

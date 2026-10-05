@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { X, PlusCircle } from 'lucide-react';
+import HoldingLogo from './HoldingLogo';
 
 export default function AddAssetModal({ isOpen, onClose, onRefresh }) {
   const [instrumentType, setInstrumentType] = useState('in_stocks');
@@ -70,11 +71,28 @@ export default function AddAssetModal({ isOpen, onClose, onRefresh }) {
           <X className="w-4 h-4" />
         </button>
 
-        <h3 className="text-base font-bold text-white mb-0.5 flex items-center gap-2">
-          <PlusCircle className="w-4 h-4 text-emerald-400" />
-          Add Position
-        </h3>
-        <p className="text-[10px] text-slate-500 mb-4">Choose category and enter details</p>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            {(symbol || name) ? (
+              <HoldingLogo 
+                symbol={symbol}
+                name={name}
+                category_id={instrumentType}
+                className="w-10 h-10 rounded-xl shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                <PlusCircle className="w-5 h-5 text-emerald-400" />
+              </div>
+            )}
+            <div>
+              <h3 className="text-base font-bold text-white leading-tight">
+                {name || 'Add Position'}
+              </h3>
+              <p className="text-[10px] text-slate-500">{symbol || 'Choose category and enter details'}</p>
+            </div>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3.5">
           

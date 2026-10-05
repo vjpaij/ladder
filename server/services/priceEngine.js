@@ -43,52 +43,74 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * If no rate has ever been persisted (first-ever boot with no connectivity),
  * logs a critical warning and returns null -- callers must handle this gracefully.
  */
+let inFlightFxPromise = null;
+
 export async function fetchFxRate() {
-  const todayStr = new Date().toISOString().split('T')[0];
-  // Attempt 1: Yahoo Finance (primary) with retry & exponential backoff
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const quote = await fetchStockQuote('INR=X');
-      if (quote && quote.price > 0) {
-        liveQuoteCache.set('USDINR', quote);
-        storeRate('USD_INR', quote.price, 'yahoo-finance');
-        recordDailyFxRate(todayStr, quote.price);
-        return quote.price;
-      }
-    } catch (err) {
-      console.warn(`[FX Rate] Yahoo Finance USD/INR attempt ${attempt} failed:`, err.message);
+  const cachedQuote = liveQuoteCache.get('USDINR');
+  if (cachedQuote && cachedQuote.price > 0 && cachedQuote.updated) {
+    const ageMs = Date.now() - new Date(cachedQuote.updated).getTime();
+    if (ageMs < 30000) {
+      return cachedQuote.price;
     }
-    if (attempt < 2) await sleep(attempt * 300);
   }
 
-  // Attempt 2: Open Exchange Rates API (secondary) with retry & exponential backoff
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  if (inFlightFxPromise) {
+    return inFlightFxPromise;
+  }
+
+  inFlightFxPromise = (async () => {
     try {
-      const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 4000 });
-      if (res.data && res.data.rates && res.data.rates.INR) {
-        const rate = res.data.rates.INR;
-        storeRate('USD_INR', rate, 'open-exchange-rates');
-        recordDailyFxRate(todayStr, rate);
-        return rate;
+      const todayStr = new Date().toISOString().split('T')[0];
+      // Attempt 1: Yahoo Finance (primary) with retry & exponential backoff
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const quote = await fetchStockQuote('INR=X');
+          if (quote && quote.price > 0) {
+            liveQuoteCache.set('USDINR', quote);
+            storeRate('USD_INR', quote.price, 'yahoo-finance');
+            recordDailyFxRate(todayStr, quote.price);
+            return quote.price;
+          }
+        } catch (err) {
+          console.warn(`[FX Rate] Yahoo Finance USD/INR attempt ${attempt} failed:`, err.message);
+        }
+        if (attempt < 2) await sleep(attempt * 300);
       }
-    } catch (err) {
-      console.warn(`[FX Rate] Open Exchange Rates API attempt ${attempt} failed:`, err.message);
+
+      // Attempt 2: Open Exchange Rates API (secondary) with retry & exponential backoff
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const res = await axios.get('https://open.er-api.com/v6/latest/USD', { timeout: 4000 });
+          if (res.data && res.data.rates && res.data.rates.INR) {
+            const rate = res.data.rates.INR;
+            storeRate('USD_INR', rate, 'open-exchange-rates');
+            recordDailyFxRate(todayStr, rate);
+            return rate;
+          }
+        } catch (err) {
+          console.warn(`[FX Rate] Open Exchange Rates API attempt ${attempt} failed:`, err.message);
+        }
+        if (attempt < 2) await sleep(attempt * 500);
+      }
+
+      // Fallback: Last known good persisted rate (no hardcoded values)
+      const persisted = getPersistedRate('USD_INR');
+      if (persisted) {
+        console.warn(`[FX Rate] All live sources failed. Using last persisted rate: ${persisted}`);
+        scheduleRetry('USD_INR');
+        return persisted;
+      }
+
+      // Critical: No rate has ever been persisted (first boot with no internet)
+      console.error('[FX Rate] CRITICAL: No live FX rate available and no persisted rate found. USD valuations will be unavailable.');
+      scheduleRetry('USD_INR');
+      return null;
+    } finally {
+      inFlightFxPromise = null;
     }
-    if (attempt < 2) await sleep(attempt * 500);
-  }
+  })();
 
-  // Fallback: Last known good persisted rate (no hardcoded values)
-  const persisted = getPersistedRate('USD_INR');
-  if (persisted) {
-    console.warn(`[FX Rate] All live sources failed. Using last persisted rate: ${persisted}`);
-    scheduleRetry('USD_INR');
-    return persisted;
-  }
-
-  // Critical: No rate has ever been persisted (first boot with no internet)
-  console.error('[FX Rate] CRITICAL: No live FX rate available and no persisted rate found. USD valuations will be unavailable.');
-  scheduleRetry('USD_INR');
-  return null;
+  return inFlightFxPromise;
 }
 
 // Register the fetch function for background retry

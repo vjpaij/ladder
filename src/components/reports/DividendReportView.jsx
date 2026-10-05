@@ -674,6 +674,15 @@ export default function DividendReportView({ summary, holdings = [], registerBac
     );
   };
 
+  if (loading && !dividendData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <Coins className="w-8 h-8 text-emerald-500 animate-pulse" />
+        <span className="text-xs font-semibold opacity-60">Loading dividend analytics...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       
@@ -692,9 +701,10 @@ export default function DividendReportView({ summary, holdings = [], registerBac
           </div>
           <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
             <span className="opacity-60">{kpis.totalPayouts} Payouts</span>
-            <span className="text-emerald-500 font-bold">
-              IN: {formatMoney(kpis.totalIndiaInr)} • US: {formatMoney(kpis.totalUsConvertedInr)}
-            </span>
+            <div className="flex flex-col items-end text-right font-bold text-emerald-500 leading-tight">
+              <span>IN: {formatMoney(kpis.totalIndiaInr)}</span>
+              <span>US: {formatMoney(kpis.totalUsConvertedInr)}</span>
+            </div>
           </div>
         </div>
 
@@ -1090,9 +1100,13 @@ export default function DividendReportView({ summary, holdings = [], registerBac
                           >
                             <td className="sticky left-0 z-20 reports-table-sticky-cell py-2.5 pl-4 pr-3.5 border-r border-inherit">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-6 h-6 rounded-lg overflow-hidden shrink-0 border border-inherit/40 bg-slate-800/40 flex items-center justify-center">
-                                  <HoldingLogo holding={row.matchedHolding || { symbol: row.symbol, name: row.clean_name }} />
-                                </div>
+                                <HoldingLogo 
+                                  holding={row.matchedHolding}
+                                  symbol={row.symbol} 
+                                  name={row.clean_name || row.asset_name} 
+                                  category_id={row.currency === 'USD' ? 'us_stocks' : 'in_stocks'}
+                                  className="w-7 h-7 rounded-lg text-[10px]" 
+                                />
                                 <div className="min-w-0">
                                   <div className="font-bold truncate text-xs group-hover:text-emerald-500 transition-colors">
                                     {row.clean_name || row.asset_name || row.symbol}
@@ -1597,7 +1611,12 @@ export default function DividendReportView({ summary, holdings = [], registerBac
                   >
                     <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 whitespace-nowrap border-r border-inherit">
                       <div className="flex items-center gap-2.5">
-                        <HoldingLogo symbol={scheme.symbol} name={scheme.clean_name} className="w-6 h-6 rounded-lg text-[10px]" />
+                        <HoldingLogo 
+                          symbol={scheme.symbol} 
+                          name={scheme.clean_name} 
+                          category_id={scheme.category_id || (scheme.currency === 'USD' ? 'us_stocks' : 'in_stocks')}
+                          className="w-7 h-7 rounded-lg text-[10px]" 
+                        />
                         <div>
                           <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
                             <span>{scheme.clean_name}</span>

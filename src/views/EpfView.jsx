@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
+import HoldingLogo from '../components/HoldingLogo';
 
 function fmtINR(val) {
   const n = Number(val) || 0;
@@ -80,8 +81,13 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
               </span>
             </div>
             <h2 className="text-2xl md:text-3xl font-black text-slate-100 flex items-center gap-3">
-              <Building2 className="w-7 h-7 text-indigo-500" />
-              Employee Provident Fund
+              <HoldingLogo 
+                holding={epfHolding} 
+                name="Employee Provident Fund" 
+                category_id="epf" 
+                className="w-9 h-9 rounded-xl shadow-md shrink-0" 
+              />
+              <span>Employee Provident Fund</span>
             </h2>
           </div>
 
@@ -171,13 +177,21 @@ export default function EpfView({ holdings, onSelectHolding, onOpenAddModal }) {
           className="glass-card p-6 rounded-3xl border border-slate-800/90 hover:border-indigo-500/40 transition-all duration-300 group cursor-pointer"
         >
           <div className="flex items-center justify-between">
-            <div>
-              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                MEMBER EPF ACCOUNT
-              </span>
-              <h3 className="text-lg font-bold text-slate-100 group-hover:text-indigo-500 transition-colors mt-2">
-                Employee Provident Fund Organisation (EPFO)
-              </h3>
+            <div className="flex items-center gap-3.5">
+              <HoldingLogo 
+                holding={epfHolding} 
+                name="Employee Provident Fund" 
+                category_id="epf" 
+                className="w-10 h-10 rounded-2xl shadow-md shrink-0" 
+              />
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+                  MEMBER EPF ACCOUNT
+                </span>
+                <h3 className="text-lg font-bold text-slate-100 group-hover:text-indigo-400 transition-colors mt-1">
+                  Employee Provident Fund Organisation (EPFO)
+                </h3>
+              </div>
             </div>
 
             <button className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-600/20 group-hover:scale-105">

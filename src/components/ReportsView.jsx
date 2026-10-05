@@ -63,6 +63,7 @@ import {
 import { CustomChartTooltip as ExtCustomChartTooltip, TrajectoryTooltip as ExtTrajectoryTooltip } from './reports/ReportsTooltips';
 import ExtRankedBarList from './reports/RankedBarList';
 import ExtCleanBarChartView from './reports/CleanBarChartView';
+import HoldingLogo from './HoldingLogo';
 import CompanyMfBreakdownModal from './reports/CompanyMfBreakdownModal';
 import DividendReportView from './reports/DividendReportView';
 
@@ -1138,13 +1139,23 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                             className="reports-table-row transition-colors cursor-pointer group"
                           >
                             <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 whitespace-nowrap border-r border-inherit">
-                              <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                                <span>{c.company || c.name}</span>
-                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                              <div className="flex items-center gap-2.5">
+                                <HoldingLogo 
+                                  symbol={c.symbol} 
+                                  name={c.company || c.name} 
+                                  category_id="in_stocks"
+                                  className="w-7 h-7 rounded-lg text-[10px]" 
+                                />
+                                <div>
+                                  <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                                    <span>{c.company || c.name}</span>
+                                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                  </div>
+                                  {c.symbol && c.symbol !== 'OTHER' && (
+                                    <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>
+                                  )}
+                                </div>
                               </div>
-                              {c.symbol && c.symbol !== 'OTHER' && (
-                                <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>
-                              )}
                             </td>
                             <td className="py-3 px-3.5 opacity-80 font-sans font-medium whitespace-nowrap">{normalizeSector(c.sector)}</td>
                             <td className="py-3 px-3.5 whitespace-nowrap">
@@ -1788,11 +1799,21 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                                 className="reports-table-row transition-colors cursor-pointer group"
                               >
                                 <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 whitespace-nowrap border-r border-inherit">
-                                  <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                                    <span>{c.name}</span>
-                                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                  <div className="flex items-center gap-2.5">
+                                    <HoldingLogo 
+                                      symbol={c.symbol} 
+                                      name={c.name} 
+                                      category_id="in_stocks"
+                                      className="w-7 h-7 rounded-lg text-[10px]" 
+                                    />
+                                    <div>
+                                      <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                                        <span>{c.name}</span>
+                                        <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                      </div>
+                                      {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
+                                    </div>
                                   </div>
-                                  {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
                                 </td>
                                 <td className="py-3 px-3.5 opacity-80 font-sans font-medium whitespace-nowrap">{c.source}</td>
                                 <td className="py-3 px-3.5 text-right opacity-80 font-bold whitespace-nowrap">
@@ -2011,11 +2032,21 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                               className="reports-table-row transition-colors cursor-pointer group"
                             >
                               <td className="sticky left-0 z-20 reports-table-sticky-cell py-3 pl-4 pr-3.5 whitespace-nowrap border-r border-inherit">
-                                <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
-                                  <span>{c.name}</span>
-                                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                <div className="flex items-center gap-2.5">
+                                  <HoldingLogo 
+                                    symbol={c.symbol} 
+                                    name={c.name} 
+                                    category_id="in_stocks"
+                                    className="w-7 h-7 rounded-lg text-[10px]" 
+                                  />
+                                  <div>
+                                    <div className="font-sans font-bold group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-1.5">
+                                      <span>{c.name}</span>
+                                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                                    </div>
+                                    {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
+                                  </div>
                                 </div>
-                                {c.symbol && <div className="text-[10px] opacity-60 font-mono">{c.symbol}</div>}
                               </td>
                               <td className="py-3 px-3.5 opacity-80 font-sans font-medium whitespace-nowrap">{c.source}</td>
                               <td className="py-3 px-3.5 whitespace-nowrap">

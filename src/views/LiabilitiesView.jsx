@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
+import HoldingLogo from '../components/HoldingLogo';
 
 export default function LiabilitiesView({ liabilities, onSelectHolding, onOpenAddModal, onCloseLiability }) {
   const { formatMoney } = useThemeAuth();
@@ -120,10 +121,19 @@ export default function LiabilitiesView({ liabilities, onSelectHolding, onOpenAd
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-bold text-white group-hover:text-rose-300 transition-colors">
-                    {cleanName}
-                  </h3>
-                  {cleanLender && <p className="text-xs text-slate-500 mt-0.5">Lender: {cleanLender}</p>}
+                  <div className="flex items-center gap-3">
+                    <HoldingLogo 
+                      name={cleanLender || cleanName}
+                      category_id={l.category_id}
+                      className="w-9 h-9 rounded-xl shadow-sm shrink-0"
+                    />
+                    <div>
+                      <h3 className="text-base font-bold text-white group-hover:text-rose-300 transition-colors leading-tight">
+                        {cleanName}
+                      </h3>
+                      {cleanLender && <p className="text-xs text-slate-400 mt-0.5 font-medium">Lender: {cleanLender}</p>}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-slate-800">

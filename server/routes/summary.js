@@ -344,19 +344,22 @@ router.get('/summary', async (req, res) => {
 
         const totalCategoryCost = activeCost + closedCost;
         const combinedXirrPct = totalCategoryCost > 0 ? Number(((activeWeightedXirr + closedWeightedXirr) / totalCategoryCost).toFixed(2)) : activeXirrPct;
+        const canonicalVal = valuation.categoryTotals?.[c.id] ?? valuation.breakdown?.[c.id];
+        const finalCurrentINR = canonicalVal !== undefined ? Number(canonicalVal.toFixed(2)) : Number(c.currentINR.toFixed(2));
+        const finalUnrealizedINR = Number((finalCurrentINR - c.investedINR).toFixed(2));
 
         return {
           id: c.id,
           name: c.name,
           color: c.color,
           investedINR: Number(c.investedINR.toFixed(2)),
-          currentINR: Number(c.currentINR.toFixed(2)),
+          currentINR: finalCurrentINR,
           realizedINR: Number(c.realizedINR.toFixed(2)),
-          unrealizedINR: Number(c.unrealizedINR.toFixed(2)),
+          unrealizedINR: finalUnrealizedINR,
           activeXirrPct,
           closedXirrPct,
           xirrPct: combinedXirrPct,
-          absoluteReturnPct: calculateAbsoluteReturn(c.investedINR, c.currentINR)
+          absoluteReturnPct: calculateAbsoluteReturn(c.investedINR, finalCurrentINR)
         };
       })
       .sort((a, b) => b.currentINR - a.currentINR);

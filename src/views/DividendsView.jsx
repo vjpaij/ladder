@@ -190,7 +190,18 @@ export default function DividendsView({ holdings = [], onRefresh }) {
     }
   };
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <AnimatedPage className="space-y-5">
+        <div className="flex items-center justify-center py-24 text-slate-400">
+          <div className="flex flex-col items-center gap-3">
+            <Coins className="w-8 h-8 text-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-slate-500">Loading dividend records...</span>
+          </div>
+        </div>
+      </AnimatedPage>
+    );
+  }
 
   const isUSDMode = currency === 'USD';
   const effectiveFx = fxRate || 0;

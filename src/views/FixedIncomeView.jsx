@@ -4,6 +4,8 @@ import { Landmark, Plus, Trash2 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 
+import HoldingLogo from '../components/HoldingLogo';
+
 export default function FixedIncomeView({ holdings, onDeleteHolding, onEditHolding, onOpenAddModal, onSelectHolding }) {
   const { formatMoney } = useThemeAuth();
   const [activeTab, setActiveTab] = useState('Active');
@@ -111,8 +113,13 @@ export default function FixedIncomeView({ holdings, onDeleteHolding, onEditHoldi
                     {h.category_id === 'epf' ? '8.25% p.a.' : (h.category_id === 'bank' ? '7.25% p.a.' : 'Open')}
                   </span>
                 </div>
-                <h3 className="text-sm font-bold text-white mb-0.5">{h.name}</h3>
-                <p className="text-[10px] text-slate-500">{h.sector || 'Fixed Income'}</p>
+                <div className="flex items-center gap-2.5 mb-1">
+                  <HoldingLogo holding={h} className="w-7 h-7 rounded-lg shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-white truncate leading-tight">{h.name}</h3>
+                    <p className="text-[10px] text-slate-500 truncate">{h.sector || 'Fixed Income'}</p>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4 border-t border-slate-800/80 mt-4 flex items-center justify-between">
