@@ -282,6 +282,15 @@ async function rebuildEod() {
         console.warn(`[EOD Rebuild] Yahoo Finance download warning for ${h.symbol}:`, err.message);
       }
     }
+    // Merge Mutual Fund and NPS historical prices into historicalPrices map
+    for (const [sym, pMap] of Object.entries(mfHistoricalPrices)) {
+      historicalPrices[sym] = { ...(historicalPrices[sym] || {}), ...pMap };
+    }
+    for (const [sym, pMap] of Object.entries(npsHistoricalPrices)) {
+      const pObj = pMap instanceof Map ? Object.fromEntries(pMap) : pMap;
+      historicalPrices[sym] = { ...(historicalPrices[sym] || {}), ...pObj };
+    }
+
     try {
       fs.writeFileSync(HISTORICAL_FILE, JSON.stringify(historicalPrices, null, 2), 'utf-8');
     } catch (e) {
@@ -293,12 +302,11 @@ async function rebuildEod() {
   for (const h of inHoldings) {
     if (!historicalPrices[h.symbol]) historicalPrices[h.symbol] = {};
     const settledPrice = historicalPrices[h.symbol][lastNseTradingDay];
-    const bestPrice = Math.max(Number(h.current_price) || 0, Number(settledPrice) || 0);
-    if (bestPrice > 0) {
-      historicalPrices[h.symbol][lastNseTradingDay] = bestPrice;
-      if (bestPrice !== Number(h.current_price)) {
-        await db.update('holdings', h.id, { current_price: bestPrice });
-        h.current_price = bestPrice;
+    if (settledPrice !== undefined && settledPrice !== null && Number(settledPrice) > 0) {
+      const priceNum = Number(settledPrice);
+      if (Math.abs(priceNum - Number(h.current_price || 0)) > 0.001) {
+        await db.update('holdings', h.id, { current_price: priceNum, quote_date: lastNseTradingDay });
+        h.current_price = priceNum;
       }
     }
   }
@@ -515,20 +523,11 @@ async function rebuildEod() {
           prices = historicalPrices[h.symbol] || {};
         }
 
-        let p;
-        const isCurrentSession = (h.category_id === 'us_stocks')
-          ? (dateStr >= lastNyseTradingDay)
-          : (dateStr >= lastNseTradingDay);
-
-        if (isCurrentSession) {
-          p = resolveHoldingPrice(h);
-        } else {
-          p = prices[dateStr];
-          if (p === undefined) {
-            const prevDates = Object.keys(prices).filter(k => k < dateStr).sort().reverse();
-            if (prevDates.length > 0) p = prices[prevDates[0]];
-            else p = resolveHoldingPrice(h);
-          }
+        let p = prices[dateStr];
+        if (p === undefined || p === null || isNaN(p) || p <= 0) {
+          const prevDates = Object.keys(prices).filter(k => k < dateStr && prices[k] > 0).sort().reverse();
+          if (prevDates.length > 0) p = prices[prevDates[0]];
+          else p = resolveHoldingPrice(h);
         }
         priceMap[h.symbol] = p;
       });
@@ -537,12 +536,6 @@ async function rebuildEod() {
       const historicalHoldings = holdings.map(h => {
         let q = holdingQty[h.id] || 0;
         if (Math.abs(q) < 0.005) q = 0;
-        const isCurrentSession = (h.category_id === 'us_stocks')
-          ? (dateStr >= lastNyseTradingDay)
-          : (dateStr >= lastNseTradingDay);
-        if (isCurrentSession && ['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(h.category_id)) {
-          q = Number(h.quantity) || 0;
-        }
         return {
           ...h,
           quantity: q

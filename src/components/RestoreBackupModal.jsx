@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cloud, History, ArrowRight, X, ShieldCheck, RefreshCw, Archive, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Cloud, History, ArrowRight, X, ShieldCheck, RefreshCw, Archive, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
@@ -11,6 +11,8 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [restoringFilename, setRestoringFilename] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const pollRef = useRef(null);
   const timerRef = useRef(null);
 
@@ -66,6 +68,45 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
     }
   };
 
+  const handleDeleteBackup = async (filename) => {
+    if (isDeleting || isRestoring) return;
+    const confirmed = await showConfirm(
+      `Delete backup snapshot "${filename}"? This will permanently remove it from both Supabase Cloud Storage and local storage.`
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await axios.post('/api/cloud-backups/delete', { filename });
+      showSuccess(res.data.message || `Backup "${filename}" deleted successfully.`);
+      await fetchBackups();
+    } catch (err) {
+      showError('Failed to delete backup: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteAllBackups = async () => {
+    if (isDeleting || isRestoring || backups.length === 0) return;
+    const confirmed = await showConfirm(
+      `Are you sure you want to permanently delete ALL ${backups.length} backup snapshot(s)? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await axios.post('/api/cloud-backups/delete-all');
+      showSuccess(res.data.message || 'All backups deleted successfully.');
+      await fetchBackups();
+    } catch (err) {
+      showError('Failed to delete all backups: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+
   const [restoreStatus, setRestoreStatus] = useState(null); // null | { status, message }
 
   const handleRestore = async (filename) => {
@@ -77,6 +118,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
     if (!confirmed) return;
 
     setIsRestoring(true);
+    setRestoringFilename(filename);
     setRestoreStatus({ status: 'running', message: 'Restoring database from cloud snapshot...' });
 
     try {
@@ -89,6 +131,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
         if (onRefresh) onRefresh();
         timerRef.current = setTimeout(() => {
           setIsRestoring(false);
+          setRestoringFilename(null);
           setRestoreStatus(null);
           onClose();
         }, 2500);
@@ -111,6 +154,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
               if (onRefresh) onRefresh();
               timerRef.current = setTimeout(() => {
                 setIsRestoring(false);
+                setRestoringFilename(null);
                 setRestoreStatus(null);
                 onClose();
               }, 2500);
@@ -118,6 +162,7 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
               clearInterval(pollRef.current);
               pollRef.current = null;
               setIsRestoring(false);
+              setRestoringFilename(null);
               showError('Restore failed: ' + (job.error || 'Unknown error during EOD rebuild.'));
               setRestoreStatus(null);
             }
@@ -127,19 +172,23 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
               clearInterval(pollRef.current);
               pollRef.current = null;
               setIsRestoring(false);
+              setRestoringFilename(null);
               showError('Lost connection while polling restore status. Please refresh.');
               setRestoreStatus(null);
             }
           }
-        }, 3000);
+        }, 1500);
       } else {
         setRestoreStatus(null);
+        setIsRestoring(false);
+        setRestoringFilename(null);
         showSuccess(res.data?.message || 'Restore initiated.');
         if (onRefresh) onRefresh();
         onClose();
       }
     } catch (err) {
       setIsRestoring(false);
+      setRestoringFilename(null);
       setRestoreStatus(null);
       showError('Restore failed: ' + (err.response?.data?.error || err.message));
     }
@@ -225,20 +274,33 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
           </div>
 
           {/* Action Bar */}
-          <div className="px-5 py-3 bg-slate-900/40 border-b border-slate-800/60 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <Archive className="w-4 h-4 text-emerald-400" />
-              <span>{backups.length} snapshot{backups.length !== 1 ? 's' : ''} available (auto-deleted after 10 days)</span>
+          <div className="px-5 py-3 bg-slate-900/40 border-b border-slate-800/60 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
+              <Archive className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="truncate">{backups.length} snapshot{backups.length !== 1 ? 's' : ''} (auto-pruned after 10 days)</span>
             </div>
 
-            <button
-              onClick={handleCreateBackup}
-              disabled={isCreating}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-obsidian-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{isCreating ? 'Backing up...' : 'Backup Now'}</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {backups.length > 0 && (
+                <button
+                  onClick={handleDeleteAllBackups}
+                  disabled={isDeleting || isRestoring}
+                  className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  title="Delete all snapshots"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeleting ? 'Deleting...' : 'Delete All'}</span>
+                </button>
+              )}
+              <button
+                onClick={handleCreateBackup}
+                disabled={isCreating}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-obsidian-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>{isCreating ? 'Backing up...' : 'Backup Now'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Restore Progress Banner */}
@@ -310,14 +372,24 @@ export default function RestoreBackupModal({ isOpen, onClose, onRefresh }) {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleRestore(b.name)}
-                      disabled={isRestoring}
-                      className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 self-end sm:self-auto shrink-0"
-                    >
-                      <ArrowRight className="w-3 h-3" />
-                      <span>{isRestoring ? 'Restoring...' : 'Restore'}</span>
-                    </button>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      <button
+                        onClick={() => handleDeleteBackup(b.name)}
+                        disabled={isRestoring || isDeleting}
+                        className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                        title={`Delete ${b.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleRestore(b.name)}
+                        disabled={isRestoring || isDeleting}
+                        className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <ArrowRight className={`w-3 h-3 ${restoringFilename === b.name ? 'animate-spin' : ''}`} />
+                        <span>{restoringFilename === b.name ? 'Restoring...' : 'Restore'}</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })

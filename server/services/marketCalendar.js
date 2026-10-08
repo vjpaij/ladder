@@ -655,8 +655,50 @@ export function isAnyMarketOpen() {
  */
 export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
   const isToday = (dateISO === getTodayIST());
+  const now = new Date();
+  const nyDate = now.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
-  // 1. If the asset's exchange is actively open right now, it is undeniably MARKET_OPEN
+  // 1. For US stocks, resolve session status relative to New York calendar & trading hours
+  // After Indian midnight (e.g. 00:00 to 01:30 AM IST), New York is still in the afternoon of previous date (nyDate).
+  if (categoryId === 'us_stocks') {
+    const isUsMarketDate = (dateISO === nyDate);
+    const tradingDay = isAssetTradingDay(dateISO, 'us_stocks');
+    if (!tradingDay) {
+      return { isTradingDay: false, isOpenNow: false, sessionType: 'NONE', status: 'NON_TRADING_DAY' };
+    }
+
+    // If checking a date in the future relative to New York (e.g. India is Oct 9 morning, but NY is still on Oct 8):
+    if (dateISO > nyDate) {
+      return { isTradingDay: true, isOpenNow: false, sessionType: 'REGULAR', status: 'PRE_MARKET' };
+    }
+
+    // If dateISO matches active New York date (e.g. Oct 8 when NY is on Oct 8):
+    if (isUsMarketDate) {
+      const nyFormatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/New_York',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false
+      });
+      const parts = nyFormatter.formatToParts(now);
+      const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+      const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+      const curMin = hour * 60 + minute;
+
+      if (curMin >= 570 && curMin <= 960) { // 09:30 AM to 04:00 PM ET
+        return { isTradingDay: true, isOpenNow: true, sessionType: 'LIVE', status: 'MARKET_OPEN' };
+      } else if (curMin < 570) {
+        return { isTradingDay: true, isOpenNow: false, sessionType: 'REGULAR', status: 'PRE_MARKET' };
+      } else {
+        return { isTradingDay: true, isOpenNow: false, sessionType: 'REGULAR', status: 'POST_MARKET' };
+      }
+    }
+
+    // If dateISO < nyDate, it is a finalized completed session
+    return { isTradingDay: true, isOpenNow: false, sessionType: 'COMPLETED', status: 'POST_MARKET' };
+  }
+
+  // 2. If the asset's exchange is actively open right now, it is undeniably MARKET_OPEN
   if (isToday && isAssetMarketOpenNow(categoryId)) {
     return {
       isTradingDay: true,
@@ -666,12 +708,7 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
     };
   }
 
-  // 2. For US stocks, resolve trading day based on US exchange timezone (America/New_York)
-  const effectiveDate = (categoryId === 'us_stocks' && isToday)
-    ? new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-    : dateISO;
-
-  const tradingDay = isAssetTradingDay(effectiveDate, categoryId);
+  const tradingDay = isAssetTradingDay(dateISO, categoryId);
 
   if (!tradingDay) {
     return {
@@ -692,7 +729,6 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
   }
 
   // Determine if current time is before market open or after market close
-  const now = new Date();
   if (categoryId === 'in_stocks') {
     const special = getSpecialTradingSession(dateISO, 'NSE');
     const [startH, startM] = (special?.startTime || '09:15').split(':').map(Number);
@@ -714,29 +750,52 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
     return { isTradingDay: true, isOpenNow: false, sessionType: special ? special.type : 'REGULAR', status: 'POST_MARKET' };
   }
 
-  if (categoryId === 'us_stocks') {
-    const nyFormatter = new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'America/New_York',
+
+  // For Mutual Funds, AMFI NAV updates arrive late in the evening (usually 22:00 to 23:30 IST)
+  if (categoryId === 'mutual_funds') {
+    const istFormatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
       hour: 'numeric',
       minute: 'numeric',
       hour12: false
     });
-    const parts = nyFormatter.formatToParts(now);
+    const parts = istFormatter.formatToParts(now);
     const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
     const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
     const curMin = hour * 60 + minute;
-    if (curMin < 570) { // 09:30 AM ET
-      return { isTradingDay: true, isOpenNow: false, sessionType: 'REGULAR', status: 'PRE_MARKET' };
+    // AMFI NAVs publish in late evening (22:00+ IST). Before 22:00 IST (1320 mins), status is PRE_MARKET
+    if (curMin < 1320) {
+      return { isTradingDay: true, isOpenNow: false, sessionType: 'EOD_NAV', status: 'PRE_MARKET' };
     }
-    return { isTradingDay: true, isOpenNow: false, sessionType: 'REGULAR', status: 'POST_MARKET' };
+    return { isTradingDay: true, isOpenNow: false, sessionType: 'EOD_NAV', status: 'POST_MARKET' };
   }
 
-  // For Mutual Funds and NPS, NAV updates arrive in the evening (usually 21:00 to 23:30)
+  // For NPS schemes, Protean CRA NAV updates publish on T+1 morning or past 23:45 IST
+  if (categoryId === 'nps') {
+    const istFormatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+    const parts = istFormatter.formatToParts(now);
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    const curMin = hour * 60 + minute;
+    // Protean CRA NPS NAVs publish on T+1 morning or late night (23:45+ IST)
+    if (curMin < 1425) { // 23:45 IST
+      return { isTradingDay: true, isOpenNow: false, sessionType: 'EOD_NAV', status: 'PRE_MARKET' };
+    }
+    return { isTradingDay: true, isOpenNow: false, sessionType: 'EOD_NAV', status: 'POST_MARKET' };
+  }
+
+  // Fallback for any other market category
   return {
     isTradingDay: true,
     isOpenNow: false,
-    sessionType: 'EOD_NAV',
+    sessionType: 'COMPLETED',
     status: 'POST_MARKET'
   };
 }
+
 

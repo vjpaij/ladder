@@ -296,6 +296,67 @@ export async function pruneOlderBackups() {
   }
 }
 
+export async function deleteCloudBackup(filename) {
+  if (!filename || typeof filename !== 'string') {
+    throw new Error('Invalid backup filename specified for deletion.');
+  }
+  const cleanFilename = path.basename(filename);
+  console.log(`[Backup Manager] Deleting backup: ${cleanFilename}`);
+
+  // Delete from Supabase Cloud Storage
+  const { error } = await supabase.storage.from(BUCKET_NAME).remove([cleanFilename]);
+  if (error) {
+    console.warn(`[Backup Manager] Cloud delete warning for ${cleanFilename}:`, error.message);
+  }
+
+  // Delete local copy if present
+  const localFilePath = path.join(LOCAL_BACKUP_DIR, cleanFilename);
+  if (fs.existsSync(localFilePath)) {
+    try {
+      fs.unlinkSync(localFilePath);
+      console.log(`[Backup Manager] Deleted local backup: ${cleanFilename}`);
+    } catch (e) {
+      console.warn(`[Backup Manager] Warning deleting local backup ${cleanFilename}:`, e.message);
+    }
+  }
+
+  return { success: true, filename: cleanFilename };
+}
+
+export async function deleteAllCloudBackups() {
+  console.log('[Backup Manager] Deleting all backup snapshots (cloud & local)...');
+  const backups = await listCloudBackups();
+  const fileNames = backups.map(b => b.name).filter(Boolean);
+
+  let deletedCloudCount = 0;
+  if (fileNames.length > 0) {
+    const { error } = await supabase.storage.from(BUCKET_NAME).remove(fileNames);
+    if (error) {
+      console.warn('[Backup Manager] Cloud delete all warning:', error.message);
+    } else {
+      deletedCloudCount = fileNames.length;
+    }
+  }
+
+  // Delete all local backup files
+  let deletedLocalCount = 0;
+  if (fs.existsSync(LOCAL_BACKUP_DIR)) {
+    const localFiles = fs.readdirSync(LOCAL_BACKUP_DIR).filter(f => f.startsWith('ladder_backup_'));
+    for (const f of localFiles) {
+      try {
+        fs.unlinkSync(path.join(LOCAL_BACKUP_DIR, f));
+        deletedLocalCount++;
+      } catch (e) {
+        console.warn(`[Backup Manager] Warning deleting local backup ${f}:`, e.message);
+      }
+    }
+  }
+
+  console.log(`[Backup Manager] Deleted ${deletedCloudCount} cloud backups and ${deletedLocalCount} local backups.`);
+  return { success: true, deletedCloudCount, deletedLocalCount };
+}
+
+
 // Direct execution via CLI
 if (process.argv[1] && process.argv[1].endsWith('backup_manager.mjs')) {
   createCloudBackup()

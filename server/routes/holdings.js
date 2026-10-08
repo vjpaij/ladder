@@ -25,7 +25,7 @@ import { getLoanAmortizationData, settleAmortizationForMonth } from '../services
 import { authenticateToken } from '../middleware/auth.js';
 import { recordDividend, getHoldingDividends } from '../services/dividendService.js';
 import { applyStockSplit } from '../services/corporateActionService.js';
-import { getAssetSessionStatus, getTodayIST } from '../services/marketCalendar.js';
+import { getAssetSessionStatus, getTodayIST, isUsMarketOpen } from '../services/marketCalendar.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -127,7 +127,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
     const todayUsTxs = allTxs.filter(t => t.currency === 'USD' && t.date === todayStr);
     let effectiveUsFx = fxRate;
 
-    if (todayUsTxs.length === 0 && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
+    if (todayUsTxs.length === 0 && !isUsMarketOpen() && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
       try {
         const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
         if (fs.existsSync(eodPath)) {

@@ -490,16 +490,19 @@ app.listen(PORT, async () => {
   setTimeout(runSipSweep, 2000);
   setInterval(runSipSweep, 15 * 60 * 1000);
 
-  // Automated daily EOD rebuild scheduler: runs twice daily
+  // Automated daily EOD rebuild scheduler: runs across 4 target checkpoints
   // 1. 06:30 PM IST (13:00 UTC) — post Indian market close & NAV settlement
-  // 2. 07:00 AM IST (01:30 UTC) — post US market close
+  // 2. 11:45 PM IST (18:15 UTC) — post AMFI & Protean late-night NAV publications
+  // 3. 00:05 AM IST (18:35 UTC) — post midnight rollover to immediately persist yesterday's session
+  // 4. 07:00 AM IST (01:30 UTC) — post US market close
   const scheduleDailyEodRebuild = () => {
     const getNextRebuildDelay = () => {
       const now = new Date();
       const targets = [
         { hour: 1, minute: 30, label: '07:00 AM IST' },
         { hour: 13, minute: 0, label: '06:30 PM IST' },
-        { hour: 18, minute: 15, label: '11:45 PM IST' }
+        { hour: 18, minute: 15, label: '11:45 PM IST' },
+        { hour: 18, minute: 35, label: '00:05 AM IST' }
       ].map(t => {
         const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), t.hour, t.minute, 0, 0));
         if (d.getTime() <= now.getTime()) {

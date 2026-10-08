@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FileSpreadsheet, Upload, Download, CheckCircle2, FileText, Database, Cloud, RefreshCw, ShieldCheck, History, ArrowRight } from 'lucide-react';
+import { FileSpreadsheet, Upload, Download, CheckCircle2, FileText, Database, Cloud, RefreshCw, ShieldCheck, History, ArrowRight, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import { useThemeAuth } from '../context/ThemeAuthContext';
@@ -15,6 +15,7 @@ export default function ExcelToolsView({ onRefresh }) {
   const [isLoadingBackups, setIsLoadingBackups] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchCloudBackups = async () => {
     setIsLoadingBackups(true);
@@ -47,6 +48,44 @@ export default function ExcelToolsView({ onRefresh }) {
     }
   };
 
+  const handleDeleteCloudBackup = async (filename) => {
+    if (isDeleting || isRestoring) return;
+    const confirmed = await showConfirm(
+      `Delete backup snapshot "${filename}"? This will permanently remove it from both Supabase Cloud Storage and local storage.`
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await axios.post('/api/cloud-backups/delete', { filename });
+      showSuccess(res.data.message || `Backup "${filename}" deleted successfully.`);
+      await fetchCloudBackups();
+    } catch (err) {
+      showError('Failed to delete backup: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteAllCloudBackups = async () => {
+    if (isDeleting || isRestoring || backups.length === 0) return;
+    const confirmed = await showConfirm(
+      `Are you sure you want to permanently delete ALL ${backups.length} backup snapshot(s)? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await axios.post('/api/cloud-backups/delete-all');
+      showSuccess(res.data.message || 'All backups deleted successfully.');
+      await fetchCloudBackups();
+    } catch (err) {
+      showError('Failed to delete all backups: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleRestoreCloudBackup = async (filename) => {
     const confirmed = await showConfirm(
       `Are you sure you want to restore the complete database from snapshot "${filename}"? All tables will sync to this point in time.`
@@ -64,6 +103,7 @@ export default function ExcelToolsView({ onRefresh }) {
       setIsRestoring(false);
     }
   };
+
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '—';
@@ -147,7 +187,7 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
         </div>
       </AnimatedItem>
 
-      {/* Cloud 3-Tier Rolling Backup & Snapshot Sync Tool */}
+      {/* Cloud 10-Day Retention Rolling Backup & Snapshot Sync Tool */}
       <AnimatedCard className="glass-card p-6 rounded-3xl border border-indigo-500/20 bg-indigo-950/10 space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -156,13 +196,13 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
             </div>
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                Supabase Cloud Backups (3 Rolling Snapshots)
+                Supabase Cloud Backups
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                  Supabase Storage
+                  10-Day Retention
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                Maintains exactly the 3 most recent complete database snapshots in Supabase Storage with zero impact on database quotas.
+                Compressed snapshots stored in Supabase Storage and pruned automatically after 10 days.
               </p>
             </div>
           </div>
@@ -178,6 +218,19 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBackups ? 'animate-spin' : ''}`} />
             </motion.button>
+            {backups.length > 0 && (
+              <motion.button
+                onClick={handleDeleteAllCloudBackups}
+                disabled={isDeleting || isRestoring}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all disabled:opacity-50"
+                title="Delete all snapshots"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Deleting...' : 'Delete All'}</span>
+              </motion.button>
+            )}
             <motion.button
               onClick={handleCreateCloudBackup}
               disabled={isCreatingBackup}
@@ -222,16 +275,28 @@ US Equity,Pai,AMZN,,Amazon.com Inc,USD,NASDAQ,2022-09-15,BUY,0.484958,127.846,62
                   </div>
                 </div>
 
-                <motion.button
-                  onClick={() => handleRestoreCloudBackup(b.name)}
-                  disabled={isRestoring}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 self-end sm:self-auto"
-                >
-                  <ArrowRight className="w-3 h-3" />
-                  {isRestoring ? 'Restoring...' : 'Restore to this Backup'}
-                </motion.button>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <motion.button
+                    onClick={() => handleDeleteCloudBackup(b.name)}
+                    disabled={isRestoring || isDeleting}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl transition-all disabled:opacity-50"
+                    title={`Delete ${b.name}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </motion.button>
+                  <motion.button
+                    onClick={() => handleRestoreCloudBackup(b.name)}
+                    disabled={isRestoring || isDeleting}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    <ArrowRight className="w-3 h-3" />
+                    {isRestoring ? 'Restoring...' : 'Restore to this Backup'}
+                  </motion.button>
+                </div>
               </div>
             ))
           )}

@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fork } from 'child_process';
 import db from '../db.js';
-import { createCloudBackup, listCloudBackups } from '../../scripts/backup_manager.mjs';
+import { createCloudBackup, listCloudBackups, deleteCloudBackup, deleteAllCloudBackups } from '../../scripts/backup_manager.mjs';
 import { restoreCloudBackup } from '../../scripts/restore_backup.mjs';
 import { authenticateToken } from '../middleware/auth.js';
 import { getWalStatus, flushWal } from '../services/walFlusherService.js';
@@ -34,6 +34,35 @@ router.post('/cloud-backups/create', authenticateToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+router.post('/cloud-backups/delete', authenticateToken, async (req, res) => {
+  try {
+    const { filename } = req.body || {};
+    if (!filename || typeof filename !== 'string') {
+      return res.status(400).json({ error: 'Filename is required for deletion.' });
+    }
+    const result = await deleteCloudBackup(filename);
+    res.json({ success: true, message: `Backup "${result.filename}" deleted successfully.`, result });
+  } catch (err) {
+    console.error('[API Cloud Backup Delete Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/cloud-backups/delete-all', authenticateToken, async (req, res) => {
+  try {
+    const result = await deleteAllCloudBackups();
+    res.json({
+      success: true,
+      message: `All backups deleted successfully (${result.deletedCloudCount} cloud, ${result.deletedLocalCount} local).`,
+      result
+    });
+  } catch (err) {
+    console.error('[API Cloud Backup Delete All Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // In-process restore job ledger: jobId -> { status, message, startedAt, completedAt, error? }
 const restoreJobs = new Map();
@@ -85,7 +114,17 @@ router.post('/cloud-backups/restore', authenticateToken, async (req, res) => {
       result
     });
 
-    // EOD rebuild asynchronously in background
+    // If the restored snapshot already included complete pnl_history, the restoration is 100% complete immediately!
+    const restoredPnl = result?.restoredCounts?.pnl_history || 0;
+    if (restoredPnl > 0) {
+      job.status = 'succeeded';
+      job.message = `Database fully restored from "${result.snapshotFile}" with all ${restoredPnl} EOD records synchronized!`;
+      job.completedAt = new Date().toISOString();
+      restoreInProgress = false;
+      return;
+    }
+
+    // Otherwise, for legacy backups lacking pnl_history, rebuild in background
     (async () => {
       try {
         await new Promise((resolve, reject) => {

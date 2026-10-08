@@ -6,7 +6,7 @@ import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, isAnyMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
+import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, isAnyMarketOpen, isUsMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -116,8 +116,33 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     });
 
     // Identify last trading day log before today (e.g. previous finalized session)
+    const nyDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    if (isUsMarketOpen() && nyDate < todayStr) {
+      const nyLogIdx = eodLogs.findIndex(l => l.date === nyDate);
+      if (nyLogIdx >= 0) {
+        const nyLog = eodLogs[nyLogIdx];
+        const updatedUsVal = Number((liveTodayValuation.us_stocks ?? 0).toFixed(2));
+        nyLog.us_stocks = updatedUsVal;
+        nyLog.us_stocks_val_inr = updatedUsVal;
+        nyLog.total_assets = Number((
+          (nyLog.savings || 0) +
+          (nyLog.epf || 0) +
+          (nyLog.mutual_funds || 0) +
+          (nyLog.indian_stocks || 0) +
+          updatedUsVal +
+          (nyLog.nps || 0)
+        ).toFixed(2));
+        nyLog.total_assets_inr = nyLog.total_assets;
+        const debtVal = Number((nyLog.debt !== undefined ? nyLog.debt : ((nyLog.loan || 0) + (nyLog.credits || 0))).toFixed(2));
+        nyLog.wealth = Number((nyLog.total_assets - debtVal).toFixed(2));
+        nyLog.total_wealth = nyLog.wealth;
+        nyLog.net_worth_inr = nyLog.wealth;
+      }
+    }
+
     const priorLogs = eodLogs.filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
     const lastTradingLog = priorLogs[0];
+
 
     // Multi-Asset Dynamic Valuation Engine:
     // Decoupled from rigid weekend or fixed holiday assumptions.

@@ -1128,10 +1128,11 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
               current_price: navNum,
               day_change: dayChange,
               day_change_pct: dayChangePct,
+              quote_date: qDate,
               updated_at: new Date().toISOString()
             };
 
-            if (navNum !== Number(h.current_price) || h.day_change !== dayChange) {
+            if (navNum !== Number(h.current_price) || h.day_change !== dayChange || h.quote_date !== qDate) {
               updateCacheRow('holdings', h.id, updates);
               if (persistToDb) {
                 await db.update('holdings', h.id, updates);

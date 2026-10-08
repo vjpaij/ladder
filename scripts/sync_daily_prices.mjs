@@ -3,6 +3,7 @@ import path from 'path';
 import axios from 'axios';
 import YahooFinance from 'yahoo-finance2';
 import { db, initDatabase } from '../server/db.js';
+import { supabase } from '../server/supabaseClient.js';
 
 const yahooFinance = new YahooFinance({ suppressNotices: ['ripHistorical'] });
 
@@ -126,16 +127,15 @@ async function syncAllPrices() {
     console.log(`Updated FX rates. Latest FX: ${Object.keys(fxData).sort().pop()} = ${fxData[Object.keys(fxData).sort().pop()]}`);
   }
 
-  console.log('=== 3. Loading active holdings from Supabase ===');
+  console.log('=== 3. Loading holdings from Supabase ===');
   const holdings = await db.select('holdings');
-  const activeHoldings = holdings.filter(h => (Number(h.quantity) || 0) > 0);
 
-  const mfHoldings = activeHoldings.filter(h => h.category_id === 'mutual_funds');
-  const npsHoldings = activeHoldings.filter(h => h.category_id === 'nps');
-  const usHoldings = activeHoldings.filter(h => h.category_id === 'us_stocks');
-  const inHoldings = activeHoldings.filter(h => h.category_id === 'in_stocks');
+  const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds');
+  const npsHoldings = holdings.filter(h => h.category_id === 'nps');
+  const usHoldings = holdings.filter(h => h.category_id === 'us_stocks');
+  const inHoldings = holdings.filter(h => h.category_id === 'in_stocks');
 
-  console.log(`Active: ${inHoldings.length} Indian Stocks, ${usHoldings.length} US Stocks, ${mfHoldings.length} MFs, ${npsHoldings.length} NPS`);
+  console.log(`Holdings: ${inHoldings.length} Indian Stocks, ${usHoldings.length} US Stocks, ${mfHoldings.length} MFs, ${npsHoldings.length} NPS`);
 
   // 3a. Sync Mutual Funds
   console.log('--- Syncing Mutual Funds ---');
@@ -148,12 +148,33 @@ async function syncAllPrices() {
     }
   }
 
-  // 3b. Sync NPS
+  // 3b. Sync NPS (Protean CRA Supabase Table + npsnav.in Fallback)
   console.log('--- Syncing NPS Schemes ---');
+  const heldNpsCodes = npsHoldings.map(h => h.symbol).filter(Boolean);
+  let proteanNavRows = [];
+  try {
+    const { data } = await supabase
+      .from('nps_daily_navs')
+      .select('scheme_code, nav, nav_date')
+      .in('scheme_code', heldNpsCodes)
+      .order('nav_date', { ascending: true });
+    proteanNavRows = data || [];
+  } catch (e) {
+    console.warn('[Sync] nps_daily_navs fetch error:', e.message);
+  }
+
+  const proteanMap = {};
+  proteanNavRows.forEach(r => {
+    if (!proteanMap[r.scheme_code]) proteanMap[r.scheme_code] = {};
+    proteanMap[r.scheme_code][r.nav_date] = Number(r.nav);
+  });
+
   for (const h of npsHoldings) {
-    const fresh = await fetchNpsHistorical(h.symbol);
-    if (Object.keys(fresh).length > 0) {
-      historicalData[h.symbol] = { ...(historicalData[h.symbol] || {}), ...fresh };
+    const fallbackFresh = await fetchNpsHistorical(h.symbol);
+    // Official Protean CRA scraped NAVs take absolute priority
+    const combinedNps = { ...(fallbackFresh || {}), ...(proteanMap[h.symbol] || {}) };
+    if (Object.keys(combinedNps).length > 0) {
+      historicalData[h.symbol] = { ...(historicalData[h.symbol] || {}), ...combinedNps };
       const latestDate = Object.keys(historicalData[h.symbol]).sort().pop();
       console.log(`[NPS] ${h.symbol}: Latest ${latestDate} = ${historicalData[h.symbol][latestDate]}`);
     }
@@ -187,7 +208,7 @@ async function syncAllPrices() {
     }
     let fresh = await fetchYahooFinanceHistorical(fetchSym);
     
-    // Check if we need .BO fallback due to incomplete coverage (e.g. recent NSE listing)
+    // Check if we need .BO fallback due to incomplete coverage (e.g. recent NSE listing or zero data)
     let isIncomplete = false;
     const freshDates = Object.keys(fresh).sort();
     if (freshDates.length > 0) {
@@ -198,19 +219,25 @@ async function syncAllPrices() {
 
     if (Object.keys(fresh).length > 0) {
       historicalData[h.symbol] = { ...(historicalData[h.symbol] || {}), ...fresh };
-      const latestDate = Object.keys(historicalData[h.symbol]).sort().pop();
-      console.log(`[IN ${i+1}/${inHoldings.length}] ${h.symbol}: Latest ${latestDate} = ₹${historicalData[h.symbol][latestDate]}`);
     }
     
-    if ((Object.keys(fresh).length === 0 || isIncomplete) && fetchSym.endsWith('.NS')) {
+    if (fetchSym.endsWith('.NS')) {
       const boSym = fetchSym.replace('.NS', '.BO');
       const boFresh = await fetchYahooFinanceHistorical(boSym);
       if (Object.keys(boFresh).length > 0) {
-        historicalData[h.symbol] = { ...(historicalData[h.symbol] || {}), ...boFresh };
-        const latestDate = Object.keys(historicalData[h.symbol]).sort().pop();
-        console.log(`[IN ${i+1}/${inHoldings.length} - BO fallback merged] ${h.symbol}: Latest ${latestDate} = ₹${historicalData[h.symbol][latestDate]}`);
+        if (!historicalData[h.symbol]) historicalData[h.symbol] = {};
+        for (const [dStr, bPrice] of Object.entries(boFresh)) {
+          // Merge BSE quote if higher or if NSE quote missing
+          const existingPrice = historicalData[h.symbol][dStr] || 0;
+          if (bPrice > existingPrice || existingPrice === 0) {
+            historicalData[h.symbol][dStr] = bPrice;
+          }
+        }
       }
     }
+
+    const latestDate = historicalData[h.symbol] ? Object.keys(historicalData[h.symbol]).sort().pop() : 'N/A';
+    console.log(`[IN ${i+1}/${inHoldings.length}] ${h.symbol}: Latest ${latestDate} = ₹${historicalData[h.symbol]?.[latestDate]}`);
     await delay(250);
   }
 
@@ -219,3 +246,4 @@ async function syncAllPrices() {
 }
 
 syncAllPrices().catch(console.error);
+

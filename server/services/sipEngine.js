@@ -162,23 +162,36 @@ export async function processDueSips() {
       const netInvested = totalAmount - charges;
       const units = parseFloat((netInvested / nav).toFixed(4));
 
-      // 1. Insert BUY / SIP transaction
-      await db.insert('transactions', {
-        holding_id: sip.holding_id,
-        type: 'BUY',
-        quantity: units,
-        price: nav,
-        total_amount: netInvested,
-        charges: charges,
-        currency: 'INR',
-        date: scheduledDate,
-        symbol: sip.symbol,
-        name: sip.name,
-        notes: `SIP @ NAV Rs.${nav.toFixed(4)}`
-      });
+      // Idempotency guard: check if SIP transaction already exists for this holding on scheduledDate
+      const existingTxs = await db.select('transactions');
+      const alreadyExecuted = (existingTxs || []).some(t => 
+        (t.holding_id === sip.holding_id || t.symbol === sip.symbol) &&
+        t.date === scheduledDate &&
+        t.type === 'BUY' &&
+        (t.notes || '').includes('SIP')
+      );
 
-      // 2. Recompute holding position accurately
-      await recalculateHoldingState(sip.holding_id);
+      if (!alreadyExecuted) {
+        // 1. Insert BUY / SIP transaction
+        await db.insert('transactions', {
+          holding_id: sip.holding_id,
+          type: 'BUY',
+          quantity: units,
+          price: nav,
+          total_amount: netInvested,
+          charges: charges,
+          currency: 'INR',
+          date: scheduledDate,
+          symbol: sip.symbol,
+          name: sip.name,
+          notes: `SIP @ NAV Rs.${nav.toFixed(4)}`
+        });
+
+        // 2. Recompute holding position accurately
+        await recalculateHoldingState(sip.holding_id);
+      } else {
+        console.log(`[SIP Engine] SIP for ${sip.name} on ${scheduledDate} already executed. Skipping duplicate insertion.`);
+      }
 
       // 3. Compute next run date based on frequency (Weekly, Fortnightly, Monthly, Quarterly)
       const currentNext = new Date(scheduledDate);

@@ -7,7 +7,7 @@ import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/pr
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getTodayIST, isAnyMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
+import { getTodayIST, isAnyMarketOpen, isUsMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -432,6 +432,23 @@ router.get('/summary', async (req, res) => {
       }
     }
 
+    const nyDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    if (isUsMarketOpen() && nyDate < todayStr && yesterdayLog && yesterdayLog.date === nyDate) {
+      const updatedUsVal = Number((valuation.us_stocks || 0).toFixed(2));
+      yesterdayLog.us_stocks = updatedUsVal;
+      yesterdayLog.us_stocks_val_inr = updatedUsVal;
+      const debtVal = Number((yesterdayLog.debt !== undefined ? yesterdayLog.debt : ((yesterdayLog.loan || 0) + (yesterdayLog.credits || 0))).toFixed(2));
+      yesterdayAssets = Number((
+        (yesterdayLog.savings || 0) +
+        (yesterdayLog.epf || 0) +
+        (yesterdayLog.mutual_funds || 0) +
+        (yesterdayLog.indian_stocks || 0) +
+        updatedUsVal +
+        (yesterdayLog.nps || 0)
+      ).toFixed(2));
+      yesterdayWealth = Number((yesterdayAssets - debtVal).toFixed(2));
+    }
+
     if (yesterdayWealth === null) {
       yesterdayWealth = netWorthINR;
     }
@@ -441,6 +458,7 @@ router.get('/summary', async (req, res) => {
     const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
     const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
     const npsStatus = getAssetSessionStatus('nps', todayStr);
+
 
     const prevInStocks = Number((yesterdayLog?.indian_stocks ?? yesterdayLog?.stocks_val_inr ?? 0).toFixed(2));
     const prevUsStocks = Number((yesterdayLog?.us_stocks ?? yesterdayLog?.us_stocks_val_inr ?? 0).toFixed(2));
