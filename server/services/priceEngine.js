@@ -291,25 +291,132 @@ export async function fetchStockQuote(symbol) {
   return liveQuoteCache.get(symbol) || null;
 }
 
+// In-memory cache for official AMFI NAV batch: { navMap, cachedAt }
+let amfiNavBatchCache = null;
+const AMFI_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+export async function fetchAmfiNavBatch() {
+  if (amfiNavBatchCache && (Date.now() - amfiNavBatchCache.cachedAt < AMFI_CACHE_TTL_MS)) {
+    return amfiNavBatchCache.navMap;
+  }
+  try {
+    const res = await axios.get('https://www.amfiindia.com/spages/NAVAll.txt', { timeout: 10000 });
+    const lines = res.data.split('\n');
+    const navMap = new Map();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('Scheme Code')) continue;
+      const parts = trimmed.split(';');
+      if (parts.length >= 5 && /^\d+$/.test(parts[0].trim())) {
+        const code = parts[0].trim();
+        const dateStr = parts[parts.length - 1].trim();
+        let nav = null;
+        for (let i = parts.length - 2; i >= 1; i--) {
+          const val = parseFloat(parts[i].trim());
+          if (!isNaN(val) && val > 0) {
+            nav = val;
+            break;
+          }
+        }
+        if (nav !== null) {
+          navMap.set(code, {
+            code,
+            name: parts[3]?.trim() || '',
+            nav,
+            date: dateStr
+          });
+        }
+      }
+    }
+    amfiNavBatchCache = { navMap, cachedAt: Date.now() };
+    return navMap;
+  } catch (err) {
+    console.warn('[AMFI Batch] Fetch warning:', err.message);
+    return amfiNavBatchCache?.navMap || null;
+  }
+}
+
 export async function fetchMutualFundNav(schemeCode, targetDate = null) {
   try {
-    const res = await axios.get(`https://api.mfapi.in/mf/${schemeCode}`, { timeout: 5000 });
-    if (res.data && res.data.data && res.data.data.length > 0) {
-      const records = targetDate
-        ? res.data.data.filter(record => {
-            const [day, month, year] = String(record.date || '').split('-');
-            return `${year}-${month}-${day}` <= targetDate;
-          })
-        : res.data.data;
-      const latest = records[0];
-      if (!latest) return null;
-      const prev = records[1] || latest;
+    // If no historical targetDate requested, first check real-time official AMFI NAVAll batch
+    let amfiItem = null;
+    if (!targetDate) {
+      try {
+        const amfiMap = await fetchAmfiNavBatch();
+        if (amfiMap && amfiMap.has(schemeCode)) {
+          amfiItem = amfiMap.get(schemeCode);
+        }
+      } catch (e) {
+        console.warn(`[AMFI Batch Error for ${schemeCode}]:`, e.message);
+      }
+    }
+
+    let mfApiRecords = null;
+    try {
+      const res = await axios.get(`https://api.mfapi.in/mf/${schemeCode}`, { timeout: 5000 });
+      if (res.data && res.data.data && res.data.data.length > 0) {
+        mfApiRecords = targetDate
+          ? res.data.data.filter(record => {
+              const [day, month, year] = String(record.date || '').split('-');
+              return `${year}-${month}-${day}` <= targetDate;
+            })
+          : res.data.data;
+      }
+    } catch (e) {
+      // mfapi fallback warning
+    }
+
+    if (amfiItem && (!targetDate || amfiItem.date <= targetDate)) {
+      const nav = Number(amfiItem.nav);
+      let prevNav = nav;
+      let fiftyTwoWeekHigh = nav;
+      let fiftyTwoWeekLow = nav;
+
+      if (mfApiRecords && mfApiRecords.length > 0) {
+        const latestMfApi = mfApiRecords[0];
+        const latestMfApiNav = parseFloat(latestMfApi.nav);
+        if (Math.abs(latestMfApiNav - nav) > 0.0001) {
+          prevNav = latestMfApiNav;
+        } else if (mfApiRecords.length > 1) {
+          prevNav = parseFloat(mfApiRecords[1].nav);
+        }
+        const yearRecords = mfApiRecords.slice(0, 252).map(r => parseFloat(r.nav)).filter(n => !isNaN(n));
+        if (yearRecords.length > 0) {
+          fiftyTwoWeekHigh = Math.max(...yearRecords, nav);
+          fiftyTwoWeekLow = Math.min(...yearRecords, nav);
+        }
+      }
+
+      const dayChange = Number((nav - prevNav).toFixed(4));
+      const dayChangePct = prevNav > 0 ? Number(((dayChange / prevNav) * 100).toFixed(2)) : 0;
+      const quoteDate = formatCleanQuoteDate(amfiItem.date);
+
+      return {
+        nav,
+        date: amfiItem.date,
+        quoteDate,
+        previousNav: prevNav,
+        previousClose: prevNav,
+        dayChange,
+        dayChangePct,
+        open: prevNav,
+        high: nav,
+        low: prevNav,
+        close: nav,
+        fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(4)),
+        fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(4))
+      };
+    }
+
+    if (mfApiRecords && mfApiRecords.length > 0) {
+      const latest = mfApiRecords[0];
+      const prev = mfApiRecords[1] || latest;
       const nav = parseFloat(latest.nav);
       const prevNav = parseFloat(prev.nav);
       const dayChange = nav - prevNav;
       const dayChangePct = prevNav > 0 ? Number(((dayChange / prevNav) * 100).toFixed(2)) : 0;
 
-      const yearRecords = records.slice(0, 252).map(r => parseFloat(r.nav)).filter(n => !isNaN(n));
+      const yearRecords = mfApiRecords.slice(0, 252).map(r => parseFloat(r.nav)).filter(n => !isNaN(n));
       const fiftyTwoWeekHigh = yearRecords.length > 0 ? Math.max(...yearRecords) : nav;
       const fiftyTwoWeekLow = yearRecords.length > 0 ? Math.min(...yearRecords) : nav;
       const quoteDate = formatCleanQuoteDate(latest.date);
@@ -895,14 +1002,46 @@ export async function fetchNpsHistoricalNav(schemeCode) {
  * @param {Object} [options]
  * @param {boolean} [options.activeOnly=true] - If true, only holdings with quantity > 0 are refreshed
  */
-export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = false, marketSession = 'ALL' } = {}) {
+export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = false, marketSession = 'ALL', forceAll = false } = {}) {
   const allHoldings = await db.select('holdings');
   const holdings = activeOnly ? allHoldings.filter(h => Number(h.quantity) > 0) : allHoldings;
   const fxRate = await fetchFxRate();
   let updatedCount = 0;
 
-  const shouldRefreshUs = marketSession === 'ALL' || marketSession === 'US';
-  const shouldRefreshIn = marketSession === 'ALL' || marketSession === 'IN';
+  const todayStr = getTodayIST();
+  const lastTradingDayNse = getLastTradingDay(todayStr, 'NSE');
+  const cleanLastTradingDayNse = formatCleanQuoteDate(lastTradingDayNse);
+
+  // Check if any active Indian equity, MF, or NPS has a stale or missing quote in liveQuoteCache
+  let hasStaleIndian = forceAll;
+  let hasStaleMf = forceAll;
+  let hasStaleNps = forceAll;
+
+  if (!forceAll) {
+    for (const h of holdings) {
+      if (h.category_id === 'in_stocks') {
+        const q = liveQuoteCache.get(h.symbol);
+        if (!q || !q.quoteDate || q.quoteDate < cleanLastTradingDayNse) {
+          hasStaleIndian = true;
+        }
+      } else if (h.category_id === 'mutual_funds') {
+        const q = liveQuoteCache.get(h.symbol);
+        if (!q || !q.quoteDate || q.quoteDate < cleanLastTradingDayNse) {
+          hasStaleMf = true;
+        }
+      } else if (h.category_id === 'nps') {
+        const q = liveQuoteCache.get(h.symbol);
+        if (!q || !q.quoteDate || q.quoteDate < cleanLastTradingDayNse) {
+          hasStaleNps = true;
+        }
+      }
+    }
+  }
+
+  const shouldRefreshUs = forceAll || marketSession === 'ALL' || marketSession === 'US';
+  const shouldRefreshIn = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleIndian;
+  const shouldRefreshMf = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleMf;
+  const shouldRefreshNps = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleNps;
 
   // 1. Refresh US stocks in parallel
   if (shouldRefreshUs) {
@@ -999,8 +1138,10 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
         }
       }));
     }
+  }
 
-    // 3. Refresh Mutual Funds in parallel
+  // 3. Refresh Mutual Funds in parallel
+  if (shouldRefreshMf) {
     const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds');
     await Promise.all(mfHoldings.map(async (h) => {
       try {
@@ -1034,8 +1175,10 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
         console.warn(`[Sync] Failed to fetch MF ${h.symbol}:`, e.message);
       }
     }));
+  }
 
-    // 4. Refresh NPS schemes in parallel
+  // 4. Refresh NPS schemes in parallel
+  if (shouldRefreshNps) {
     const npsHoldings = holdings.filter(h => h.category_id === 'nps');
     if (npsHoldings.length > 0) {
       const heldCodes = npsHoldings.map(h => h.symbol).filter(Boolean);
@@ -1159,6 +1302,7 @@ export async function refreshActiveHoldingsPrices(options = {}) {
   const usOpen = isUsMarketOpen();
   if (inOpen && !usOpen) marketSession = 'IN';
   else if (!inOpen && usOpen) marketSession = 'US';
+  if (options.forceAll) marketSession = 'ALL';
   return refreshHoldingsPrices({ activeOnly: true, marketSession, ...options });
 }
 

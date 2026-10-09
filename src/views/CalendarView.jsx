@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -84,65 +84,58 @@ export default function CalendarView() {
   // View mode: 'grid' or 'table'
   const [viewMode, setViewMode] = useState('grid');
   // Granularity: 'daily', 'monthly', 'yearly'
-  const [granularity, setGranularity] = useState('daily');
+  const [granularity, setGranularity] = useState(() => {
+    try {
+      return localStorage.getItem('ladder_calendar_granularity') || 'daily';
+    } catch (e) {
+      return 'daily';
+    }
+  });
   const [sortField, setSortField] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
 
-  // Range & Custom Date pickers
-  const [calendarRangeFilter, setCalendarRangeFilter] = useState({ type: 'RELATIVE', count: 1, unit: 'M', rangeKey: '1M' });
+  // Range & Custom Date pickers with persistence
+  const [calendarRangeFilter, setCalendarRangeFilter] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ladder_calendar_range');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { type: 'RELATIVE', count: 1, unit: 'M', rangeKey: '1M' };
+  });
 
+  const calendarRangeFilterRef = useRef(calendarRangeFilter);
   useEffect(() => {
-    fetchLogs();
-    // Background polling: calendar data is historical, refreshes once per day.
-    // 60s is well above the 30s minimum per Rule 19.
-    const interval = setInterval(() => {
-      fetchLogs(true);
-    }, 60000);
-    return () => clearInterval(interval);
+    calendarRangeFilterRef.current = calendarRangeFilter;
   }, [calendarRangeFilter]);
 
-  // Instantly refresh calendar when any transaction or holding is updated anywhere in the app
-  useEffect(() => {
-    const handleUpdate = () => fetchLogs(true);
-    window.addEventListener('ladder-data-updated', handleUpdate);
-    return () => window.removeEventListener('ladder-data-updated', handleUpdate);
-  }, []);
+  const handleGranularityChange = (newGran) => {
+    setGranularity(newGran);
+    try {
+      localStorage.setItem('ladder_calendar_granularity', newGran);
+    } catch (e) {}
+  };
 
-  // Global keydown listener for Esc and Enter across modals and popovers
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (selectedModalKey) setSelectedModalKey(null);
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedModalKey]);
-
-  // Lock body scrolling when popup is open to prevent page shifting
-  useEffect(() => {
-    if (selectedModalKey) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [selectedModalKey]);
+  const handleRangeChange = (newRange) => {
+    setCalendarRangeFilter(newRange);
+    calendarRangeFilterRef.current = newRange;
+    try {
+      localStorage.setItem('ladder_calendar_range', JSON.stringify(newRange));
+    } catch (e) {}
+  };
 
   const fetchLogs = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
       let url = '/api/daily-pnl';
+      const currentFilter = calendarRangeFilterRef.current || calendarRangeFilter;
       const params = [];
-      if (calendarRangeFilter.type === 'ALL') {
+      if (currentFilter.type === 'ALL') {
         params.push('range=ALL');
-      } else if (calendarRangeFilter.startDate && calendarRangeFilter.endDate) {
-        params.push(`startDate=${calendarRangeFilter.startDate}`);
-        params.push(`endDate=${calendarRangeFilter.endDate}`);
-      } else if (calendarRangeFilter.rangeKey) {
-        params.push(`range=${calendarRangeFilter.rangeKey}`);
+      } else if (currentFilter.startDate && currentFilter.endDate) {
+        params.push(`startDate=${currentFilter.startDate}`);
+        params.push(`endDate=${currentFilter.endDate}`);
+      } else if (currentFilter.rangeKey) {
+        params.push(`range=${currentFilter.rangeKey}`);
       }
       if (params.length > 0) url += `?${params.join('&')}`;
 
@@ -163,6 +156,22 @@ export default function CalendarView() {
       if (!isSilent) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchLogs();
+    // Background polling: calendar data refreshes periodically
+    const interval = setInterval(() => {
+      fetchLogs(true);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [calendarRangeFilter]);
+
+  // Instantly refresh calendar when any transaction or holding is updated anywhere in the app
+  useEffect(() => {
+    const handleUpdate = () => fetchLogs(true);
+    window.addEventListener('ladder-data-updated', handleUpdate);
+    return () => window.removeEventListener('ladder-data-updated', handleUpdate);
+  }, []);
 
   const [modalTab, setModalTab] = useState('changed');
 
@@ -370,7 +379,7 @@ export default function CalendarView() {
               ].map((g) => (
                 <button
                   key={g.id}
-                  onClick={() => setGranularity(g.id)}
+                  onClick={() => handleGranularityChange(g.id)}
                   className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-all duration-200 ${
                     granularity === g.id
                       ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-sm'
@@ -412,8 +421,13 @@ export default function CalendarView() {
             </div>
 
             <ChartRangeSelector
-              initialRange="1M"
-              onChange={(range) => setCalendarRangeFilter(range)}
+              initialRange={calendarRangeFilter.rangeKey || '1M'}
+              rangeType={calendarRangeFilter.type}
+              relativeCount={calendarRangeFilter.count}
+              relativeUnit={calendarRangeFilter.unit}
+              startDate={calendarRangeFilter.startDate}
+              endDate={calendarRangeFilter.endDate}
+              onChange={handleRangeChange}
             />
           </div>
         </div>

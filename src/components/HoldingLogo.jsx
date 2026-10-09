@@ -52,7 +52,11 @@ export default function HoldingLogo({
 
   return (
     <div
-      className={`relative flex items-center justify-center font-mono font-black overflow-hidden shrink-0 border border-slate-300/80 dark:border-slate-700/80 bg-white shadow-xs ${containerClass}`}
+      className={`relative flex items-center justify-center font-mono font-black shrink-0 ${
+        failed
+          ? `border border-slate-300/80 dark:border-slate-700/80 bg-slate-100 dark:bg-slate-800/90 shadow-xs ${containerClass}`
+          : `bg-transparent overflow-hidden ${containerClass}`
+      }`}
       style={failed && accentColor ? { background: `${accentColor}18`, borderColor: `${accentColor}40`, color: accentColor } : {}}
       title={finalName || finalSymbol}
     >
@@ -60,12 +64,12 @@ export default function HoldingLogo({
         <img 
           src={urls[urlIndex]} 
           alt={fallbackText}
-          className={`w-full h-full object-contain bg-white transition-opacity duration-200 ${isSmall ? 'p-0.5' : 'p-1'}`}
+          className="w-full h-full object-contain rounded-[inherit] transition-opacity duration-200"
           onError={handleImageError}
           loading="lazy"
         />
       ) : (
-        <div className={`w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800/90 text-slate-800 dark:text-slate-200 ${fallbackClass || (isSmall ? 'text-[9px]' : 'text-xs')}`}>
+        <div className={`w-full h-full flex items-center justify-center text-slate-800 dark:text-slate-200 ${fallbackClass || (isSmall ? 'text-[9px]' : 'text-xs')}`}>
           <span className="select-none tracking-tighter leading-none">{fallbackText}</span>
         </div>
       )}

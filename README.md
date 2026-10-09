@@ -45,6 +45,8 @@ Ladder is an institutional-grade personal finance and investment management dash
 
 6. **High-Performance Growth Benchmark & Reports Suite**
    - Dedicated service (`server/services/benchmarkEngine.js`) calculating true money-weighted performance vs Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ with binary search index lookups and live sync staleness badge ("Synced: DD-MM-YYYY").
+   - Dynamic start-vs-end gain/loss evaluation across all charts (Rose Red on drops, Emerald Green on gains).
+   - Clean, full-size transparent asset logos across all 400+ instruments with zero artificial white borders or shrinkage.
    - **Contextual Holding Transaction Drawer**: "+ Add Transaction" button inside `HoldingDetailModal.jsx` pre-filled with holding metadata for instant ledger additions across all asset categories.
    - Comprehensive Reports Hub with Asset Allocation, Market Cap look-through, Sector drill-downs, and a dedicated **Consolidated Performance** view analyzing Active vs Realized vs Lifetime returns across all portfolio categories.
    - High-density, clutter-free metric box architecture across all asset classes with vertical label-metric hierarchy, zero-overflow secondary grids, and clean tabular alignment.

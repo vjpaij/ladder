@@ -5,7 +5,7 @@ import axios from 'axios';
 import { db, initDatabase, saveCacheSnapshotToDisk, setCacheEntry } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache, resolveHoldingPrice } from '../server/services/priceEngine.js';
+import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache, resolveHoldingPrice, fetchAmfiNavBatch, formatCleanQuoteDate } from '../server/services/priceEngine.js';
 import { getYesterdayIST, getLastTradingDay } from '../server/services/marketCalendar.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
@@ -216,17 +216,39 @@ async function rebuildEod() {
 
   // 2. Fetch latest official AMFI Mutual Fund historical NAVs in parallel
   const mfHistoricalPrices = {};
+  let amfiLiveMap = null;
+  try {
+    amfiLiveMap = await fetchAmfiNavBatch();
+  } catch (e) {
+    console.warn('[MF EOD AMFI Batch Warning]:', e.message);
+  }
+
   await Promise.all(mfHoldings.map(async (holding) => {
     try {
       const res = await axios.get(`https://api.mfapi.in/mf/${holding.symbol}`, { timeout: 8000 });
+      const map = {};
       if (res.data && res.data.data) {
-        const map = {};
         res.data.data.forEach(item => {
           const parts = item.date.split('-');
           if (parts.length === 3) map[`${parts[2]}-${parts[1]}-${parts[0]}`] = parseFloat(item.nav);
         });
-        mfHistoricalPrices[holding.symbol] = map;
       }
+      // Inject authoritative real-time official AMFI NAV for latest date
+      if (amfiLiveMap && amfiLiveMap.has(holding.symbol)) {
+        const amfiItem = amfiLiveMap.get(holding.symbol);
+        if (amfiItem && amfiItem.nav > 0) {
+          // Parse date (e.g. 09-Oct-2026)
+          const cleanDate = formatCleanQuoteDate(amfiItem.date);
+          const dParts = String(amfiItem.date || '').split('-');
+          if (dParts.length === 3) {
+            const months = { 'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12' };
+            const mStr = months[dParts[1]] || dParts[1];
+            const iso = `${dParts[2]}-${mStr}-${dParts[0].padStart(2, '0')}`;
+            map[iso] = Number(amfiItem.nav);
+          }
+        }
+      }
+      mfHistoricalPrices[holding.symbol] = map;
     } catch (e) {
       console.warn(`[MF EOD Fetch Warning] ${holding.symbol}:`, e.message);
     }
@@ -298,16 +320,12 @@ async function rebuildEod() {
     }
   }
 
-  // 3b. Synchronize active Indian equities in DB with verified closing quotes on the latest completed trading day
+  // 3b. Ensure historicalPrices cache contains the authoritative NSE/BSE MAX quotes for the latest completed trading day
   for (const h of inHoldings) {
     if (!historicalPrices[h.symbol]) historicalPrices[h.symbol] = {};
-    const settledPrice = historicalPrices[h.symbol][lastNseTradingDay];
-    if (settledPrice !== undefined && settledPrice !== null && Number(settledPrice) > 0) {
-      const priceNum = Number(settledPrice);
-      if (Math.abs(priceNum - Number(h.current_price || 0)) > 0.001) {
-        await db.update('holdings', h.id, { current_price: priceNum, quote_date: lastNseTradingDay });
-        h.current_price = priceNum;
-      }
+    const currentResolved = resolveHoldingPrice(h);
+    if (currentResolved > 0) {
+      historicalPrices[h.symbol][lastNseTradingDay] = currentResolved;
     }
   }
 
@@ -524,6 +542,10 @@ async function rebuildEod() {
         }
 
         let p = prices[dateStr];
+        if (dateStr >= lastNseTradingDay && Number(h.quantity) > 0) {
+          const liveP = resolveHoldingPrice(h);
+          if (liveP > 0) p = liveP;
+        }
         if (p === undefined || p === null || isNaN(p) || p <= 0) {
           const prevDates = Object.keys(prices).filter(k => k < dateStr && prices[k] > 0).sort().reverse();
           if (prevDates.length > 0) p = prices[prevDates[0]];

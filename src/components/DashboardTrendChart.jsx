@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TrendingUp, 
+  TrendingDown,
   Layers, 
   Plus, 
   Check, 
@@ -335,6 +336,47 @@ export default function DashboardTrendChart({
     return selectedSeries.map(id => METRIC_MAP[id]).filter(Boolean);
   }, [selectedSeries]);
 
+  const singleSeriesSelected = activeMetrics.length === 1;
+
+  // Dynamic color resolution based on start vs end position
+  const getMetricColor = (metric) => {
+    if (!metric) return '#10B981';
+    if (!chartData || chartData.length < 2) return metric.color;
+
+    const startVal = chartData[0][metric.dataKey] ?? 0;
+    const endVal = chartData[chartData.length - 1][metric.dataKey] ?? 0;
+
+    // For Liabilities: increasing debt is negative (Red), decreasing is positive (Green/Default)
+    if (metric.category === 'liabilities') {
+      if (endVal > startVal) return '#F43F5E';
+      if (endVal < startVal) return '#10B981';
+      return metric.color;
+    }
+
+    // For Net Worth, Assets, or Single Selected Series:
+    // If end position is less than start position, render Rose / Red (#F43F5E)
+    if (metric.id === 'net_worth' || singleSeriesSelected) {
+      if (endVal < startVal) return '#F43F5E';
+      if (endVal > startVal) return '#10B981';
+      return metric.color;
+    }
+
+    return metric.color;
+  };
+
+  // Check if primary trend is negative over the selected range
+  const isPrimaryTrendDown = useMemo(() => {
+    if (!chartData || chartData.length < 2) return false;
+    const primaryMetric = activeMetrics[0] || METRIC_MAP['net_worth'];
+    if (!primaryMetric) return false;
+    const startVal = chartData[0][primaryMetric.dataKey] ?? 0;
+    const endVal = chartData[chartData.length - 1][primaryMetric.dataKey] ?? 0;
+    if (primaryMetric.category === 'liabilities') {
+      return endVal > startVal;
+    }
+    return endVal < startVal;
+  }, [chartData, activeMetrics]);
+
   // Dynamic Y-Axis scale domain across all active series
   const yAxisMinMax = useMemo(() => {
     if (!chartData || chartData.length === 0 || activeMetrics.length === 0) return [0, 100000];
@@ -363,22 +405,22 @@ export default function DashboardTrendChart({
     return [domainMin, domainMax];
   }, [chartData, activeMetrics]);
 
-  // Check if primary Net Worth series is negative in trend
-  const isNetWorthNegative = useMemo(() => {
-    if (!chartData || chartData.length < 2) return false;
-    return chartData[chartData.length - 1].NetWorth < chartData[0].NetWorth;
-  }, [chartData]);
-
-  const singleSeriesSelected = activeMetrics.length === 1;
-
   return (
     <div className="glass-card p-4 sm:p-5 rounded-2xl border border-slate-800 relative">
       
       {/* Header Row: Title & Range Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2.5">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+            isPrimaryTrendDown 
+              ? 'bg-rose-500/10 border border-rose-500/20 text-rose-400' 
+              : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+          }`}>
+            {isPrimaryTrendDown ? (
+              <TrendingDown className="w-3.5 h-3.5" />
+            ) : (
+              <TrendingUp className="w-3.5 h-3.5" />
+            )}
           </div>
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-white">Trend</h3>
@@ -403,6 +445,7 @@ export default function DashboardTrendChart({
           {activeMetrics.map(item => {
             const isHovered = hoveredSeriesId === item.id;
             const canRemove = activeMetrics.length > 1;
+            const itemColor = getMetricColor(item);
 
             return (
               <motion.div
@@ -420,15 +463,15 @@ export default function DashboardTrendChart({
                     : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:border-slate-700'
                 }`}
                 style={{
-                  boxShadow: isHovered ? `0 0 10px ${item.color}30` : undefined
+                  boxShadow: isHovered ? `0 0 10px ${itemColor}30` : undefined
                 }}
               >
                 {/* Glowing Color Dot */}
                 <span 
                   className="w-1.5 h-1.5 rounded-full shrink-0" 
                   style={{ 
-                    backgroundColor: item.color,
-                    boxShadow: `0 0 4px ${item.color}`
+                    backgroundColor: itemColor,
+                    boxShadow: `0 0 4px ${itemColor}`
                   }} 
                 />
                 <span className="leading-none">{item.shortLabel}</span>
@@ -604,8 +647,10 @@ export default function DashboardTrendChart({
             <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
               
               {/* Dynamic SVG Gradients */}
+              {/* Dynamic SVG Gradients */}
               <defs>
                 {ALL_TREND_METRICS.map(metric => {
+                  const metricColor = getMetricColor(metric);
                   const isPrimary = metric.id === 'net_worth';
                   const topOpacity = singleSeriesSelected 
                     ? (isPrimary ? 0.35 : 0.28) 
@@ -620,8 +665,8 @@ export default function DashboardTrendChart({
                       x2="0" 
                       y2="1"
                     >
-                      <stop offset="5%" stopColor={metric.color} stopOpacity={topOpacity} />
-                      <stop offset="95%" stopColor={metric.color} stopOpacity={0.0} />
+                      <stop offset="5%" stopColor={metricColor} stopOpacity={topOpacity} />
+                      <stop offset="95%" stopColor={metricColor} stopOpacity={0.0} />
                     </linearGradient>
                   );
                 })}
@@ -703,6 +748,7 @@ export default function DashboardTrendChart({
                         <div className="space-y-1">
                           {sortedPayload.map((entry) => {
                             const metric = ALL_TREND_METRICS.find(m => m.dataKey === entry.dataKey);
+                            const metricColor = metric ? getMetricColor(metric) : entry.color;
                             const val = Number(entry.value) || 0;
                             const isNeg = val < 0;
 
@@ -711,7 +757,7 @@ export default function DashboardTrendChart({
                                 <div className="flex items-center gap-1.5 truncate">
                                   <span 
                                     className="w-1.5 h-1.5 rounded-full shrink-0" 
-                                    style={{ backgroundColor: metric?.color || entry.color }} 
+                                    style={{ backgroundColor: metricColor }} 
                                   />
                                   <span className="text-[10px] font-medium text-slate-300 truncate">
                                     {metric?.label || entry.name}
@@ -719,7 +765,7 @@ export default function DashboardTrendChart({
                                 </div>
                                 <span 
                                   className="text-[10px] font-mono font-semibold shrink-0"
-                                  style={{ color: metric?.color || '#FFFFFF' }}
+                                  style={{ color: metricColor || '#FFFFFF' }}
                                 >
                                   {isUSD 
                                     ? (isNeg ? '-$' : '$') + Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -742,6 +788,7 @@ export default function DashboardTrendChart({
                 const isDimmed = hoveredSeriesId !== null && !isHovered;
                 const strokeW = isHovered ? 3.5 : (metric.id === 'net_worth' ? 2.5 : 2);
                 const opacity = isDimmed ? 0.2 : 1.0;
+                const metricColor = getMetricColor(metric);
 
                 return (
                   <Area 
@@ -749,7 +796,7 @@ export default function DashboardTrendChart({
                     type="monotone" 
                     dataKey={metric.dataKey} 
                     name={metric.label}
-                    stroke={metric.color} 
+                    stroke={metricColor} 
                     strokeWidth={strokeW} 
                     strokeOpacity={opacity}
                     fillOpacity={opacity} 
@@ -761,7 +808,7 @@ export default function DashboardTrendChart({
                       r: 5, 
                       strokeWidth: 2, 
                       stroke: '#FFFFFF', 
-                      fill: metric.color 
+                      fill: metricColor 
                     }}
                   />
                 );

@@ -273,44 +273,49 @@ export default function FxRateModal({ isOpen, onClose }) {
                     <RefreshCw className="w-4 h-4 animate-spin mr-2" />
                     Loading exchange rate history...
                   </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data?.series || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="fxAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#94A3B833" vertical={false} />
-                      <XAxis 
-                        dataKey="date" 
-                        stroke="#64748B" 
-                        tick={{ fill: 'currentColor', fontSize: 10 }}
-                        tickFormatter={(d) => {
-                          const parts = d.split('-');
-                          return `${parts[2]}/${parts[1]}`;
-                        }}
-                      />
-                      <YAxis 
-                        domain={['dataMin - 0.5', 'dataMax + 0.5']}
-                        stroke="#64748B" 
-                        tick={{ fill: 'currentColor', fontSize: 10 }} 
-                        tickFormatter={(v) => `₹${Number(v).toFixed(1)}`} 
-                      />
-                      <Tooltip content={<CustomChartTooltip />} />
-                      <Area 
-                        type="monotone" 
-                        dataKey="rate" 
-                        stroke="#10B981" 
-                        strokeWidth={2.5} 
-                        fillOpacity={1} 
-                        fill="url(#fxAreaGrad)" 
-                        isAnimationActive={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
+                ) : (() => {
+                  const isFxDown = (data?.stats?.periodChange || 0) < 0;
+                  const fxChartColor = isFxDown ? '#F43F5E' : '#10B981';
+
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={data?.series || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="fxAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={fxChartColor} stopOpacity={0.35} />
+                            <stop offset="95%" stopColor={fxChartColor} stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#94A3B833" vertical={false} />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#64748B" 
+                          tick={{ fill: 'currentColor', fontSize: 10 }}
+                          tickFormatter={(d) => {
+                            const parts = d.split('-');
+                            return `${parts[2]}/${parts[1]}`;
+                          }}
+                        />
+                        <YAxis 
+                          domain={['dataMin - 0.5', 'dataMax + 0.5']}
+                          stroke="#64748B" 
+                          tick={{ fill: 'currentColor', fontSize: 10 }} 
+                          tickFormatter={(v) => `₹${Number(v).toFixed(1)}`} 
+                        />
+                        <Tooltip content={<CustomChartTooltip />} />
+                        <Area 
+                          type="monotone" 
+                          dataKey="rate" 
+                          stroke={fxChartColor} 
+                          strokeWidth={2.5} 
+                          fillOpacity={1} 
+                          fill="url(#fxAreaGrad)" 
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
               </div>
             </div>
 

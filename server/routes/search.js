@@ -236,7 +236,17 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
   const isLogin = req.body?.trigger === 'LOGIN' || req.query?.trigger === 'LOGIN';
   try {
     await loadHistoricalPricesAsync();
-    const result = await refreshAllHoldingsPrices();
+    // 1. First refresh all active holdings (US, IN, MF, NPS) with top priority (~1-2s response)
+    const result = await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: true });
+    
+    // 2. Synchronize any missing NAVs
+    await syncAllMissingNavs({ persistToDb: true });
+
+    // 3. For manual triggers or in the background, refresh inactive holdings if needed
+    if (!isLogin) {
+      refreshAllHoldingsPrices({ persistToDb: true }).catch(err => console.warn('[RefreshAll Inactive Warning]:', err.message));
+    }
+
     const durationMs = Date.now() - startTime;
     logSyncEvent({
       jobType: isLogin ? 'LOGIN_SYNC' : 'MANUAL_SYNC',
@@ -245,7 +255,7 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
       runTime: new Date().toISOString(),
       status: 'SUCCESS',
       durationMs,
-      details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedHoldings || 'all'} holdings updated).`
+      details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedCount || 'all'} holdings updated).`
     });
     res.json({ success: true, ...result });
   } catch (err) {

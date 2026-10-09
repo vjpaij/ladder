@@ -290,6 +290,9 @@ app.listen(PORT, async () => {
 
     // Synchronize latest authoritative NAVs for active NPS and MF holdings
     await syncAllMissingNavs({ persistToDb: true });
+
+    // Refresh all active holdings prices (US, IN, MF, NPS) on startup
+    await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: true });
   } catch (err) {
     console.warn('[PriceEngine Priming Warning]:', err.message);
   }

@@ -11,7 +11,7 @@ export default function HoldingChartsSection({
   activeTab,
   setActiveTab,
   hasActualChart,
-  filteredTimeline,
+  filteredTimeline = [],
   setChartRangeFilter,
   chartLineColor,
   isLight,
@@ -19,6 +19,15 @@ export default function HoldingChartsSection({
   isFundOrNps,
   chartMinMax
 }) {
+  // Determine if trend over the selected period is negative (end < start)
+  const isTrackerDown = filteredTimeline.length >= 2 && 
+    (filteredTimeline[filteredTimeline.length - 1]?.value ?? 0) < (filteredTimeline[0]?.value ?? 0);
+  const effectiveTrackerColor = isTrackerDown ? '#F43F5E' : (chartLineColor || '#10B981');
+
+  const isActualDown = filteredTimeline.length >= 2 && 
+    (filteredTimeline[filteredTimeline.length - 1]?.price ?? 0) < (filteredTimeline[0]?.price ?? 0);
+  const effectiveActualColor = isActualDown ? '#F43F5E' : (chartLineColor || '#10B981');
+
   return (
     <div className="flex flex-col gap-3">
       {/* Chart Header Controls */}
@@ -60,8 +69,8 @@ export default function HoldingChartsSection({
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
                 </linearGradient>
                 <linearGradient id="hdmGradVal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={chartLineColor} stopOpacity={0.35} />
-                  <stop offset="95%" stopColor={chartLineColor} stopOpacity={0.02} />
+                  <stop offset="5%" stopColor={effectiveTrackerColor} stopOpacity={0.35} />
+                  <stop offset="95%" stopColor={effectiveTrackerColor} stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={isLight ? '#e2e8f0' : '#1e293b'} />
@@ -70,7 +79,7 @@ export default function HoldingChartsSection({
               <Tooltip content={<ChartTooltip isUSD={isDisplayUSD} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={val => <span style={{ color: isLight ? '#475569' : '#94a3b8' }}>{val}</span>} />
               <Area type="linear" dataKey="invested" name="Cost Basis" stroke="#6366f1" strokeWidth={2} fill="url(#hdmGradInv)" dot={false} activeDot={{ r: 4, fill: '#6366f1', stroke: '#1e293b' }} />
-              <Area type="linear" dataKey="value" name="Market Value" stroke={chartLineColor} strokeWidth={2.5} fill="url(#hdmGradVal)" dot={false} activeDot={{ r: 4, fill: chartLineColor, stroke: '#1e293b' }} />
+              <Area type="linear" dataKey="value" name="Market Value" stroke={effectiveTrackerColor} strokeWidth={2.5} fill="url(#hdmGradVal)" dot={false} activeDot={{ r: 4, fill: effectiveTrackerColor, stroke: '#1e293b' }} />
             </AreaChart>
           ) : (
             <ComposedChart data={filteredTimeline} margin={{ top: 10, right: 10, bottom: 5, left: 10 }}>
@@ -78,7 +87,7 @@ export default function HoldingChartsSection({
               <XAxis dataKey="label" tickFormatter={formatDateDDMMYYYY} tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={30} />
               <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => isDisplayUSD ? `$${Number(v).toFixed(2)}` : isFundOrNps ? `₹${Number(v).toFixed(4)}` : `₹${Number(v).toFixed(2)}`} width={isFundOrNps ? 80 : 65} domain={chartMinMax} />
               <Tooltip content={<ActualChartTooltip isUSD={isDisplayUSD} isFundOrNps={isFundOrNps} timelineData={filteredTimeline} />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
-              <Line type="linear" dataKey="price" name="Asset Price" stroke={chartLineColor} strokeWidth={2.5} dot={<ActualEventDot />} activeDot={{ r: 5, fill: chartLineColor, stroke: '#ffffff', strokeWidth: 2 }} />
+              <Line type="linear" dataKey="price" name="Asset Price" stroke={effectiveActualColor} strokeWidth={2.5} dot={<ActualEventDot />} activeDot={{ r: 5, fill: effectiveActualColor, stroke: '#ffffff', strokeWidth: 2 }} />
             </ComposedChart>
           )}
         </ResponsiveContainer>

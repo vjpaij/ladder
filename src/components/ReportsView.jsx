@@ -2209,44 +2209,50 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                 <div className="h-full flex items-center justify-center text-xs opacity-60 font-bold">
                   Loading real-time index benchmarks...
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={growthData?.series || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.35}/>
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#94A3B833" vertical={false} />
-                    <XAxis dataKey="date" stroke="#64748B" tick={{ fill: 'currentColor', fontSize: 10 }} />
-                    <YAxis 
-                      stroke="#64748B" 
-                      tick={{ fill: 'currentColor', fontSize: 10 }} 
-                      tickFormatter={(v) => `₹${(v/100000).toFixed(1)}L`} 
-                    />
-                    <Tooltip content={<TrajectoryTooltip />} />
-                    <Area 
-                      type="monotone" 
-                      dataKey="Portfolio" 
-                      stroke="#10B981" 
-                      strokeWidth={2.5} 
-                      fillOpacity={1} 
-                      fill="url(#growthGrad)" 
-                      isAnimationActive={false}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey={`${benchmark}_Normalized`} 
-                      stroke={BENCHMARK_COLORS[benchmark] || '#3B82F6'} 
-                      strokeWidth={3} 
-                      strokeDasharray="5 5" 
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              )}
+              ) : (() => {
+                const isGrowthDown = (growthData?.series?.length >= 2) && 
+                  ((growthData.series[growthData.series.length - 1]?.Portfolio ?? 0) < (growthData.series[0]?.Portfolio ?? 0));
+                const growthChartColor = isGrowthDown ? '#F43F5E' : '#10B981';
+
+                return (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={growthData?.series || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={growthChartColor} stopOpacity={0.35}/>
+                          <stop offset="95%" stopColor={growthChartColor} stopOpacity={0.0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#94A3B833" vertical={false} />
+                      <XAxis dataKey="date" stroke="#64748B" tick={{ fill: 'currentColor', fontSize: 10 }} />
+                      <YAxis 
+                        stroke="#64748B" 
+                        tick={{ fill: 'currentColor', fontSize: 10 }} 
+                        tickFormatter={(v) => `₹${(v/100000).toFixed(1)}L`} 
+                      />
+                      <Tooltip content={<TrajectoryTooltip />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="Portfolio" 
+                        stroke={growthChartColor} 
+                        strokeWidth={2.5} 
+                        fillOpacity={1} 
+                        fill="url(#growthGrad)" 
+                        isAnimationActive={false}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey={`${benchmark}_Normalized`} 
+                        stroke={BENCHMARK_COLORS[benchmark] || '#3B82F6'} 
+                        strokeWidth={3} 
+                        strokeDasharray="5 5" 
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                );
+              })()}
             </div>
           </div>
         )}
