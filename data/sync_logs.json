@@ -1,5 +1,27 @@
 [
   {
+    "id": "log_1791741189082_e30da",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T17:53:09.082Z",
+    "status": "FAILED",
+    "durationMs": 0,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
+    "id": "log_1791741189069_hrwg4",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T17:53:09.069Z",
+    "status": "FAILED",
+    "durationMs": 0,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
     "id": "log_1791740644385_vs6ji",
     "jobType": "STOCK_ANALYSIS_EOD",
     "jobName": "Daily Stock Analysis Audit (BOOT)",
