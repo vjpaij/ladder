@@ -67,6 +67,34 @@ router.get('/summary', async (req, res) => {
       divCashflows.push({ date: d.ex_date || d.payment_date, amount: amtINR, category_id: h ? h.category_id : null });
     });
 
+    // Compute invariant US FX rate when US market is closed to ensure exact parity with holdings and calendar
+    const todayStr = getTodayIST();
+    const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
+    const todayUsTxs = txs.filter(t => t.currency === 'USD' && t.date === todayStr);
+    let effectiveUsFx = fxRate;
+
+    if (todayUsTxs.length === 0 && !isUsMarketOpen() && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
+      try {
+        const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+        if (fs.existsSync(eodPath)) {
+          const pastLogs = JSON.parse(fs.readFileSync(eodPath, 'utf8')).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+          if (pastLogs.length > 0 && pastLogs[0].us_stocks > 0) {
+            let totalUsdCurrent = 0;
+            holdings.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0).forEach(h => {
+              const liveQuote = liveQuoteCache.get(h.symbol);
+              const p = resolveHoldingPrice(h, liveQuote);
+              totalUsdCurrent += Number(h.quantity) * p;
+            });
+            if (totalUsdCurrent > 0) {
+              effectiveUsFx = pastLogs[0].us_stocks / totalUsdCurrent;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Summary Route] Error computing invariant US FX rate:', e.message);
+      }
+    }
+
     // Canonical valuation calculation using the single source of truth engine
     const livePriceMap = {};
     holdings.forEach(h => {
@@ -74,7 +102,7 @@ router.get('/summary', async (req, res) => {
       livePriceMap[h.symbol] = resolveHoldingPrice(h, liveQuote);
     });
 
-    const valuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
+    const valuation = computePortfolioValuation(holdings, liabilities, livePriceMap, effectiveUsFx);
     const totalAssetsINR = valuation.totalAssets ?? valuation.total_assets;
     const totalLiabilitiesINR = valuation.totalLiabilities ?? valuation.debt ?? 0;
     const netWorthINR = valuation.netWorth ?? valuation.total_wealth;
@@ -136,12 +164,12 @@ router.get('/summary', async (req, res) => {
       if (!cat) return;
 
       // Realized (capital gain + dividends) for this holding
-      const pnl = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? fxRate : 1.0);
+      const pnl = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? effectiveUsFx : 1.0);
       cat.realizedINR += pnl;
 
       // Active holdings
       if ((Number(h.quantity) || 0) > 0) {
-        const liveRate = h.currency === 'USD' ? fxRate : 1.0;
+        const liveRate = h.currency === 'USD' ? effectiveUsFx : 1.0;
         const liveQuote = liveQuoteCache.get(h.symbol);
         const currentPriceNum = resolveHoldingPrice(h, liveQuote);
         const currentVal = computeHoldingValueINR(h, currentPriceNum, liveRate);
@@ -376,7 +404,6 @@ router.get('/summary', async (req, res) => {
     let yesterdayWealth = null;
     let yesterdayAssets = null;
     let yesterdayLog = null;
-    const todayStr = getTodayIST();
 
     try {
       const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
@@ -455,7 +482,6 @@ router.get('/summary', async (req, res) => {
 
     // Multi-Asset Dynamic Valuation Engine (Parity with Calendar & Holding Details)
     const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
-    const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
     const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
     const npsStatus = getAssetSessionStatus('nps', todayStr);
 

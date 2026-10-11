@@ -128,7 +128,7 @@ export async function recalculateHoldingState(holdingId) {
         const charges = Number(tx.charges) || 0;
         totalCharges += charges;
 
-        if (type === 'BUY' || type === 'INVESTMENT' || type === 'INVESTMENT (SIP)') {
+        if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(type)) {
           runningQty += qty;
           totalBuyQty += qty;
           const buyCost = Number(tx.total_amount) > 0 ? Number(tx.total_amount) : ((qty * price) + charges);

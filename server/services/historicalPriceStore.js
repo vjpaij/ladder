@@ -14,23 +14,37 @@ let historicalPricesCache = {};
 let isLoaded = false;
 let loadPromise = null;
 let isSaving = false;
+let lastLoadedMtime = 0;
 
 /**
  * Asynchronously loads the historical prices file without blocking the event loop.
+ * Automatically detects if the disk file has been updated via file mtime and reloads.
  */
 export async function loadHistoricalPricesAsync(forceReload = false) {
+  try {
+    if (fs.existsSync(HISTORICAL_PRICES_FILE)) {
+      const stats = await fs.promises.stat(HISTORICAL_PRICES_FILE);
+      if (stats.mtimeMs > lastLoadedMtime) {
+        forceReload = true;
+      }
+    }
+  } catch (_) {}
+
   if (isLoaded && !forceReload) return historicalPricesCache;
   if (loadPromise && !forceReload) return loadPromise;
 
   loadPromise = (async () => {
     try {
       if (fs.existsSync(HISTORICAL_PRICES_FILE)) {
+        const stats = await fs.promises.stat(HISTORICAL_PRICES_FILE);
         const raw = await fs.promises.readFile(HISTORICAL_PRICES_FILE, 'utf-8');
         historicalPricesCache = JSON.parse(raw);
+        lastLoadedMtime = stats.mtimeMs;
         isLoaded = true;
         console.log(`[Historical Pricing] Async-loaded cache for ${Object.keys(historicalPricesCache).length} assets.`);
       } else {
         historicalPricesCache = {};
+        lastLoadedMtime = 0;
         isLoaded = true;
       }
     } catch (e) {
@@ -50,8 +64,17 @@ export async function loadHistoricalPricesAsync(forceReload = false) {
  * Force reload cache from disk
  */
 export async function reloadHistoricalPricesCache() {
+  lastLoadedMtime = 0;
   isLoaded = false;
   return loadHistoricalPricesAsync(true);
+}
+
+/**
+ * Explicitly invalidate historical price cache
+ */
+export function invalidateHistoricalPriceCache() {
+  lastLoadedMtime = 0;
+  isLoaded = false;
 }
 
 /**

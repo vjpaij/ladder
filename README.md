@@ -28,6 +28,9 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Staged Multi-Tranche Roadmap & Dynamic Ledger Tracking**: Plans structured exits in phases (Tranche 1 for initial risk reduction, Tranche 2 on trend confirmation). Dynamically audits transaction history to detect completed sales and realized cash vs pending orders, while continuously accounting for any intermediate shares bought since the last sale to compute exact state for today.
    - **Daily Post-Market Automation**: Runs autonomously every trading day at **06:30 PM IST** post-market, on server boot, and during scheduled EOD valuation rebuilds, recording full audit history into `sync_logs.json` accessible via the Sync Logs modal. Also evaluates live on every price refresh and transaction change.
    - **Principal Harvest ("House Money") Calculator**: Automatically detects winning positions with >100% gain and calculates the exact whole-share quantity to liquidate to fully recover initial invested capital, letting remaining shares compound risk-free.
+   - **Direct External Research & 1D Charting Links**: Holding dossiers provide instant one-click deep links to **GoCharting 1D terminal** (`https://gocharting.com/terminal?ticker=...&interval=1D`), **Screener.in**, and the internal itemized holding transaction ledger.
+   - **Contextual Sorting & Concentration Risk Guard**: The 'All' tab provides clean alphabetical sorting by company name for swift navigation across the entire portfolio, while the 'Trim' tab maintains severity and portfolio-weight prioritization. Includes an optional Position Concentration Risk Guard to alert when any single equity exceeds a user-defined portfolio weight cap.
+   - **Corporate Action & Demerger Invariance**: Automatically normalizes price histories and moving averages for corporate actions (stock splits, bonus issues, and demerger spin-offs such as Vedanta's separation into distinct listed entities), scaling historical series by the corporate action factor to prevent artificial cliff drops from triggering false Stage 4 secular breakdown or sell recommendations.
 
 3. **Delta-Ledger Architecture for Cash, EPF & Debt**
    - Bank Accounts, EPF, Loans, and Credit Cards operate as a transaction-backed delta ledger.
@@ -166,6 +169,16 @@ Ladder is an institutional-grade personal finance and investment management dash
     - **Zero-Congestion Focus Hover Architecture**: Solves visual clutter by maintaining standard stroke width on all active lines while dimming non-hovered series to 20% opacity on pill hover, providing instant clarity across overlapping financial trajectories.
     - **Sleek Popover & 1-Click Presets**: Integrated quick 1-click presets (`Net Worth Only`, `Balance Sheet`, `All Assets`) alongside a categorized popover selector displaying real-time values, color badges, and toggles, keeping header controls compact and elegant.
     - **Dynamic Scaling & Currency Synchronization**: Computes dynamic Y-axis domain padding across active series with smooth Framer Motion animations, custom SVG gradients, unified `DD-MM-YYYY` tooltips sorted by value descending, persistent user selections in `localStorage`, and full USD/INR currency conversion synchronization.
+
+16. **Stock Analysis, Decision Support & Anti-Hallucination Validation Framework**
+    - **Dual-Pillar Confluence Engine**: Evaluates Indian equities combining Stan Weinstein 4-Stage market analysis (30-week SMA with 4-week slope trajectory), Chandelier Volatility Trailing Stops (Peak(20w) - 3.0 * ATR(14w)), and Screener.in quarterly fundamentals (Operating Profit Margins, YoY profit growth, promoter pledging).
+    - **Anti-Early-Exit Compounding Shield**: Protects Stage 2 bull runners trading above trailing stops from premature profit-taking, recognizing normal 15%–25% consolidations in Indian compounders.
+    - **Deterministic Whole-Share Sizing**: Replaces arbitrary hardcodes with authentic sizing adapting to drawdown risk corridors, fundamental margin decay, or user-configured portfolio concentration limits.
+    - **Financial Data Anti-Hallucination Framework (`dataIntegrityValidator.js`)**:
+      - **Live Quote Parity & Bad-Tick Self-Healing**: Audits all active holdings against verified real-time NSE/BSE MAX quotes; auto-reconciles upstream bad ticks (e.g. Yahoo Finance bad ticks) to guarantee moving averages are never distorted.
+      - **Corporate Action Continuity**: Scans daily price series for single-day step changes >20%, verifies confirmed corporate actions (splits, bonuses, demergers such as Vedanta 2026-04-30 with factor 0.3508), and auto-scales pre-action histories to eliminate false breakdown signals.
+      - **In-Memory Cache Hot-Reloading**: Tracks file modification timestamps (`mtimeMs`), auto-reloading modified historical prices from disk into RAM without requiring server reboots.
+      - **Automated Verification Suite (`scripts/verify_stock_data_accuracy.mjs`)**: Continuous verification ensuring 100% data integrity, 0 hallucinations, and verified exit decisions.
 
 ---
 

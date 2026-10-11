@@ -10,6 +10,8 @@ import { buildPortfolioSummary, buildStockAnalyses } from '../services/stockInte
 import { getIntelligenceConfig, getStateHistory, recordStateTransitions, saveIntelligenceConfig } from '../services/stockIntelligence/repository.js';
 import { fetchCompanyFundamentals, preloadAllHeldFundamentals } from '../services/stockIntelligence/screenerFundamentalsProvider.js';
 import { logSyncEvent } from '../services/syncLogService.js';
+import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
+import { validateAndHealStockData } from '../services/stockIntelligence/dataIntegrityValidator.js';
 
 const router = express.Router();
 let cachedBacktest = null;
@@ -71,14 +73,31 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
 
     const active = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0);
     const symbols = [...new Set(active.map(item => item.symbol).filter(Boolean))];
-    const backtest = getBacktest(history, symbols);
+
+    // Enrich holdings with live quotes or verified recent closes
+    const enrichedHoldings = holdings.map(h => {
+      if (h.category_id !== 'in_stocks') return h;
+      const quote = liveQuoteCache?.get(h.symbol);
+      const resolved = resolveHoldingPrice(h, quote);
+      const clean = String(h.symbol).replace(/\.(NS|BO)$/i, '');
+      const series = history[h.symbol] || history[clean] || history[`${clean}.NS`] || {};
+      const dates = Object.keys(series).sort();
+      const latestClose = dates.length > 0 ? series[dates[dates.length - 1]] : 0;
+      const currentPrice = resolved > 0 ? resolved : (latestClose > 0 ? latestClose : Number(h.current_price) || 0);
+      return { ...h, current_price: currentPrice };
+    });
+
+    // Run automated data integrity & anti-hallucination validation suite
+    const { healedPriceMap, auditReport } = validateAndHealStockData(enrichedHoldings, history, transactions);
+
+    const backtest = getBacktest(healedPriceMap, symbols);
     const config = getIntelligenceConfig(userId);
 
     // Load available cached fundamentals
     let fundamentalsMap = loadAllCachedFundamentals(symbols);
 
-    // Evaluate analyses
-    const analyses = buildStockAnalyses(holdings, history, {
+    // Evaluate analyses on validated data
+    const analyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
       today: getTodayIST(),
       backtest,
       config,
@@ -98,12 +117,12 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
       runTime: new Date().toISOString(),
       status: 'SUCCESS',
       durationMs: Date.now() - startTime,
-      details: `Evaluated ${analyses.length} active Indian equity holdings. ${summary.compoundingCount || 0} in Stage 2 Compounding, ${summary.states?.TECHNICAL_TRIM_CANDIDATE || 0} technical trim, ${summary.states?.WATCH || 0} on watch. Recorded ${transitions.length} state transition(s).`,
+      details: `Evaluated ${analyses.length} active Indian equity holdings. ${summary.compoundingCount || 0} in Stage 2 Compounding, ${summary.states?.TECHNICAL_TRIM_CANDIDATE || 0} technical trim, ${summary.states?.WATCH || 0} on watch. Data integrity: ${auditReport.dataHealthScorePct}% (${auditReport.anomaliesDetected.length} anomalies). Recorded ${transitions.length} state transition(s).`,
       error: null
     });
 
     console.log(`[Stock Analysis] Daily audit completed (${analyses.length} stocks, ${transitions.length} state change(s)).`);
-    return { summary, transitions, count: analyses.length };
+    return { summary, transitions, count: analyses.length, dataIntegrity: auditReport };
   } catch (error) {
     console.error('[Stock Analysis] Daily audit failed:', error.message);
     logSyncEvent({
@@ -130,14 +149,30 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
     ]);
     const active = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0);
     const symbols = [...new Set(active.map(item => item.symbol).filter(Boolean))];
-    const backtest = getBacktest(history, symbols);
     const userId = getUserKey(req.user);
     const config = getIntelligenceConfig(userId);
 
     // Fast read from disk cache
     const fundamentalsMap = loadAllCachedFundamentals(symbols);
 
-    const analyses = buildStockAnalyses(holdings, history, {
+    // Enrich holdings with live quotes or verified recent closes
+    const enrichedHoldings = holdings.map(h => {
+      if (h.category_id !== 'in_stocks') return h;
+      const quote = liveQuoteCache?.get(h.symbol);
+      const resolved = resolveHoldingPrice(h, quote);
+      const clean = String(h.symbol).replace(/\.(NS|BO)$/i, '');
+      const series = history[h.symbol] || history[clean] || history[`${clean}.NS`] || {};
+      const dates = Object.keys(series).sort();
+      const latestClose = dates.length > 0 ? series[dates[dates.length - 1]] : 0;
+      const currentPrice = resolved > 0 ? resolved : (latestClose > 0 ? latestClose : Number(h.current_price) || 0);
+      return { ...h, current_price: currentPrice };
+    });
+
+    // Run automated data integrity & anti-hallucination validation suite
+    const { healedPriceMap, auditReport } = validateAndHealStockData(enrichedHoldings, history, transactions);
+    const backtest = getBacktest(healedPriceMap, symbols);
+
+    const analyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
       today: getTodayIST(),
       backtest,
       config,
@@ -155,6 +190,7 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
       config,
       backtest,
       analyses,
+      dataIntegrity: auditReport,
       executionSchedule: {
         scheduledDailyTime: '06:30 PM IST (Post-Market Close)',
         runEverySession: true,

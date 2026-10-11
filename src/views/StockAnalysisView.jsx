@@ -30,34 +30,48 @@ import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 
 const STATE_META = {
   NORMAL: {
-    label: 'Compounding / Normal',
+    label: 'Hold',
     tone: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
   },
   WATCH: {
-    label: 'Watch (Observe)',
+    label: 'Watch',
     tone: 'text-amber-300 border-amber-500/30 bg-amber-500/10'
   },
   TECHNICAL_TRIM_CANDIDATE: {
-    label: 'Technical Trim',
+    label: 'Trim',
     tone: 'text-rose-300 border-rose-500/30 bg-rose-500/10'
   },
   FUNDAMENTAL_TRIM_CANDIDATE: {
-    label: 'Fundamental Trim',
+    label: 'Trim (Fund)',
     tone: 'text-orange-300 border-orange-500/30 bg-orange-500/10'
   },
   FULL_EXIT_CANDIDATE: {
-    label: 'Full Exit Review',
+    label: 'Exit',
     tone: 'text-red-400 border-red-500/40 bg-red-500/15'
   },
   PORTFOLIO_RISK_TRIM: {
-    label: 'Risk Limit Trim',
+    label: 'Risk Cap',
     tone: 'text-purple-300 border-purple-500/30 bg-purple-500/10'
   },
   DATA_UNAVAILABLE: {
-    label: 'Insufficient History',
+    label: 'IPO (<40w)',
     tone: 'text-slate-400 border-slate-600/50 bg-white/[0.03]'
   }
 };
+
+function formatStateLabel(state) {
+  if (!state || state === 'Initiated') return 'Initial Evaluation';
+  switch (state) {
+    case 'NORMAL': return 'Healthy Bull (Hold)';
+    case 'WATCH': return 'Watchlist';
+    case 'TECHNICAL_TRIM_CANDIDATE': return 'Technical Trim';
+    case 'FUNDAMENTAL_TRIM_CANDIDATE': return 'Fundamental Trim';
+    case 'FULL_EXIT_CANDIDATE': return 'Exit Candidate';
+    case 'PORTFOLIO_RISK_TRIM': return 'Risk Cap Trim';
+    case 'DATA_UNAVAILABLE': return 'Data Syncing';
+    default: return state;
+  }
+}
 
 function money(formatMoney, amount, compact = false) {
   return amount === null || amount === undefined ? '—' : formatMoney(amount, compact);
@@ -65,19 +79,33 @@ function money(formatMoney, amount, compact = false) {
 
 function Metric({ label, value, detail, tone = 'text-inherit' }) {
   return (
-    <div className="reports-subcard rounded-2xl border border-slate-800/70 p-3.5 min-w-0">
-      <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
-      <div className={`mt-1.5 text-base font-black font-mono truncate ${tone}`}>{value}</div>
-      {detail && <div className="mt-1 text-[9px] leading-relaxed text-slate-500">{detail}</div>}
+    <div className="reports-subcard rounded-2xl border border-slate-800/70 p-3 min-w-0 flex flex-col justify-between" title={typeof value === 'string' ? value : undefined}>
+      <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold leading-tight">{label}</div>
+      <div className={`mt-1 text-base font-black font-mono break-words leading-tight ${tone}`}>{value}</div>
+      {detail && <div className="mt-1 text-[10px] text-slate-400 break-words leading-snug">{detail}</div>}
     </div>
   );
 }
 
-function StateBadge({ state, isCompounding }) {
+function StateBadge({ state, isCompounding, dataQuality }) {
   if (isCompounding) {
     return (
       <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-emerald-300 border-emerald-500/40 bg-emerald-500/15 flex items-center gap-1">
-        <ShieldCheck className="w-3 h-3 text-emerald-400" /> Compounding Active
+        <ShieldCheck className="w-3 h-3 text-emerald-400" /> Bull
+      </span>
+    );
+  }
+  if (state === 'DATA_UNAVAILABLE') {
+    if (dataQuality === 'PRICE_HISTORY_QUOTE_MISMATCH') {
+      return (
+        <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-amber-300 border-amber-500/30 bg-amber-500/10">
+          Quote Gap
+        </span>
+      );
+    }
+    return (
+      <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-slate-400 border-slate-700 bg-white/[0.03]">
+        IPO (&lt;40w)
       </span>
     );
   }
@@ -161,6 +189,9 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
         return true;
       })
       .sort((a, b) => {
+        if (activeTab === 'ALL') {
+          return (a.name || a.symbol || '').localeCompare(b.name || b.symbol || '', undefined, { sensitivity: 'base' });
+        }
         const severity = {
           FULL_EXIT_CANDIDATE: 0,
           PORTFOLIO_RISK_TRIM: 1,
@@ -238,61 +269,63 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
     <AnimatedPage className="space-y-5">
       {/* 1. Executive Hero Header */}
       <AnimatedItem>
-        <div className="glass-card rounded-3xl border border-slate-800 p-5 sm:p-6">
+        <div className="glass-card rounded-3xl border border-slate-800 p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-emerald-400 mb-1.5">
+              <div className="flex items-center gap-2 text-emerald-400 mb-1">
                 <CandlestickChart className="w-4 h-4" />
-                <span className="text-[10px] font-bold tracking-[0.16em] uppercase">Decision Support Hub</span>
+                <span className="text-[10px] font-bold tracking-[0.16em] uppercase">Decision Support</span>
               </div>
               <h2 className="text-2xl font-black text-inherit">Stock Analysis & Exit Intelligence</h2>
-              <p className="mt-1 text-xs text-slate-400">
-                Dual-Pillar (Technical + Screener Fundamentals) analysis and dynamic multi-tranche execution tracking for Indian equities.
-              </p>
             </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-bold text-cyan-200 flex items-center gap-1.5">
-                <Clock3 className="w-3 h-3 text-cyan-400" /> Runs Daily at 06:30 PM IST · Live Ticker Sync
-              </span>
+            <div className="flex items-center gap-2">
+              {data?.dataIntegrity && (
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold ${
+                    data.dataIntegrity.status === 'VERIFIED_ACCURATE'
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                      : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                  }`}
+                  title={`Audited ${data.dataIntegrity.activeEquitiesAudited} stocks: ${data.dataIntegrity.reconciliationsApplied?.length || 0} feed bad ticks reconciled, ${data.dataIntegrity.corporateActionsVerified?.length || 0} corporate actions verified.`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Data Integrity: {data.dataIntegrity.dataHealthScorePct}% Verified</span>
+                </div>
+              )}
               <button
                 onClick={() => reload(false)}
                 disabled={refreshing || loading}
-                className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-400 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/40 text-[10px] font-bold text-slate-300 hover:text-emerald-400 hover:border-emerald-500/30 transition-colors"
               >
                 <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-                <span>Refresh Live Analytics</span>
+                <span>Refresh</span>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-5">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
             <Metric
-              label="Active Indian Stocks"
+              label="Active Stocks"
               value={summary?.activePositions ?? '—'}
-              detail="Total positions tracked"
             />
             <Metric
-              label="Indian Equity Value"
+              label="Portfolio Value"
               value={money(formatMoney, summary?.totalValueINR)}
-              detail="Live portfolio value"
             />
             <Metric
-              label="Open Unrealized P&L"
+              label="Unrealized P&L"
               value={money(formatMoney, summary?.unrealizedPnlINR)}
               tone={summary?.unrealizedPnlINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}
-              detail={`Cost basis ${money(formatMoney, summary?.totalCostINR)}`}
             />
             <Metric
               label="Compounding Leaders"
               value={counts.compounding}
               tone="text-emerald-400"
-              detail="Stage 2 Bull · Protected from early sale"
             />
             <Metric
               label="Positions for Review"
               value={counts.trim + counts.risk}
               tone={counts.trim > 0 ? 'text-rose-400' : 'text-inherit'}
-              detail={`${counts.trim} breakdown/trim · ${counts.risk} risk cap`}
             />
           </div>
         </div>
@@ -306,12 +339,12 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
       )}
 
       {/* 2. Main Workspace Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,2fr)] gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] 2xl:grid-cols-[400px_1fr] gap-5 items-start">
         {/* Left Column: Filter Tabs, Search & Holdings List */}
         <AnimatedItem>
-          <section className="glass-card rounded-3xl border border-slate-800 p-4 h-full flex flex-col">
+          <section className="glass-card rounded-3xl border border-slate-800 p-4 sticky top-20 max-h-[calc(100vh-100px)] flex flex-col">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-inherit">Holdings Workspace</h3>
+              <h3 className="text-sm font-bold text-inherit">Indian Equities</h3>
               <span className="text-[10px] text-slate-500 font-mono">{visible.length} / {analyses.length}</span>
             </div>
 
@@ -348,27 +381,36 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
               />
             </div>
 
-            {/* Holdings Scroll List */}
-            <div className="space-y-1.5 max-h-[620px] overflow-y-auto custom-scrollbar pr-1 flex-1">
+            {/* Holdings Scroll List - Uses Full Available Height */}
+            <div className="space-y-1 overflow-y-auto custom-scrollbar pr-1 flex-1 min-h-0">
               {visible.map(item => (
                 <button
                   key={item.holdingId}
                   onClick={() => setSelectedId(item.holdingId)}
-                  className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left transition-colors border ${
+                  title={item.name}
+                  className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors border ${
                     activeId === item.holdingId
-                      ? 'bg-emerald-500/10 border-emerald-500/30'
-                      : 'border-transparent hover:bg-white/[0.03]'
+                      ? 'bg-emerald-500/15 border-emerald-500/40 shadow-sm'
+                      : 'border-transparent hover:bg-white/[0.04]'
                   }`}
                 >
-                  <HoldingLogo holding={item} className="w-8 h-8 rounded-xl shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold text-inherit">{item.name}</span>
-                    <span className="block text-[10px] text-slate-500">
-                      {item.symbol} · {item.currentWeightPct.toFixed(1)}% wt
-                    </span>
-                  </span>
-                  <div className="shrink-0 text-right">
-                    <StateBadge state={item.state} isCompounding={item.compoundingShield?.isActive} />
+                  <HoldingLogo holding={item} className="w-7 h-7 rounded-lg shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-inherit leading-snug line-clamp-1" title={item.name}>
+                      {item.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 flex items-center gap-1.5 font-mono">
+                      <span>{item.symbol}</span>
+                      <span>•</span>
+                      <span>{item.currentWeightPct.toFixed(1)}% wt</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <StateBadge
+                      state={item.state}
+                      isCompounding={item.compoundingShield?.isActive}
+                      dataQuality={item.dataQuality}
+                    />
                   </div>
                 </button>
               ))}
@@ -400,7 +442,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-xl font-black text-inherit">{selected.name}</h3>
                           <span className="text-xs text-slate-400 font-mono">{selected.symbol}</span>
-                          <StateBadge state={selected.state} isCompounding={selected.compoundingShield?.isActive} />
+                          <StateBadge state={selected.state} isCompounding={selected.compoundingShield?.isActive} dataQuality={selected.dataQuality} />
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
                           <span>{selected.quantity.toLocaleString()} shares held</span>
@@ -425,7 +467,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                       <div className="text-xs font-mono text-slate-400">
                         {money(formatMoney, selected.currentPrice, true)} / share
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center justify-end gap-2 mt-1">
                         {onSelectHolding && (
                           <button
                             onClick={() => onSelectHolding(holdings.find(h => String(h.id) === selected.holdingId))}
@@ -442,116 +484,132 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         >
                           Screener.in <ExternalLink className="w-2.5 h-2.5" />
                         </a>
+                        <a
+                          href={`https://gocharting.com/terminal?ticker=${selected.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((selected.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}&interval=1D`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 transition-colors"
+                          title="Open 1-Day chart on GoCharting"
+                        >
+                          GoCharting 1D <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
                       </div>
                     </div>
                   </div>
 
                   {/* 3. PRIMARY ACTION DIRECTIVE BANNER */}
-                  {selected.compoundingShield?.isActive ? (
-                    /* Anti-Early-Exit Compounding Shield Banner */
-                    <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.08] p-4">
-                      <div className="flex gap-3 items-start">
-                        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                        <div className="space-y-1.5 flex-1">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
-                              Compounding Active · Stage 2 Bull Runner
-                            </span>
-                            <span className="text-[10px] font-bold font-mono text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                              Trailing Stop Floor: {money(formatMoney, selected.compoundingShield.trailingFloorPrice, true)} (+{selected.compoundingShield.bufferToTrailingFloorPct}% cushion)
+                  {(() => {
+                    const isCompounding = selected.compoundingShield?.isActive || selected.state === 'NORMAL';
+                    const isTrim = selected.state === 'TECHNICAL_TRIM_CANDIDATE' || selected.state === 'FUNDAMENTAL_TRIM_CANDIDATE' || selected.state === 'PORTFOLIO_RISK_TRIM';
+                    const isFullExit = selected.state === 'FULL_EXIT_CANDIDATE';
+                    const isWatch = selected.state === 'WATCH';
+                    const isNewListing = selected.state === 'DATA_UNAVAILABLE';
+
+                    const actionType = isFullExit
+                      ? 'EXIT'
+                      : isTrim
+                        ? 'TRIM'
+                        : isWatch
+                          ? 'WATCH'
+                          : isNewListing
+                            ? 'IPO_HOLD'
+                            : 'HOLD';
+
+                    const actionTitle = {
+                      EXIT: 'ACTION: FULL EXIT (SELL ALL)',
+                      TRIM: 'ACTION: TRIM POSITION',
+                      WATCH: 'ACTION: HOLD (WATCH CLOSELY)',
+                      IPO_HOLD: 'ACTION: HOLD (NEW LISTING)',
+                      HOLD: 'ACTION: HOLD (DO NOT SELL)'
+                    }[actionType];
+
+                    const actionTheme = {
+                      EXIT: 'border-red-500/50 bg-red-500/[0.08] text-red-300',
+                      TRIM: 'border-rose-500/40 bg-rose-500/[0.07] text-rose-300',
+                      WATCH: 'border-amber-500/40 bg-amber-500/[0.07] text-amber-300',
+                      IPO_HOLD: 'border-cyan-500/30 bg-cyan-500/[0.06] text-cyan-300',
+                      HOLD: 'border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-300'
+                    }[actionType];
+
+                    const sellQty = isFullExit
+                      ? selected.quantity
+                      : isTrim
+                        ? (selected.suggestedSellQuantity || 0)
+                        : 0;
+
+                    const remainingShares = Math.max(0, selected.quantity - sellQty);
+
+                    const reasonText = isFullExit
+                      ? (selected.explanation || 'Both technical trend and quarterly fundamental growth have broken down. Exit complete position.')
+                      : isTrim
+                        ? (selected.explanation || `Price dropped below 30-week moving average. Sell ${sellQty} shares to de-risk.`)
+                        : isWatch
+                          ? (selected.explanation || `Price is consolidating near the 30-week average (₹${selected.sma30Week || '—'}). Continue holding.`)
+                          : isNewListing
+                            ? (selected.invalidation || 'Recently listed stock (<40 weeks history). 30-week trend baseline is establishing. Hold position.')
+                            : `Price is trading safely ${selected.compoundingShield?.bufferToTrailingFloorPct ? `+${selected.compoundingShield.bufferToTrailingFloorPct}%` : ''} above trailing stop floor (₹${selected.compoundingShield?.trailingFloorPrice || selected.chandelierStopPrice || '—'}). Bull thesis intact.`;
+
+                    return (
+                      <div className={`mt-4 rounded-2xl border p-4 ${actionTheme}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-2.5">
+                            {actionType === 'EXIT' ? (
+                              <AlertOctagon className="w-5 h-5 text-red-400 shrink-0" />
+                            ) : actionType === 'TRIM' ? (
+                              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                            ) : actionType === 'WATCH' ? (
+                              <Activity className="w-5 h-5 text-amber-400 shrink-0" />
+                            ) : actionType === 'IPO_HOLD' ? (
+                              <Clock3 className="w-5 h-5 text-cyan-400 shrink-0" />
+                            ) : (
+                              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                            )}
+                            <span className="text-sm font-black uppercase tracking-wider">
+                              {actionTitle}
                             </span>
                           </div>
-                          <p className="text-xs leading-relaxed text-slate-200">
-                            {selected.compoundingShield.message}
-                          </p>
-                          <div className="pt-1 flex flex-wrap items-center gap-4 text-[10px] font-semibold text-slate-300">
-                            <span>✓ Recommended Action: <b className="text-emerald-300">HOLD & LET RUNNER COMPOUND</b></span>
-                            <span>✓ Suggested Sell Quantity: <b className="text-emerald-300">0 shares</b></span>
-                            <span>✓ Rule Gate: Requires 3 weekly closes below falling SMA to alter thesis</span>
+                          <span className={`text-xs font-black font-mono px-3 py-1 rounded-full border ${
+                            sellQty > 0
+                              ? 'border-rose-500/50 bg-rose-500/20 text-rose-200'
+                              : 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
+                          }`}>
+                            {sellQty > 0 ? `Sell: ${sellQty.toLocaleString()} shares` : 'Sell: 0 shares'}
+                          </span>
+                        </div>
+
+                        <p className="text-xs leading-relaxed text-slate-300 mb-3">
+                          {reasonText}
+                        </p>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Action Needed</div>
+                            <div className={`mt-0.5 text-sm font-black font-mono ${sellQty > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                              {sellQty > 0 ? `Sell ${sellQty.toLocaleString()} shs` : 'Do Not Sell'}
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Keep Holding</div>
+                            <div className="mt-0.5 text-sm font-black font-mono text-inherit">
+                              {remainingShares.toLocaleString()} shares
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Trailing Stop Floor</div>
+                            <div className="mt-0.5 text-sm font-black font-mono text-inherit">
+                              {money(formatMoney, selected.compoundingShield?.trailingFloorPrice || selected.trailingFloorPrice || selected.chandelierStopPrice, true)}
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Safety Cushion</div>
+                            <div className="mt-0.5 text-sm font-black font-mono text-cyan-300">
+                              {selected.bufferToTrailingFloorPct !== null && selected.bufferToTrailingFloorPct !== undefined ? `+${selected.bufferToTrailingFloorPct}%` : (selected.compoundingShield?.bufferToTrailingFloorPct ? `+${selected.compoundingShield.bufferToTrailingFloorPct}%` : '—')}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    /* Active Trim / Exit Recommendation Banner */
-                    <div className={`mt-4 rounded-2xl border p-4 ${
-                      selected.state === 'FULL_EXIT_CANDIDATE'
-                        ? 'border-red-500/40 bg-red-500/[0.08]'
-                        : selected.state === 'TECHNICAL_TRIM_CANDIDATE' || selected.state === 'FUNDAMENTAL_TRIM_CANDIDATE'
-                          ? 'border-rose-500/30 bg-rose-500/[0.07]'
-                          : selected.state === 'PORTFOLIO_RISK_TRIM'
-                            ? 'border-purple-500/30 bg-purple-500/[0.07]'
-                            : 'border-slate-800 bg-slate-900/40'
-                    }`}>
-                      <div className="flex gap-3 items-start">
-                        {selected.state === 'FULL_EXIT_CANDIDATE' ? (
-                          <AlertOctagon className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                        ) : selected.state === 'PORTFOLIO_RISK_TRIM' ? (
-                          <Scale className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-                        ) : selected.state === 'TECHNICAL_TRIM_CANDIDATE' || selected.state === 'FUNDAMENTAL_TRIM_CANDIDATE' ? (
-                          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                        ) : (
-                          <Activity className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-                        )}
-
-                        <div className="space-y-2 flex-1">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                              System Action Directive
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400">
-                              {selected.state}
-                            </span>
-                          </div>
-                          <p className="text-xs leading-relaxed text-slate-200">
-                            {selected.explanation}
-                          </p>
-
-                          {selected.suggestedSellQuantity ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5">
-                                <div className="text-[9px] uppercase tracking-wider text-rose-300 font-bold">Suggested Trim Quantity</div>
-                                <div className="mt-1 text-base font-black font-mono text-rose-200">
-                                  {selected.suggestedSellQuantity.toLocaleString()} shares
-                                </div>
-                                <div className="text-[9px] text-rose-300/80">
-                                  {((selected.suggestedSellQuantity / selected.quantity) * 100).toFixed(0)}% of current held shares
-                                </div>
-                              </div>
-                              <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-2.5">
-                                <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Est. Gross Proceeds</div>
-                                <div className="mt-1 text-base font-black font-mono text-inherit">
-                                  {money(formatMoney, selected.estimatedGrossProceedsINR)}
-                                </div>
-                                <div className="text-[9px] text-slate-500">
-                                  At reference quote {money(formatMoney, selected.currentPrice, true)}
-                                </div>
-                              </div>
-                              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5">
-                                <div className="text-[9px] uppercase tracking-wider text-emerald-300 font-bold">Shares Left to Ride</div>
-                                <div className="mt-1 text-base font-black font-mono text-emerald-200">
-                                  {(selected.quantity - selected.suggestedSellQuantity).toLocaleString()} shares
-                                </div>
-                                <div className="text-[9px] text-emerald-300/80">
-                                  Preserves core compounder position
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="rounded-xl border border-slate-800 bg-slate-950/30 p-2 text-[10px] text-slate-400">
-                              {selected.state === 'WATCH' ? 'Under observation: Wait for confirmation before considering any sale.' : 'No sale quantity triggered.'}
-                            </div>
-                          )}
-
-                          {selected.sizingMethod && (
-                            <p className="text-[10px] leading-relaxed text-slate-400 italic">
-                              <b>Sizing Rationale:</b> {selected.sizingMethod}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* 4. STAGED MULTI-TRANCHE EXIT PLAN & EXECUTION TRACKER */}
                   {selected.stagedExitPlan && (
@@ -560,12 +618,9 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         <div className="flex items-center gap-2">
                           <Layers className="w-4 h-4 text-cyan-400" />
                           <h4 className="text-xs font-bold uppercase tracking-wider text-inherit">
-                            Staged Multi-Tranche Exit Plan & Ledger Execution Tracker
+                            Staged Multi-Tranche Exit Plan
                           </h4>
                         </div>
-                        <span className="text-[10px] text-slate-500">
-                          Tracks intermediate sales & buys dynamically
-                        </span>
                       </div>
 
                       {/* Ledger Audit Status Message */}
@@ -594,7 +649,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                               <span className="text-[10px] font-bold text-inherit">{selected.stagedExitPlan.tranche1?.name}</span>
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                                 selected.stagedExitPlan.tranche1?.status === 'COMPLETED'
-                                  ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
+                                   ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
                                   : 'border-amber-500/30 text-amber-300 bg-amber-500/10'
                               }`}>
                                 {selected.stagedExitPlan.tranche1?.status}
@@ -607,15 +662,12 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                               Trigger: 30w-SMA (₹{selected.stagedExitPlan.tranche1?.triggerPrice})
                             </div>
                           </div>
-                          <p className="text-[9px] text-slate-400 leading-relaxed mt-2 pt-2 border-t border-slate-800">
-                            {selected.stagedExitPlan.tranche1?.executionNote}
-                          </p>
                         </div>
 
                         {/* Tranche 2 Card (Dynamically evaluated on today's remaining shares) */}
                         <div className={`rounded-xl border p-3 flex flex-col justify-between ${
                           selected.stagedExitPlan.tranche2?.status === 'READY'
-                            ? 'border-rose-500/50 bg-rose-500/10 animate-pulse'
+                            ? 'border-rose-500/50 bg-rose-500/10'
                             : selected.stagedExitPlan.tranche2?.status === 'ARMED'
                               ? 'border-amber-500/30 bg-amber-500/[0.05]'
                               : 'border-slate-800 bg-slate-900/30 opacity-70'
@@ -638,9 +690,6 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                               Trigger Floor: ₹{selected.stagedExitPlan.tranche2?.triggerPrice}
                             </div>
                           </div>
-                          <p className="text-[9px] text-slate-400 leading-relaxed mt-2 pt-2 border-t border-slate-800">
-                            {selected.stagedExitPlan.tranche2?.executionNote}
-                          </p>
                         </div>
 
                         {/* Tranche 3 Card */}
@@ -659,9 +708,6 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                               Full Exit Floor: ₹{selected.stagedExitPlan.tranche3?.triggerPrice}
                             </div>
                           </div>
-                          <p className="text-[9px] text-slate-400 leading-relaxed mt-2 pt-2 border-t border-slate-800">
-                            {selected.stagedExitPlan.tranche3?.executionNote}
-                          </p>
                         </div>
                       </div>
                     </div>
@@ -680,13 +726,10 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                             Gain: +{selected.principalHarvest.gainPct}%
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          {selected.principalHarvest.description}
-                        </p>
-                        <div className="pt-1 flex flex-wrap items-center gap-4 text-[10px] text-slate-400">
-                          <span>Sell <b>{selected.principalHarvest.sharesToHarvest} shares</b> to pull ₹{selected.principalHarvest.capitalRecoveredINR?.toLocaleString('en-IN', { maximumFractionDigits: 0 })} principal</span>
+                        <div className="pt-1 flex flex-wrap items-center gap-4 text-[10px] text-slate-300">
+                          <span>Sell <b>{selected.principalHarvest.sharesToHarvest} shares</b> to recover ₹{selected.principalHarvest.capitalRecoveredINR?.toLocaleString('en-IN', { maximumFractionDigits: 0 })} principal</span>
                           <span>•</span>
-                          <span className="text-emerald-300 font-bold">{selected.principalHarvest.remainingShares} shares ride completely risk-free</span>
+                          <span className="text-emerald-300 font-bold">{selected.principalHarvest.remainingShares} shares ride risk-free</span>
                         </div>
                       </div>
                     </div>
@@ -713,33 +756,30 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         )}
                       </button>
                     </div>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {selected.ruleVersion}
-                    </span>
                   </div>
 
                   {activeDossierTab === 'TECHNICAL' ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
-                          label="Weinstein Trend Stage"
-                          value={selected.weinsteinStageLabel || 'Stage 2'}
-                          tone={selected.weinsteinStage === 2 ? 'text-emerald-400' : selected.weinsteinStage === 4 ? 'text-rose-400' : 'text-inherit'}
-                          detail={selected.weinsteinStage === 2 ? 'Advancing Bull Market' : 'Distribution / Decline'}
+                          label="Trend Stage"
+                          value={selected.weinsteinStage ? `Stage ${selected.weinsteinStage}` : 'Stage —'}
+                          tone={selected.weinsteinStage === 2 ? 'text-emerald-400' : selected.weinsteinStage === 4 ? 'text-rose-400' : selected.weinsteinStage === 3 ? 'text-amber-300' : 'text-inherit'}
+                          detail={selected.weinsteinStage === 2 ? 'Advancing Bull' : selected.weinsteinStage === 3 ? 'Distribution Top' : selected.weinsteinStage === 4 ? 'Decline / Bear' : selected.weinsteinStage === 1 ? 'Base Building' : 'Evaluating'}
                         />
                         <Metric
-                          label="30-Week SMA"
-                          value={selected.sma30Week ? money(formatMoney, selected.sma30Week, true) : 'Insufficient'}
-                          detail={`Slope: ${selected.sma30WeekFourWeekSlopePct !== null ? `${selected.sma30WeekFourWeekSlopePct >= 0 ? '+' : ''}${selected.sma30WeekFourWeekSlopePct.toFixed(1)}%` : '—'}`}
+                          label="30-Week Average (Trend)"
+                          value={selected.sma30Week ? money(formatMoney, selected.sma30Week, true) : 'IPO (<40w)'}
+                          detail={selected.sma30WeekFourWeekSlopePct !== null ? `4w slope: ${selected.sma30WeekFourWeekSlopePct >= 0 ? '+' : ''}${selected.sma30WeekFourWeekSlopePct.toFixed(1)}%` : 'Building baseline'}
                         />
                         <Metric
-                          label="Chandelier ATR Stop"
+                          label="Trailing Stop (Exit Floor)"
                           value={selected.chandelierStopPrice ? money(formatMoney, selected.chandelierStopPrice, true) : '—'}
                           tone={selected.currentPrice >= selected.chandelierStopPrice ? 'text-emerald-400' : 'text-rose-400'}
-                          detail="3.0× ATR corridor from 20w high"
+                          detail="3.0× ATR floor from peak"
                         />
                         <Metric
-                          label="20-Week Peak & Drawdown"
+                          label="20-Week Peak & Drop"
                           value={selected.drawdownFrom20WeekHighPct !== null ? `${selected.drawdownFrom20WeekHighPct.toFixed(1)}%` : '—'}
                           tone={selected.drawdownFrom20WeekHighPct > -20 ? 'text-emerald-400' : 'text-rose-400'}
                           detail={`Peak: ${money(formatMoney, selected.peak20WeekPrice, true)}`}
@@ -748,28 +788,28 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
 
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
-                          label="Close vs 30w-SMA"
+                          label="Distance to 30w Trend"
                           value={selected.weeklyClose && selected.sma30Week ? `${((selected.weeklyClose / selected.sma30Week - 1) * 100).toFixed(2)}%` : '—'}
                           tone={selected.weeklyClose >= selected.sma30Week ? 'text-emerald-400' : 'text-rose-400'}
-                          detail={`${selected.weeksBelowAverage} consecutive weeks below`}
+                          detail={selected.weeklyClose >= selected.sma30Week ? 'Trading above 30w line' : `${selected.weeksBelowAverage}w below 30w line`}
                         />
                         <Metric
-                          label="Buffer to Trailing Stop"
+                          label="Cushion to Stop Floor"
                           value={selected.bufferToTrailingFloorPct !== null ? `+${selected.bufferToTrailingFloorPct}%` : '—'}
                           tone="text-cyan-400"
-                          detail={`Stop floor at ${money(formatMoney, selected.trailingFloorPrice, true)}`}
+                          detail={`Stop floor: ${money(formatMoney, selected.trailingFloorPrice, true)}`}
                         />
                         <Metric
-                          label="30-Day Price Return"
+                          label="30-Day Return"
                           value={selected.observed30DayReturn ? `${selected.observed30DayReturn.pct >= 0 ? '+' : ''}${selected.observed30DayReturn.pct.toFixed(2)}%` : '—'}
                           tone={returnTone(selected.observed30DayReturn?.pct)}
-                          detail={selected.observed30DayReturn ? `${selected.observed30DayReturn.from} to ${selected.observed30DayReturn.to}` : ''}
+                          detail="Trailing 30 days"
                         />
                         <Metric
-                          label="90-Day Price Return"
+                          label="90-Day Return"
                           value={selected.observed90DayReturn ? `${selected.observed90DayReturn.pct >= 0 ? '+' : ''}${selected.observed90DayReturn.pct.toFixed(2)}%` : '—'}
                           tone={returnTone(selected.observed90DayReturn?.pct)}
-                          detail={selected.observed90DayReturn ? `${selected.observed90DayReturn.from} to ${selected.observed90DayReturn.to}` : ''}
+                          detail="Trailing 90 days"
                         />
                       </div>
 
@@ -827,8 +867,8 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                     /* Fundamental Pillar Content */
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400">
-                          Data Source: <b className="text-slate-200">{selected.fundamentals?.source || 'Screener.in (Consolidated)'}</b>
+                        <span className="text-[10px] font-mono text-slate-500 uppercase">
+                          {selected.fundamentals?.source || 'Screener.in'}
                         </span>
                         <button
                           onClick={() => handleRefreshFundamentals(selected.symbol)}
@@ -911,11 +951,20 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
 
                 {/* 7. POSITION RISK LIMIT CONFIGURATION */}
                 <section className="glass-card rounded-3xl border border-slate-800 p-5">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <Settings2 className="w-4 h-4 text-cyan-400" />
-                    <h3 className="text-sm font-bold text-inherit">Position Concentration Risk Guard</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="w-4 h-4 text-cyan-400" />
+                      <h3 className="text-sm font-bold text-inherit">Position Concentration Risk Guard</h3>
+                    </div>
+                    <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full border ${
+                      data?.config?.maxPositionWeightPct
+                        ? 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10 font-bold'
+                        : 'border-slate-700 text-slate-400 bg-slate-900/40'
+                    }`}>
+                      {data?.config?.maxPositionWeightPct ? `Active Cap: ${data.config.maxPositionWeightPct}%` : 'No Cap (Positions Unconstrained)'}
+                    </span>
                   </div>
-                  <form onSubmit={saveRiskLimit} className="flex flex-wrap items-end gap-3">
+                  <form onSubmit={saveRiskLimit} className="flex flex-wrap items-end gap-3 mt-3">
                     <label className="text-[10px] text-slate-400">
                       Maximum weight cap within Indian equities (%)
                       <input
@@ -925,13 +974,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         step="0.1"
                         value={maxWeight}
                         onChange={event => setMaxWeight(event.target.value)}
-                        placeholder="e.g. 15.0%"
+                        placeholder="Optional (e.g. 15.0%)"
                         className="mt-1 block w-44 rounded-xl border border-slate-800 bg-slate-950/30 px-3 py-2 text-xs text-inherit outline-none focus:border-cyan-500/50"
                       />
                     </label>
                     <button
                       disabled={savingConfig}
-                      className="rounded-xl bg-cyan-500/15 border border-cyan-500/30 px-3 py-2 text-[10px] font-bold text-cyan-200 disabled:opacity-50"
+                      className="rounded-xl bg-cyan-500/15 border border-cyan-500/30 px-3 py-2 text-[10px] font-bold text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-50 transition-colors"
                     >
                       {savingConfig ? 'Saving…' : 'Save Cap'}
                     </button>
@@ -939,31 +988,34 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                       type="button"
                       disabled={savingConfig}
                       onClick={clearRiskLimit}
-                      className="rounded-xl border border-slate-700 px-3 py-2 text-[10px] text-slate-400 disabled:opacity-50"
+                      className="rounded-xl border border-slate-700 px-3 py-2 text-[10px] text-slate-400 hover:text-slate-200 hover:border-slate-600 disabled:opacity-50 transition-colors"
                     >
                       Disable Limit
                     </button>
                     {configMessage && <span className="text-[10px] text-slate-400">{configMessage}</span>}
                   </form>
-                  <p className="mt-2 text-[9px] leading-relaxed text-slate-500">
-                    When active, holdings exceeding this cap automatically trigger a <b className="text-purple-300">PORTFOLIO_RISK_TRIM</b> recommending only the exact delta shares required to restore allocation to your ceiling.
-                  </p>
                 </section>
 
                 {/* 8. STATE TRANSITION AUDIT TRAIL */}
                 {history.length > 0 && (
                   <section className="glass-card rounded-3xl border border-slate-800 p-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-inherit mb-2.5">
-                      <History className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Recorded State History ({history.length} events)</span>
+                    <div className="flex items-center justify-between text-xs font-bold text-inherit mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <History className="w-3.5 h-3.5 text-slate-400" />
+                        <span>State History ({history.length} events)</span>
+                      </div>
                     </div>
                     <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
                       {history.slice(0, 8).map(event => (
                         <div key={event.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] p-2 rounded-xl bg-slate-950/30 border border-slate-800/60">
-                          <span className="text-slate-300 font-medium">
-                            {event.from || 'Initiated'} → <b className="text-emerald-400">{event.to}</b>
+                          <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                            <span>{formatStateLabel(event.from)}</span>
+                            <span className="text-slate-600">→</span>
+                            <span className="text-emerald-400 font-bold">{formatStateLabel(event.to)}</span>
                           </span>
-                          <span className="text-slate-500 font-mono">{new Date(event.at).toLocaleString()}</span>
+                          <span className="text-slate-500 font-mono text-[9px]">
+                            {new Date(event.at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(event.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
                         </div>
                       ))}
                     </div>

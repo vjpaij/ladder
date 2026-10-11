@@ -188,7 +188,7 @@ export default function HoldingTransactionLedger({
                   className="w-full px-3 py-1.5 bg-inherit border border-inherit rounded-xl text-xs outline-none focus:border-emerald-500"
                 >
                   {(() => {
-                    let types = ['BUY', 'SELL', 'BONUS', 'DIVIDEND', 'SPLIT'];
+                    let types = ['BUY', 'SELL', 'BONUS', 'DIVIDEND', 'SPLIT', 'DEMERGER', 'MERGER'];
                     if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
                       types = ['BUY', 'SELL', 'INVESTMENT', 'INVESTMENT (SIP)', 'DIVIDEND'];
                     } else if (holding.category_id === 'bank') {
@@ -1044,7 +1044,7 @@ export default function HoldingTransactionLedger({
                       <td className="py-2 px-3">
                         <select value={editForm.type || 'BUY'} onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
                           {(() => {
-                            let types = ['BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT'];
+                            let types = ['BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT', 'DEMERGER', 'MERGER'];
                             if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
                               types = ['BUY', 'SELL', 'INVESTMENT', 'INVESTMENT (SIP)', 'BONUS', 'DIVIDEND'];
                             }

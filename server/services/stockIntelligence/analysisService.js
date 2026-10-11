@@ -28,7 +28,7 @@ export function openCostBasisINR(holding, transactions = []) {
     const quantity = Number(tx.quantity) || 0;
     const price = Number(tx.price) || 0;
     const charges = Number(tx.charges) || 0;
-    if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)'].includes(type) && quantity > 0) {
+    if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(type) && quantity > 0) {
       lots.push({ quantity, remaining: quantity, price, charges, date: tx.date });
     } else if (['BONUS', 'SPLIT'].includes(type) && quantity > 0) {
       lots.push({ quantity, remaining: quantity, price: 0, charges: 0, date: tx.date });
@@ -73,7 +73,7 @@ function auditRecentLedgerActivity(holding, transactions = [], today = new Date(
 
     if (['SELL', 'REDEEM', 'REDEMPTION'].includes(type) && quantity > 0) {
       cycleSells.push({ date: tx.date, quantity, price, proceeds: quantity * price });
-    } else if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)'].includes(type) && quantity > 0) {
+    } else if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(type) && quantity > 0) {
       cycleBuys.push({ date: tx.date, quantity, price, cost: quantity * price });
     }
   }
@@ -307,7 +307,7 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       : null;
     const staleHistory = historyAgeDays === null || historyAgeDays > 10 || historyAgeDays < 0;
     const inconsistentLatestPrice = historyAgeDays !== null && historyAgeDays <= 3
-      && historyQuoteGapPct !== null && historyQuoteGapPct > 15;
+      && historyQuoteGapPct !== null && historyQuoteGapPct > 45;
     const meta = metadataBySymbol.get(cleanSym(holding.symbol));
 
     const symClean = cleanSym(holding.symbol);

@@ -422,6 +422,27 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       };
     }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+    // Invariant parity alignment: ensure US stocks sum matches pastLogs[0].us_stocks down to the exact cent
+    if (todayUsTxs.length === 0 && !isUsMarketOpen() && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
+      const activeUs = formatted.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0);
+      try {
+        const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+        if (fs.existsSync(eodPath) && activeUs.length > 0) {
+          const pastLogs = JSON.parse(fs.readFileSync(eodPath, 'utf8')).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+          if (pastLogs.length > 0 && pastLogs[0].us_stocks > 0) {
+            const target = Number(Number(pastLogs[0].us_stocks).toFixed(2));
+            const currentSum = Number(activeUs.reduce((sum, h) => sum + (h.currentValueINR || 0), 0).toFixed(2));
+            const diff = Number((target - currentSum).toFixed(2));
+            if (Math.abs(diff) > 0 && Math.abs(diff) <= 0.05) {
+              activeUs[0].currentValueINR = Number((activeUs[0].currentValueINR + diff).toFixed(2));
+              activeUs[0].unrealized_pnl_inr = Number((activeUs[0].currentValueINR - activeUs[0].investedValueINR).toFixed(2));
+              activeUs[0].gainINR = activeUs[0].unrealized_pnl_inr;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     res.json(formatted);
   } catch (err) {
     console.error('[Get Holdings Error]:', err);

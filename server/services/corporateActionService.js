@@ -104,7 +104,7 @@ export async function applyStockSplit({
     const qty = Number(t.quantity) || 0;
     const price = Number(t.price) || 0;
 
-    if (['BUY', 'BONUS', 'INVESTMENT', 'INVESTMENT (SIP)'].includes(t.type)) {
+    if (['BUY', 'BONUS', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(t.type)) {
       lots.push({
         id: t.id,
         tx: t,
@@ -283,7 +283,7 @@ export async function updateStockSplit(txId, updates) {
       if (tDate > newDate) continue;
       const qty = Number(t.quantity) || 0;
       const price = Number(t.price) || 0;
-      if (['BUY', 'BONUS', 'INVESTMENT', 'INVESTMENT (SIP)'].includes(t.type)) {
+      if (['BUY', 'BONUS', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(t.type)) {
         lots.push({ id: t.id, tx: t, origQty: qty, remQty: qty, price });
       } else if (['SELL', 'REDEEM', 'REDEMPTION'].includes(t.type)) {
         let remSell = qty;
