@@ -9,7 +9,9 @@
     "start": "concurrently \"npm run server\" \"npm run dev\"",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server/index.js"
+    "server": "node server/index.js",
+    "test:stock-intelligence": "node --test server/services/stockIntelligence/stockIntelligence.test.js",
+    "backtest:stock-intelligence": "node scripts/backtest_stock_intelligence.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",

@@ -139,6 +139,7 @@ export async function createCloudBackup({ tagSuffix = '' } = {}) {
     compressed: true,
     source: 'live_cache',
     tables: {},
+    intelligence: {},
     stats: {},
     integrity: {
       sourceOfTruth: 'local_cache',
@@ -147,6 +148,18 @@ export async function createCloudBackup({ tagSuffix = '' } = {}) {
       tableCounts: {}
     }
   };
+
+  // Stock-analysis state is separate from portfolio tables, so capture these
+  // user-keyed append-only events and preferences alongside the core snapshot.
+  for (const filename of ['stock_intelligence_state.json', 'stock_intelligence_config.json']) {
+    const filePath = path.join(process.cwd(), 'data', filename);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      snapshotData.intelligence[filename] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (error) {
+      throw new Error(`Could not include ${filename} in backup: ${error.message}`);
+    }
+  }
 
   let totalRows = 0;
 

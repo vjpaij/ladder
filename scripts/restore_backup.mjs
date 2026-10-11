@@ -317,6 +317,17 @@ function sanitizeRowForTable(table, row) {
     console.warn('[Restore Manager] Cache rebuild warning (non-fatal):', cacheErr.message);
   }
 
+  // Restore the stock-analysis audit and preferences only after the main
+  // portfolio restore completed. These files never participate in accounting.
+  for (const filename of ['stock_intelligence_state.json', 'stock_intelligence_config.json']) {
+    const payload = snapshot.intelligence?.[filename];
+    if (payload === undefined) continue;
+    const target = path.join(process.cwd(), 'data', filename);
+    const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(temp, JSON.stringify(payload, null, 2), 'utf8');
+    fs.renameSync(temp, target);
+  }
+
   // ── Step 6: Clear WAL — Supabase is now authoritative ────────────────────
   try {
     clearWal();

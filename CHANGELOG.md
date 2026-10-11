@@ -5,6 +5,22 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.57.0] - 2026-10-11
+
+### Added
+- **Indian Equity Exit Intelligence**: Added a deterministic 30-week trend state machine with two-week watch and three-week/falling-average confirmation, stale-data suppression, user-keyed state history, configurable maximum position weight, and whole-share concentration sizing.
+- **Walk-Forward Backtesting**: Added fixed training (2012–2019), validation (2020–2022), and held-out (2023 onward) comparisons of 25%, 50%, and full trims against buy-and-hold. Displays average return, drawdown, trade counts, and six-month missed-upside outcomes. The current cache does not validate a technical trim quantity, so no technical sell size is recommended.
+- **Stock Analysis UX**: Replaced the initial sparse page with position explanations, price history, quantity scenarios, sector exposure, backtest details, transition history, and an explicit transaction-review path. Added unit tests and `docs/adr-stock-intelligence.md`.
+- **State Recovery**: Included stock-intelligence state transitions and per-user risk limits in the existing cloud backup and restore snapshot, separate from portfolio accounting tables.
+
+### Limitations
+- The local sample is today’s holdings and daily-close history; it has survivorship bias and lacks point-in-time fundamentals, audited OHLCV/corporate actions, delisted securities, dividends, and taxes. Screener scraping and exchange data feeds were not enabled because current data access rights are not established.
+
+## [5.56.0] - 2026-10-11
+
+### Added
+- **Executive Stock Analysis**: Added a read-only Indian equity analysis workspace with active position exposure, sector concentration, stored historical prices, and observed 30/90-day price changes. Fundamental data gaps are explicit; the view does not issue trade recommendations or write to portfolio records.
+
 ## [5.55.0] - 2026-10-02
 
 ### Added

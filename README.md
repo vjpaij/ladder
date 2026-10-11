@@ -21,6 +21,12 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Webpage Login Auto-Sync**: Whenever the user logs in or mounts the dashboard, the system immediately dispatches an on-demand sync across all asset classes (Indian Equities, US Equities, Mutual Funds, NPS, and FX conversions) to present the freshest live prices and valuations at that moment.
    - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI, server boot synchronization, and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).
 
+3. **Executive Stock Analysis (`StockAnalysisView.jsx`)**
+   - Evaluates active Indian holdings with a confirmed weekly trend rule, explicit price freshness, 30/90-day observed price moves, sector exposure, and position concentration.
+   - Runs a reproducible training/validation/held-out backtest against buy-and-hold, shows missed upside after exits, and withholds technical sell quantities when the held-out criteria fail. User-selected concentration limits can produce an explainable whole-share scenario.
+   - State history and preferences are stored separately from portfolio records. No trade is placed or recorded automatically.
+   - Fundamental ingestion, official event verification, qualified tax review, and authorized OHLCV/delisted-company data remain gated. See [the architecture decision record](docs/adr-stock-intelligence.md).
+
 3. **Delta-Ledger Architecture for Cash, EPF & Debt**
    - Bank Accounts, EPF, Loans, and Credit Cards operate as a transaction-backed delta ledger.
    - Over 4,900 historical balance adjustments from 2007 through 2026 are modeled as discrete delta transactions (`CREDIT`, `DEBIT`, `CONTRIBUTION`, `WITHDRAWAL`, `BORROW`, `EMI_PAYMENT`, `CHARGE`, `PAYMENT`).
@@ -239,6 +245,16 @@ POST /api/auth/register
 
 ## Operational Scripts & Workflows
 
+### Stock Intelligence Verification
+Run the Indian stock exit-rule unit tests and reproduce the training/validation/held-out report from the checksummed local portfolio snapshot and historical closing-price cache:
+
+```bash
+npm run test:stock-intelligence
+npm run backtest:stock-intelligence
+```
+
+The report is exploratory: it uses current holdings, excludes delisted companies, and does not include audited corporate actions, dividends, or tax.
+
 ### 1. Database Backup (Safety Snapshot)
 Exports all holdings, transactions, dividends, liabilities, daily logs, and EOD files with pagination and SHA256 verification:
 
@@ -322,6 +338,14 @@ node scripts/verify_all_assets_integrity.mjs
 ### 10. 100% Offline Local Cache Mode (Zero Supabase Egress)
 To operate the entire application locally with zero cloud network requests, set `OFFLINE_CACHE_MODE=true` in `.env`.
 All data is served from and persisted to `data/db_cache_snapshot.json` in Node.js RAM (`dbCache`). See [SUPABASE_EGRESS_AND_CACHE_GUIDE.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/SUPABASE_EGRESS_AND_CACHE_GUIDE.md) for full operational instructions, multi-device transfer steps, and post-reset cloud re-population guides.
+
+### 11. Intelligent Exit & Rebalancing Engine (Specification & Roadmap)
+A comprehensive architectural specification is defined in [Plan_new.md](Plan_new.md) for an additive Indian equity decision-support engine (`category_id = 'in_stocks'`). Completed technical, sizing, state-history, and exploratory backtest work is documented in [the ADR](docs/adr-stock-intelligence.md). Verified fundamentals, licensed historical data, corporate-action validation, and tax estimates remain gated until appropriate sources and review are available. The full target engine combines:
+- **Weekly Trend & Volatility Regimes**: Stan Weinstein Stage analysis (Weekly 30-SMA) and volatility-adaptive Chandelier ATR corridors to prevent premature liquidation of secular multi-baggers.
+- **Screener.in Fundamental Provider**: Sector-aware fundamental analysis (Manufacturing vs BFSI), quarterly margin/PAT delta tracking, and promoter pledging guards.
+- **Decision State Machine**: Discrete categorical states (`NORMAL_FLUCTUATION`, `WATCH`, `TECHNICAL_TRIM_CANDIDATE`, `FUNDAMENTAL_TRIM_CANDIDATE`, `CRITICAL_THESIS_REVIEW`, `FULL_EXIT_CANDIDATE`, `PORTFOLIO_RISK_TRIM`).
+- **Precision Lot Sizing & Versioned Taxes**: Dynamically sized FIFO principal harvesting and concentration trims incorporating Union Budget 2024 LTCG (12.5%) and STCG (20%) provisions.
+- **Alert Fatigue Prevention**: Hysteresis entry/exit thresholds, deduplication, cooldowns, and post-market EOD scheduled evaluation (06:30 PM IST).
 
 ---
 

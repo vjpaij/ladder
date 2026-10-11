@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   PieChart,
+  SearchCheck,
   PlusCircle,
   Clock
 } from 'lucide-react';
@@ -37,6 +38,7 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
         { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'reports', label: 'Reports', icon: PieChart },
+        { id: 'stock_analysis', label: 'Stock Analysis', icon: SearchCheck },
       ]
     },
     {

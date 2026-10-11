@@ -52,6 +52,7 @@ import sipsRouter from './routes/sips.js';
 import searchRouter from './routes/search.js';
 import reportsRouter from './routes/reports.js';
 import syncLogsRouter from './routes/syncLogs.js';
+import stockIntelligenceRouter from './routes/stockIntelligence.js';
 import { logSyncEvent } from './services/syncLogService.js';
 
 // Re-export background EOD rebuild helper for backward compatibility
@@ -90,6 +91,7 @@ app.use('/api', sipsRouter);
 app.use('/api', searchRouter);
 app.use('/api', reportsRouter);
 app.use('/api', syncLogsRouter);
+app.use('/api', stockIntelligenceRouter);
 
 // -------------------------------------------------------------
 // Sync Status API — surfaces WAL gaps and cache/Supabase divergence

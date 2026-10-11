@@ -14,6 +14,7 @@ import LoginView from './views/LoginView';
 // Code-split: each view is loaded on demand to reduce initial bundle size
 const OverviewView = lazy(() => import('./views/OverviewView'));
 const CalendarView = lazy(() => import('./views/CalendarView'));
+const StockAnalysisView = lazy(() => import('./views/StockAnalysisView'));
 const IndianStocksView = lazy(() => import('./views/IndianStocksView'));
 const UsStocksView = lazy(() => import('./views/UsStocksView'));
 const MutualFundsView = lazy(() => import('./views/MutualFundsView'));
@@ -317,6 +318,8 @@ function AuthenticatedApp() {
         return <OverviewView key="overview" summary={summary} holdings={holdings} liabilities={liabilities} onNavigate={setCurrentView} />;
       case 'calendar':
         return <CalendarView key="calendar" />;
+      case 'stock_analysis':
+        return <StockAnalysisView key="stock_analysis" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
       case 'indian_stocks':
         return <IndianStocksView key="indian_stocks" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onRefresh={fetchDashboardData} onOpenAddModal={() => { setTargetPortfolio('in_stocks'); setCurrentView('add_investment'); }} />;
       case 'us_stocks':
