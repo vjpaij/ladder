@@ -21,11 +21,13 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Webpage Login Auto-Sync**: Whenever the user logs in or mounts the dashboard, the system immediately dispatches an on-demand sync across all asset classes (Indian Equities, US Equities, Mutual Funds, NPS, and FX conversions) to present the freshest live prices and valuations at that moment.
    - **On-Demand & Cloud Catch-Up**: Integrated "Refresh NAVs" button in UI, server boot synchronization, and an hourly zero-maintenance GitHub Actions cron worker (`.github/workflows/daily_nav_sip_sync.yml`).
 
-3. **Executive Stock Analysis (`StockAnalysisView.jsx`)**
-   - Evaluates active Indian holdings with a confirmed weekly trend rule, explicit price freshness, 30/90-day observed price moves, sector exposure, and position concentration.
-   - Runs a reproducible training/validation/held-out backtest against buy-and-hold, shows missed upside after exits, and withholds technical sell quantities when the held-out criteria fail. User-selected concentration limits can produce an explainable whole-share scenario.
-   - State history and preferences are stored separately from portfolio records. No trade is placed or recorded automatically.
-   - Fundamental ingestion, official event verification, qualified tax review, and authorized OHLCV/delisted-company data remain gated. See [the architecture decision record](docs/adr-stock-intelligence.md).
+3. **Intelligent Stock Analysis & Exit Decision Engine (`StockAnalysisView.jsx`)**
+   - **Dual-Pillar Technical & Fundamental Confluence**: Combines Stan Weinstein Stage analysis (Stages 1–4, 30-week SMA, and Chandelier $3.0 \times \text{ATR}$ trailing stop) with comprehensive quarterly fundamentals from Screener.in (quarterly Sales, OPM % trend vs 4-quarter baseline, YoY PAT growth %, Promoter Pledging %, Debt-to-Equity, PE, and ROCE).
+   - **Anti-Early-Exit Compounding Shield**: Specifically protects Stage 2 multi-bagger compounders from premature exit during standard 15%–25% bull market pullbacks as long as the trailing ATR floor price and quarterly fundamentals remain intact.
+   - **Dynamic Authentic Whole-Share Sizing (Zero Hardcoding)**: Completely eliminates arbitrary hardcoded percentages (e.g. static 25%). Tranche sizing is derived dynamically from excess concentration above user-defined limits, drawdown risk corridors, or fundamental decay to suggest exact, logical whole shares.
+   - **Staged Multi-Tranche Roadmap & Dynamic Ledger Tracking**: Plans structured exits in phases (Tranche 1 for initial risk reduction, Tranche 2 on trend confirmation). Dynamically audits transaction history to detect completed sales and realized cash vs pending orders, while continuously accounting for any intermediate shares bought since the last sale to compute exact state for today.
+   - **Daily Post-Market Automation**: Runs autonomously every trading day at **06:30 PM IST** post-market, on server boot, and during scheduled EOD valuation rebuilds, recording full audit history into `sync_logs.json` accessible via the Sync Logs modal. Also evaluates live on every price refresh and transaction change.
+   - **Principal Harvest ("House Money") Calculator**: Automatically detects winning positions with >100% gain and calculates the exact whole-share quantity to liquidate to fully recover initial invested capital, letting remaining shares compound risk-free.
 
 3. **Delta-Ledger Architecture for Cash, EPF & Debt**
    - Bank Accounts, EPF, Loans, and Credit Cards operate as a transaction-backed delta ledger.

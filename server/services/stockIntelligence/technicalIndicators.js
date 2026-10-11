@@ -36,6 +36,22 @@ export function simpleMovingAverage(values, period) {
   return window.reduce((sum, value) => sum + value, 0) / period;
 }
 
+/**
+ * Calculates Average True Range (ATR) across weekly price closes
+ */
+export function calculateWeeklyATR(weeklyCloses = [], period = 14) {
+  if (weeklyCloses.length < period + 1) return null;
+  const trueRanges = [];
+  for (let i = 1; i < weeklyCloses.length; i++) {
+    // With close-only series, True Range is approximated by absolute delta between successive closes
+    const tr = Math.abs(weeklyCloses[i] - weeklyCloses[i - 1]);
+    trueRanges.push(tr);
+  }
+  if (trueRanges.length < period) return null;
+  const recent = trueRanges.slice(-period);
+  return recent.reduce((sum, v) => sum + v, 0) / period;
+}
+
 export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOString().slice(0, 10) } = {}) {
   const daily = normalizePriceSeries(rawPrices);
   const weekly = aggregateWeeklyCloses(daily, { today });
@@ -54,6 +70,12 @@ export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOStrin
       sma30Week: latestSma,
       weeksBelowAverage: 0,
       slopeDown: null,
+      weinsteinStage: null,
+      weinsteinStageLabel: 'Insufficient History',
+      chandelierStopPrice: null,
+      isCompoundingProtected: false,
+      trailingFloorPrice: null,
+      bufferToTrailingFloorPct: null,
       evidence: [],
       invalidation: 'Build at least 40 completed weekly observations before evaluating a trend.'
     };
@@ -78,13 +100,50 @@ export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOStrin
   const volatility20Day = dailyReturns.length >= 20
     ? Math.sqrt(dailyReturns.slice(-20).reduce((sum, value) => sum + value * value, 0) * 252 / 20)
     : null;
+
+  // 1. Stan Weinstein Stage Analysis (1 to 4)
+  let weinsteinStage = 2;
+  let weinsteinStageLabel = 'Stage 2 (Advancing / Bull)';
+  const slopePct = priorSma ? (latestSma / priorSma - 1) * 100 : 0;
+  const isAboveSma = latest.close >= latestSma;
+
+  if (isAboveSma && slopePct >= -0.5) {
+    weinsteinStage = 2;
+    weinsteinStageLabel = 'Stage 2 (Advancing / Bull)';
+  } else if (isAboveSma && slopePct < -0.5) {
+    weinsteinStage = 3;
+    weinsteinStageLabel = 'Stage 3 (Distribution / Topping)';
+  } else if (!isAboveSma && slopePct < 0) {
+    weinsteinStage = 4;
+    weinsteinStageLabel = 'Stage 4 (Declining / Bear)';
+  } else {
+    weinsteinStage = 1;
+    weinsteinStageLabel = 'Stage 1 (Base / Accumulation)';
+  }
+
+  // 2. Chandelier Trailing Exit: Peak(20w) - 3.0 * ATR(14w)
+  const atr14 = calculateWeeklyATR(closes, 14) || (latest.close * 0.04);
+  const chandelierStopPrice = Number(Math.max(0, peak20 - 3.0 * atr14).toFixed(2));
+
+  // 3. Compounding Protection Engine
+  // A stock in Stage 2 Bull that trades above its trailing stop has active compounding protection.
+  // Standard 15% to 25% pullbacks in Indian growth stocks are recognized as normal volatility.
+  const isCompoundingProtected = weinsteinStage === 2 && latest.close >= chandelierStopPrice;
+  const trailingFloorPrice = Number(Math.max(latestSma * 0.95, chandelierStopPrice).toFixed(2));
+  const bufferToTrailingFloorPct = latest.close > 0 && trailingFloorPrice > 0
+    ? Number(((latest.close / trailingFloorPrice - 1) * 100).toFixed(2))
+    : 0;
+
   const state = confirmed ? 'TECHNICAL_TRIM_CANDIDATE' : watch ? 'WATCH' : 'NORMAL';
   const evidence = [
     { key: 'weekly_close_vs_30w_sma', value: latest.close / latestSma - 1, observedAt: latest.date },
     { key: 'consecutive_weekly_closes_below_sma', value: weeksBelowAverage, observedAt: latest.date },
     { key: '30w_sma_four_week_slope', value: priorSma ? latestSma / priorSma - 1 : null, observedAt: latest.date },
-    { key: 'drawdown_from_20w_high', value: drawdownFrom20WeekHigh, observedAt: latest.date }
+    { key: 'drawdown_from_20w_high', value: drawdownFrom20WeekHigh, observedAt: latest.date },
+    { key: 'weinstein_stage', value: weinsteinStage, observedAt: latest.date },
+    { key: 'chandelier_stop_price', value: chandelierStopPrice, observedAt: latest.date }
   ];
+
   return {
     state,
     dataQuality: 'PRICE_HISTORY_ONLY',
@@ -99,6 +158,13 @@ export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOStrin
     slopeDown,
     drawdownFrom20WeekHighPct: drawdownFrom20WeekHigh === null ? null : drawdownFrom20WeekHigh * 100,
     annualizedVolatility20DayPct: volatility20Day === null ? null : volatility20Day * 100,
+    weinsteinStage,
+    weinsteinStageLabel,
+    peak20WeekPrice: peak20,
+    chandelierStopPrice,
+    isCompoundingProtected,
+    trailingFloorPrice,
+    bufferToTrailingFloorPct,
     evidence,
     invalidation: confirmed
       ? 'The technical exit concern clears after two completed weekly closes above the 30-week average.'

@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 import db from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getTodayIST } from '../services/marketCalendar.js';
@@ -6,13 +8,15 @@ import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { runWalkForwardBacktest } from '../services/stockIntelligence/backtestEngine.js';
 import { buildPortfolioSummary, buildStockAnalyses } from '../services/stockIntelligence/analysisService.js';
 import { getIntelligenceConfig, getStateHistory, recordStateTransitions, saveIntelligenceConfig } from '../services/stockIntelligence/repository.js';
+import { fetchCompanyFundamentals, preloadAllHeldFundamentals } from '../services/stockIntelligence/screenerFundamentalsProvider.js';
+import { logSyncEvent } from '../services/syncLogService.js';
 
 const router = express.Router();
 let cachedBacktest = null;
 let cachedBacktestKey = '';
 
 function getUserKey(user) {
-  return String(user?.id || user?.email || 'local-user');
+  return String(user?.id || user?.email || '1');
 }
 
 function getBacktest(priceMap, symbols) {
@@ -30,29 +34,153 @@ function getBacktest(priceMap, symbols) {
   return cachedBacktest;
 }
 
+/**
+ * Loads all cached fundamentals from data/screener_cache/ into an in-memory map
+ */
+function loadAllCachedFundamentals(symbols = []) {
+  const cacheDir = path.join(process.cwd(), 'data', 'screener_cache');
+  const result = {};
+  if (!fs.existsSync(cacheDir)) return result;
+
+  for (const sym of symbols) {
+    const clean = String(sym).replace(/\.(NS|BO)$/i, '').toUpperCase();
+    const filePath = path.join(cacheDir, `${clean}.json`);
+    if (fs.existsSync(filePath)) {
+      try {
+        result[clean] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      } catch {
+        // ignore parse error
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Runs the daily Stock Analysis audit, records state transitions, and logs sync event
+ */
+export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHEDULED' } = {}) {
+  const startTime = Date.now();
+  try {
+    const [holdings, transactions, metadata, history] = await Promise.all([
+      db.select('holdings'),
+      db.select('transactions'),
+      db.select('asset_metadata'),
+      loadHistoricalPricesAsync()
+    ]);
+
+    const active = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0);
+    const symbols = [...new Set(active.map(item => item.symbol).filter(Boolean))];
+    const backtest = getBacktest(history, symbols);
+    const config = getIntelligenceConfig(userId);
+
+    // Load available cached fundamentals
+    let fundamentalsMap = loadAllCachedFundamentals(symbols);
+
+    // Evaluate analyses
+    const analyses = buildStockAnalyses(holdings, history, {
+      today: getTodayIST(),
+      backtest,
+      config,
+      transactions,
+      metadata,
+      fundamentalsMap
+    });
+
+    // Record any state changes into persistent history
+    const transitions = recordStateTransitions(userId, analyses);
+    const summary = buildPortfolioSummary(analyses);
+
+    logSyncEvent({
+      jobType: 'STOCK_ANALYSIS_EOD',
+      jobName: `Daily Stock Analysis Audit (${trigger})`,
+      scheduledTime: '06:30 PM IST',
+      runTime: new Date().toISOString(),
+      status: 'SUCCESS',
+      durationMs: Date.now() - startTime,
+      details: `Evaluated ${analyses.length} active Indian equity holdings. ${summary.compoundingCount || 0} in Stage 2 Compounding, ${summary.states?.TECHNICAL_TRIM_CANDIDATE || 0} technical trim, ${summary.states?.WATCH || 0} on watch. Recorded ${transitions.length} state transition(s).`,
+      error: null
+    });
+
+    console.log(`[Stock Analysis] Daily audit completed (${analyses.length} stocks, ${transitions.length} state change(s)).`);
+    return { summary, transitions, count: analyses.length };
+  } catch (error) {
+    console.error('[Stock Analysis] Daily audit failed:', error.message);
+    logSyncEvent({
+      jobType: 'STOCK_ANALYSIS_EOD',
+      jobName: `Daily Stock Analysis Audit (${trigger})`,
+      scheduledTime: '06:30 PM IST',
+      runTime: new Date().toISOString(),
+      status: 'FAILED',
+      durationMs: Date.now() - startTime,
+      details: `Audit failed: ${error.message}`,
+      error: error.message
+    });
+    return null;
+  }
+}
+
 router.get('/stock-intelligence/overview', authenticateToken, async (req, res) => {
   try {
     const [holdings, transactions, metadata, history] = await Promise.all([
-      db.select('holdings'), db.select('transactions'), db.select('asset_metadata'), loadHistoricalPricesAsync()
+      db.select('holdings'),
+      db.select('transactions'),
+      db.select('asset_metadata'),
+      loadHistoricalPricesAsync()
     ]);
     const active = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0);
     const symbols = [...new Set(active.map(item => item.symbol).filter(Boolean))];
     const backtest = getBacktest(history, symbols);
     const userId = getUserKey(req.user);
     const config = getIntelligenceConfig(userId);
-    const analyses = buildStockAnalyses(holdings, history, { today: getTodayIST(), backtest, config, transactions, metadata });
+
+    // Fast read from disk cache
+    const fundamentalsMap = loadAllCachedFundamentals(symbols);
+
+    const analyses = buildStockAnalyses(holdings, history, {
+      today: getTodayIST(),
+      backtest,
+      config,
+      transactions,
+      metadata,
+      fundamentalsMap
+    });
+
     recordStateTransitions(userId, analyses);
+
     res.json({
       generatedAt: new Date().toISOString(),
       ruleVersion: backtest.version,
       summary: buildPortfolioSummary(analyses),
       config,
       backtest,
-      analyses
+      analyses,
+      executionSchedule: {
+        scheduledDailyTime: '06:30 PM IST (Post-Market Close)',
+        runEverySession: true,
+        lastEvaluatedAt: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error('[Stock Intelligence] Overview failed:', error.message);
     res.status(500).json({ error: 'Stock analysis could not be loaded.' });
+  }
+});
+
+router.post('/stock-intelligence/refresh-fundamentals', authenticateToken, async (req, res) => {
+  try {
+    const holdings = await db.select('holdings');
+    const symbol = req.body?.symbol;
+    if (symbol) {
+      const fund = await fetchCompanyFundamentals(symbol, { forceRefresh: true });
+      return res.json({ symbol, fundamentals: fund });
+    }
+
+    // Refresh all held in background
+    preloadAllHeldFundamentals(holdings).catch(e => console.error('[Fundamentals Preload Error]:', e.message));
+    res.json({ message: 'Fundamentals refresh initiated for active holdings.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

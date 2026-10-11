@@ -52,7 +52,7 @@ import sipsRouter from './routes/sips.js';
 import searchRouter from './routes/search.js';
 import reportsRouter from './routes/reports.js';
 import syncLogsRouter from './routes/syncLogs.js';
-import stockIntelligenceRouter from './routes/stockIntelligence.js';
+import stockIntelligenceRouter, { runDailyStockAnalysisAudit } from './routes/stockIntelligence.js';
 import { logSyncEvent } from './services/syncLogService.js';
 
 // Re-export background EOD rebuild helper for backward compatibility
@@ -547,6 +547,11 @@ app.listen(PORT, async () => {
               : `Rebuild failed with exit code ${code}.`,
             error: code === 0 ? null : `Exit code ${code}`
           });
+          if (code === 0) {
+            runDailyStockAnalysisAudit({ trigger: label }).catch(err => {
+              console.warn('[Stock Analysis] EOD audit warning:', err.message);
+            });
+          }
           armNextRebuild();
         });
         child.on('error', (err) => {
@@ -620,4 +625,9 @@ app.listen(PORT, async () => {
   };
 
   checkMissedEodRebuild();
+
+  // Trigger daily Stock Analysis audit on server startup
+  runDailyStockAnalysisAudit({ trigger: 'BOOT' }).catch(err => {
+    console.warn('[Stock Analysis] Boot audit warning:', err.message);
+  });
 });

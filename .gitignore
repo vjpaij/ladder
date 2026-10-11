@@ -26,3 +26,4 @@ data/db_cache_snapshot.tmp.json
 data/pending_writes.json
 data/stock_intelligence_state.json
 data/stock_intelligence_config.json
+data/screener_cache/
