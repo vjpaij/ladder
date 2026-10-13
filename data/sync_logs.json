@@ -1,5 +1,93 @@
 [
   {
+    "id": "log_1791915493266_2dpwd",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-13T18:18:13.264Z",
+    "status": "SUCCESS",
+    "durationMs": 4866,
+    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 8 technical trim, 9 on watch. Data integrity: 80.5% (16 anomalies). Recorded 1 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1791914702747_5g8rs",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-13T18:05:02.745Z",
+    "status": "SUCCESS",
+    "durationMs": 4771,
+    "details": "Evaluated 82 active Indian equity holdings. 31 in Stage 2 Compounding, 7 technical trim, 9 on watch. Data integrity: 100% (0 anomalies). Recorded 1 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1791752390313_979vj",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T20:59:50.313Z",
+    "status": "FAILED",
+    "durationMs": 7,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
+    "id": "log_1791752390306_a0nrd",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T20:59:50.306Z",
+    "status": "FAILED",
+    "durationMs": 6,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
+    "id": "log_1791750927898_hmx0h",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T20:35:27.898Z",
+    "status": "FAILED",
+    "durationMs": 3,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
+    "id": "log_1791750927896_sw2bi",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T20:35:27.896Z",
+    "status": "FAILED",
+    "durationMs": 4,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
+    "id": "log_1791750890296_nghef",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T20:34:50.296Z",
+    "status": "FAILED",
+    "durationMs": 1674,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
+    "id": "log_1791750890293_g0eo8",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-11T20:34:50.293Z",
+    "status": "FAILED",
+    "durationMs": 1672,
+    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
+    "error": "refreshActiveHoldingsPrices is not defined"
+  },
+  {
     "id": "log_1791750348669_z15wm",
     "jobType": "LOGIN_SYNC",
     "jobName": "Webpage Login Asset Auto-Sync",

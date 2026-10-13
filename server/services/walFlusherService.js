@@ -127,13 +127,23 @@ export async function flushWal({ timeoutMs = 30_000 } = {}) {
       }
 
       if (entry.operation === 'insert') {
-        const { error } = await supabaseAdmin.from(entry.table).upsert(entry.payload);
+        const payloadToSync = { ...entry.payload };
+        if (entry.table === 'transactions' && payloadToSync.type) {
+          if (payloadToSync.type === 'DEPOSIT') payloadToSync.type = 'CREDIT';
+          else if (payloadToSync.type === 'WITHDRAWAL') payloadToSync.type = 'DEBIT';
+        }
+        const { error } = await supabaseAdmin.from(entry.table).upsert(payloadToSync);
         success = !error;
         if (error) console.warn(`[WAL Flush] Insert retry failed ${entry.table}[${entry.id}]:`, error.message);
       } else if (entry.operation === 'update') {
+        const payloadToSync = { ...entry.payload };
+        if (entry.table === 'transactions' && payloadToSync.type) {
+          if (payloadToSync.type === 'DEPOSIT') payloadToSync.type = 'CREDIT';
+          else if (payloadToSync.type === 'WITHDRAWAL') payloadToSync.type = 'DEBIT';
+        }
         const { error } = await supabaseAdmin
           .from(entry.table)
-          .update(entry.payload)
+          .update(payloadToSync)
           .eq('id', entry.id);
         success = !error;
         if (error) console.warn(`[WAL Flush] Update retry failed ${entry.table}[${entry.id}]:`, error.message);

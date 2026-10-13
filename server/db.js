@@ -424,10 +424,15 @@ export const db = {
 
     // Dual-write to Supabase (Ingress is always attempted) — record to WAL on any failure
     try {
-      const { error } = await supabase.from(sTable).insert(insertedRow);
+      let supaRow = { ...insertedRow };
+      if (sTable === 'transactions' && supaRow.type) {
+        if (supaRow.type === 'DEPOSIT') supaRow.type = 'CREDIT';
+        else if (supaRow.type === 'WITHDRAWAL') supaRow.type = 'DEBIT';
+      }
+      const { error } = await supabase.from(sTable).insert(supaRow);
       if (error) {
         console.warn(`[DB Insert Supabase Warning - ${sTable}]:`, error.message);
-        recordToWal('insert', sTable, newId, insertedRow);
+        recordToWal('insert', sTable, newId, supaRow);
       }
     } catch (e) {
       console.warn(`[DB Insert Network Exception - ${sTable}]:`, e.message);
@@ -471,6 +476,10 @@ export const db = {
         delete supaUpdates.day_change;
         delete supaUpdates.day_change_pct;
         delete supaUpdates.quote_date;
+      }
+      if (sTable === 'transactions' && supaUpdates.type) {
+        if (supaUpdates.type === 'DEPOSIT') supaUpdates.type = 'CREDIT';
+        else if (supaUpdates.type === 'WITHDRAWAL') supaUpdates.type = 'DEBIT';
       }
       if (Object.keys(supaUpdates).length > 0) {
         const { error } = await supabase.from(sTable).update(supaUpdates).eq('id', id);
