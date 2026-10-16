@@ -7,7 +7,8 @@ import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/pr
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getTodayIST, isAnyMarketOpen, isUsMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
+import { getTodayIST, getYesterdayIST, isAnyMarketOpen, isUsMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
+import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -415,6 +416,9 @@ router.get('/summary', async (req, res) => {
           yesterdayLog = pastLogs[0];
           yesterdayWealth = pastLogs[0].total_wealth !== undefined ? pastLogs[0].total_wealth : pastLogs[0].wealth;
           yesterdayAssets = pastLogs[0].total_assets !== undefined ? pastLogs[0].total_assets : (yesterdayWealth + (pastLogs[0].debt || 0));
+          if (pastLogs[0].date < getYesterdayIST()) {
+            checkAndTriggerMissedEodRebuild({ waitForCompletion: false }).catch(() => {});
+          }
         }
       }
     } catch (e) {

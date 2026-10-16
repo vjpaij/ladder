@@ -2,10 +2,11 @@ import express from 'express';
 import axios from 'axios';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { refreshAllHoldingsPrices, fetchNpsHistoricalNav, syncAllMissingNavs } from '../services/priceEngine.js';
+import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, fetchNpsHistoricalNav, syncAllMissingNavs } from '../services/priceEngine.js';
 import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { runComprehensiveSelfHealing } from '../services/selfHealingService.js';
 import { processDueSips } from '../services/sipEngine.js';
+import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { logSyncEvent } from '../services/syncLogService.js';
 
@@ -236,15 +237,23 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
   const isLogin = req.body?.trigger === 'LOGIN' || req.query?.trigger === 'LOGIN';
   try {
     await loadHistoricalPricesAsync();
-    // 1. First refresh all active holdings (US, IN, MF, NPS) with top priority (~1-2s response)
-    const result = await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: true });
-    
-    // 2. Synchronize any missing NAVs
-    await syncAllMissingNavs({ persistToDb: true });
+    // 1. Fast refresh all active holdings (US, IN, MF, NPS) with top priority (~1-2s response)
+    const result = await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
 
-    // 3. For manual triggers or in the background, refresh inactive holdings if needed
-    if (!isLogin) {
-      refreshAllHoldingsPrices({ persistToDb: true }).catch(err => console.warn('[RefreshAll Inactive Warning]:', err.message));
+    // 2. For manual triggers or in the background, refresh inactive holdings only if explicitly requested
+    if (!isLogin && req.body?.refreshInactive) {
+      refreshAllHoldingsPrices({ persistToDb: false }).catch(err => console.warn('[RefreshAll Inactive Warning]:', err.message));
+    }
+
+    // 3. Check for missed EOD trading sessions (e.g. user logged in after a couple of days away)
+    let missedEodStatus = null;
+    try {
+      missedEodStatus = await checkAndTriggerMissedEodRebuild({ waitForCompletion: false });
+      if (missedEodStatus?.needed) {
+        console.log(`[RefreshPrices] Missed EOD detected on login/refresh (Latest: ${missedEodStatus.latestLogDate}, Last trading: ${missedEodStatus.lastCompletedTradingDay}). Catch-up rebuild launched.`);
+      }
+    } catch (eodErr) {
+      console.warn('[RefreshPrices Missed EOD Check Warning]:', eodErr.message);
     }
 
     const durationMs = Date.now() - startTime;
@@ -255,9 +264,9 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
       runTime: new Date().toISOString(),
       status: 'SUCCESS',
       durationMs,
-      details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedCount || 'all'} holdings updated).`
+      details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedCount || 'all'} holdings updated).${missedEodStatus?.needed ? ' Catch-up EOD rebuild launched.' : ''}`
     });
-    res.json({ success: true, ...result });
+    res.json({ success: true, ...result, missedEodStatus });
   } catch (err) {
     const durationMs = Date.now() - startTime;
     logSyncEvent({

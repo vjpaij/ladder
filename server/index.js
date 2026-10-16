@@ -31,7 +31,7 @@ import {
 } from './services/priceEngine.js';
 import { createCloudBackup } from '../scripts/backup_manager.mjs';
 import { JWT_SECRET } from './middleware/auth.js';
-import { triggerEodRebuildIfPastDate } from './services/eodSync.js';
+import { triggerEodRebuildIfPastDate, checkAndTriggerMissedEodRebuild } from './services/eodSync.js';
 import { runComprehensiveSelfHealing } from './services/selfHealingService.js';
 import { processDueSips } from './services/sipEngine.js';
 import { initWalFlusher, flushWal, getWalStatus } from './services/walFlusherService.js';
@@ -576,55 +576,13 @@ app.listen(PORT, async () => {
 
   scheduleDailyEodRebuild();
 
-  // Check on boot if previous completed trading session's EOD log was missed (e.g. server was stopped)
-  const checkMissedEodRebuild = async () => {
-    try {
-      const yesterday = getYesterdayIST();
-      const lastCompletedTradingDay = getLastTradingDay(yesterday, 'NSE');
+  // Check on boot if previous completed trading session's EOD log was missed (e.g. server was stopped or machine slept)
+  checkAndTriggerMissedEodRebuild().catch(e => console.warn('[Startup EOD Check Warning]:', e.message));
 
-      let latestLogDate = null;
-      try {
-        const eodFile = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
-        if (fs.existsSync(eodFile)) {
-          const raw = fs.readFileSync(eodFile, 'utf8');
-          const logs = JSON.parse(raw);
-          if (Array.isArray(logs) && logs.length > 0) {
-            latestLogDate = logs[logs.length - 1].date;
-          }
-        }
-      } catch (fileErr) {
-        // Fall back to DB cache
-      }
-
-      if (!latestLogDate) {
-        // Check cached pnl_history (0 egress)
-        const pnlHistory = await db.select('pnl_history');
-        if (pnlHistory && pnlHistory.length > 0) {
-          latestLogDate = pnlHistory.reduce((max, r) => (!max || r.log_date > max) ? r.log_date : max, null);
-        }
-      }
-
-      if (!latestLogDate) return;
-
-      // Only trigger rebuild if the latest log date is strictly older than the last completed trading session
-      if (latestLogDate < lastCompletedTradingDay) {
-        console.log(`[Startup EOD Check] Latest EOD log is ${latestLogDate}, but last completed trading session was ${lastCompletedTradingDay}. Triggering catch-up rebuild...`);
-        const child = fork('./scripts/rebuild_portfolio_eod.mjs');
-        child.on('exit', (code) => {
-          console.log(`[Startup EOD Check] Catch-up rebuild finished with code ${code}`);
-        });
-        child.on('error', (err) => {
-          console.error('[Startup EOD Check] Error starting catch-up rebuild:', err.message);
-        });
-      } else {
-        console.log(`[Startup EOD Check] EOD logs are up to date with last trading session (latest: ${latestLogDate}, last trading day: ${lastCompletedTradingDay}).`);
-      }
-    } catch (e) {
-      console.warn('[Startup EOD Check] Failed to check missed rebuild:', e.message);
-    }
-  };
-
-  checkMissedEodRebuild();
+  // Periodic resume check: whenever machine wakes from sleep or continues running, check once per hour
+  setInterval(() => {
+    checkAndTriggerMissedEodRebuild().catch(() => {});
+  }, 60 * 60 * 1000);
 
   // Trigger daily Stock Analysis audit on server startup
   runDailyStockAnalysisAudit({ trigger: 'BOOT' }).catch(err => {

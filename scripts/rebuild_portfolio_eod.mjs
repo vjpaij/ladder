@@ -320,15 +320,6 @@ async function rebuildEod() {
     }
   }
 
-  // 3b. Ensure historicalPrices cache contains the authoritative NSE/BSE MAX quotes for the latest completed trading day
-  for (const h of inHoldings) {
-    if (!historicalPrices[h.symbol]) historicalPrices[h.symbol] = {};
-    const currentResolved = resolveHoldingPrice(h);
-    if (currentResolved > 0) {
-      historicalPrices[h.symbol][lastNseTradingDay] = currentResolved;
-    }
-  }
-
   const lastExcelLog = baseLogs[baseLogs.length - 1] || {
     date: '2026-08-07',
     hdfc: 10619.89,
@@ -542,10 +533,6 @@ async function rebuildEod() {
         }
 
         let p = prices[dateStr];
-        if (dateStr >= lastNseTradingDay && Number(h.quantity) > 0) {
-          const liveP = resolveHoldingPrice(h);
-          if (liveP > 0) p = liveP;
-        }
         if (p === undefined || p === null || isNaN(p) || p <= 0) {
           const prevDates = Object.keys(prices).filter(k => k < dateStr && prices[k] > 0).sort().reverse();
           if (prevDates.length > 0) p = prices[prevDates[0]];

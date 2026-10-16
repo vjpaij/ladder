@@ -10,7 +10,7 @@ import {
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
-import ChartRangeSelector from '../components/ChartRangeSelector';
+import ChartRangeSelector, { computeRangeDates } from '../components/ChartRangeSelector';
 
 // Helper for stylish date formatting (e.g. "07 Aug 2026")
 function formatPrettyDate(dateStr) {
@@ -98,9 +98,18 @@ export default function CalendarView() {
   const [calendarRangeFilter, setCalendarRangeFilter] = useState(() => {
     try {
       const saved = localStorage.getItem('ladder_calendar_range');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.type === 'RELATIVE') {
+          // Dynamically recompute current start & end dates up to today
+          const dynamic = computeRangeDates('RELATIVE', parsed.count || 1, parsed.unit || 'M');
+          return { ...parsed, ...dynamic };
+        }
+        return parsed;
+      }
     } catch (e) {}
-    return { type: 'RELATIVE', count: 1, unit: 'M', rangeKey: '1M' };
+    const defaultDynamic = computeRangeDates('RELATIVE', 1, 'M');
+    return { type: 'RELATIVE', count: 1, unit: 'M', rangeKey: '1M', ...defaultDynamic };
   });
 
   const calendarRangeFilterRef = useRef(calendarRangeFilter);
@@ -131,11 +140,14 @@ export default function CalendarView() {
       const params = [];
       if (currentFilter.type === 'ALL') {
         params.push('range=ALL');
-      } else if (currentFilter.startDate && currentFilter.endDate) {
+      } else if (currentFilter.type === 'CUSTOM' && currentFilter.startDate && currentFilter.endDate) {
         params.push(`startDate=${currentFilter.startDate}`);
         params.push(`endDate=${currentFilter.endDate}`);
       } else if (currentFilter.rangeKey) {
         params.push(`range=${currentFilter.rangeKey}`);
+      } else if (currentFilter.startDate && currentFilter.endDate) {
+        params.push(`startDate=${currentFilter.startDate}`);
+        params.push(`endDate=${currentFilter.endDate}`);
       }
       if (params.length > 0) url += `?${params.join('&')}`;
 

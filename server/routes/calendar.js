@@ -6,7 +6,8 @@ import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, isAnyMarketOpen, isUsMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
+import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, getYesterdayIST, isAnyMarketOpen, isUsMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
+import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -137,6 +138,37 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
         nyLog.wealth = Number((nyLog.total_assets - debtVal).toFixed(2));
         nyLog.total_wealth = nyLog.wealth;
         nyLog.net_worth_inr = nyLog.wealth;
+      }
+    }
+
+    // Automatic Gap-Healing: if latest past EOD log is behind yesterday (e.g. user was offline for multiple days),
+    // trigger background catch-up rebuild and bridge intermediate days with carry-forward valuations.
+    const yesterdayStr = getYesterdayIST();
+    if (eodLogs.length > 0) {
+      const pastLogsList = eodLogs.filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+      if (pastLogsList.length > 0 && pastLogsList[0].date < yesterdayStr) {
+        checkAndTriggerMissedEodRebuild({ waitForCompletion: false }).catch(() => {});
+        const latestRecorded = pastLogsList[0];
+        let bridgeD = new Date(`${latestRecorded.date}T00:00:00Z`);
+        const targetEndD = new Date(`${yesterdayStr}T00:00:00Z`);
+        while (true) {
+          bridgeD.setUTCDate(bridgeD.getUTCDate() + 1);
+          if (bridgeD > targetEndD) break;
+          const ds = bridgeD.toISOString().slice(0, 10);
+          if (!eodLogs.some(l => l.date === ds)) {
+            eodLogs.push({
+              ...latestRecorded,
+              date: ds,
+              daily_pnl: 0,
+              daily_pnl_inr: 0,
+              pnl_pct: 0,
+              pnl_percentage: 0,
+              asset_delta: 0,
+              asset_delta_inr: 0,
+              liability_delta_inr: 0
+            });
+          }
+        }
       }
     }
 

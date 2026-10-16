@@ -3,6 +3,7 @@ import path from 'path';
 import { fork } from 'child_process';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
+import { getLastTradingDay, getYesterdayIST } from './marketCalendar.js';
 
 /**
  * Fast in-process synchronous cascade of portfolio_eod_logs.json when any bank,
@@ -233,4 +234,86 @@ export async function triggerEodRebuildIfPastDate(txDate) {
       console.warn('[EOD Auto-Sync Warning]:', e.message);
     }
   }
+}
+
+/**
+ * Check if the latest recorded EOD log is behind the last completed trading day and trigger a catch-up rebuild if needed.
+ * Returns an object with status information.
+ */
+export async function checkAndTriggerMissedEodRebuild(options = {}) {
+  const waitForCompletion = !!options.waitForCompletion;
+  const yesterdayIST = getYesterdayIST();
+  const lastCompletedTradingDay = getLastTradingDay(yesterdayIST, 'NSE');
+
+  // Determine latest recorded EOD date from portfolio_eod_logs.json
+  const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+  let latestLogDate = null;
+
+  if (fs.existsSync(eodPath)) {
+    try {
+      const logs = JSON.parse(fs.readFileSync(eodPath, 'utf-8'));
+      if (Array.isArray(logs) && logs.length > 0) {
+        const lastLog = logs[logs.length - 1];
+        latestLogDate = lastLog.date;
+      }
+    } catch (err) {
+      console.warn('[EOD Check] Failed to parse portfolio_eod_logs.json:', err.message);
+    }
+  }
+
+  // Fallback to pnl_history table if file missing or empty
+  if (!latestLogDate) {
+    try {
+      const rows = await db.select('pnl_history');
+      if (Array.isArray(rows) && rows.length > 0) {
+        const dates = rows.map(r => r.log_date).filter(Boolean);
+        if (dates.length > 0) {
+          dates.sort((a, b) => (a > b ? 1 : -1));
+          latestLogDate = dates[dates.length - 1];
+        }
+      }
+    } catch (err) {
+      console.warn('[EOD Check] Failed to fetch pnl_history:', err.message);
+    }
+  }
+
+  const needed = !!(latestLogDate && latestLogDate < lastCompletedTradingDay);
+  const result = {
+    needed,
+    latestLogDate,
+    lastCompletedTradingDay,
+    rebuilt: false,
+    triggeredAsync: false
+  };
+
+  if (!needed) {
+    return result;
+  }
+
+  // Trigger rebuild via the background script
+  try {
+    const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
+    if (waitForCompletion) {
+      const child = fork(scriptPath, [], { stdio: 'inherit' });
+      await new Promise((resolve, reject) => {
+        child.on('exit', (code) => {
+          if (code === 0) {
+            result.rebuilt = true;
+            resolve();
+          } else {
+            reject(new Error(`Rebuild script exited with code ${code}`));
+          }
+        });
+        child.on('error', reject);
+      });
+    } else {
+      const child = fork(scriptPath, [], { detached: true, stdio: 'ignore' });
+      child.unref();
+      result.triggeredAsync = true;
+    }
+  } catch (err) {
+    console.warn('[EOD Check] Failed to trigger rebuild script:', err.message);
+  }
+
+  return result;
 }

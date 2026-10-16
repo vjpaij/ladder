@@ -293,47 +293,60 @@ export async function fetchStockQuote(symbol) {
 
 // In-memory cache for official AMFI NAV batch: { navMap, cachedAt }
 let amfiNavBatchCache = null;
+let amfiBatchPromise = null;
 const AMFI_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+// In-memory cache for mfapi.in historical stats/records: schemeCode -> { records, cachedAt }
+const mfApiStatsCache = new Map();
+const MF_API_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 export async function fetchAmfiNavBatch() {
   if (amfiNavBatchCache && (Date.now() - amfiNavBatchCache.cachedAt < AMFI_CACHE_TTL_MS)) {
     return amfiNavBatchCache.navMap;
   }
-  try {
-    const res = await axios.get('https://www.amfiindia.com/spages/NAVAll.txt', { timeout: 10000 });
-    const lines = res.data.split('\n');
-    const navMap = new Map();
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('Scheme Code')) continue;
-      const parts = trimmed.split(';');
-      if (parts.length >= 5 && /^\d+$/.test(parts[0].trim())) {
-        const code = parts[0].trim();
-        const dateStr = parts[parts.length - 1].trim();
-        let nav = null;
-        for (let i = parts.length - 2; i >= 1; i--) {
-          const val = parseFloat(parts[i].trim());
-          if (!isNaN(val) && val > 0) {
-            nav = val;
-            break;
+  if (amfiBatchPromise) return amfiBatchPromise;
+
+  amfiBatchPromise = (async () => {
+    try {
+      const res = await axios.get('https://www.amfiindia.com/spages/NAVAll.txt', { timeout: 10000 });
+      const lines = res.data.split('\n');
+      const navMap = new Map();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('Scheme Code')) continue;
+        const parts = trimmed.split(';');
+        if (parts.length >= 5 && /^\d+$/.test(parts[0].trim())) {
+          const code = parts[0].trim();
+          const dateStr = parts[parts.length - 1].trim();
+          let nav = null;
+          for (let i = parts.length - 2; i >= 1; i--) {
+            const val = parseFloat(parts[i].trim());
+            if (!isNaN(val) && val > 0) {
+              nav = val;
+              break;
+            }
+          }
+          if (nav !== null) {
+            navMap.set(code, {
+              code,
+              name: parts[3]?.trim() || '',
+              nav,
+              date: dateStr
+            });
           }
         }
-        if (nav !== null) {
-          navMap.set(code, {
-            code,
-            name: parts[3]?.trim() || '',
-            nav,
-            date: dateStr
-          });
-        }
       }
+      amfiNavBatchCache = { navMap, cachedAt: Date.now() };
+      return navMap;
+    } catch (err) {
+      console.warn('[AMFI Batch] Fetch warning:', err.message);
+      return amfiNavBatchCache?.navMap || null;
+    } finally {
+      amfiBatchPromise = null;
     }
-    amfiNavBatchCache = { navMap, cachedAt: Date.now() };
-    return navMap;
-  } catch (err) {
-    console.warn('[AMFI Batch] Fetch warning:', err.message);
-    return amfiNavBatchCache?.navMap || null;
-  }
+  })();
+
+  return amfiBatchPromise;
 }
 
 export async function fetchMutualFundNav(schemeCode, targetDate = null) {
@@ -352,18 +365,30 @@ export async function fetchMutualFundNav(schemeCode, targetDate = null) {
     }
 
     let mfApiRecords = null;
-    try {
-      const res = await axios.get(`https://api.mfapi.in/mf/${schemeCode}`, { timeout: 5000 });
-      if (res.data && res.data.data && res.data.data.length > 0) {
-        mfApiRecords = targetDate
-          ? res.data.data.filter(record => {
-              const [day, month, year] = String(record.date || '').split('-');
-              return `${year}-${month}-${day}` <= targetDate;
-            })
-          : res.data.data;
+    if (!targetDate && mfApiStatsCache.has(schemeCode)) {
+      const cached = mfApiStatsCache.get(schemeCode);
+      if (Date.now() - cached.cachedAt < MF_API_CACHE_TTL_MS) {
+        mfApiRecords = cached.records;
       }
-    } catch (e) {
-      // mfapi fallback warning
+    }
+
+    if (!mfApiRecords) {
+      try {
+        const res = await axios.get(`https://api.mfapi.in/mf/${schemeCode}`, { timeout: 5000 });
+        if (res.data && res.data.data && res.data.data.length > 0) {
+          if (!targetDate) {
+            mfApiStatsCache.set(schemeCode, { records: res.data.data, cachedAt: Date.now() });
+          }
+          mfApiRecords = targetDate
+            ? res.data.data.filter(record => {
+                const [day, month, year] = String(record.date || '').split('-');
+                return `${year}-${month}-${day}` <= targetDate;
+              })
+            : res.data.data;
+        }
+      } catch (e) {
+        // mfapi fallback warning
+      }
     }
 
     if (amfiItem && (!targetDate || amfiItem.date <= targetDate)) {
@@ -474,6 +499,7 @@ export {
 
 // In-memory cache for the Protean NAV batch: { navMap, navDate, cachedAt }
 let proteanBatchCache = null;
+let proteanBatchPromise = null;
 const PROTEAN_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 // In-memory cache tracking whether NPS NAVs for a given date are already synced to Supabase
@@ -533,8 +559,10 @@ export async function fetchProteanNpsNavBatch() {
   ) {
     return proteanBatchCache.navMap;
   }
+  if (proteanBatchPromise) return proteanBatchPromise;
 
-  try {
+  proteanBatchPromise = (async () => {
+    try {
     const pageRes = await axios.get('https://www.npscra.proteantech.in/nav-search.php', {
       timeout: 10000,
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -655,7 +683,12 @@ export async function fetchProteanNpsNavBatch() {
   } catch (err) {
     console.warn('[Protean Scraper Warning]:', err.message);
     return null;
+  } finally {
+    proteanBatchPromise = null;
   }
+  })();
+
+  return proteanBatchPromise;
 }
 
 /**
@@ -1043,90 +1076,24 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
   const shouldRefreshMf = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleMf;
   const shouldRefreshNps = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleNps;
 
-  // 1. Refresh US stocks in parallel
-  if (shouldRefreshUs) {
-    const usHoldings = holdings.filter(h => h.category_id === 'us_stocks');
-    await Promise.all(usHoldings.map(async (h) => {
-      try {
-        const q = await fetchStockQuote(h.symbol);
-        if (q && q.price > 0) {
-          liveQuoteCache.set(h.symbol, q);
-          const updates = {
-            current_price: q.price,
-            day_change: q.dayChange,
-            day_change_pct: q.dayChangePct,
-            quote_date: q.quoteDate,
-            updated_at: new Date().toISOString()
-          };
-          updateCacheRow('holdings', h.id, updates);
-          if (persistToDb) {
-            await db.update('holdings', h.id, updates);
-          }
-          updatedCount++;
-        }
-      } catch (e) {
-        console.warn(`[Sync] Failed to fetch US Stock ${h.symbol}:`, e.message);
-      }
-    }));
-  }
-
-  // 2. Refresh Indian stocks in concurrent batches with NSE/BSE MAX price comparison
-  if (shouldRefreshIn) {
-    const inHoldings = holdings.filter(h => h.category_id === 'in_stocks');
-    const batchSize = 10;
-    for (let i = 0; i < inHoldings.length; i += batchSize) {
-      const batch = inHoldings.slice(i, i + batchSize);
-      await Promise.all(batch.map(async (h) => {
+  // Execute all asset classes concurrently in parallel
+  await Promise.all([
+    // 1. Refresh US stocks in parallel
+    (async () => {
+      if (!shouldRefreshUs) return;
+      const usHoldings = holdings.filter(h => h.category_id === 'us_stocks');
+      await Promise.all(usHoldings.map(async (h) => {
         try {
-          const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
-          const [nseQ, bseQ] = await Promise.all([
-            fetchStockQuote(`${baseSymbol}.NS`),
-            fetchStockQuote(`${baseSymbol}.BO`)
-          ]);
-
-          const nseP = Number(nseQ?.price) || 0;
-          const bseP = Number(bseQ?.price) || 0;
-
-          // Automatically lock the higher market quote (NSE/BSE MAX)
-          let bestQ = nseQ;
-          let newPrice = nseP;
-
-          if (bseP > nseP && bseP > 0) {
-            bestQ = bseQ;
-            newPrice = bseP;
-          } else if (nseP > 0) {
-            bestQ = nseQ;
-            newPrice = nseP;
-          } else if (bseP > 0) {
-            bestQ = bseQ;
-            newPrice = bseP;
-          }
-
-          if (bestQ && newPrice > 0) {
-            liveQuoteCache.set(h.symbol, {
-              price: newPrice,
-              nse_price: nseP,
-              bse_price: bseP,
-              dayChange: bestQ.dayChange,
-              dayChangePct: bestQ.dayChangePct,
-              open: bestQ.open,
-              high: bestQ.high,
-              low: bestQ.low,
-              fiftyTwoWeekHigh: Math.max(Number(nseQ?.fiftyTwoWeekHigh || 0), Number(bseQ?.fiftyTwoWeekHigh || 0), Number(bestQ.fiftyTwoWeekHigh || 0)),
-              fiftyTwoWeekLow: Math.min(...[nseQ?.fiftyTwoWeekLow, bseQ?.fiftyTwoWeekLow, bestQ.fiftyTwoWeekLow].map(Number).filter(v => v > 0)),
-              quoteDate: bestQ.quoteDate
-            });
-
+          const q = await fetchStockQuote(h.symbol);
+          if (q && q.price > 0) {
+            liveQuoteCache.set(h.symbol, q);
             const updates = {
-              current_price: newPrice,
-              nse_price: nseP,
-              bse_price: bseP,
-              day_change: bestQ.dayChange,
-              day_change_pct: bestQ.dayChangePct,
-              quote_date: bestQ.quoteDate,
+              current_price: q.price,
+              day_change: q.dayChange,
+              day_change_pct: q.dayChangePct,
+              quote_date: q.quoteDate,
               updated_at: new Date().toISOString()
             };
-
             updateCacheRow('holdings', h.id, updates);
             if (persistToDb) {
               await db.update('holdings', h.id, updates);
@@ -1134,53 +1101,125 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
             updatedCount++;
           }
         } catch (e) {
-          console.warn(`[Sync] Failed to fetch IN Stock ${h.symbol}:`, e.message);
+          console.warn(`[Sync] Failed to fetch US Stock ${h.symbol}:`, e.message);
         }
       }));
-    }
-  }
+    })(),
 
-  // 3. Refresh Mutual Funds in parallel
-  if (shouldRefreshMf) {
-    const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds');
-    await Promise.all(mfHoldings.map(async (h) => {
-      try {
-        const q = await fetchMutualFundNav(h.symbol);
-        if (q && q.nav > 0) {
-          liveQuoteCache.set(h.symbol, {
-            price: q.nav,
-            dayChange: q.dayChange,
-            dayChangePct: q.dayChangePct,
-            open: q.open,
-            high: q.high,
-            low: q.low,
-            fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
-            fiftyTwoWeekLow: q.fiftyTwoWeekLow,
-            quoteDate: q.quoteDate
-          });
-          const updates = {
-            current_price: q.nav,
-            day_change: q.dayChange,
-            day_change_pct: q.dayChangePct,
-            quote_date: q.quoteDate,
-            updated_at: new Date().toISOString()
-          };
-          updateCacheRow('holdings', h.id, updates);
-          if (persistToDb) {
-            await db.update('holdings', h.id, updates);
+    // 2. Refresh Indian stocks in concurrent batches with NSE/BSE MAX price comparison
+    (async () => {
+      if (!shouldRefreshIn) return;
+      const inHoldings = holdings.filter(h => h.category_id === 'in_stocks');
+      const batchSize = 25;
+      for (let i = 0; i < inHoldings.length; i += batchSize) {
+        const batch = inHoldings.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (h) => {
+          try {
+            const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
+            const [nseQ, bseQ] = await Promise.all([
+              fetchStockQuote(`${baseSymbol}.NS`),
+              fetchStockQuote(`${baseSymbol}.BO`)
+            ]);
+
+            const nseP = Number(nseQ?.price) || 0;
+            const bseP = Number(bseQ?.price) || 0;
+
+            // Automatically lock the higher market quote (NSE/BSE MAX)
+            let bestQ = nseQ;
+            let newPrice = nseP;
+
+            if (bseP > nseP && bseP > 0) {
+              bestQ = bseQ;
+              newPrice = bseP;
+            } else if (nseP > 0) {
+              bestQ = nseQ;
+              newPrice = nseP;
+            } else if (bseP > 0) {
+              bestQ = bseQ;
+              newPrice = bseP;
+            }
+
+            if (bestQ && newPrice > 0) {
+              liveQuoteCache.set(h.symbol, {
+                price: newPrice,
+                nse_price: nseP,
+                bse_price: bseP,
+                dayChange: bestQ.dayChange,
+                dayChangePct: bestQ.dayChangePct,
+                open: bestQ.open,
+                high: bestQ.high,
+                low: bestQ.low,
+                fiftyTwoWeekHigh: Math.max(Number(nseQ?.fiftyTwoWeekHigh || 0), Number(bseQ?.fiftyTwoWeekHigh || 0), Number(bestQ.fiftyTwoWeekHigh || 0)),
+                fiftyTwoWeekLow: Math.min(...[nseQ?.fiftyTwoWeekLow, bseQ?.fiftyTwoWeekLow, bestQ.fiftyTwoWeekLow].map(Number).filter(v => v > 0)),
+                quoteDate: bestQ.quoteDate
+              });
+
+              const updates = {
+                current_price: newPrice,
+                nse_price: nseP,
+                bse_price: bseP,
+                day_change: bestQ.dayChange,
+                day_change_pct: bestQ.dayChangePct,
+                quote_date: bestQ.quoteDate,
+                updated_at: new Date().toISOString()
+              };
+
+              updateCacheRow('holdings', h.id, updates);
+              if (persistToDb) {
+                await db.update('holdings', h.id, updates);
+              }
+              updatedCount++;
+            }
+          } catch (e) {
+            console.warn(`[Sync] Failed to fetch IN Stock ${h.symbol}:`, e.message);
           }
-          updatedCount++;
-        }
-      } catch (e) {
-        console.warn(`[Sync] Failed to fetch MF ${h.symbol}:`, e.message);
+        }));
       }
-    }));
-  }
+    })(),
 
-  // 4. Refresh NPS schemes in parallel
-  if (shouldRefreshNps) {
-    const npsHoldings = holdings.filter(h => h.category_id === 'nps');
-    if (npsHoldings.length > 0) {
+    // 3. Refresh Mutual Funds in parallel
+    (async () => {
+      if (!shouldRefreshMf) return;
+      const mfHoldings = holdings.filter(h => h.category_id === 'mutual_funds');
+      await Promise.all(mfHoldings.map(async (h) => {
+        try {
+          const q = await fetchMutualFundNav(h.symbol);
+          if (q && q.nav > 0) {
+            liveQuoteCache.set(h.symbol, {
+              price: q.nav,
+              dayChange: q.dayChange,
+              dayChangePct: q.dayChangePct,
+              open: q.open,
+              high: q.high,
+              low: q.low,
+              fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+              fiftyTwoWeekLow: q.fiftyTwoWeekLow,
+              quoteDate: q.quoteDate
+            });
+            const updates = {
+              current_price: q.nav,
+              day_change: q.dayChange,
+              day_change_pct: q.dayChangePct,
+              quote_date: q.quoteDate,
+              updated_at: new Date().toISOString()
+            };
+            updateCacheRow('holdings', h.id, updates);
+            if (persistToDb) {
+              await db.update('holdings', h.id, updates);
+            }
+            updatedCount++;
+          }
+        } catch (e) {
+          console.warn(`[Sync] Failed to fetch MF ${h.symbol}:`, e.message);
+        }
+      }));
+    })(),
+
+    // 4. Refresh NPS schemes in parallel
+    (async () => {
+      if (!shouldRefreshNps) return;
+      const npsHoldings = holdings.filter(h => h.category_id === 'nps');
+      if (npsHoldings.length === 0) return;
       const heldCodes = npsHoldings.map(h => h.symbol).filter(Boolean);
       let latestDbNavs = [];
       try {
@@ -1287,8 +1326,8 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
           console.warn(`[Sync] Failed to fetch NPS ${h.symbol}:`, e.message);
         }
       }));
-    }
-  }
+    })()
+  ]);
 
   return { updatedCount, fxRate, activeCount: holdings.length };
 }
