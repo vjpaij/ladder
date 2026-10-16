@@ -272,36 +272,106 @@ async function rebuildEod() {
   if (missingEquity.length > 0) {
     console.log(`[EOD] Fetching latest market quotes for ${missingEquity.length} equity positions missing latest trading session...`);
     for (const h of missingEquity) {
-      let sym = h.symbol;
       if (h.category_id === 'in_stocks') {
-        sym = symbolMap[h.symbol] || h.symbol;
-        if (!sym.endsWith('.NS') && !sym.endsWith('.BO')) sym += '.NS';
-      }
-      try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=3mo`;
-        const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000 });
-        const result = res.data?.chart?.result?.[0];
-        if (result && result.timestamp) {
-          const timestamps = result.timestamp;
-          const quote = result.indicators?.quote?.[0] || {};
-          const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
-          const meta = result.meta || {};
+        const rawSym = symbolMap[h.symbol] || h.symbol;
+        const baseSym = rawSym.replace(/\.(NS|BO)$/i, '');
+        const isSwan = h.symbol === 'SWANENERGY';
+        const nseSym = isSwan ? null : `${baseSym}.NS`;
+        const bseSym = isSwan ? '503310.BO' : `${baseSym}.BO`;
 
-          historicalPrices[h.symbol] = historicalPrices[h.symbol] || {};
-          timestamps.forEach((t, idx) => {
-            const dStr = new Date(t * 1000).toISOString().split('T')[0];
-            let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
-            if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
-              val = meta.chartPreviousClose || meta.previousClose;
-              console.warn(`[WARN] Equity fallback used for ${h.symbol} on ${dStr}: substituted previous close ${val}`);
+        let nseMap = {};
+        let bseMap = {};
+
+        if (nseSym) {
+          try {
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${nseSym}?interval=1d&range=3mo`;
+            const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000 });
+            const result = res.data?.chart?.result?.[0];
+            if (result && result.timestamp) {
+              const timestamps = result.timestamp;
+              const quote = result.indicators?.quote?.[0] || {};
+              const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
+              const meta = result.meta || {};
+              timestamps.forEach((t, idx) => {
+                const dStr = new Date(t * 1000).toISOString().split('T')[0];
+                let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+                if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
+                  val = meta.chartPreviousClose || meta.previousClose;
+                }
+                if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
+                  nseMap[dStr] = Number(Number(val).toFixed(2));
+                }
+              });
             }
-            if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
-              historicalPrices[h.symbol][dStr] = Number(Number(val).toFixed(2));
-            }
-          });
+          } catch (err) {
+            // NSE error
+          }
         }
-      } catch (err) {
-        console.warn(`[EOD Rebuild] Yahoo Finance download warning for ${h.symbol}:`, err.message);
+
+        if (bseSym) {
+          try {
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${bseSym}?interval=1d&range=3mo`;
+            const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000 });
+            const result = res.data?.chart?.result?.[0];
+            if (result && result.timestamp) {
+              const timestamps = result.timestamp;
+              const quote = result.indicators?.quote?.[0] || {};
+              const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
+              const meta = result.meta || {};
+              timestamps.forEach((t, idx) => {
+                const dStr = new Date(t * 1000).toISOString().split('T')[0];
+                let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+                if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
+                  val = meta.chartPreviousClose || meta.previousClose;
+                }
+                if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
+                  bseMap[dStr] = Number(Number(val).toFixed(2));
+                }
+              });
+            }
+          } catch (err) {
+            // BSE error
+          }
+        }
+
+        historicalPrices[h.symbol] = historicalPrices[h.symbol] || {};
+        const combinedDates = new Set([...Object.keys(nseMap), ...Object.keys(bseMap)]);
+        combinedDates.forEach(dStr => {
+          const pN = nseMap[dStr] || 0;
+          const pB = bseMap[dStr] || 0;
+          const maxP = Math.max(pN, pB);
+          if (maxP > 0) {
+            historicalPrices[h.symbol][dStr] = maxP;
+          }
+        });
+      } else {
+        // US Stocks
+        let sym = h.symbol;
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=3mo`;
+          const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000 });
+          const result = res.data?.chart?.result?.[0];
+          if (result && result.timestamp) {
+            const timestamps = result.timestamp;
+            const quote = result.indicators?.quote?.[0] || {};
+            const adjclose = result.indicators?.adjclose?.[0]?.adjclose || quote.close || [];
+            const meta = result.meta || {};
+
+            historicalPrices[h.symbol] = historicalPrices[h.symbol] || {};
+            timestamps.forEach((t, idx) => {
+              const dStr = new Date(t * 1000).toISOString().split('T')[0];
+              let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+              if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
+                val = meta.chartPreviousClose || meta.previousClose;
+              }
+              if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
+                historicalPrices[h.symbol][dStr] = Number(Number(val).toFixed(2));
+              }
+            });
+          }
+        } catch (err) {
+          console.warn(`[EOD Rebuild] Yahoo Finance download warning for ${h.symbol}:`, err.message);
+        }
       }
     }
     // Merge Mutual Fund and NPS historical prices into historicalPrices map
