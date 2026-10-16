@@ -187,9 +187,8 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
         if (type === 'BUY' || type === 'INVESTMENT' || type === 'INVESTMENT (SIP)') {
           totalBuyQty += qty;
-          const storedAmt = Number(tx.total_amount);
-          const amtUSD = (isFundOrNps && Number.isFinite(storedAmt)) ? storedAmt : (qty * price);
-          const amtINR = (isFundOrNps && Number.isFinite(storedAmt)) ? storedAmt : (amtUSD * lotFxRate);
+          const amtUSD = qty * price;
+          const amtINR = amtUSD * lotFxRate;
 
           totalBuyCostUSD += amtUSD + charges;
           totalBuyCostINR += amtINR + (charges * lotFxRate);
@@ -199,8 +198,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
             rem: qty,
             priceUSD: price,
             chargesUSD: charges,
-            fxRate: lotFxRate,
-            amount: storedAmt
+            fxRate: lotFxRate
           });
         } else if (type === 'BONUS' || type === 'SPLIT') {
           if (qty > 0) {
@@ -234,14 +232,8 @@ router.get('/holdings', authenticateToken, async (req, res) => {
               lot.rem -= take;
               const lotChargeRatioUSD = (lot.qty > 0 && lot.chargesUSD > 0) ? (take / lot.qty) * lot.chargesUSD : 0;
 
-              if (isFundOrNps && Number.isFinite(lot.amount)) {
-                const unitCost = lot.qty > 0 ? (lot.amount + (lot.chargesUSD || 0)) / lot.qty : 0;
-                costSoldUSD += take * unitCost;
-                costSoldINR += take * unitCost * lot.fxRate;
-              } else {
-                costSoldUSD += (take * lot.priceUSD) + lotChargeRatioUSD;
-                costSoldINR += (take * lot.priceUSD * lot.fxRate) + (lotChargeRatioUSD * lot.fxRate);
-              }
+              costSoldUSD += (take * lot.priceUSD) + lotChargeRatioUSD;
+              costSoldINR += (take * lot.priceUSD * lot.fxRate) + (lotChargeRatioUSD * lot.fxRate);
               remToSell -= take;
             }
           }
@@ -276,14 +268,8 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       let openCostINR = 0;
       for (const lot of activeLots) {
         const lotChargeUSD = (lot.qty > 0 && lot.chargesUSD > 0) ? (lot.rem / lot.qty) * lot.chargesUSD : 0;
-        if (isFundOrNps && Number.isFinite(lot.amount)) {
-          const unitCost = lot.qty > 0 ? (lot.amount + (lot.chargesUSD || 0)) / lot.qty : 0;
-          openCostUSD += lot.rem * unitCost;
-          openCostINR += lot.rem * unitCost * lot.fxRate;
-        } else {
-          openCostUSD += (lot.rem * lot.priceUSD) + lotChargeUSD;
-          openCostINR += (lot.rem * lot.priceUSD * lot.fxRate) + (lotChargeUSD * lot.fxRate);
-        }
+        openCostUSD += (lot.rem * lot.priceUSD) + lotChargeUSD;
+        openCostINR += (lot.rem * lot.priceUSD * lot.fxRate) + (lotChargeUSD * lot.fxRate);
       }
 
       const unrealizedAvgBuyUSD = openShares > 0 ? (openCostUSD / openShares) : (Number(h.avg_buy_price) || 0);
@@ -920,20 +906,13 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       if (tx.type === 'BUY') {
         totalBuyChargesUSD += chargesUSD;
         totalBuyChargesINR += chargesINR;
-        const storedAmount = Number(tx.total_amount);
-        const transactionAmountUSD = (holding.category_id === 'mutual_funds' && Number.isFinite(storedAmount))
-          ? storedAmount
-          : rawPrincipalUSD;
-        totalInvestedUSD += transactionAmountUSD + chargesUSD;
-        totalInvestedINR += (holding.category_id === 'mutual_funds' && Number.isFinite(storedAmount)
-          ? storedAmount
-          : rawPrincipalINR) + chargesINR;
+        totalInvestedUSD += rawPrincipalUSD + chargesUSD;
+        totalInvestedINR += rawPrincipalINR + chargesINR;
         buyLotsUSD.push({ qty, price, charges: chargesUSD, rem: qty });
         buyLotsINR.push({
           qty,
           priceUSD: price,
           fxRate: txRate,
-          amount: Number(tx.total_amount),
           charges: chargesINR,
           rem: qty
         });
@@ -1017,10 +996,6 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const currentValueINR = currentValueUSD * liveRate;
     const costBasisINR = activeLotsINR.length > 0
       ? activeLotsINR.reduce((s, l) => {
-          if (holding.category_id === 'mutual_funds' && Number.isFinite(l.amount)) {
-            const lotCost = l.amount + (l.charges || 0);
-            return s + (l.qty > 0 ? (l.rem / l.qty) * lotCost : 0);
-          }
           const lotCost = l.rem * l.priceUSD * l.fxRate;
           const lotCharge = l.qty > 0 ? (l.rem / l.qty) * (l.charges || 0) : 0;
           return s + lotCost + lotCharge;

@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient.js';
 import db from '../db.js';
 import { fetchMutualFundNav } from './priceEngine.js';
 import { recalculateHoldingState } from './recalculator.js';
+import { isTradingDay, getNextTradingDay } from './marketCalendar.js';
 
 const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');
 
@@ -128,6 +129,14 @@ export async function processDueSips() {
         break;
       }
 
+      // Holiday / Weekend check: if scheduled date is non-trading day, defer to next trading day
+      if (!isTradingDay(scheduledDate)) {
+        const nextTD = getNextTradingDay(scheduledDate);
+        console.log(`[SIP Engine] Scheduled date ${scheduledDate} is a non-trading day/weekend. Deferring ${sip.name} to ${nextTD}.`);
+        scheduledDate = nextTD;
+        if (scheduledDate > today) break;
+      }
+
       const quote = await fetchMutualFundNav(sip.symbol, scheduledDate);
       let nav = quote?.nav;
 
@@ -136,6 +145,30 @@ export async function processDueSips() {
         await sleep(5000);
         const retryQuote = await fetchMutualFundNav(sip.symbol, scheduledDate);
         nav = retryQuote?.nav;
+      }
+
+      // Exact trade date parity guard: ensure fetched NAV has been published for scheduledDate
+      const monthMap = { 'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12' };
+      let quoteDateISO = null;
+      if (quote?.date) {
+        const dStr = String(quote.date).trim();
+        if (/^\d{2}-\d{2}-\d{4}$/.test(dStr)) {
+          const [d, m, y] = dStr.split('-');
+          quoteDateISO = `${y}-${m}-${d}`;
+        } else if (/^\d{1,2}-[A-Za-z]{3}-\d{4}$/.test(dStr)) {
+          const [d, m, y] = dStr.split('-');
+          const mon = monthMap[m] || m;
+          quoteDateISO = `${y}-${mon}-${d.padStart(2, '0')}`;
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+          quoteDateISO = dStr;
+        }
+      }
+
+      // If scheduledDate is today but today's NAV is not yet published (only previous date's NAV is available),
+      // do NOT execute with old NAV; wait for evening NAV declaration sweep.
+      if (scheduledDate === today && quoteDateISO && quoteDateISO < scheduledDate) {
+        console.log(`[SIP Engine] NAV for ${sip.name} on ${scheduledDate} not yet declared (latest is ${quoteDateISO}). Deferring sweep.`);
+        break;
       }
 
       // Safety: do NOT execute if fresh market NAV is unavailable after retry

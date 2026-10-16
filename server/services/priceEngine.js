@@ -391,7 +391,20 @@ export async function fetchMutualFundNav(schemeCode, targetDate = null) {
       }
     }
 
-    if (amfiItem && (!targetDate || amfiItem.date <= targetDate)) {
+    // Normalize AMFI date (e.g., '15-Oct-2026') to ISO format ('2026-10-15') for date comparison
+    let amfiIsoDate = null;
+    if (amfiItem && amfiItem.date) {
+      const parts = amfiItem.date.split('-');
+      if (parts.length === 3) {
+        const mIdx = MONTH_NAMES.indexOf(parts[1]);
+        const mStr = mIdx >= 0 ? String(mIdx + 1).padStart(2, '0') : parts[1];
+        amfiIsoDate = `${parts[2]}-${mStr}-${parts[0].padStart(2, '0')}`;
+      } else {
+        amfiIsoDate = amfiItem.date;
+      }
+    }
+
+    if (amfiItem && (!targetDate || (amfiIsoDate && amfiIsoDate <= targetDate))) {
       const nav = Number(amfiItem.nav);
       let prevNav = nav;
       let fiftyTwoWeekHigh = nav;

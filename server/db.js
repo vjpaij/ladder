@@ -125,8 +125,31 @@ export function saveCacheSnapshotToDisk() {
 
     // Phase 1: Write to temp file
     fs.writeFileSync(SNAPSHOT_TMP, payload, 'utf-8');
-    // Phase 2: Atomic rename to primary (safe on Windows NTFS)
-    fs.renameSync(SNAPSHOT_TMP, SNAPSHOT_FILE);
+    
+    // Phase 2: Atomic rename to primary with Windows retry / copy fallback
+    let renamed = false;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        fs.renameSync(SNAPSHOT_TMP, SNAPSHOT_FILE);
+        renamed = true;
+        break;
+      } catch (err) {
+        if (err.code === 'EPERM' || err.code === 'EBUSY') {
+          // File lock race on Windows NTFS (e.g. anti-virus, indexing, parallel reader)
+          const delayUntil = Date.now() + 50;
+          while (Date.now() < delayUntil) {}
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (!renamed) {
+      // Fallback: Copy and unlink temp file if rename remains locked
+      fs.copyFileSync(SNAPSHOT_TMP, SNAPSHOT_FILE);
+      try { fs.unlinkSync(SNAPSHOT_TMP); } catch (_) {}
+    }
+
     // Phase 3: Copy to backup
     fs.copyFileSync(SNAPSHOT_FILE, SNAPSHOT_BAK);
   } catch (e) {

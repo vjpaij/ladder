@@ -43,8 +43,9 @@ Ladder is an institutional-grade personal finance and investment management dash
 4. **Automated Recurring SIP Engine & Execution History**
    - In-app SIP manager (`src/components/SipManagerModal.jsx`) allowing users to schedule, edit, pause, resume, or close recurring investments.
    - Dedicated **Execution & Skips** tab tracking every execution attempt, units purchased, NAV pricing, and specific skip reasons (market closures, NSE holidays, end-date expirations).
-   - Automated SIP processing (`server/services/sipEngine.js`) catches up all due installments through the current date, uses the NAV available for each scheduled date, allocates units with 0.005% stamp duty charges, records execution history, and advances future schedules in the background.
-   - The Holding Detail transaction ledger provides a scheme-scoped **Add SIP** action. Mutual Fund **Total Bought** and **Current Cost** use stored amount plus charges, with FIFO allocation for remaining units.
+   - Automated SIP processing (`server/services/sipEngine.js`) catches up all due installments through the current date, enforces strict trade-date parity with market calendar holiday deferrals, normalizes multi-format date feeds (AMFI `DD-Mon-YYYY` to `YYYY-MM-DD`), and defers intraday executions until official evening NAVs are published to prevent premature executions with previous day's NAV.
+   - Allocates units with 0.005% stamp duty charges, records execution history, and advances future schedules in the background.
+   - The Holding Detail transaction ledger provides a scheme-scoped **Add SIP** action. Mutual Fund, US Stock, and Indian Stock **Total Bought** and **Current Cost** compute strictly as transaction cost `(quantity * price) + charges`, with proportional FIFO allocation of buy charges for remaining open lots.
 
 5. **Historical Time-Series & Real-Time Multi-Granularity Calendar**
    - Daily, monthly, and yearly portfolio valuation history spanning 19 years (2007-2026) across 18 asset and liability columns (`data/portfolio_eod_logs.json`).

@@ -131,11 +131,9 @@ export async function recalculateHoldingState(holdingId) {
         if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(type)) {
           runningQty += qty;
           totalBuyQty += qty;
-          const buyCost = Number(tx.total_amount) > 0 ? Number(tx.total_amount) : ((qty * price) + charges);
+          const buyCost = (qty * price) + charges;
           totalBuyAmount += buyCost;
-          const isFundOrNps = holding?.category_id === 'mutual_funds' || holding?.category_id === 'nps';
-          const lotPrice = qty > 0 ? (isFundOrNps ? (buyCost / qty) : Math.max(0, (buyCost - charges) / qty)) : price;
-          openLots.push({ qty, price: lotPrice, charges, rem: qty });
+          openLots.push({ qty, price, charges, rem: qty });
         } else if (type === 'BONUS') {
           // If bonus has a positive quantity, add to runningQty at 0 cost
           if (qty > 0) {
