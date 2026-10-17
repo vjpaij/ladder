@@ -1,6 +1,7 @@
 import { analyzeTechnicalTrend, normalizePriceSeries, observedReturn } from './technicalIndicators.js';
 import { STOCK_EXIT_RULE_VERSION } from './backtestEngine.js';
 import { fetchCompanyFundamentals } from './screenerFundamentalsProvider.js';
+import { calculateXirr } from '../xirrCalculator.js';
 
 function cleanSym(symbol) {
   return String(symbol || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
@@ -16,22 +17,26 @@ function priceSeriesFor(symbol, map) {
   return {};
 }
 
-export function openCostBasisINR(holding, transactions = []) {
+export function openCostBasisINR(holding, transactions = [], { inrConversion = false } = {}) {
   const clean = cleanSym(holding.symbol);
   const rows = transactions.filter(tx => String(tx.holding_id) === String(holding.id)
     || (!tx.holding_id && tx.symbol && cleanSym(tx.symbol) === clean))
     .slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  if (!rows.length) return (Number(holding.quantity) || 0) * (Number(holding.avg_buy_price) || 0);
+  if (!rows.length) {
+    const rawCost = (Number(holding.quantity) || 0) * (Number(holding.avg_buy_price) || 0);
+    return inrConversion && holding.currency === 'USD' ? rawCost * (Number(holding.fx_rate) || 94.96) : rawCost;
+  }
   const lots = [];
   for (const tx of rows) {
     const type = String(tx.type || '').toUpperCase();
     const quantity = Number(tx.quantity) || 0;
     const price = Number(tx.price) || 0;
     const charges = Number(tx.charges) || 0;
+    const fx = Number(tx.fx_rate) || (holding.currency === 'USD' ? (Number(holding.fx_rate) || 94.96) : 1.0);
     if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(type) && quantity > 0) {
-      lots.push({ quantity, remaining: quantity, price, charges, date: tx.date });
+      lots.push({ quantity, remaining: quantity, price, charges, fx, date: tx.date });
     } else if (['BONUS', 'SPLIT'].includes(type) && quantity > 0) {
-      lots.push({ quantity, remaining: quantity, price: 0, charges: 0, date: tx.date });
+      lots.push({ quantity, remaining: quantity, price: 0, charges: 0, fx, date: tx.date });
     } else if (['SELL', 'REDEEM', 'REDEMPTION'].includes(type)) {
       let remainingToSell = quantity;
       for (const lot of lots) {
@@ -42,8 +47,10 @@ export function openCostBasisINR(holding, transactions = []) {
       }
     }
   }
-  return lots.reduce((sum, lot) => sum + lot.remaining * lot.price
-    + (lot.quantity > 0 ? lot.remaining / lot.quantity * lot.charges : 0), 0);
+  return lots.reduce((sum, lot) => {
+    const lotCostNative = lot.remaining * lot.price + (lot.quantity > 0 ? lot.remaining / lot.quantity * lot.charges : 0);
+    return sum + (inrConversion ? (lotCostNative * (lot.fx || 1.0)) : lotCostNative);
+  }, 0);
 }
 
 /**
@@ -284,17 +291,47 @@ function calculatePrincipalHarvest(holding, currentPrice, investedValueINR) {
   };
 }
 
-export function buildStockAnalyses(holdings, historicalPriceMap, { today, backtest, config, transactions = [], metadata = [], fundamentalsMap = {} } = {}) {
+export function buildStockAnalyses(holdings, historicalPriceMap, { today, backtest, config, transactions = [], dividends = [], metadata = [], fundamentalsMap = {}, categoryId = 'in_stocks' } = {}) {
   const metadataBySymbol = new Map(metadata.map(row => [cleanSym(row.symbol), row]));
-  const indianStocks = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0);
+  const targetCategory = categoryId || 'in_stocks';
+  const targetStocks = holdings.filter(item => item.category_id === targetCategory && Number(item.quantity) > 0);
 
-  const interim = indianStocks.map(holding => {
+  const interim = targetStocks.map(holding => {
     const raw = priceSeriesFor(holding.symbol, historicalPriceMap);
     const prices = normalizePriceSeries(raw);
     const trend = analyzeTechnicalTrend(raw, { today });
     const quantity = Number(holding.quantity) || 0;
+    const isUs = targetCategory === 'us_stocks';
+    const currency = isUs ? 'USD' : 'INR';
     const currentPrice = Number(holding.current_price) || prices.at(-1)?.close || 0;
-    const currentValueINR = Number(holding.currentValueINR) || Number(holding.current_value_inr) || quantity * currentPrice;
+    const nativeCurrentPrice = currentPrice;
+    const nativeCurrentValue = quantity * nativeCurrentPrice;
+    const nativeInvestedValue = isUs ? openCostBasisINR(holding, transactions, { inrConversion: false }) : (Number(holding.investedValueINR) || openCostBasisINR(holding, transactions));
+    const currentValueINR = isUs ? (Number(holding.current_value_inr) || (nativeCurrentValue * (Number(holding.fx_rate) || 94.96))) : nativeCurrentValue;
+    const investedValueINR = isUs ? (Number(holding.invested_amount_inr) || openCostBasisINR(holding, transactions, { inrConversion: true })) : nativeInvestedValue;
+    const clean = cleanSym(holding.symbol);
+
+    // Compute Holding-Level Cashflows for XIRR (in holding's native currency)
+    const hTxs = transactions.filter(t => String(t.holding_id) === String(holding.id) || (!t.holding_id && t.symbol && cleanSym(t.symbol) === clean));
+    const hDivs = dividends.filter(d => String(d.holding_id) === String(holding.id) || (d.symbol && cleanSym(d.symbol) === clean));
+    const flows = hTxs
+      .filter(t => ['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'SELL', 'REDEEM'].includes(t.type))
+      .map(t => {
+        const amt = Number(t.total_amount) || (Number(t.quantity) * Number(t.price));
+        const ch = Number(t.charges) || 0;
+        return {
+          date: t.date,
+          amount: (t.type === 'BUY' || t.type === 'INVESTMENT' || t.type === 'INVESTMENT (SIP)') ? -(amt + ch) : (amt - ch)
+        };
+      });
+    hDivs.forEach(d => {
+      flows.push({ date: d.ex_date || d.payment_date, amount: Number(isUs ? (d.amount_original || d.amount) : (d.amount_inr || d.amount_original || 0)) });
+    });
+    if (quantity > 0 && nativeCurrentValue > 0) {
+      flows.push({ date: today || new Date().toISOString().split('T')[0], amount: nativeCurrentValue });
+    }
+    const xirrPct = flows.length >= 2 ? calculateXirr(flows) : 0;
+
     const observed30DayReturn = observedReturn(prices, 30);
     const observed90DayReturn = observedReturn(prices, 90);
     const quoteDate = holding.quote_date || prices.at(-1)?.date || null;
@@ -319,9 +356,19 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       name: holding.name || holding.symbol,
       sector: (holding.sector && holding.sector !== 'Unknown' ? holding.sector : meta?.sector) || null,
       quantity,
-      currentPrice,
+      currentPrice: nativeCurrentPrice,
+      currentValue: nativeCurrentValue,
       currentValueINR,
-      investedValueINR: Number(holding.investedValueINR) || openCostBasisINR(holding, transactions),
+      investedValue: nativeInvestedValue,
+      investedValueINR,
+      avgBuyPrice: quantity > 0 ? (nativeInvestedValue / quantity) : (Number(holding.avg_buy_price) || 0),
+      xirrPct,
+      market: isUs ? 'US' : 'IN',
+      currency,
+      nsePrice: Number(holding.nse_price) || 0,
+      bsePrice: Number(holding.bse_price) || 0,
+      dayChange: holding.day_change !== undefined ? Number(holding.day_change) : undefined,
+      dayChangePct: holding.day_change_pct !== undefined ? Number(holding.day_change_pct) : undefined,
       quoteDate,
       history: prices.slice(-252).map(row => ({ date: row.date, price: row.close })),
       observed30DayReturn,

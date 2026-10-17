@@ -73,8 +73,14 @@ function formatStateLabel(state) {
   }
 }
 
-function money(formatMoney, amount, compact = false) {
-  return amount === null || amount === undefined ? '—' : formatMoney(amount, compact);
+function money(formatMoney, amount, compact = false, currency = 'INR') {
+  if (amount === null || amount === undefined) return '—';
+  if (currency === 'USD') {
+    const num = Number(amount);
+    if (isNaN(num)) return '—';
+    return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return formatMoney(amount, compact);
 }
 
 function Metric({ label, value, detail, tone = 'text-inherit' }) {
@@ -119,6 +125,7 @@ function StateBadge({ state, isCompounding, dataQuality }) {
 
 export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
   const { formatMoney } = useThemeAuth();
+  const [market, setMarket] = useState('IN'); // 'IN' | 'US'
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'COMPOUNDING' | 'WATCH' | 'TRIM' | 'RISK'
   const [selectedId, setSelectedId] = useState('');
@@ -161,7 +168,19 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
     };
   }, []);
 
-  const analyses = data?.analyses || [];
+  const isUsMarket = market === 'US';
+  const analyses = useMemo(() => {
+    return isUsMarket ? (data?.usAnalyses || []) : (data?.analyses || []);
+  }, [data, isUsMarket]);
+
+  const summary = useMemo(() => {
+    return isUsMarket ? data?.usSummary : data?.summary;
+  }, [data, isUsMarket]);
+
+  // When switching market tab, clear selectedId so first item in visible is selected
+  useEffect(() => {
+    setSelectedId('');
+  }, [market]);
 
   const handleRefreshFundamentals = async (sym) => {
     setRefreshing(true);
@@ -251,7 +270,6 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
     }
   };
 
-  const summary = data?.summary;
   const priceChart = selected?.history || [];
   const returnTone = value => value === null || value === undefined ? 'text-slate-400' : value >= 0 ? 'text-emerald-400' : 'text-rose-400';
 
@@ -278,10 +296,42 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
               </div>
               <h2 className="text-2xl font-black text-inherit">Stock Analysis & Exit Intelligence</h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Market Selector Pill Switcher */}
+              <div className="flex items-center p-1 rounded-2xl border border-slate-800 bg-slate-950/50 shadow-inner">
+                <button
+                  onClick={() => setMarket('IN')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    !isUsMarket
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  <span className="text-sm">🇮🇳</span>
+                  <span>Indian Stocks</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
+                    {data?.analyses?.length || 0}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setMarket('US')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    isUsMarket
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  <span className="text-sm">🇺🇸</span>
+                  <span>US Stocks</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
+                    {data?.usAnalyses?.length || 0}
+                  </span>
+                </button>
+              </div>
+
               {data?.dataIntegrity && (
                 <div
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold ${
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold ${
                     data.dataIntegrity.status === 'VERIFIED_ACCURATE'
                       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
                       : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
@@ -289,7 +339,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                   title={`Audited ${data.dataIntegrity.activeEquitiesAudited} stocks: ${data.dataIntegrity.reconciliationsApplied?.length || 0} feed bad ticks reconciled, ${data.dataIntegrity.corporateActionsVerified?.length || 0} corporate actions verified.`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Data Integrity: {data.dataIntegrity.dataHealthScorePct}% Verified</span>
+                  <span>Data Integrity: {data.dataIntegrity.dataHealthScorePct}%</span>
                 </div>
               )}
               <button
@@ -344,7 +394,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
         <AnimatedItem>
           <section className="glass-card rounded-3xl border border-slate-800 p-4 sticky top-20 max-h-[calc(100vh-100px)] flex flex-col">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-inherit">Indian Equities</h3>
+              <h3 className="text-sm font-bold text-inherit">{isUsMarket ? 'US Equities' : 'Indian Equities'}</h3>
               <span className="text-[10px] text-slate-500 font-mono">{visible.length} / {analyses.length}</span>
             </div>
 
@@ -447,7 +497,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
                           <span>{selected.quantity.toLocaleString()} shares held</span>
                           <span>•</span>
-                          <span>{selected.currentWeightPct.toFixed(2)}% of Indian equity</span>
+                          <span>{selected.currentWeightPct.toFixed(2)}% of {isUsMarket ? 'US equity' : 'Indian equity'}</span>
                           {selected.sector && (
                             <>
                               <span>•</span>
@@ -461,13 +511,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                     </div>
 
                     <div className="flex flex-col items-end gap-1">
-                      <div className="text-xl font-black font-mono text-inherit">
-                        {money(formatMoney, selected.currentValueINR)}
-                      </div>
-                      <div className="text-xs font-mono text-slate-400">
-                        {money(formatMoney, selected.currentPrice, true)} / share
-                      </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2 mt-1">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         {onSelectHolding && (
                           <button
                             onClick={() => onSelectHolding(holdings.find(h => String(h.id) === selected.holdingId))}
@@ -477,15 +521,15 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                           </button>
                         )}
                         <a
-                          href={selected.fundamentals?.screenerUrl || `https://www.screener.in/search/?q=${encodeURIComponent(selected.symbol)}`}
+                          href={selected.fundamentals?.screenerUrl || (isUsMarket ? `https://finviz.com/quote.ashx?t=${encodeURIComponent(selected.symbol)}` : `https://www.screener.in/search/?q=${encodeURIComponent(selected.symbol)}`)}
                           target="_blank"
                           rel="noreferrer"
                           className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-500/20 flex items-center gap-1 transition-colors"
                         >
-                          Screener.in <ExternalLink className="w-2.5 h-2.5" />
+                          {isUsMarket ? 'Finviz.com' : 'Screener.in'} <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                         <a
-                          href={`https://gocharting.com/terminal?ticker=${selected.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((selected.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}&interval=1D`}
+                          href={isUsMarket ? `https://gocharting.com/terminal?ticker=NASDAQ:${encodeURIComponent(selected.symbol)}&interval=1D` : `https://gocharting.com/terminal?ticker=${selected.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((selected.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}&interval=1D`}
                           target="_blank"
                           rel="noreferrer"
                           className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 transition-colors"
@@ -496,6 +540,84 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                       </div>
                     </div>
                   </div>
+
+                  {/* 2. PRICE & VALUATION STAT PILLS */}
+                  {(() => {
+                    const isUs = selected.currency === 'USD' || isUsMarket;
+                    const curPrice = selected.currentPrice || 0;
+                    const avgBuy = selected.avgBuyPrice || (selected.quantity > 0 ? ((selected.investedValue || selected.investedValueINR) / selected.quantity) : 0);
+                    const nse = selected.nsePrice || 0;
+                    const bse = selected.bsePrice || 0;
+                    const investedVal = isUs ? (selected.investedValue || 0) : (selected.investedValueINR || 0);
+                    const currentVal = isUs ? (selected.currentValue || (curPrice * selected.quantity)) : (selected.currentValueINR || 0);
+                    const unpnl = currentVal - investedVal;
+                    const pnlPct = investedVal > 0 ? (unpnl / investedVal) * 100 : 0;
+                    const isPositive = unpnl >= 0;
+
+                    let exchangeSub = null;
+                    if (isUs) {
+                      exchangeSub = `INR: ${money(formatMoney, selected.currentValueINR || 0)}`;
+                    } else if (nse > 0 && bse > 0) {
+                      exchangeSub = `NSE: ₹${nse} | BSE: ₹${bse}`;
+                    } else if (nse > 0) {
+                      exchangeSub = `NSE: ₹${nse}`;
+                    } else if (bse > 0) {
+                      exchangeSub = `BSE: ₹${bse}`;
+                    }
+
+                    return (
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="reports-subcard rounded-2xl border border-slate-800/80 p-3 flex flex-col justify-between">
+                          <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold flex items-center justify-between">
+                            <span>Close Price</span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Val: {money(formatMoney, currentVal, true, isUs ? 'USD' : 'INR')}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-base font-black font-mono text-emerald-400">
+                            {money(formatMoney, curPrice, true, isUs ? 'USD' : 'INR')}
+                          </div>
+                          <div className="mt-1 text-[10px] text-slate-400 font-mono">
+                            {exchangeSub || 'Latest Market Quote'}
+                          </div>
+                        </div>
+
+                        <div className="reports-subcard rounded-2xl border border-slate-800/80 p-3 flex flex-col justify-between">
+                          <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">
+                            Avg Buy Price
+                          </div>
+                          <div className="mt-1 text-base font-black font-mono text-inherit">
+                            {money(formatMoney, avgBuy, true, isUs ? 'USD' : 'INR')}
+                          </div>
+                          <div className="mt-1 text-[10px] text-slate-400 font-mono">
+                            Invested: {money(formatMoney, investedVal, true, isUs ? 'USD' : 'INR')}{isUs && selected.investedValueINR ? ` (${money(formatMoney, selected.investedValueINR)})` : ''}
+                          </div>
+                        </div>
+
+                        <div className="reports-subcard rounded-2xl border border-slate-800/80 p-3 flex flex-col justify-between">
+                          <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">
+                            Total Gain / Loss
+                          </div>
+                          <div className={`mt-1 text-base font-black font-mono ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isPositive ? '+' : '-'}{money(formatMoney, Math.abs(unpnl), false, isUs ? 'USD' : 'INR')}
+                          </div>
+                          <div className="mt-1 text-[10px] font-mono font-bold flex items-center gap-2">
+                            <span className={isPositive ? 'text-emerald-400/90' : 'text-rose-400/90'}>
+                              Abs: {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
+                            </span>
+                            {selected.xirrPct !== undefined && selected.xirrPct !== null && (
+                              <>
+                                <span className="text-slate-600 font-normal">•</span>
+                                <span className={Number(selected.xirrPct) >= 0 ? 'text-emerald-400/90' : 'text-rose-400/90'}>
+                                  XIRR: {Number(selected.xirrPct) >= 0 ? '+' : ''}{Number(selected.xirrPct).toFixed(2)}%
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* 3. PRIMARY ACTION DIRECTIVE BANNER */}
                   {(() => {
@@ -539,15 +661,16 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
 
                     const remainingShares = Math.max(0, selected.quantity - sellQty);
 
+                    const curSymbol = (selected.currency === 'USD' || isUsMarket) ? '$' : '₹';
                     const reasonText = isFullExit
                       ? (selected.explanation || 'Both technical trend and quarterly fundamental growth have broken down. Exit complete position.')
                       : isTrim
                         ? (selected.explanation || `Price dropped below 30-week moving average. Sell ${sellQty} shares to de-risk.`)
                         : isWatch
-                          ? (selected.explanation || `Price is consolidating near the 30-week average (₹${selected.sma30Week || '—'}). Continue holding.`)
+                          ? (selected.explanation || `Price is consolidating near the 30-week average (${curSymbol}${selected.sma30Week || '—'}). Continue holding.`)
                           : isNewListing
                             ? (selected.invalidation || 'Recently listed stock (<40 weeks history). 30-week trend baseline is establishing. Hold position.')
-                            : `Price is trading safely ${selected.compoundingShield?.bufferToTrailingFloorPct ? `+${selected.compoundingShield.bufferToTrailingFloorPct}%` : ''} above trailing stop floor (₹${selected.compoundingShield?.trailingFloorPrice || selected.chandelierStopPrice || '—'}). Bull thesis intact.`;
+                            : `Price is trading safely ${selected.compoundingShield?.bufferToTrailingFloorPct ? `+${selected.compoundingShield.bufferToTrailingFloorPct}%` : ''} above trailing stop floor (${curSymbol}${selected.compoundingShield?.trailingFloorPrice || selected.chandelierStopPrice || '—'}). Bull thesis intact.`;
 
                     return (
                       <div className={`mt-4 rounded-2xl border p-4 ${actionTheme}`}>
@@ -659,7 +782,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                               {selected.stagedExitPlan.tranche1?.targetShares?.toLocaleString() || '—'} shares
                             </div>
                             <div className="text-[10px] text-slate-400 mt-1">
-                              Trigger: 30w-SMA (₹{selected.stagedExitPlan.tranche1?.triggerPrice})
+                              Trigger: 30w-SMA ({(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche1?.triggerPrice})
                             </div>
                           </div>
                         </div>
@@ -687,7 +810,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                               {selected.stagedExitPlan.tranche2?.targetShares?.toLocaleString() || '—'} shares
                             </div>
                             <div className="text-[10px] text-slate-400 mt-1">
-                              Trigger Floor: ₹{selected.stagedExitPlan.tranche2?.triggerPrice}
+                              Trigger Floor: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche2?.triggerPrice}
                             </div>
                           </div>
                         </div>
@@ -705,7 +828,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                               {selected.stagedExitPlan.tranche3?.targetShares?.toLocaleString() || '—'} shares
                             </div>
                             <div className="text-[10px] text-slate-400 mt-1">
-                              Full Exit Floor: ₹{selected.stagedExitPlan.tranche3?.triggerPrice}
+                              Full Exit Floor: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche3?.triggerPrice}
                             </div>
                           </div>
                         </div>
@@ -750,7 +873,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         onClick={() => setActiveDossierTab('FUNDAMENTAL')}
                         className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 ${activeDossierTab === 'FUNDAMENTAL' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
                       >
-                        Screener.in Fundamentals & Health
+                        {isUsMarket ? 'Finviz Institutional Fundamentals' : 'Screener.in Fundamentals & Health'}
                         {selected.fundamentals?.status === 'AVAILABLE' && (
                           <span className="w-2 h-2 rounded-full bg-emerald-400" />
                         )}
@@ -769,12 +892,12 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                         />
                         <Metric
                           label="30-Week Average (Trend)"
-                          value={selected.sma30Week ? money(formatMoney, selected.sma30Week, true) : 'IPO (<40w)'}
+                          value={selected.sma30Week ? money(formatMoney, selected.sma30Week, true, isUsMarket ? 'USD' : 'INR') : 'IPO (<40w)'}
                           detail={selected.sma30WeekFourWeekSlopePct !== null ? `4w slope: ${selected.sma30WeekFourWeekSlopePct >= 0 ? '+' : ''}${selected.sma30WeekFourWeekSlopePct.toFixed(1)}%` : 'Building baseline'}
                         />
                         <Metric
                           label="Trailing Stop (Exit Floor)"
-                          value={selected.chandelierStopPrice ? money(formatMoney, selected.chandelierStopPrice, true) : '—'}
+                          value={selected.chandelierStopPrice ? money(formatMoney, selected.chandelierStopPrice, true, isUsMarket ? 'USD' : 'INR') : '—'}
                           tone={selected.currentPrice >= selected.chandelierStopPrice ? 'text-emerald-400' : 'text-rose-400'}
                           detail="3.0× ATR floor from peak"
                         />
@@ -782,7 +905,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                           label="20-Week Peak & Drop"
                           value={selected.drawdownFrom20WeekHighPct !== null ? `${selected.drawdownFrom20WeekHighPct.toFixed(1)}%` : '—'}
                           tone={selected.drawdownFrom20WeekHighPct > -20 ? 'text-emerald-400' : 'text-rose-400'}
-                          detail={`Peak: ${money(formatMoney, selected.peak20WeekPrice, true)}`}
+                          detail={`Peak: ${money(formatMoney, selected.peak20WeekPrice, true, isUsMarket ? 'USD' : 'INR')}`}
                         />
                       </div>
 
@@ -797,7 +920,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                           label="Cushion to Stop Floor"
                           value={selected.bufferToTrailingFloorPct !== null ? `+${selected.bufferToTrailingFloorPct}%` : '—'}
                           tone="text-cyan-400"
-                          detail={`Stop floor: ${money(formatMoney, selected.trailingFloorPrice, true)}`}
+                          detail={`Stop floor: ${money(formatMoney, selected.trailingFloorPrice, true, isUsMarket ? 'USD' : 'INR')}`}
                         />
                         <Metric
                           label="30-Day Return"
@@ -833,7 +956,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                                   domain={['auto', 'auto']}
                                   tick={{ fill: '#64748b', fontSize: 9 }}
                                   width={60}
-                                  tickFormatter={v => Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                                  tickFormatter={v => isUsMarket ? `$${Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 })}` : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                                 />
                                 <Tooltip
                                   contentStyle={{
@@ -843,7 +966,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                                     fontSize: 11
                                   }}
                                   labelStyle={{ color: '#94a3b8' }}
-                                  formatter={value => [money(formatMoney, value, true), 'Close']}
+                                  formatter={value => [money(formatMoney, value, true, isUsMarket ? 'USD' : 'INR'), 'Close']}
                                 />
                                 <Line
                                   type="monotone"
@@ -868,70 +991,74 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-mono text-slate-500 uppercase">
-                          {selected.fundamentals?.source || 'Screener.in'}
+                          {selected.fundamentals?.source || (isUsMarket ? 'Finviz Institutional' : 'Screener.in')}
                         </span>
-                        <button
-                          onClick={() => handleRefreshFundamentals(selected.symbol)}
-                          disabled={refreshing}
-                          className="text-[10px] font-bold text-cyan-300 hover:text-cyan-200 flex items-center gap-1"
-                        >
-                          <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} /> Refresh Fundamentals
-                        </button>
+                        {!isUsMarket && (
+                          <button
+                            onClick={() => handleRefreshFundamentals(selected.symbol)}
+                            disabled={refreshing}
+                            className="text-[10px] font-bold text-cyan-300 hover:text-cyan-200 flex items-center gap-1"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} /> Refresh Fundamentals
+                          </button>
+                        )}
                       </div>
 
+                      {/* Row 1: Operating Margin, Profit Growth, Sales Growth, Promoter/Debt */}
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
-                          label="Operating Margin (OPM)"
+                          label={isUsMarket ? 'Operating Margin (OPM)' : 'Operating Margin (OPM)'}
                           value={selected.fundamentals?.latestOpmPct !== null && selected.fundamentals?.latestOpmPct !== undefined ? `${selected.fundamentals.latestOpmPct}%` : '—'}
                           tone={selected.fundamentals?.opmTrendDirection === 'EXPANDING' ? 'text-emerald-400' : selected.fundamentals?.opmTrendDirection === 'CONTRACTING' ? 'text-rose-400' : 'text-inherit'}
-                          detail={`Trend: ${selected.fundamentals?.opmTrendDirection || 'Stable'}`}
+                          detail={isUsMarket ? `Net Margin: ${selected.fundamentals?.netMarginPct ? `${selected.fundamentals.netMarginPct}%` : '—'}` : `Trend: ${selected.fundamentals?.opmTrendDirection || 'Stable'}`}
                         />
                         <Metric
-                          label="YoY Net Profit Growth"
+                          label={isUsMarket ? 'YoY EPS Growth' : 'YoY Net Profit Growth'}
                           value={selected.fundamentals?.yoyPatGrowthPct !== null && selected.fundamentals?.yoyPatGrowthPct !== undefined ? `${selected.fundamentals.yoyPatGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.yoyPatGrowthPct}%` : '—'}
                           tone={selected.fundamentals?.yoyPatGrowthPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}
-                          detail={selected.fundamentals?.latestQuarter ? `Quarter: ${selected.fundamentals.latestQuarter}` : 'Latest reporting'}
+                          detail={isUsMarket ? (selected.fundamentals?.qoqPatGrowthPct ? `QoQ: ${selected.fundamentals.qoqPatGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.qoqPatGrowthPct}%` : 'Annualized trend') : (selected.fundamentals?.latestQuarter ? `Quarter: ${selected.fundamentals.latestQuarter}` : 'Latest reporting')}
                         />
                         <Metric
                           label="YoY Sales Growth"
                           value={selected.fundamentals?.yoySalesGrowthPct !== null && selected.fundamentals?.yoySalesGrowthPct !== undefined ? `${selected.fundamentals.yoySalesGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.yoySalesGrowthPct}%` : '—'}
                           tone={selected.fundamentals?.yoySalesGrowthPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}
-                          detail={selected.fundamentals?.latestSalesCr ? `₹${selected.fundamentals.latestSalesCr} Cr sales` : 'Quarterly revenue'}
+                          detail={isUsMarket ? (selected.fundamentals?.qoqSalesGrowthPct ? `QoQ: ${selected.fundamentals.qoqSalesGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.qoqSalesGrowthPct}%` : 'Revenue growth') : (selected.fundamentals?.latestSalesCr ? `₹${selected.fundamentals.latestSalesCr} Cr sales` : 'Quarterly revenue')}
                         />
                         <Metric
-                          label="Promoter Pledging"
-                          value={selected.fundamentals?.promoterPledgePct > 0 ? `${selected.fundamentals.promoterPledgePct}%` : '0% (Clean)'}
-                          tone={selected.fundamentals?.promoterPledgePct > 15 ? 'text-rose-400' : 'text-emerald-400'}
-                          detail={`Holding: ${selected.fundamentals?.promoterHoldingPct ? `${selected.fundamentals.promoterHoldingPct}%` : 'N/A'}`}
+                          label={isUsMarket ? 'Debt to Equity' : 'Promoter Pledging'}
+                          value={isUsMarket ? (selected.fundamentals?.debtToEquity !== null && selected.fundamentals?.debtToEquity !== undefined ? `${selected.fundamentals.debtToEquity}x` : '0 (Zero Debt)') : (selected.fundamentals?.promoterPledgePct > 0 ? `${selected.fundamentals.promoterPledgePct}%` : '0% (Clean)')}
+                          tone={isUsMarket ? (selected.fundamentals?.debtToEquity > 1.5 ? 'text-rose-400' : 'text-emerald-400') : (selected.fundamentals?.promoterPledgePct > 15 ? 'text-rose-400' : 'text-emerald-400')}
+                          detail={isUsMarket ? `Current Ratio: ${selected.fundamentals?.currentRatio ? `${selected.fundamentals.currentRatio}x` : 'Solid'}` : `Holding: ${selected.fundamentals?.promoterHoldingPct ? `${selected.fundamentals.promoterHoldingPct}%` : 'N/A'}`}
                         />
                       </div>
 
+                      {/* Row 2: Valuation Multiples & Returns */}
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
-                          label="Stock P/E Ratio"
+                          label={isUsMarket ? 'P/E (TTM / Forward)' : 'Stock P/E Ratio'}
                           value={selected.fundamentals?.peRatio ? `${selected.fundamentals.peRatio}x` : '—'}
-                          detail="Valuation multiple"
+                          detail={isUsMarket && selected.fundamentals?.forwardPe ? `Fwd P/E: ${selected.fundamentals.forwardPe}x (PEG: ${selected.fundamentals?.pegRatio || '—'})` : 'Valuation multiple'}
                         />
                         <Metric
-                          label="ROCE %"
-                          value={selected.fundamentals?.rocePct ? `${selected.fundamentals.rocePct}%` : '—'}
-                          tone={selected.fundamentals?.rocePct > 20 ? 'text-emerald-400' : 'text-inherit'}
-                          detail="Return on capital"
+                          label={isUsMarket ? 'Gross Margin %' : 'ROCE %'}
+                          value={isUsMarket ? (selected.fundamentals?.grossMarginPct ? `${selected.fundamentals.grossMarginPct}%` : '—') : (selected.fundamentals?.rocePct ? `${selected.fundamentals.rocePct}%` : '—')}
+                          tone={isUsMarket ? 'text-emerald-400' : (selected.fundamentals?.rocePct > 20 ? 'text-emerald-400' : 'text-inherit')}
+                          detail={isUsMarket ? 'Gross profitability' : 'Return on capital'}
                         />
                         <Metric
                           label="ROE %"
                           value={selected.fundamentals?.roePct ? `${selected.fundamentals.roePct}%` : '—'}
                           tone={selected.fundamentals?.roePct > 15 ? 'text-emerald-400' : 'text-inherit'}
-                          detail="Return on equity"
+                          detail={isUsMarket ? `ROA: ${selected.fundamentals?.roaPct ? `${selected.fundamentals.roaPct}%` : '—'}` : 'Return on equity'}
                         />
                         <Metric
-                          label="Market Cap Category"
-                          value={selected.fundamentals?.marketCapCr ? `₹${Number(selected.fundamentals.marketCapCr).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Cr` : '—'}
-                          detail={selected.sector || 'Equities'}
+                          label={isUsMarket ? 'Market Cap' : 'Market Cap Category'}
+                          value={isUsMarket ? (selected.fundamentals?.marketCap || 'Mega Cap') : (selected.fundamentals?.marketCapCr ? `₹${Number(selected.fundamentals.marketCapCr).toLocaleString('en-IN', { maximumFractionDigits: 0 })} Cr` : '—')}
+                          detail={selected.sector || (isUsMarket ? 'US Equities' : 'Equities')}
                         />
                       </div>
 
-                      {/* 4-Quarter OPM History */}
+                      {/* 4-Quarter OPM History (if available) */}
                       {selected.fundamentals?.opmHistory?.length > 0 && (
                         <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-3.5">
                           <h5 className="text-xs font-bold text-inherit mb-2.5">Quarterly Operating Margin (OPM %) Trajectory</h5>

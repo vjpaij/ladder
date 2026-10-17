@@ -9,6 +9,7 @@ import { runWalkForwardBacktest } from '../services/stockIntelligence/backtestEn
 import { buildPortfolioSummary, buildStockAnalyses } from '../services/stockIntelligence/analysisService.js';
 import { getIntelligenceConfig, getStateHistory, recordStateTransitions, saveIntelligenceConfig } from '../services/stockIntelligence/repository.js';
 import { fetchCompanyFundamentals, preloadAllHeldFundamentals } from '../services/stockIntelligence/screenerFundamentalsProvider.js';
+import { loadAllCachedUsFundamentals } from '../services/stockIntelligence/usFundamentalsProvider.js';
 import { logSyncEvent } from '../services/syncLogService.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { validateAndHealStockData } from '../services/stockIntelligence/dataIntegrityValidator.js';
@@ -64,9 +65,10 @@ function loadAllCachedFundamentals(symbols = []) {
 export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHEDULED' } = {}) {
   const startTime = Date.now();
   try {
-    const [holdings, transactions, metadata, history] = await Promise.all([
+    const [holdings, transactions, dividends, metadata, history] = await Promise.all([
       db.select('holdings'),
       db.select('transactions'),
+      db.select('dividends'),
       db.select('asset_metadata'),
       loadHistoricalPricesAsync()
     ]);
@@ -83,8 +85,14 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
       const series = history[h.symbol] || history[clean] || history[`${clean}.NS`] || {};
       const dates = Object.keys(series).sort();
       const latestClose = dates.length > 0 ? series[dates[dates.length - 1]] : 0;
-      const currentPrice = resolved > 0 ? resolved : (latestClose > 0 ? latestClose : Number(h.current_price) || 0);
-      return { ...h, current_price: currentPrice };
+      const nsePrice = (quote && quote.nse_price > 0) ? Number(quote.nse_price) : (Number(h.nse_price) || 0);
+      const bsePrice = (quote && quote.bse_price > 0) ? Number(quote.bse_price) : (Number(h.bse_price) || 0);
+      return {
+        ...h,
+        current_price: currentPrice,
+        nse_price: nsePrice,
+        bse_price: bsePrice
+      };
     });
 
     // Run automated data integrity & anti-hallucination validation suite
@@ -102,6 +110,7 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
       backtest,
       config,
       transactions,
+      dividends,
       metadata,
       fundamentalsMap
     });
@@ -141,23 +150,30 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
 
 router.get('/stock-intelligence/overview', authenticateToken, async (req, res) => {
   try {
-    const [holdings, transactions, metadata, history] = await Promise.all([
+    const [holdings, transactions, dividends, metadata, history] = await Promise.all([
       db.select('holdings'),
       db.select('transactions'),
+      db.select('dividends'),
       db.select('asset_metadata'),
       loadHistoricalPricesAsync()
     ]);
     const active = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0);
     const symbols = [...new Set(active.map(item => item.symbol).filter(Boolean))];
+    const activeUs = holdings.filter(item => item.category_id === 'us_stocks' && Number(item.quantity) > 0);
+    const usSymbols = [...new Set(activeUs.map(item => item.symbol).filter(Boolean))];
     const userId = getUserKey(req.user);
     const config = getIntelligenceConfig(userId);
 
     // Fast read from disk cache
     const fundamentalsMap = loadAllCachedFundamentals(symbols);
+    const usFundamentalsMap = loadAllCachedUsFundamentals(usSymbols);
 
     // Enrich holdings with live quotes or verified recent closes
     const enrichedHoldings = holdings.map(h => {
-      if (h.category_id !== 'in_stocks') return h;
+      const isUs = h.category_id === 'us_stocks';
+      const isIndian = h.category_id === 'in_stocks';
+      if (!isIndian && !isUs) return h;
+
       const quote = liveQuoteCache?.get(h.symbol);
       const resolved = resolveHoldingPrice(h, quote);
       const clean = String(h.symbol).replace(/\.(NS|BO)$/i, '');
@@ -165,31 +181,54 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
       const dates = Object.keys(series).sort();
       const latestClose = dates.length > 0 ? series[dates[dates.length - 1]] : 0;
       const currentPrice = resolved > 0 ? resolved : (latestClose > 0 ? latestClose : Number(h.current_price) || 0);
-      return { ...h, current_price: currentPrice };
+      const nsePrice = (quote && quote.nse_price > 0) ? Number(quote.nse_price) : (Number(h.nse_price) || 0);
+      const bsePrice = (quote && quote.bse_price > 0) ? Number(quote.bse_price) : (Number(h.bse_price) || 0);
+      return {
+        ...h,
+        current_price: currentPrice,
+        nse_price: nsePrice,
+        bse_price: bsePrice
+      };
     });
 
     // Run automated data integrity & anti-hallucination validation suite
     const { healedPriceMap, auditReport } = validateAndHealStockData(enrichedHoldings, history, transactions);
     const backtest = getBacktest(healedPriceMap, symbols);
+    const usBacktest = getBacktest(healedPriceMap, usSymbols);
 
     const analyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
       today: getTodayIST(),
       backtest,
       config,
       transactions,
+      dividends,
       metadata,
-      fundamentalsMap
+      fundamentalsMap,
+      categoryId: 'in_stocks'
     });
 
-    recordStateTransitions(userId, analyses);
+    const usAnalyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
+      today: getTodayIST(),
+      backtest: usBacktest,
+      config,
+      transactions,
+      dividends,
+      metadata,
+      fundamentalsMap: usFundamentalsMap,
+      categoryId: 'us_stocks'
+    });
+
+    recordStateTransitions(userId, [...analyses, ...usAnalyses]);
 
     res.json({
       generatedAt: new Date().toISOString(),
       ruleVersion: backtest.version,
       summary: buildPortfolioSummary(analyses),
+      usSummary: buildPortfolioSummary(usAnalyses),
       config,
       backtest,
       analyses,
+      usAnalyses,
       dataIntegrity: auditReport,
       executionSchedule: {
         scheduledDailyTime: '06:30 PM IST (Post-Market Close)',

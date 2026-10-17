@@ -5,6 +5,19 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.88.0] - 2026-10-17
+
+### Added
+- **US Equities Decision Support & Exit Intelligence**: Added full US stock decision support to Stock Analysis (`StockAnalysisView.jsx`) with an interactive market switcher between Indian Stocks and US Stocks.
+- **Finviz Institutional Fundamentals Integration**: Created `server/services/stockIntelligence/usFundamentalsProvider.js` reading cached Finviz metrics for all active US holdings (P/E TTM and Forward, PEG, Operating and Net Margins, Gross Margin %, ROE, ROA, Debt-to-Equity, and Current Ratio).
+- **USD Native Technical Analysis & Dual Conversion**: Evaluates Stan Weinstein Stage, 30-week SMA, and Chandelier trailing stop floor in native USD ($) while converting valuations into INR using live forex rates.
+- **Direct External Research Shortcuts**: Direct one-click links to Finviz.com quotes and GoCharting 1D interactive charts for NASDAQ and NYSE assets.
+
+## [5.87.0] - 2026-10-17
+
+### Enhanced
+- **Holding Dossier Metric Pills Grid**: Added current position valuation (`Val: ₹...`), eliminated redundant price/share text, and aligned Absolute Return % and cashflow-weighted XIRR % side-by-side.
+
 ## [5.57.0] - 2026-10-11
 
 ### Added
