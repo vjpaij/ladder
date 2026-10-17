@@ -17,7 +17,8 @@ import {
   PieChart,
   SearchCheck,
   PlusCircle,
-  Clock
+  Clock,
+  TrendingUp
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import logoImg from '../assets/logo.png';
@@ -38,7 +39,8 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
         { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'reports', label: 'Reports', icon: PieChart },
-        { id: 'stock_analysis', label: 'Stock Analysis', icon: SearchCheck },
+        { id: 'stock_analysis', label: 'Sell Analysis', icon: SearchCheck },
+        { id: 'buy_analysis', label: 'Buy Analysis', icon: TrendingUp },
       ]
     },
     {

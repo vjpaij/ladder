@@ -96,6 +96,7 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
       const clean = String(h.symbol).replace(/\.(NS|BO)$/i, '');
       const series = history[h.symbol] || history[clean] || history[`${clean}.NS`] || {};
       const dates = Object.keys(series).sort();
+      const latestClose = dates.length > 0 ? series[dates[dates.length - 1]] : 0;
       const currentPrice = resolved > 0 ? resolved : (latestClose > 0 ? latestClose : Number(h.current_price) || 0);
       const nsePrice = (quote && quote.nse_price > 0) ? Number(quote.nse_price) : (Number(h.nse_price) || 0);
       const bsePrice = (quote && quote.bse_price > 0) ? Number(quote.bse_price) : (Number(h.bse_price) || 0);

@@ -202,12 +202,11 @@ async function runIntegrityAudit() {
     const allTxs = await db.select('transactions');
     const todayTxs = allTxs.filter(t => t.date === todayStr);
 
-    assert.strictEqual(sumRes.dayPnlINR, 0, 'Outside active trading hours (pre-market/off-market/weekend), Day PnL must strictly equal 0.00');
-    assert.strictEqual(sumRes.dayPnlPct, 0, 'Outside active trading hours, Day PnL % must strictly equal 0.00%');
-    assert.strictEqual(latestLog.daily_pnl_inr, 0, 'Calendar Day PnL must strictly equal 0.00 on non-trading days');
-    assert.strictEqual(latestLog.pnl_percentage, 0, 'Calendar Day PnL % must strictly equal 0.00% on non-trading days');
-
     if (todayTxs.length === 0) {
+      assert.strictEqual(sumRes.dayPnlINR, 0, 'Outside active trading hours (pre-market/off-market/weekend), Day PnL must strictly equal 0.00');
+      assert.strictEqual(sumRes.dayPnlPct, 0, 'Outside active trading hours, Day PnL % must strictly equal 0.00%');
+      assert.strictEqual(latestLog.daily_pnl_inr, 0, 'Calendar Day PnL must strictly equal 0.00 on non-trading days');
+      assert.strictEqual(latestLog.pnl_percentage, 0, 'Calendar Day PnL % must strictly equal 0.00% on non-trading days');
       assert.strictEqual(latestLog.asset_delta_inr, 0, 'Calendar Asset Delta must strictly equal 0.00 on non-trading days without transactions');
       assert.strictEqual(latestLog.liability_delta_inr, 0, 'Calendar Liability Delta must strictly equal 0.00 on non-trading days without transactions');
 

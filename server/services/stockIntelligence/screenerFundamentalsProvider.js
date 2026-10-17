@@ -73,6 +73,18 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
     if (cached) return cached;
   }
 
+  // Automated Screener access remains disabled until a permitted source or
+  // explicit authorization is configured. Existing user-provided cache files
+  // remain readable, but this adapter must not silently scrape the site.
+  if (process.env.SCREENER_AUTOMATION_ENABLED !== 'true') {
+    return {
+      status: 'UNAVAILABLE',
+      source: 'No permitted fundamental provider configured',
+      symbol: clean,
+      reason: 'Automated Screener retrieval is disabled. Configure an authorized provider or supply a permitted snapshot.'
+    };
+  }
+
   const metaMap = loadAssetMetadata();
   const fallbackMeta = metaMap.get(clean) || {};
 
@@ -136,10 +148,40 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
       }
     }
 
+    // 1b. Parse Annual Profit & Loss Table
+    const plMatch = html.match(/id=["']profit-loss["'][\s\S]*?<\/table>/);
+    let annualSales = [];
+    let annualPat = [];
+    let annualEps = [];
+
+    if (plMatch) {
+      const plTable = plMatch[0];
+      const trs = plTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+      for (const tr of trs) {
+        const text = tr.replace(/<[^>]+>/g, '|').split('|').map(s => s.trim()).filter(Boolean);
+        if (text.length >= 2) {
+          const rawKey = text[0].replace(/&nbsp;/g, ' ').replace(/\+/g, '').trim();
+          const cleanKey = rawKey.split(' ')[0] === 'Sales' ? 'Sales' :
+                           rawKey.split(' ')[0] === 'Net' && rawKey.includes('Profit') ? 'Net Profit' :
+                           rawKey.includes('EPS') ? 'EPS' : rawKey;
+          const values = text.slice(1)
+            .filter(v => v !== '+')
+            .map(v => Number(v.replace(/,/g, '').replace(/%/g, '')) || 0);
+          if (cleanKey === 'Sales') annualSales = values;
+          if (cleanKey === 'Net Profit') annualPat = values;
+          if (cleanKey === 'EPS') annualEps = values;
+        }
+      }
+    }
+
     // 2. Parse Shareholding Table
     const shMatch = html.match(/id=["']shareholding["'][\s\S]*?<\/table>/);
     let promoterHoldingPct = null;
-    let promoterPledgePct = 0; // Screener defaults to 0 if unpledged
+    let promoterHoldingQoQDelta = null;
+    let promoterPledgePct = null;
+    let promoterPledgeKnown = false;
+    let fiiHoldingPct = null;
+    let fiiHoldingQoQDelta = null;
 
     if (shMatch) {
       const shTrs = shMatch[0].match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
@@ -147,13 +189,20 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
         const text = tr.replace(/<[^>]+>/g, '|').split('|').map(s => s.trim()).filter(Boolean);
         if (text.length >= 2) {
           const rawKey = text[0].replace(/&nbsp;/g, ' ').replace(/\+/g, '').trim();
+          const vals = text.slice(1).filter(v => v !== '+').map(v => Number(v.replace(/,/g, '').replace(/%/g, '')) || 0);
           if (/promoter/i.test(rawKey)) {
-            const vals = text.slice(1).filter(v => v !== '+').map(v => Number(v.replace(/,/g, '').replace(/%/g, '')) || 0);
             if (vals.length > 0) promoterHoldingPct = vals[vals.length - 1];
+            if (vals.length >= 2) promoterHoldingQoQDelta = Number((vals[vals.length - 1] - vals[vals.length - 2]).toFixed(2));
+          }
+          if (/fii/i.test(rawKey)) {
+            if (vals.length > 0) fiiHoldingPct = vals[vals.length - 1];
+            if (vals.length >= 2) fiiHoldingQoQDelta = Number((vals[vals.length - 1] - vals[vals.length - 2]).toFixed(2));
           }
           if (/pledge/i.test(rawKey)) {
-            const vals = text.slice(1).filter(v => v !== '+').map(v => Number(v.replace(/,/g, '').replace(/%/g, '')) || 0);
-            if (vals.length > 0) promoterPledgePct = vals[vals.length - 1];
+            if (vals.length > 0) {
+              promoterPledgePct = vals[vals.length - 1];
+              promoterPledgeKnown = true;
+            }
           }
         }
       }
@@ -218,6 +267,15 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
       opm: val
     }));
 
+    // Consecutive EPS growth years
+    let epsConsecutiveGrowthYears = 0;
+    if (annualEps.length >= 2) {
+      for (let i = annualEps.length - 1; i > 0; i--) {
+        if (annualEps[i] > annualEps[i - 1]) epsConsecutiveGrowthYears++;
+        else break;
+      }
+    }
+
     const result = {
       status: 'AVAILABLE',
       source: 'Screener.in (Consolidated)',
@@ -241,14 +299,25 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
       opmTrendDirection,
       opmHistory,
       promoterHoldingPct,
+      promoterHoldingQoQDelta,
       promoterPledgePct,
-      debtToEquity: ratios['Debt to Equity'] || null,
+      promoterPledgeKnown,
+      fiiHoldingPct,
+      fiiHoldingQoQDelta,
+      annualSales,
+      annualPat,
+      annualEps,
+      quarterlySales: salesArr,
+      quarterlyPat: patArr,
+      quarterRows,
+      epsConsecutiveGrowthYears,
+      debtToEquity: ratios['Debt to Equity'] ?? null,
       observations: [
         { label: 'Latest Quarter', value: latestQuarter || 'N/A' },
         { label: 'Operating Margin (OPM)', value: latestOpm !== null ? `${latestOpm}% (${opmTrendDirection.toLowerCase()})` : 'N/A' },
         { label: 'YoY Profit Growth', value: yoyPatGrowthPct !== null ? `${yoyPatGrowthPct >= 0 ? '+' : ''}${yoyPatGrowthPct}%` : 'N/A' },
         { label: 'YoY Sales Growth', value: yoySalesGrowthPct !== null ? `${yoySalesGrowthPct >= 0 ? '+' : ''}${yoySalesGrowthPct}%` : 'N/A' },
-        { label: 'Promoter Pledging', value: promoterPledgePct > 0 ? `${promoterPledgePct}%` : '0% (Clean)' }
+        { label: 'Promoter Pledging', value: promoterPledgeKnown ? `${promoterPledgePct}%` : 'Unknown' }
       ]
     };
 
@@ -281,7 +350,8 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
       opmTrendDirection: 'UNKNOWN',
       opmHistory: [],
       promoterHoldingPct: null,
-      promoterPledgePct: 0,
+      promoterPledgePct: null,
+      promoterPledgeKnown: false,
       debtToEquity: null,
       observations: [
         { label: 'Metadata Source', value: 'Offline Fallback' },

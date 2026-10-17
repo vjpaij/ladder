@@ -35,22 +35,30 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Contextual Sorting & Concentration Risk Guard**: The 'All' tab provides clean alphabetical sorting by company name for swift navigation across the entire portfolio, while the 'Trim' tab maintains severity and portfolio-weight prioritization. Includes an optional Position Concentration Risk Guard to alert when any single equity exceeds a user-defined portfolio weight cap.
    - **Corporate Action & Demerger Invariance**: Automatically normalizes price histories and moving averages for corporate actions (stock splits, bonus issues, and demerger spin-offs such as Vedanta's separation into distinct listed entities), scaling historical series by the corporate action factor to prevent artificial cliff drops from triggering false Stage 4 secular breakdown or sell recommendations.
 
-3. **Delta-Ledger Architecture for Cash, EPF & Debt**
+4. **Intelligent Buy Analysis & Entry Decision Engine (`BuyAnalysisView.jsx`)**
+   - **Candidate Universe**: Evaluates active holdings, an automated candidate universe (incorporating NSE500 liquid compounders), and user watchlist symbols (`data/buy_watchlist.json`).
+   - **Chartink Filter & Stage 2 Setup**: Evaluates momentum & trend setups (50-EMA breakouts with ≥3% buffer, positive continuation, and Stan Weinstein Stage 2 Bull structure above rising 30-week SMA).
+   - **Sector-Aware Fundamental Evidence**: 100-point composite scoring evaluating 3-year sales/profit CAGR, doubling ratios, consecutive-year EPS growth, and return efficiency (ROCE/ROE). Banking and financial institutions (BFSI) are evaluated using sector-appropriate capital return metrics (ROE/ROCE) with industrial D/E constraints exempted.
+   - **Algorithmic Valuation Gate**: Mathematical evaluation of P/E and PEG ratios ensuring candidate valuations are supported by verified earnings growth (P/E < 45 or PEG ≤ 2.0 passes; high P/E > 95 without matching growth triggers valuation caution; loss-making P/E ≤ 0 fails).
+   - **BUY vs STRONG BUY Classification**: `STRONG_BUY` indicates high confluence (Stage 2 Bull trend, fundamental score ≥ 70, verified EPS expansion, clean pledge ≤ 15%, safe debt/equity, and resistance-based R:R ≥ 2.0:1) with position sizing calibrated to single-stock portfolio risk ceilings. `BUY` denotes dual-pillar confluence (scores ≥ 55 each with R:R ≥ 2.0:1).
+   - **Earnings Catalyst & Pre-Drift Intelligence**: Distinguishes confirmed BSE/NSE board meeting dates from estimated quarterly schedules. Educates users on pre-earnings volatility drivers (options IV expansion, delta hedging, and whisper numbers) and attaches event risk advisories within 15 days of results.
+   - **Opportunistic Staged Accumulation (SIP)**: Generates structured 3-tranche position-building plans (Tranche 1: 30% initial entry Ready, Tranche 2: 35% Armed on 50-EMA support retest, Tranche 3: 35% Contingent on breakout) with user-configurable budgets and single-position risk ceilings.
+
+5. **Delta-Ledger Architecture for Cash, EPF & Debt**
    - Bank Accounts, EPF, Loans, and Credit Cards operate as a transaction-backed delta ledger.
    - Over 4,900 historical balance adjustments from 2007 through 2026 are modeled as discrete delta transactions (`CREDIT`, `DEBIT`, `CONTRIBUTION`, `WITHDRAWAL`, `BORROW`, `EMI_PAYMENT`, `CHARGE`, `PAYMENT`).
    - Any historical adjustment or deletion automatically recalculates downstream balances accurately.
    - **Universal End-to-End Loan Transaction & Amortization Synchronization**: Any change made in loan transactions or the amortization schedule (adding, editing, deleting, or settling payments) dynamically and atomically synchronizes across the database, recalculates liability balances, triggers past-date EOD rebuilds for the Calendar Heatmap, updates Dashboard KPIs and Net Worth in real time, and refreshes open Holding Detail Ledgers.
    - **Dynamic Real-Time Chart Timeline Generation & Universal Mutation Events**: Holding Detail charts for Bank, EPF, and Debt instruments compute day-by-day running balances dynamically on-the-fly from cached transactions in < 1ms, eliminating flat lines and stale background rebuild lags. User mutations dispatch universal `ladder-data-updated` events, immediately re-rendering the Dashboard Overview Trend Chart, Calendar Heatmap, and Holding Detail charts in real time without page reloads.
 
-
-4. **Automated Recurring SIP Engine & Execution History**
+6. **Automated Recurring SIP Engine & Execution History**
    - In-app SIP manager (`src/components/SipManagerModal.jsx`) allowing users to schedule, edit, pause, resume, or close recurring investments.
    - Dedicated **Execution & Skips** tab tracking every execution attempt, units purchased, NAV pricing, and specific skip reasons (market closures, NSE holidays, end-date expirations).
    - Automated SIP processing (`server/services/sipEngine.js`) catches up all due installments through the current date, enforces strict trade-date parity with market calendar holiday deferrals, normalizes multi-format date feeds (AMFI `DD-Mon-YYYY` to `YYYY-MM-DD`), and defers intraday executions until official evening NAVs are published to prevent premature executions with previous day's NAV.
    - Allocates units with 0.005% stamp duty charges, records execution history, and advances future schedules in the background.
    - The Holding Detail transaction ledger provides a scheme-scoped **Add SIP** action. Mutual Fund, US Stock, and Indian Stock **Total Bought** and **Current Cost** compute strictly as transaction cost `(quantity * price) + charges`, with proportional FIFO allocation of buy charges for remaining open lots.
 
-5. **Historical Time-Series & Real-Time Multi-Granularity Calendar**
+7. **Historical Time-Series & Real-Time Multi-Granularity Calendar**
    - Daily, monthly, and yearly portfolio valuation history spanning 19 years (2007-2026) across 18 asset and liability columns (`data/portfolio_eod_logs.json`).
    - Dynamic real-time single-source-of-truth engine: today's current valuation updates live from real-time price feeds with 0 delay and zero scripts needed.
    - Whole-portfolio net worth evaluation: daily P&L and status indicators (Green, Red, Blue) reflect the change in the total net worth of the portfolio, ensuring real movements in Bank Accounts, EPF, Loans, and Credit Cards are faithfully represented alongside market assets.
@@ -58,7 +66,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Absolute Non-Trading Market Holiday Valuation Invariance (Rule 27)**: On non-trading days and outside active market trading hours for an asset, the entire portfolio valuation across all endpoints and views (`/api/summary`, `/api/daily-pnl`, Calendar Heatmap, Dashboard Overview, Trend Chart, Category Ledgers, and Holdings Tables) strictly carries forward the finalized closing valuations of the last completed trading session. Net Worth, Total Assets, Total Liabilities, Category Breakdowns, Asset Deltas, and Daily P&L remain strictly invariant with ₹0.00 (0.00%) change unless a verified user cash deposit or withdrawal transaction occurred on that date.
    - **Dynamic Multi-Asset Market Calendar & Special Trading Session Architecture (Rule 28)**: Decoupled trading schedules from blunt binary weekend or static holiday assumptions. The calendar natively supports Special Saturday live trading sessions (e.g. Disaster Recovery failovers, Budget Day sessions), annual Diwali Muhurat Trading on festival holidays (evening festive trading window), and independent multi-asset schedules (US stocks on NYSE trade independently on Indian holidays like Gandhi Jayanti, Diwali, and Holi; Indian equities on NSE/BSE trade during special sessions; AMFI and CRA follow respective NAV publication schedules; cash and debt follow continuous transaction ledgers). Actively trading assets update dynamically with live market quotes while non-trading assets carry forward verified closing valuations with zero phantom drift.
 
-6. **High-Performance Growth Benchmark & Reports Suite**
+8. **High-Performance Growth Benchmark & Reports Suite**
    - Dedicated service (`server/services/benchmarkEngine.js`) calculating true money-weighted performance vs Nifty 50, Nifty Midcap 150, Nifty Smallcap 250, S&P 500, and NASDAQ with binary search index lookups and live sync staleness badge ("Synced: DD-MM-YYYY").
    - Dynamic start-vs-end gain/loss evaluation across all charts (Rose Red on drops, Emerald Green on gains).
    - Clean, full-size transparent asset logos across all 400+ instruments with zero artificial white borders or shrinkage.
@@ -77,7 +85,7 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Global Auto-Select on Focus/Click**: Universal auto-selection for text, number, and search inputs throughout the application, automatically highlighting existing content upon click/focus for immediate overwrite on typing while preserving full `X` clear button support.
    - **Standardized Clean HoldingLogo Engine & Universal Branding**: Clean, high-contrast squircle logos with fallback monograms deployed universally across the entire application — including the global search bar in the top navigation header (TopNavbar.jsx), investment entry autocomplete dropdowns (AddInvestmentView.jsx), portfolio holdings tables, transaction ledgers, SIP manager lists, report drilldown tables, liabilities cards, and investment search autocomplete dropdowns. Incorporates a full manifest index of 5,288+ Indian stock vector logos (src/data/stockLogosMap.js) backed by jsDelivr and GitHub raw CDNs, dedicated corporate domain registries, and multi-word brand heuristics, eliminating single-word domain collisions.
 
-7. **Safety, Write-Ahead Log (WAL), Compressed Cloud Backup & 10-Day Retention Protocol**
+9. **Safety, Write-Ahead Log (WAL), Compressed Cloud Backup & 10-Day Retention Protocol**
    - **Canonical In-Memory Source of Truth for Backups**: Backups read directly from the live in-memory `dbCache` via internal endpoint (`GET /api/internal/full-snapshot`) rather than querying potentially stale cloud tables directly. Every backup includes per-table row counts from both cache and Supabase with sync integrity status flags.
    - **Write-Ahead Log (WAL) Dual-Write Architecture**: Every database mutation (`insert`, `update`, `delete`) in `server/db.js` logs to `data/pending_writes.json` (WAL). A background worker (`server/services/walFlusherService.js`) retries failed writes to Supabase every 30s using `supabaseAdmin`, completely eliminating data loss from transient network drops or RLS mismatches.
    - **Pre-Backup Synchronous WAL Flush**: Before any backup is produced, all pending WAL entries are flushed to Supabase. If any writes remain pending, the backup is safely generated from local cache and marked `PARTIAL` with user notifications.
@@ -89,16 +97,16 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Profile Menu Integration & Sync Status**: Instant 1-click 'Backup Database Now' (with active feedback and sync divergence checks via `/api/sync-status`) and 'Restore Database' buttons directly accessible from the user Profile Dropdown menu in the top navigation bar.
    - **Point-in-Time Restoration Modal**: Themed, keyboard-accessible restore modal (`RestoreBackupModal.jsx`) with asynchronous job polling (`GET /api/cloud-backups/restore/status`), background historical EOD recalculation with 5-minute timeout protections, unmount cleanup, and failure circuit breakers.
 
-8. **Automated Sync Scheduler & 10-Day Execution Audit Hub (`SyncLogsModal.jsx`)**
-   - **Full Job Audit Trail**: Tracks every automated background and on-demand synchronization event with exact scheduled time, actual execution timestamp, duration, status (success checkmark or failure X), and itemized operational results.
-   - **Multi-Category Job Coverage**: Logs executions across EOD Valuation Rebuilds (06:30 PM, 11:45 PM, 07:00 AM IST), Daily Automated Cloud Backups (08:25 AM IST), Midnight Comprehensive Self-Healing (00:05 AM IST), Trading-Session Live Price Polls, SIP Execution Sweeps, and Webpage Login Auto-Syncs.
-   - **Profile Window Integration**: Instant access via the 'Sync Logs' button located directly above 'Backup Now' in the user profile dropdown in `TopNavbar.jsx`.
-   - **Interactive Modal Interface**: Theme-matched (`modal-surface reports-card`), keyboard-accessible modal featuring category filter tabs (`All`, `EOD Rebuilds`, `Price Sync`, `Self-Healing`, `Backups`), real-time search filtering, and an on-demand 'Sync Now' trigger button.
+10. **Automated Sync Scheduler & 10-Day Execution Audit Hub (`SyncLogsModal.jsx`)**
+    - **Full Job Audit Trail**: Tracks every automated background and on-demand synchronization event with exact scheduled time, actual execution timestamp, duration, status (success checkmark or failure X), and itemized operational results.
+    - **Multi-Category Job Coverage**: Logs executions across EOD Valuation Rebuilds (06:30 PM, 11:45 PM, 07:00 AM IST), Daily Automated Cloud Backups (08:25 AM IST), Midnight Comprehensive Self-Healing (00:05 AM IST), Trading-Session Live Price Polls, SIP Execution Sweeps, and Webpage Login Auto-Syncs.
+    - **Profile Window Integration**: Instant access via the 'Sync Logs' button located directly above 'Backup Now' in the user profile dropdown in `TopNavbar.jsx`.
+    - **Interactive Modal Interface**: Theme-matched (`modal-surface reports-card`), keyboard-accessible modal featuring category filter tabs (`All`, `EOD Rebuilds`, `Price Sync`, `Self-Healing`, `Backups`), real-time search filtering, and an on-demand 'Sync Now' trigger button.
 
-9. **Dynamic Housing Loan Amortization & Prepayment Engine**
-   - Ingests verified authoritative loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest, charges) from statements into Supabase `loan_amortization` and `data/loan_amortization.json`.
-   - Dynamic projection engine (`server/services/loanEngine.js`) calculating monthly principal and interest splits right up to loan payoff date (~Dec 2034) with daily interest compounding.
-   - Interactive Recharts visualization with 3 specialized modes:
+11. **Dynamic Housing Loan Amortization & Prepayment Engine**
+    - Ingests verified authoritative loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest, charges) from statements into Supabase `loan_amortization` and `data/loan_amortization.json`.
+    - Dynamic projection engine (`server/services/loanEngine.js`) calculating monthly principal and interest splits right up to loan payoff date (~Dec 2034) with daily interest compounding.
+    - Interactive Recharts visualization with 3 specialized modes: visualization with 3 specialized modes:
      - **Balance Curve**: Long-term outstanding balance trajectory separating settled actuals from dynamic projections.
      - **Payment Breakdown**: Dedicated monthly payment split chart displaying exact Principal Repaid (green) vs Interest Charges (rose) across past and projected lifecycles.
      - **Annual Breakdown**: Stacked annual repayment distribution.
@@ -222,7 +230,12 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-supabase-anon-key
 JWT_SECRET=replace-with-a-random-secret-at-least-32-characters-long
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+# Leave disabled unless you have confirmed source permission and configured an authorized provider.
+SCREENER_AUTOMATION_ENABLED=false
+NEWS_RSS_ENABLED=false
 ```
+
+Buy Analysis may read existing local fundamental snapshots. Automated Screener and RSS retrieval are disabled by default. Do not enable either flag until the source's access, rate-limit, and storage terms have been reviewed.
 
 ### Step 3: Run the Application Locally
 

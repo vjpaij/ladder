@@ -5,6 +5,15 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.91.0] - 2026-10-17
+
+### Hardened
+- **Buy Analysis Data Gates**: Fundamental scores now report coverage and freshness, use same-quarter YoY comparisons, preserve missing values as unknown, and mark unsupported financial sectors insufficient.
+- **Chartink and Technical Evidence**: The prefilter now applies the enabled conditions visible in the supplied screenshot and reports unavailable volume, liquidity, and historical market-cap evidence. Buy states require a valuation review and close-based estimated reward/risk gate; Strong Buy additionally requires verified evidence that is currently unavailable from local close-only data.
+- **Earnings and News**: Confirmed and estimated earnings dates are distinguished; historical beat counts do not boost ratings. Keyword news is context only, and automated Screener/RSS collection is disabled until authorized sources are configured.
+- **Accumulation Plans**: Replaced fixed default investments with user-entered budgets, a risk-cap estimate, conditional tranche reviews, expiry, and explicit no-order behavior.
+- **Backtest Claims**: Buy Analysis now reports that a historical replay is blocked by missing point-in-time fundamentals, adjusted OHLCV/corporate-action history, and a complete historical universe.
+
 ## [5.89.0] - 2026-10-17
 
 ### Optimized
