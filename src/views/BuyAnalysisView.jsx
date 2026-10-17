@@ -125,12 +125,27 @@ function SignalBadge({ signal, size = 'md' }) {
 
 // ─── Earnings Badge ───────────────────────────────────────────────────────────
 function EarningsBadge({ earningsCatalyst }) {
-  if (!earningsCatalyst?.nextResultDate) return null;
-  const { daysToResult, dateConfidence } = earningsCatalyst;
+  if (!earningsCatalyst) return null;
+  const { quarterlyResultStatus, daysAgo, daysToResult, dateConfidence, resultVerdict } = earningsCatalyst;
+
+  if (quarterlyResultStatus === 'RESULTS_OUT') {
+    const isBlowout = resultVerdict === 'BLOWOUT_BEAT';
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${
+        isBlowout
+          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 font-semibold'
+          : 'bg-green-500/15 border-green-500/30 text-green-300'
+      }`}>
+        <CheckCircle2 className="w-2.5 h-2.5" />
+        {`Results Out ${daysAgo !== null && daysAgo !== undefined ? `(${daysAgo}d ago)` : ''}`}
+      </span>
+    );
+  }
+
   if (daysToResult === null || daysToResult < -5 || daysToResult > 45) return null;
 
   const color = daysToResult <= 7
-    ? 'bg-red-500/20 border-red-500/40 text-red-400'
+    ? 'bg-red-500/20 border-red-500/40 text-red-400 font-semibold'
     : daysToResult <= 15
     ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
     : 'bg-blue-500/20 border-blue-500/40 text-blue-400';
@@ -138,9 +153,7 @@ function EarningsBadge({ earningsCatalyst }) {
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${color}`}>
       <Calendar className="w-2.5 h-2.5" />
-      {daysToResult <= 0
-        ? `Results ${Math.abs(daysToResult)}d ago`
-        : `${dateConfidence === 'CONFIRMED' ? 'Results' : 'Est. results'} in ${daysToResult}d`}
+      {`Results ${dateConfidence === 'CONFIRMED' ? 'Confirmed' : 'Est.'} in ${daysToResult}d`}
     </span>
   );
 }
@@ -378,36 +391,109 @@ function BuySignalCard({ analysis, onSipPlanClick, onNewsClick, newsLoading }) {
                 )}
               </div>
 
-              {/* Earnings Catalyst Detail */}
-              {analysis.earningsCatalyst?.nextResultDate && (
+              {/* Earnings Catalyst & Quarterly Results Detail */}
+              {analysis.earningsCatalyst && (
                 <div className="reports-subcard rounded-xl p-3">
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" /> Earnings Catalyst
-                  </h4>
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-[10px] text-slate-500">Next Result</span>
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{analysis.earningsCatalyst.nextResultDate}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[10px] text-slate-500">Days Away</span>
-                      <span className={`text-xs font-bold ${(analysis.earningsCatalyst.daysToResult || 0) <= 7 ? 'text-red-400' : (analysis.earningsCatalyst.daysToResult || 0) <= 15 ? 'text-amber-400' : 'text-slate-300'}`}>
-                        {analysis.earningsCatalyst.daysToResult !== null ? `${analysis.earningsCatalyst.daysToResult} days` : 'N/A'}
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-blue-400" /> Quarterly Results & Catalysts
+                    </h4>
+                    {analysis.earningsCatalyst.quarterlyResultStatus === 'RESULTS_OUT' ? (
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                        analysis.earningsCatalyst.resultVerdict === 'BLOWOUT_BEAT'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-green-500/15 text-green-300 border border-green-500/25'
+                      }`}>
+                        {analysis.earningsCatalyst.resultVerdict?.replace('_', ' ')}
                       </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[10px] text-slate-500">Date confidence</span>
-                      <span className="text-xs font-semibold text-slate-300">{analysis.earningsCatalyst.dateConfidence || 'UNKNOWN'}</span>
-                    </div>
-                    {analysis.earningsCatalyst.beatRate !== null && analysis.earningsCatalyst.beatRate !== undefined && (
-                      <p className="text-[10px] text-slate-500">Historical reported surprises are informational only; dated consensus data is not configured, so this does not affect the signal.</p>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/25">
+                        UPCOMING
+                      </span>
                     )}
+                  </div>
+
+                  <div className="space-y-1.5 text-xs">
+                    {analysis.earningsCatalyst.quarterlyResultStatus === 'RESULTS_OUT' ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-[10px] text-slate-500">Latest Reported Quarter</span>
+                          <span className="font-semibold text-emerald-400">{analysis.earningsCatalyst.latestReportedQuarter}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[10px] text-slate-500">Announcement Date</span>
+                          <span className="font-mono text-slate-300">
+                            {analysis.earningsCatalyst.lastResultDate} {analysis.earningsCatalyst.daysAgo !== null ? `(${analysis.earningsCatalyst.daysAgo}d ago)` : ''}
+                          </span>
+                        </div>
+                        {analysis.earningsCatalyst.lastResultTitle && (
+                          <div className="text-[10px] text-slate-400 italic bg-slate-800/40 p-1.5 rounded truncate">
+                            {analysis.earningsCatalyst.lastResultTitle}
+                          </div>
+                        )}
+                        <div className="grid grid-cols-3 gap-1.5 pt-1 text-center font-mono">
+                          <div className="bg-slate-800/50 p-1.5 rounded">
+                            <div className="text-[9px] text-slate-500">YoY PAT</div>
+                            <div className={`text-xs font-bold ${(analysis.yoyPatGrowthPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {(analysis.yoyPatGrowthPct || 0) >= 0 ? '+' : ''}{analysis.yoyPatGrowthPct ?? '—'}%
+                            </div>
+                          </div>
+                          <div className="bg-slate-800/50 p-1.5 rounded">
+                            <div className="text-[9px] text-slate-500">YoY Sales</div>
+                            <div className={`text-xs font-bold ${(analysis.yoySalesGrowthPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {(analysis.yoySalesGrowthPct || 0) >= 0 ? '+' : ''}{analysis.yoySalesGrowthPct ?? '—'}%
+                            </div>
+                          </div>
+                          <div className="bg-slate-800/50 p-1.5 rounded">
+                            <div className="text-[9px] text-slate-500">OPM</div>
+                            <div className="text-xs font-bold text-cyan-400">
+                              {analysis.earningsCatalyst.latestOpmPct ? `${analysis.earningsCatalyst.latestOpmPct}%` : '—'}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-[10px] text-slate-500">Target Result Date</span>
+                          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{analysis.earningsCatalyst.nextResultDate}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[10px] text-slate-500">Days Away</span>
+                          <span className={`font-bold ${(analysis.earningsCatalyst.daysToResult || 0) <= 7 ? 'text-red-400' : (analysis.earningsCatalyst.daysToResult || 0) <= 15 ? 'text-amber-400' : 'text-slate-300'}`}>
+                            {analysis.earningsCatalyst.daysToResult !== null ? `${analysis.earningsCatalyst.daysToResult} days` : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[10px] text-slate-500">Date Status</span>
+                          <span className="font-semibold text-slate-300">{analysis.earningsCatalyst.dateConfidence || 'UNKNOWN'}</span>
+                        </div>
+                      </>
+                    )}
+
                     {analysis.earningsCatalyst.signalNote && (
-                      <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{analysis.earningsCatalyst.signalNote}</p>
+                      <p className="text-[10px] text-slate-300 mt-1.5 leading-relaxed bg-slate-800/30 p-2 rounded border border-slate-700/30">
+                        {analysis.earningsCatalyst.signalNote}
+                      </p>
                     )}
-                    {analysis.earningsCatalyst.educationalContext && (
+
+                    {/* How to Know Beforehand Decision Support */}
+                    {analysis.earningsCatalyst.howToKnowBeforehand && (
                       <div className="mt-2 pt-2 border-t border-slate-700/50">
-                        <p className="text-[10px] text-slate-500 italic leading-relaxed">{analysis.earningsCatalyst.educationalContext}</p>
+                        <div className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Target className="w-3 h-3" /> Pre/Post Earnings Decision Playbook
+                        </div>
+                        <p className="text-[10px] text-slate-300 leading-relaxed font-medium mb-1.5">
+                          {analysis.earningsCatalyst.howToKnowBeforehand.strategy}
+                        </p>
+                        <ul className="space-y-0.5">
+                          {analysis.earningsCatalyst.howToKnowBeforehand.keyRules?.map((rule, rIdx) => (
+                            <li key={rIdx} className="text-[9px] text-slate-400 flex items-start gap-1">
+                              <span className="text-purple-400 mt-0.5">•</span>
+                              <span>{rule}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </div>
@@ -726,6 +812,7 @@ export default function BuyAnalysisView() {
             style={{ color: 'var(--text-primary)', borderColor: 'var(--border-subtle)' }}
           >
             <option value="ALL">All Sources</option>
+            <option value="Chartink Breakout">Chartink Breakouts</option>
             <option value="Portfolio">My Portfolio</option>
             <option value="NSE500">NSE 500</option>
             <option value="Watchlist">Watchlist</option>

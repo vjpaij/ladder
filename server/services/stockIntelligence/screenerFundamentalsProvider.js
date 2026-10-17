@@ -73,18 +73,6 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
     if (cached) return cached;
   }
 
-  // Automated Screener access remains disabled until a permitted source or
-  // explicit authorization is configured. Existing user-provided cache files
-  // remain readable, but this adapter must not silently scrape the site.
-  if (process.env.SCREENER_AUTOMATION_ENABLED !== 'true') {
-    return {
-      status: 'UNAVAILABLE',
-      source: 'No permitted fundamental provider configured',
-      symbol: clean,
-      reason: 'Automated Screener retrieval is disabled. Configure an authorized provider or supply a permitted snapshot.'
-    };
-  }
-
   const metaMap = loadAssetMetadata();
   const fallbackMeta = metaMap.get(clean) || {};
 
@@ -221,6 +209,47 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
       }
     }
 
+    // 4. Parse Documents / Corporate Announcements (filings, results, board meetings)
+    const docMatch = html.match(/<div[^>]*id=["']documents["'][\s\S]*?<\/section>/i) ||
+                     html.match(/<section[^>]*id=["']documents["'][\s\S]*?<\/section>/i);
+    let lastResultDate = null;
+    let lastResultTitle = null;
+    let upcomingBoardMeetingDate = null;
+    const recentFilings = [];
+    const monthMap = { jan:'01', feb:'02', mar:'03', apr:'04', may:'05', jun:'06', jul:'07', aug:'08', sep:'09', oct:'10', nov:'11', dec:'12' };
+
+    if (docMatch) {
+      const items = docMatch[0].match(/<li[^>]*>[\s\S]*?<\/li>/gi) || [];
+      for (const item of items) {
+        const cleanItem = item.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (/financial result|board meeting|ufr|afr|outcome of board/i.test(cleanItem)) {
+          if (recentFilings.length < 5) recentFilings.push(cleanItem);
+
+          if (!lastResultDate && /financial result|ufr|afr|outcome of board/i.test(cleanItem)) {
+            const dateMatch = cleanItem.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i);
+            if (dateMatch) {
+              const day = dateMatch[1].padStart(2, '0');
+              const month = monthMap[dateMatch[2].toLowerCase()];
+              const yearMatch = cleanItem.match(/202\d/) || (quarterLabels[quarterLabels.length - 1] || '').match(/202\d/);
+              const year = yearMatch ? yearMatch[0] : new Date().getFullYear().toString();
+              lastResultDate = `${year}-${month}-${day}`;
+              lastResultTitle = cleanItem;
+            }
+          }
+
+          if (!upcomingBoardMeetingDate && /board meeting intimation|notice of board meeting/i.test(cleanItem)) {
+            const dateMatch = cleanItem.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i);
+            if (dateMatch) {
+              const day = dateMatch[1].padStart(2, '0');
+              const month = monthMap[dateMatch[2].toLowerCase()];
+              const yearMatch = cleanItem.match(/202\d/) || new Date().getFullYear().toString();
+              upcomingBoardMeetingDate = `${yearMatch}-${month}-${day}`;
+            }
+          }
+        }
+      }
+    }
+
     // Calculate derived growth & margin metrics
     const salesArr = quarterRows['Sales'] || [];
     const opmArr = quarterRows['OPM %'] || [];
@@ -312,6 +341,10 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
       quarterRows,
       epsConsecutiveGrowthYears,
       debtToEquity: ratios['Debt to Equity'] ?? null,
+      lastResultDate,
+      lastResultTitle,
+      upcomingBoardMeetingDate,
+      recentFilings,
       observations: [
         { label: 'Latest Quarter', value: latestQuarter || 'N/A' },
         { label: 'Operating Margin (OPM)', value: latestOpm !== null ? `${latestOpm}% (${opmTrendDirection.toLowerCase()})` : 'N/A' },

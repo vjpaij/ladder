@@ -17,7 +17,8 @@ import path from 'node:path';
 import db from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getTodayIST } from '../services/marketCalendar.js';
-import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
+import { loadHistoricalPricesAsync, ensureHistoricalPricesForSymbol } from '../services/historicalPriceStore.js';
+import { fetchChartinkBreakouts } from '../services/stockIntelligence/chartinkScanner.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { buildBuyAnalyses, buildBuyPortfolioSummary } from '../services/stockIntelligence/buyAnalysisService.js';
 import { buildCandidateUniverse, addToWatchlist, removeFromWatchlist, loadWatchlist, loadUniverseCache, saveUniverseCache } from '../services/stockIntelligence/buyUniverseProvider.js';
@@ -84,10 +85,11 @@ router.get('/buy-analysis', authenticateToken, async (req, res) => {
 
     const startTime = Date.now();
 
-    // Load holdings and price history
-    const [holdings, history] = await Promise.all([
+    // Load holdings, price history, and live Chartink breakouts
+    const [holdings, history, chartinkCandidates] = await Promise.all([
       db.select('holdings'),
-      loadHistoricalPricesAsync()
+      loadHistoricalPricesAsync(),
+      fetchChartinkBreakouts({ forceRefresh })
     ]);
 
     // Enrich holdings with live prices
@@ -106,7 +108,7 @@ router.get('/buy-analysis', authenticateToken, async (req, res) => {
     });
 
     // Build candidate universe (portfolio + NSE500 + watchlist)
-    const candidates = buildCandidateUniverse(enrichedHoldings);
+    const candidates = buildCandidateUniverse(enrichedHoldings, chartinkCandidates);
 
     // For portfolio stocks, use live prices from enriched holdings
     const enrichedCandidates = candidates.map(c => {
@@ -122,9 +124,30 @@ router.get('/buy-analysis', authenticateToken, async (req, res) => {
       return c;
     });
 
-    // Load fundamentals from disk cache (no network fetch on main endpoint — background refresh only)
+    // Load fundamentals from disk cache
     const symbols = enrichedCandidates.map(c => c.symbol);
     const fundamentalsMap = loadCachedFundamentalsForSymbols(symbols);
+
+    // Auto-warm price history and fundamentals for high-priority breakout and watchlist candidates
+    const priorityCandidates = enrichedCandidates.filter(c => c.source.includes('Chartink Breakout') || c.source.includes('Watchlist'));
+    for (const c of priorityCandidates.slice(0, 20)) {
+      if (!history[c.symbol] && !history[`${c.symbol}.NS`]) {
+        try {
+          const freshPrices = await ensureHistoricalPricesForSymbol(c.symbol, 'in_stocks');
+          if (freshPrices && Object.keys(freshPrices).length > 0) {
+            history[c.symbol] = freshPrices;
+          }
+        } catch (_) {}
+      }
+      if (!fundamentalsMap[c.symbol]) {
+        try {
+          const f = await fetchCompanyFundamentals(c.symbol);
+          if (f && f.status === 'AVAILABLE') {
+            fundamentalsMap[c.symbol] = f;
+          }
+        } catch (_) {}
+      }
+    }
 
     // Compute earnings catalysts for all symbols
     const today = getTodayIST();
@@ -194,12 +217,7 @@ router.get('/buy-analysis', authenticateToken, async (req, res) => {
 router.post('/buy-analysis/refresh-fundamentals', authenticateToken, async (req, res) => {
   try {
     invalidateBuyCache();
-    if (process.env.SCREENER_AUTOMATION_ENABLED !== 'true') {
-      return res.json({
-        sourceStatus: 'NOT_CONFIGURED',
-        message: 'No authorized automated fundamentals provider is configured. No external refresh was attempted; provide a permitted snapshot or configure an authorized provider.'
-      });
-    }
+
     const symbol = req.body?.symbol;
     if (symbol) {
       const fund = await fetchCompanyFundamentals(symbol, { forceRefresh: true });

@@ -260,7 +260,7 @@ export function applyChartinkFilter(priceSeriesMap, symbol, fundamentals = {}, {
  * @param {Object[]} portfolioHoldings - user's active holdings
  * @returns {Array<{symbol: string, name: string, source: string, inPortfolio: boolean}>}
  */
-export function buildCandidateUniverse(portfolioHoldings = []) {
+export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidates = []) {
   const portfolioSymbols = new Set(
     portfolioHoldings
       .filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0)
@@ -289,6 +289,27 @@ export function buildCandidateUniverse(portfolioHoldings = []) {
       portfolioQuantity: Number(h?.quantity) || 0,
       portfolioAvgPrice: Number(h?.avg_buy_price) || 0
     });
+  }
+
+  // Chartink Breakout candidates (meeting active breakout scan)
+  for (const c of (chartinkCandidates || [])) {
+    const clean = String(c.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+    if (!allSymbols.has(clean)) {
+      allSymbols.set(clean, {
+        symbol: clean,
+        name: c.name || clean,
+        source: 'Chartink Breakout',
+        inPortfolio: portfolioSymbols.has(clean),
+        portfolioQuantity: 0,
+        portfolioAvgPrice: 0,
+        currentPrice: Number(c.close) || 0
+      });
+    } else {
+      const existing = allSymbols.get(clean);
+      if (!existing.source.includes('Chartink Breakout')) {
+        existing.source = 'Chartink Breakout + ' + existing.source;
+      }
+    }
   }
 
   // NSE 500 universe

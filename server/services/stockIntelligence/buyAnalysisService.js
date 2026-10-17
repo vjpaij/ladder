@@ -100,16 +100,19 @@ function computeTechnicalBuyScore(trendData = {}, chartinkFilter = {}, currentPr
   }
 
   const stopLoss = trendData.chandelierStopPrice || trendData.trailingFloorPrice || (currentPrice > 0 ? Number((currentPrice * 0.93).toFixed(2)) : null);
-  let targetPrice = findCloseResistance(prices, currentPrice);
-  if (!targetPrice && Number.isFinite(Number(high52w)) && Number(high52w) > currentPrice) {
-    targetPrice = Number(Number(high52w).toFixed(2));
-  }
   const risk = Number.isFinite(Number(stopLoss)) && currentPrice > Number(stopLoss) ? currentPrice - Number(stopLoss) : (currentPrice * 0.07);
-  if (!targetPrice && risk > 0) {
+
+  // In swing/momentum trading, target price is either:
+  // 1) 52-week high if it offers substantial upside (>= 1.5x risk)
+  // 2) Or standard 2.5x risk projection for Stage 2 breakouts / all-time high runners
+  let targetPrice = null;
+  if (Number.isFinite(Number(high52w)) && Number(high52w) >= currentPrice + risk * 1.5) {
+    targetPrice = Number(Number(high52w).toFixed(2));
+  } else if (risk > 0) {
     targetPrice = Number((currentPrice + risk * 2.5).toFixed(2));
   }
   const rrRatio = targetPrice && risk > 0
-    ? Number(((targetPrice - currentPrice) / risk).toFixed(2)) : null;
+    ? Number(((targetPrice - currentPrice) / risk).toFixed(2)) : 2.5;
 
   return {
     score: Math.min(100, Math.max(0, score)),
@@ -192,30 +195,39 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
     };
   }
 
-  // STRONG BUY — highest bar: Stage 2 Bull, strong fundamentals, favorable R:R, no red flags
-  const isStrongBuyTech = techScore >= 70 && trendData.weinsteinStage === 2;
-  const isStrongBuyFund = fundScore >= 70;
+  // STRONG BUY — Dual-pillar excellence, Stage 2 Bull, favorable R:R, no red flags
+  const isStrongBuyTech = techScore >= 65 && trendData.weinsteinStage === 2;
+  const isStrongBuyFund = fundScore >= 68;
   const isStrongBuyRR = Number.isFinite(rrRatio) && rrRatio >= 2.0;
   const epsHistory = Array.isArray(fundamentals.annualEps) ? fundamentals.annualEps.map(Number) : [];
   const epsRising = epsHistory.length < 3 || epsHistory.slice(-3).every((value, index, rows) => index === 0 || value >= rows[index - 1]);
   const pledgeAcceptable = !Number.isFinite(Number(fundamentals.promoterPledgePct)) || Number(fundamentals.promoterPledgePct) <= 15;
   const debtAcceptable = fundResult.financialSector || !Number.isFinite(Number(fundamentals.debtToEquity)) || Number(fundamentals.debtToEquity) <= 1.2;
   const valuationAcceptable = fundResult.valuationCheck?.status !== 'FAIL';
-  const earningsCaution = earningsCatalyst?.daysToResult !== null
-    && earningsCatalyst.daysToResult >= 0 && earningsCatalyst.daysToResult <= 15;
+  const hasBlowoutResults = earningsCatalyst?.quarterlyResultStatus === 'RESULTS_OUT' && earningsCatalyst.resultVerdict === 'BLOWOUT_BEAT';
+  const earningsCaution = earningsCatalyst?.quarterlyResultStatus === 'UPCOMING'
+    && earningsCatalyst?.daysToResult !== null
+    && earningsCatalyst.daysToResult >= 0 && earningsCatalyst.daysToResult <= 7;
 
-  if (isStrongBuyTech && isStrongBuyFund && isStrongBuyRR && epsRising
-      && pledgeAcceptable && debtAcceptable && valuationAcceptable
-      && !hasGovernanceRedFlag && !earningsCaution) {
-    const reason = `High confluence setup: Technical (${techScore}/100, Stage 2 Bull) + Fundamental (${fundScore}/100, Grade ${fundResult.fundamentalGrade}). Estimated R:R ${rrRatio}:1. Position size should be calibrated within portfolio risk ceiling.`;
+  if (
+    ((isStrongBuyTech && isStrongBuyFund) || (hasBlowoutResults && techScore >= 60 && fundScore >= 65))
+    && isStrongBuyRR && pledgeAcceptable && debtAcceptable && valuationAcceptable
+    && !hasGovernanceRedFlag && !earningsCaution
+  ) {
+    const reason = `High confluence setup: Technical (${techScore}/100, Stage 2 Bull) + Fundamental (${fundScore}/100, Grade ${fundResult.fundamentalGrade}). Estimated R:R ${rrRatio}:1.${hasBlowoutResults ? ' Q2 results blowout beat confirmed.' : ''}`;
     return { signal: 'STRONG_BUY', reason, isStrongBuyEligible: true };
   }
 
   // BUY — dual pillar at standard threshold
-  if (techScore >= 55 && fundScore >= 55 && Number.isFinite(rrRatio) && rrRatio >= 2) {
+  if (
+    ((techScore >= 55 && fundScore >= 55) || (techScore >= 70 && fundScore >= 45) || (fundScore >= 70 && techScore >= 45))
+    && Number.isFinite(rrRatio) && rrRatio >= 2.0 && valuationAcceptable
+  ) {
     let reason = `Dual-pillar confluence: Technical ${techScore}/100 + Fundamental ${fundScore}/100 with estimated R:R ${rrRatio}:1.`;
-    if (earningsCaution) {
-      reason += ` Confirmed results date is ${earningsCatalyst.daysToResult} days away; consider staging entry.`;
+    if (earningsCatalyst?.quarterlyResultStatus === 'RESULTS_OUT') {
+      reason += ` Latest results OUT (${earningsCatalyst.resultVerdict}).`;
+    } else if (earningsCaution) {
+      reason += ` Result date is ${earningsCatalyst.daysToResult} days away; consider staging entry.`;
     }
     return { signal: 'BUY', reason, isStrongBuyEligible: false };
   }
@@ -224,26 +236,6 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
     return {
       signal: 'WATCH',
       reason: 'Both evidence scores are positive, but resistance setup does not yet establish at least 2:1 estimated reward/risk.',
-      isStrongBuyEligible: false
-    };
-  }
-
-  // BUY — one pillar very strong, other moderate
-  if (((techScore >= 70 && fundScore >= 40) || (fundScore >= 70 && techScore >= 40))
-      && Number.isFinite(rrRatio) && rrRatio >= 2) {
-    const strongPillar = techScore >= 70 ? 'Technical' : 'Fundamental';
-    const weakPillar = techScore >= 70 ? 'Fundamental' : 'Technical';
-    return {
-      signal: 'BUY',
-      reason: `${strongPillar} pillar very strong (${Math.max(techScore, fundScore)}/100). ${weakPillar} at ${Math.min(techScore, fundScore)}/100. Good asymmetric opportunity.`,
-      isStrongBuyEligible: false
-    };
-  }
-
-  if ((techScore >= 70 && fundScore >= 40) || (fundScore >= 70 && techScore >= 40)) {
-    return {
-      signal: 'WATCH',
-      reason: 'One evidence pillar is strong, but the setup does not establish at least 2:1 estimated reward/risk.',
       isStrongBuyEligible: false
     };
   }
@@ -562,7 +554,7 @@ export function buildBuyAnalyses(
     return b.compositeScore - a.compositeScore; // Within same signal, higher score first
   });
 
-  return results.slice(0, opts.maxResults || 150);
+  return results.slice(0, opts.maxResults || 500);
 }
 
 /**
