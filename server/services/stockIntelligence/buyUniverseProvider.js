@@ -97,12 +97,29 @@ export function removeFromWatchlist(symbol) {
 }
 
 function loadNse500Universe() {
+  const symbols = new Set(NSE500_BASELINE);
   try {
-    if (fs.existsSync(UNIVERSE_FILE)) {
-      return JSON.parse(fs.readFileSync(UNIVERSE_FILE, 'utf8'));
+    const hpFile = path.join(DATA_DIR, 'historical_prices.json');
+    if (fs.existsSync(hpFile)) {
+      const hp = JSON.parse(fs.readFileSync(hpFile, 'utf8'));
+      for (const k of Object.keys(hp)) {
+        const clean = String(k).replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
+        if (clean && clean.length >= 2 && !clean.includes('^')) {
+          symbols.add(clean);
+        }
+      }
     }
   } catch { /* ignore */ }
-  return NSE500_BASELINE;
+
+  try {
+    if (fs.existsSync(UNIVERSE_FILE)) {
+      const custom = JSON.parse(fs.readFileSync(UNIVERSE_FILE, 'utf8'));
+      if (Array.isArray(custom)) {
+        for (const s of custom) symbols.add(String(s).toUpperCase().trim());
+      }
+    }
+  } catch { /* ignore */ }
+  return [...symbols];
 }
 
 /**

@@ -1,5 +1,115 @@
 [
   {
+    "id": "log_1792267734740_fslvz",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T20:08:54.736Z",
+    "status": "SUCCESS",
+    "durationMs": 7214,
+    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792266898133_gxa30",
+    "jobType": "BUY_ANALYSIS",
+    "jobName": "Buy Analysis Evaluation",
+    "scheduledTime": "On Demand",
+    "runTime": "2026-10-17T19:54:58.132Z",
+    "status": "SUCCESS",
+    "durationMs": 10421,
+    "details": "Evaluated 500 stocks. STRONG_BUY: 8, BUY: 13, WATCH: 29.",
+    "error": null
+  },
+  {
+    "id": "log_1792266864514_9og2w",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T19:54:24.512Z",
+    "status": "SUCCESS",
+    "durationMs": 6250,
+    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792265067095_bxr49",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T19:24:27.093Z",
+    "status": "SUCCESS",
+    "durationMs": 6085,
+    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792265001014_cxnlj",
+    "jobType": "BUY_ANALYSIS",
+    "jobName": "Buy Analysis Evaluation",
+    "scheduledTime": "On Demand",
+    "runTime": "2026-10-17T19:23:21.014Z",
+    "status": "SUCCESS",
+    "durationMs": 3577,
+    "details": "Evaluated 322 stocks. STRONG_BUY: 3, BUY: 13, WATCH: 32.",
+    "error": null
+  },
+  {
+    "id": "log_1792264987734_dqbc0",
+    "jobType": "BUY_ANALYSIS",
+    "jobName": "Buy Analysis Evaluation",
+    "scheduledTime": "On Demand",
+    "runTime": "2026-10-17T19:23:07.734Z",
+    "status": "SUCCESS",
+    "durationMs": 2569,
+    "details": "Evaluated 322 stocks. STRONG_BUY: 3, BUY: 13, WATCH: 32.",
+    "error": null
+  },
+  {
+    "id": "log_1792264984071_bz6qf",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T19:23:04.068Z",
+    "status": "SUCCESS",
+    "durationMs": 6119,
+    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792264896530_9plsr",
+    "jobType": "BUY_ANALYSIS",
+    "jobName": "Buy Analysis Evaluation",
+    "scheduledTime": "On Demand",
+    "runTime": "2026-10-17T19:21:36.530Z",
+    "status": "SUCCESS",
+    "durationMs": 2985,
+    "details": "Evaluated 200 stocks. STRONG_BUY: 3, BUY: 13, WATCH: 32.",
+    "error": null
+  },
+  {
+    "id": "log_1792264746285_gc8g8",
+    "jobType": "BUY_ANALYSIS",
+    "jobName": "Buy Analysis Evaluation",
+    "scheduledTime": "On Demand",
+    "runTime": "2026-10-17T19:19:06.285Z",
+    "status": "SUCCESS",
+    "durationMs": 2893,
+    "details": "Evaluated 200 stocks. STRONG_BUY: 3, BUY: 13, WATCH: 32.",
+    "error": null
+  },
+  {
+    "id": "log_1792264670708_oggz5",
+    "jobType": "BUY_ANALYSIS",
+    "jobName": "Buy Analysis Evaluation",
+    "scheduledTime": "On Demand",
+    "runTime": "2026-10-17T19:17:50.707Z",
+    "status": "SUCCESS",
+    "durationMs": 5437,
+    "details": "Evaluated 200 stocks. STRONG_BUY: 3, BUY: 13, WATCH: 32.",
+    "error": null
+  },
+  {
     "id": "log_1792263974939_64d4t",
     "jobType": "BUY_ANALYSIS",
     "jobName": "Buy Analysis Evaluation",

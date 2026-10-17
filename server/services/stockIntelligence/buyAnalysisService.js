@@ -47,56 +47,72 @@ function computeTechnicalBuyScore(trendData = {}, chartinkFilter = {}, currentPr
   let score = 0;
   const signals = [];
 
-  // Use chartink technical score as foundation
-  if (chartinkFilter.technicalScore) {
-    score = chartinkFilter.technicalScore;
-    signals.push(...(chartinkFilter.reasons || []));
-  }
-
-  // Boost for Weinstein Stage 2 (the core buy stage)
+  // 1. Core Trend Foundation: Stan Weinstein Stage Structure (up to 30 pts)
   if (trendData.weinsteinStage === 2) {
-    score = Math.min(100, score + 10);
-    signals.push('Stage 2 Bull confirmed ✓');
+    score += 30;
+    signals.push('Stage 2 Bull confirmed (Institutional Markup) ✓');
   } else if (trendData.weinsteinStage === 1) {
-    // Stage 1 (base) is the accumulation phase — watch signal
-    score = Math.min(100, score + 5);
-    signals.push('Stage 1 Base (accumulation phase) — watch for breakout');
-  } else if (trendData.weinsteinStage === 3 || trendData.weinsteinStage === 4) {
-    score = Math.max(0, score - 20);
-    signals.push(`⚠ Stage ${trendData.weinsteinStage} — not a buy candidate`);
+    score += 18;
+    signals.push('Stage 1 Accumulation Base (Early Entry Setup) ✓');
+  } else if (trendData.weinsteinStage === 3) {
+    score -= 15;
+    signals.push('⚠ Stage 3 Distribution Top — exercise caution');
+  } else if (trendData.weinsteinStage === 4) {
+    score -= 30;
+    signals.push('⚠ Stage 4 Structural Downtrend — avoid long entry');
   }
 
-  // Chandelier stop provides risk reference — if above stop, adds confidence
-  if (trendData.chandelierStopPrice && currentPrice > trendData.chandelierStopPrice) {
-    const buffer = ((currentPrice / trendData.chandelierStopPrice) - 1) * 100;
-    if (Number.isFinite(buffer) && buffer >= 5) {
-      score = Math.min(100, score + 5);
-      signals.push(`${buffer.toFixed(1)}% above trailing stop floor ✓`);
-    }
+  // 2. Moving Average Alignment: 50-EMA & 30-Week SMA (up to 25 pts)
+  const ema50 = chartinkFilter?.ema50;
+  if (ema50 && currentPrice > ema50) {
+    const emaBuffer = ((currentPrice / ema50) - 1) * 100;
+    score += 15;
+    signals.push(`Trading above 50-EMA (+${emaBuffer.toFixed(1)}%) ✓`);
+  }
+  if (trendData.sma30Week && currentPrice > trendData.sma30Week) {
+    score += 10;
+    signals.push('Trading above 30-week institutional SMA ✓');
   }
 
-  // 30-week SMA slope (positive slope = bullish structure)
+  // 3. Slope & Trend Momentum (up to 20 pts)
   if (Number.isFinite(trendData.sma30WeekFourWeekSlopePct)) {
     if (trendData.sma30WeekFourWeekSlopePct > 1.0) {
-      score = Math.min(100, score + 8);
-      signals.push(`30-week SMA rising +${Number(trendData.sma30WeekFourWeekSlopePct).toFixed(1)}%/4w ✓`);
+      score += 12;
+      signals.push(`30-week SMA rising strongly (+${Number(trendData.sma30WeekFourWeekSlopePct).toFixed(1)}%/4w) ✓`);
     } else if (trendData.sma30WeekFourWeekSlopePct > 0) {
-      score = Math.min(100, score + 3);
-      signals.push('30-week SMA slightly rising');
+      score += 6;
+      signals.push('30-week SMA upward sloping ✓');
     }
   }
 
-  // Momentum: price vs 20-week peak
+  // 4. Proximity to 52-Week / 20-Week Highs (up to 15 pts)
   if (Number.isFinite(trendData.drawdownFrom20WeekHighPct)) {
     const drawdown = trendData.drawdownFrom20WeekHighPct;
     if (drawdown >= -5) {
-      // Near or at 20-week peak — strong momentum
-      score = Math.min(100, score + 8);
-      signals.push(`Near 20-week peak (${Number(drawdown).toFixed(1)}% from high) ✓`);
+      score += 15;
+      signals.push(`At/near 20-week momentum high (${Number(drawdown).toFixed(1)}%) ✓`);
     } else if (drawdown >= -15) {
-      score = Math.min(100, score + 3);
-      signals.push(`Within 15% of 20-week peak`);
+      score += 8;
+      signals.push(`Within 15% consolidation of recent high ✓`);
     }
+  }
+
+  // 5. Chandelier Volatility Floor (up to 10 pts)
+  if (trendData.chandelierStopPrice && currentPrice > trendData.chandelierStopPrice) {
+    const buffer = ((currentPrice / trendData.chandelierStopPrice) - 1) * 100;
+    if (Number.isFinite(buffer) && buffer >= 5) {
+      score += 10;
+      signals.push(`${buffer.toFixed(1)}% buffer above Chandelier stop floor ✓`);
+    }
+  }
+
+  // 6. Chartink Fresh Breakout Confirmation (Bonus: +10 pts)
+  if (chartinkFilter.passes) {
+    score += 10;
+    signals.push('Chartink 50-EMA Volume/Price Breakout confirmed ✓');
+  } else if (chartinkFilter.activeFilterStatus?.emaBufferPass) {
+    score += 5;
+    signals.push('Holding above 50-EMA (+3% buffer) ✓');
   }
 
   const stopLoss = trendData.chandelierStopPrice || trendData.trailingFloorPrice || (currentPrice > 0 ? Number((currentPrice * 0.93).toFixed(2)) : null);
@@ -177,10 +193,15 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
   }
 
   const currentPrice = chartinkFilter?.currentPrice || 0;
-  const isSetupEligible = chartinkFilter.passes || trendData.weinsteinStage === 2;
+  // Dynamic setup eligibility: Stage 2 Bull, Stage 1 Base Breakout, 50-EMA support, or Blowout earnings
+  const isSetupEligible = trendData.weinsteinStage === 2
+    || (trendData.weinsteinStage === 1 && (trendData.drawdownFrom20WeekHighPct >= -15 || currentPrice >= (chartinkFilter?.high52w || 0) * 0.85))
+    || (currentPrice > (chartinkFilter?.ema50 || 0) && techScore >= 50)
+    || (earningsCatalyst?.quarterlyResultStatus === 'RESULTS_OUT' && earningsCatalyst?.resultVerdict === 'BLOWOUT_BEAT')
+    || chartinkFilter.passes;
+
   if (!isSetupEligible) {
-    const detail = chartinkFilter.failReasons?.slice(0, 2).join('; ') || 'Neither fresh 50-EMA breakout nor Stage 2 bull trend established';
-    return { signal: 'WATCH', reason: `Setup not confirmed: ${detail}.`, isStrongBuyEligible: false };
+    return { signal: 'WATCH', reason: 'Setup consolidating: awaiting Stage 2 confirmation, 50-EMA recovery, or breakout catalyst.', isStrongBuyEligible: false };
   }
 
   const hasBuyScore = (techScore >= 55 && fundScore >= 55)

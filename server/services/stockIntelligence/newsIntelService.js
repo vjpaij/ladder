@@ -127,7 +127,7 @@ let _feedCacheTimestamp = 0;
 
 /** Fetches and parses all RSS feeds. In-memory cached for 15 minutes. */
 async function fetchAllFeeds() {
-  if (process.env.NEWS_RSS_ENABLED !== 'true') return [];
+  if (process.env.NEWS_RSS_DISABLED === 'true') return [];
   const now = Date.now();
   if (_feedCache && now - _feedCacheTimestamp < 15 * 60 * 1000) {
     return _feedCache;
@@ -329,20 +329,105 @@ function saveNewsCache(cache) {
 }
 
 /**
+ * Builds news signals dynamically for all candidates in the universe.
+ * Fetches all RSS feeds once and evaluates company mentions entirely in-memory,
+ * avoiding sequential network queries.
+ */
+export async function buildUniverseNewsMap(candidates = []) {
+  const diskCache = loadNewsCache();
+  let allArticles = [];
+  try {
+    allArticles = await fetchAllFeeds();
+  } catch (_) {}
+
+  const result = { ...diskCache };
+  if (!allArticles || allArticles.length === 0) {
+    return result;
+  }
+
+  for (const c of candidates) {
+    const clean = String(c.symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
+    if (!clean) continue;
+    const name = c.name || clean;
+
+    const seenStories = new Set();
+    const relevant = allArticles.filter(article => {
+      const publishedAt = Date.parse(article.pubDate);
+      if (isNoise(article.title, article.description)
+          || !mentionsCompany(article.title, article.description, clean, name)
+          || !Number.isFinite(publishedAt)
+          || Date.now() - publishedAt < -86400000
+          || Date.now() - publishedAt > 45 * 86400000) return false;
+      const key = String(article.link || article.title).toLowerCase().replace(/\W/g, '');
+      if (seenStories.has(key)) return false;
+      seenStories.add(key);
+      return true;
+    });
+
+    if (relevant.length > 0) {
+      const enrichedArticles = relevant.map(article => {
+        const signals = extractSignals(article.title, article.description);
+        const netWeight = signals.reduce((sum, s) => sum + s.weight, 0);
+        return {
+          title: article.title,
+          link: article.link,
+          pubDate: article.pubDate,
+          feedName: article.feedName,
+          signals,
+          netWeight,
+          hasCriticalRedFlag: signals.some(s => s.weight <= -4),
+          hasVerifiedCriticalRedFlag: false
+        };
+      }).sort((a, b) => Math.abs(b.netWeight) - Math.abs(a.netWeight));
+
+      const topArticles = enrichedArticles.slice(0, MAX_ARTICLES_PER_STOCK);
+      const netSignalWeight = topArticles.reduce((sum, a) => sum + a.netWeight, 0);
+      const hasCriticalRedFlag = topArticles.some(a => a.hasCriticalRedFlag);
+
+      let overallSentiment = 'NEUTRAL';
+      if (netSignalWeight >= 4) overallSentiment = 'STRONGLY_POSITIVE';
+      else if (netSignalWeight >= 2) overallSentiment = 'POSITIVE';
+      else if (netSignalWeight <= -4) overallSentiment = 'STRONGLY_NEGATIVE';
+      else if (netSignalWeight <= -2) overallSentiment = 'NEGATIVE';
+
+      result[clean] = {
+        symbol: clean,
+        name,
+        articles: topArticles,
+        netSignalWeight,
+        overallSentiment,
+        hasCriticalRedFlag,
+        hasVerifiedCriticalRedFlag: false,
+        sourceStatus: 'MEDIA_CONTEXT_ONLY',
+        signalUse: 'Context only. Media keyword matches are not verified filing events and do not independently change Buy/Sell state.',
+        fetchedAt: new Date().toISOString(),
+        articleCount: topArticles.length
+      };
+    } else if (!result[clean]) {
+      result[clean] = {
+        symbol: clean,
+        name,
+        articles: [],
+        netSignalWeight: 0,
+        overallSentiment: 'NEUTRAL',
+        hasCriticalRedFlag: false,
+        hasVerifiedCriticalRedFlag: false,
+        sourceStatus: 'NO_RECENT_HEADLINES',
+        signalUse: 'No corporate disclosures or filing news in past 30 days.',
+        fetchedAt: new Date().toISOString(),
+        articleCount: 0
+      };
+    }
+  }
+
+  saveNewsCache(result);
+  return result;
+}
+
+/**
  * Batch fetch news for multiple symbols.
- * Throttled to avoid overwhelming RSS sources.
  */
 export async function batchFetchNewsSignals(symbolNamePairs = []) {
-  const results = {};
-  // Fetch all feeds once, then scan for each symbol
-  try { await fetchAllFeeds(); } catch { /* ignore */ }
-
-  for (const { symbol, name } of symbolNamePairs) {
-    try {
-      results[symbol] = await fetchNewsSignals(symbol, name);
-      // Brief polite gap between lookups
-      await new Promise(r => setTimeout(r, 50));
-    } catch { /* ignore */ }
-  }
-  return results;
+  return buildUniverseNewsMap(symbolNamePairs);
 }
+

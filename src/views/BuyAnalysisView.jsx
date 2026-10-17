@@ -188,7 +188,7 @@ function TagPill({ tag }) {
 }
 
 // ─── Stock Analysis Card ──────────────────────────────────────────────────────
-function BuySignalCard({ analysis, onSipPlanClick, onNewsClick, newsLoading }) {
+function BuySignalCard({ analysis, onSipPlanClick }) {
   const { formatMoney } = useThemeAuth();
   const [expanded, setExpanded] = useState(false);
   const config = SIGNAL_CONFIG[analysis.buySignal] || SIGNAL_CONFIG.MONITOR;
@@ -201,7 +201,7 @@ function BuySignalCard({ analysis, onSipPlanClick, onNewsClick, newsLoading }) {
 
   const hasSip = Boolean(analysis.sipPlan);
   const hasEarnings = analysis.earningsCatalyst?.nextResultDate;
-  const hasNews = analysis.newsSignal?.articleCount > 0;
+  const hasNews = Boolean(analysis.newsSignal?.articles?.length > 0 || analysis.newsSignal?.articleCount > 0);
 
   return (
     <motion.div
@@ -283,14 +283,24 @@ function BuySignalCard({ analysis, onSipPlanClick, onNewsClick, newsLoading }) {
                 SIP Plan
               </button>
             )}
-            <button
-              onClick={(e) => { e.stopPropagation(); setExpanded(true); onNewsClick(analysis); }}
-              disabled={newsLoading}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 text-xs border border-blue-500/30 transition-colors disabled:opacity-50"
-            >
-              <Newspaper className="w-3 h-3" />
-              {newsLoading ? 'Loading' : hasNews ? 'News' : 'Load News'}
-            </button>
+            {hasNews && (
+              <span
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs border font-medium ${
+                  analysis.newsSignal?.overallSentiment?.includes('POSITIVE')
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    : analysis.newsSignal?.overallSentiment?.includes('NEGATIVE')
+                    ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                    : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                }`}
+              >
+                <Newspaper className="w-3 h-3" />
+                {analysis.newsSignal?.overallSentiment === 'STRONGLY_POSITIVE' || analysis.newsSignal?.overallSentiment === 'POSITIVE'
+                  ? 'Catalyst'
+                  : analysis.newsSignal?.overallSentiment?.includes('NEGATIVE')
+                  ? 'News Alert'
+                  : 'News'}
+              </span>
+            )}
             <button
               onClick={() => setExpanded(!expanded)}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs border border-slate-700 transition-colors"
@@ -500,12 +510,25 @@ function BuySignalCard({ analysis, onSipPlanClick, onNewsClick, newsLoading }) {
                 </div>
               )}
 
-              {/* News Panel */}
-              {analysis.newsSignal?.articles?.length > 0 && (
-                <div className="reports-subcard rounded-xl p-3">
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <Newspaper className="w-3.5 h-3.5" /> News Intelligence
+              {/* News & Corporate Intelligence Panel */}
+              <div className="reports-subcard rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Newspaper className="w-3.5 h-3.5 text-blue-400" /> Corporate & Market Intelligence
                   </h4>
+                  {analysis.newsSignal?.articles?.length > 0 && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${
+                      analysis.newsSignal.overallSentiment?.includes('POSITIVE')
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : analysis.newsSignal.overallSentiment?.includes('NEGATIVE')
+                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                        : 'bg-slate-700 text-slate-300'
+                    }`}>
+                      {analysis.newsSignal.overallSentiment}
+                    </span>
+                  )}
+                </div>
+                {analysis.newsSignal?.articles?.length > 0 ? (
                   <ul className="space-y-2">
                     {analysis.newsSignal.articles.slice(0, 3).map((article, i) => (
                       <li key={i} className="border-b border-slate-700/30 pb-2 last:border-0 last:pb-0">
@@ -513,9 +536,10 @@ function BuySignalCard({ analysis, onSipPlanClick, onNewsClick, newsLoading }) {
                           className="text-[10px] text-slate-300 hover:text-white leading-relaxed line-clamp-2 block">
                           {article.title}
                         </a>
-                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[9px] text-slate-500 font-mono">{article.feedName}</span>
                           {article.signals?.map((sig, j) => (
-                            <span key={j} className={`text-[9px] px-1.5 py-0.5 rounded ${sig.weight > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                            <span key={j} className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${sig.weight > 0 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'}`}>
                               {sig.label} {sig.weight > 0 ? `+${sig.weight}` : sig.weight}
                             </span>
                           ))}
@@ -523,14 +547,12 @@ function BuySignalCard({ analysis, onSipPlanClick, onNewsClick, newsLoading }) {
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
-              {analysis.newsSignal?.sourceStatus === 'DISABLED_PENDING_SOURCE_REVIEW' && (
-                <div className="reports-subcard rounded-xl p-3">
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">News source status</h4>
-                  <p className="text-xs text-slate-500">Automated feeds are disabled until source access and retention terms are confirmed. News keywords cannot change a Buy/Sell state.</p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-xs text-slate-500 py-1">
+                    No material corporate filings, order awards, or regulatory disclosures detected in recent RSS & BSE feeds.
+                  </p>
+                )}
+              </div>
 
               {/* SIP Plan Summary (inline) */}
               {analysis.sipPlan && (
@@ -593,10 +615,13 @@ function SummaryBar({ summary }) {
   );
 }
 
+// Module-level client cache for instant 0ms switching across views
+let _clientBuyAnalysisCache = null;
+
 // ─── Main View ────────────────────────────────────────────────────────────────
 export default function BuyAnalysisView() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(_clientBuyAnalysisCache);
+  const [loading, setLoading] = useState(!_clientBuyAnalysisCache);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -612,24 +637,41 @@ export default function BuyAnalysisView() {
   const [addingWatch, setAddingWatch] = useState(false);
   const [watchlistInput, setWatchlistInput] = useState('');
   const [showWatchlistInput, setShowWatchlistInput] = useState(false);
-  const [newsLoadingSymbols, setNewsLoadingSymbols] = useState({});
 
   const fetchData = useCallback(async (force = false) => {
     try {
-      setLoading(true);
+      if (!_clientBuyAnalysisCache || force) {
+        setLoading(true);
+      }
       setError(null);
       const params = new URLSearchParams();
       if (force) params.set('refresh', 'true');
       const res = await axios.get(`${API_BASE}/buy-analysis?${params}`);
+      _clientBuyAnalysisCache = res.data;
       setData(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Failed to load buy analysis');
+      if (!_clientBuyAnalysisCache) {
+        setError(err.response?.data?.error || err.message || 'Failed to load buy analysis');
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const timer = setInterval(() => fetchData(true), 15 * 60 * 1000);
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') fetchData(false);
+    };
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+    };
+  }, [fetchData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -647,22 +689,6 @@ export default function BuyAnalysisView() {
       setNotice(err.response?.data?.error || err.message || 'Fundamental source could not be refreshed.');
     } finally {
       setRefreshing(false);
-    }
-  };
-
-  const handleLoadNews = async analysis => {
-    const symbol = analysis.symbol;
-    setNewsLoadingSymbols(current => ({ ...current, [symbol]: true }));
-    try {
-      const response = await axios.get(`${API_BASE}/news-intel/${encodeURIComponent(symbol)}`, { params: { name: analysis.name } });
-      setData(current => current ? {
-        ...current,
-        analyses: current.analyses.map(item => item.symbol === symbol ? { ...item, newsSignal: response.data } : item)
-      } : current);
-    } catch (err) {
-      setNotice(err.response?.data?.error || err.message || 'News could not be loaded.');
-    } finally {
-      setNewsLoadingSymbols(current => ({ ...current, [symbol]: false }));
     }
   };
 
@@ -872,8 +898,6 @@ export default function BuyAnalysisView() {
                 key={analysis.symbol}
                 analysis={analysis}
                 onSipPlanClick={a => setSelectedSipSymbol(a.symbol)}
-                onNewsClick={handleLoadNews}
-                newsLoading={Boolean(newsLoadingSymbols[analysis.symbol])}
               />
             ))}
           </div>
