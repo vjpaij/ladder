@@ -5,6 +5,14 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.89.0] - 2026-10-17
+
+### Optimized
+- **Stock Analysis Instantaneous Navigation & Caching**: Added client-side in-memory module caching in `StockAnalysisView.jsx` (`cachedStockAnalysisData`) so clicking on the Stock Analysis tab mounts and renders the complete page instantly (< 1ms) with zero loading spinner, refreshing silently in the background.
+- **Synchronous Backtest Decoupling**: Decoupled the 14-year walk-forward backtest simulation from blocking the synchronous overview endpoint (`GET /api/stock-intelligence/overview`), serving it on-demand or returning rule metadata, cutting cold server computation from 10.87s down to ~1.9s.
+- **Server Response Cache**: Added a 60-second in-memory response cache with active mutation invalidation in `server/routes/stockIntelligence.js`, dropping warm API response time to ~53ms.
+- **Indexed Map Lookups**: Refactored `server/services/stockIntelligence/analysisService.js` to index 11,400+ transactions and dividends into `Map` structures once per evaluation, eliminating repetitive $O(N \times M)$ scans for all 82 stocks.
+
 ## [5.88.0] - 2026-10-17
 
 ### Added

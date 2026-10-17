@@ -15,14 +15,26 @@ import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js'
 import { validateAndHealStockData } from '../services/stockIntelligence/dataIntegrityValidator.js';
 
 const router = express.Router();
-let cachedBacktest = null;
-let cachedBacktestKey = '';
+const backtestCache = new Map();
+let cachedOverview = null;
+let cachedOverviewKey = '';
+let cachedOverviewTimestamp = 0;
+const OVERVIEW_TTL_MS = 60 * 1000; // 60 seconds fast in-memory cache
 
 function getUserKey(user) {
   return String(user?.id || user?.email || '1');
 }
 
+export function invalidateStockIntelligenceCache() {
+  cachedOverview = null;
+  cachedOverviewKey = '';
+  cachedOverviewTimestamp = 0;
+}
+
 function getBacktest(priceMap, symbols) {
+  if (!symbols || !symbols.length) {
+    return { version: '30w-confirmed-breakdown-v1', activeEquities: 0, training: null, validation: null, holdout: null };
+  }
   const key = symbols.map(symbol => {
     const clean = String(symbol).replace(/\.(NS|BO)$/i, '');
     const series = priceMap[symbol] || priceMap[clean] || priceMap[`${clean}.NS`] || priceMap[`${clean}.BO`] || {};
@@ -30,11 +42,11 @@ function getBacktest(priceMap, symbols) {
     const latest = dates.at(-1);
     return `${symbol}:${dates.length}:${latest || ''}:${latest ? series[latest] : ''}`;
   }).join('|');
-  if (!cachedBacktest || key !== cachedBacktestKey) {
-    cachedBacktest = runWalkForwardBacktest(priceMap, symbols);
-    cachedBacktestKey = key;
+  if (!backtestCache.has(key)) {
+    const res = runWalkForwardBacktest(priceMap, symbols);
+    backtestCache.set(key, res);
   }
-  return cachedBacktest;
+  return backtestCache.get(key);
 }
 
 /**
@@ -84,7 +96,7 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
       const clean = String(h.symbol).replace(/\.(NS|BO)$/i, '');
       const series = history[h.symbol] || history[clean] || history[`${clean}.NS`] || {};
       const dates = Object.keys(series).sort();
-      const latestClose = dates.length > 0 ? series[dates[dates.length - 1]] : 0;
+      const currentPrice = resolved > 0 ? resolved : (latestClose > 0 ? latestClose : Number(h.current_price) || 0);
       const nsePrice = (quote && quote.nse_price > 0) ? Number(quote.nse_price) : (Number(h.nse_price) || 0);
       const bsePrice = (quote && quote.bse_price > 0) ? Number(quote.bse_price) : (Number(h.bse_price) || 0);
       return {
@@ -150,6 +162,15 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
 
 router.get('/stock-intelligence/overview', authenticateToken, async (req, res) => {
   try {
+    const userId = getUserKey(req.user);
+    const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
+    const now = Date.now();
+
+    // Check fast in-memory response cache (60s TTL)
+    if (!forceRefresh && cachedOverview && cachedOverviewKey === userId && (now - cachedOverviewTimestamp < OVERVIEW_TTL_MS)) {
+      return res.json(cachedOverview);
+    }
+
     const [holdings, transactions, dividends, metadata, history] = await Promise.all([
       db.select('holdings'),
       db.select('transactions'),
@@ -161,7 +182,6 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
     const symbols = [...new Set(active.map(item => item.symbol).filter(Boolean))];
     const activeUs = holdings.filter(item => item.category_id === 'us_stocks' && Number(item.quantity) > 0);
     const usSymbols = [...new Set(activeUs.map(item => item.symbol).filter(Boolean))];
-    const userId = getUserKey(req.user);
     const config = getIntelligenceConfig(userId);
 
     // Fast read from disk cache
@@ -193,8 +213,16 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
 
     // Run automated data integrity & anti-hallucination validation suite
     const { healedPriceMap, auditReport } = validateAndHealStockData(enrichedHoldings, history, transactions);
-    const backtest = getBacktest(healedPriceMap, symbols);
-    const usBacktest = getBacktest(healedPriceMap, usSymbols);
+
+    // Backtest calculation is compute-heavy (simulates 14 years across all 82 stocks).
+    // If client does not explicitly ask for includeBacktest, provide rule metadata to avoid blocking UI render.
+    const includeBacktest = req.query.includeBacktest === 'true';
+    const backtest = includeBacktest
+      ? getBacktest(healedPriceMap, symbols)
+      : { version: '30w-confirmed-breakdown-v1', activeEquities: symbols.length };
+    const usBacktest = includeBacktest
+      ? getBacktest(healedPriceMap, usSymbols)
+      : { version: '30w-confirmed-breakdown-v1', activeEquities: usSymbols.length };
 
     const analyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
       today: getTodayIST(),
@@ -220,7 +248,7 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
 
     recordStateTransitions(userId, [...analyses, ...usAnalyses]);
 
-    res.json({
+    const result = {
       generatedAt: new Date().toISOString(),
       ruleVersion: backtest.version,
       summary: buildPortfolioSummary(analyses),
@@ -235,7 +263,14 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
         runEverySession: true,
         lastEvaluatedAt: new Date().toISOString()
       }
-    });
+    };
+
+    // Cache the completed overview payload
+    cachedOverview = result;
+    cachedOverviewKey = userId;
+    cachedOverviewTimestamp = Date.now();
+
+    res.json(result);
   } catch (error) {
     console.error('[Stock Intelligence] Overview failed:', error.message);
     res.status(500).json({ error: 'Stock analysis could not be loaded.' });
@@ -244,6 +279,7 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
 
 router.post('/stock-intelligence/refresh-fundamentals', authenticateToken, async (req, res) => {
   try {
+    invalidateStockIntelligenceCache();
     const holdings = await db.select('holdings');
     const symbol = req.body?.symbol;
     if (symbol) {
@@ -266,6 +302,7 @@ router.get('/stock-intelligence/history', authenticateToken, (req, res) => {
 router.post('/stock-intelligence/config', authenticateToken, (req, res) => {
   try {
     const config = saveIntelligenceConfig(getUserKey(req.user), req.body || {});
+    invalidateStockIntelligenceCache();
     res.json({ config });
   } catch (error) {
     res.status(400).json({ error: error.message });

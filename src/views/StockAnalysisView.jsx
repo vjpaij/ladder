@@ -123,38 +123,44 @@ function StateBadge({ state, isCompounding, dataQuality }) {
   );
 }
 
+// Client-side in-memory cache to make page switching instantaneous (< 1ms)
+let cachedStockAnalysisData = null;
+
 export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
   const { formatMoney } = useThemeAuth();
   const [market, setMarket] = useState('IN'); // 'IN' | 'US'
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'COMPOUNDING' | 'WATCH' | 'TRIM' | 'RISK'
   const [selectedId, setSelectedId] = useState('');
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => cachedStockAnalysisData);
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedStockAnalysisData);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [activeDossierTab, setActiveDossierTab] = useState('TECHNICAL'); // 'TECHNICAL' | 'FUNDAMENTAL'
-  const [maxWeight, setMaxWeight] = useState('');
+  const [maxWeight, setMaxWeight] = useState(() => cachedStockAnalysisData?.config?.maxPositionWeightPct ?? '');
   const [savingConfig, setSavingConfig] = useState(false);
   const [configMessage, setConfigMessage] = useState('');
 
   const reload = async (silent = false) => {
-    if (!silent) setLoading(true);
+    // If we already have data cached, perform background refresh without blocking UI
+    if (!silent && !cachedStockAnalysisData) setLoading(true);
     setError('');
     try {
       const response = await axios.get('/api/stock-intelligence/overview');
+      cachedStockAnalysisData = response.data;
       setData(response.data);
       setMaxWeight(response.data.config?.maxPositionWeightPct ?? '');
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Could not load stock analysis.');
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && !cachedStockAnalysisData) setLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    reload();
+    reload(!!cachedStockAnalysisData);
     const timer = setInterval(() => reload(true), 15 * 60 * 1000);
     const refreshOnFocus = () => {
       if (document.visibilityState === 'visible') reload(true);

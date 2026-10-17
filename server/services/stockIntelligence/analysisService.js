@@ -296,6 +296,55 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
   const targetCategory = categoryId || 'in_stocks';
   const targetStocks = holdings.filter(item => item.category_id === targetCategory && Number(item.quantity) > 0);
 
+  // Index transactions and dividends once by holdingId and clean symbol for O(1) lookups
+  const txByHolding = new Map();
+  for (let i = 0; i < transactions.length; i++) {
+    const tx = transactions[i];
+    if (tx.holding_id) {
+      const k = String(tx.holding_id);
+      let list = txByHolding.get(k);
+      if (!list) { list = []; txByHolding.set(k, list); }
+      list.push(tx);
+    }
+    if (tx.symbol) {
+      const k = cleanSym(tx.symbol);
+      let list = txByHolding.get(k);
+      if (!list) { list = []; txByHolding.set(k, list); }
+      list.push(tx);
+    }
+  }
+
+  const divByHolding = new Map();
+  for (let i = 0; i < dividends.length; i++) {
+    const div = dividends[i];
+    if (div.holding_id) {
+      const k = String(div.holding_id);
+      let list = divByHolding.get(k);
+      if (!list) { list = []; divByHolding.set(k, list); }
+      list.push(div);
+    }
+    if (div.symbol) {
+      const k = cleanSym(div.symbol);
+      let list = divByHolding.get(k);
+      if (!list) { list = []; divByHolding.set(k, list); }
+      list.push(div);
+    }
+  }
+
+  const getHoldingTxs = (holding) => {
+    const byId = txByHolding.get(String(holding.id));
+    if (byId && byId.length) return byId;
+    const bySym = txByHolding.get(cleanSym(holding.symbol));
+    return bySym || [];
+  };
+
+  const getHoldingDivs = (holding) => {
+    const byId = divByHolding.get(String(holding.id));
+    if (byId && byId.length) return byId;
+    const bySym = divByHolding.get(cleanSym(holding.symbol));
+    return bySym || [];
+  };
+
   const interim = targetStocks.map(holding => {
     const raw = priceSeriesFor(holding.symbol, historicalPriceMap);
     const prices = normalizePriceSeries(raw);
@@ -306,14 +355,14 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const currentPrice = Number(holding.current_price) || prices.at(-1)?.close || 0;
     const nativeCurrentPrice = currentPrice;
     const nativeCurrentValue = quantity * nativeCurrentPrice;
-    const nativeInvestedValue = isUs ? openCostBasisINR(holding, transactions, { inrConversion: false }) : (Number(holding.investedValueINR) || openCostBasisINR(holding, transactions));
+    const hTxs = getHoldingTxs(holding);
+    const hDivs = getHoldingDivs(holding);
+    const nativeInvestedValue = isUs ? openCostBasisINR(holding, hTxs, { inrConversion: false }) : (Number(holding.investedValueINR) || openCostBasisINR(holding, hTxs));
     const currentValueINR = isUs ? (Number(holding.current_value_inr) || (nativeCurrentValue * (Number(holding.fx_rate) || 94.96))) : nativeCurrentValue;
-    const investedValueINR = isUs ? (Number(holding.invested_amount_inr) || openCostBasisINR(holding, transactions, { inrConversion: true })) : nativeInvestedValue;
+    const investedValueINR = isUs ? (Number(holding.invested_amount_inr) || openCostBasisINR(holding, hTxs, { inrConversion: true })) : nativeInvestedValue;
     const clean = cleanSym(holding.symbol);
 
     // Compute Holding-Level Cashflows for XIRR (in holding's native currency)
-    const hTxs = transactions.filter(t => String(t.holding_id) === String(holding.id) || (!t.holding_id && t.symbol && cleanSym(t.symbol) === clean));
-    const hDivs = dividends.filter(d => String(d.holding_id) === String(holding.id) || (d.symbol && cleanSym(d.symbol) === clean));
     const flows = hTxs
       .filter(t => ['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'SELL', 'REDEEM'].includes(t.type))
       .map(t => {
@@ -429,7 +478,7 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
 
     // 2. Transaction Ledger Audit for Staged Execution Tracking
     const holdingRow = holdings.find(h => String(h.id) === item.holdingId) || item;
-    const ledgerAudit = auditRecentLedgerActivity(holdingRow, transactions, today);
+    const ledgerAudit = auditRecentLedgerActivity(holdingRow, getHoldingTxs(holdingRow), today);
 
     // 3. Dynamic Logical Sizing (Zero arbitrary hardcodes)
     const sizing = deriveLogicalTrimQuantity({

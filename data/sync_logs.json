@@ -1,5 +1,82 @@
 [
   {
+    "id": "log_1792242109696_scznl",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (06:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T13:01:49.696Z",
+    "status": "FAILED",
+    "durationMs": 3,
+    "details": "Audit failed: latestClose is not defined",
+    "error": "latestClose is not defined"
+  },
+  {
+    "id": "log_1792242109690_f09l0",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (06:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T13:01:49.690Z",
+    "status": "SUCCESS",
+    "durationMs": 109676,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
+    "id": "log_1792241721563_9szjf",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T12:55:21.562Z",
+    "status": "FAILED",
+    "durationMs": 5,
+    "details": "Audit failed: latestClose is not defined",
+    "error": "latestClose is not defined"
+  },
+  {
+    "id": "log_1792241063333_1q1no",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-17T12:44:23.333Z",
+    "status": "SUCCESS",
+    "durationMs": 8261,
+    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1792241063284_4e223",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-17T12:44:23.284Z",
+    "status": "SUCCESS",
+    "durationMs": 8318,
+    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1792240629134_yyj28",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-17T12:37:09.134Z",
+    "status": "SUCCESS",
+    "durationMs": 10759,
+    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1792240627562_nru9p",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-17T12:37:07.561Z",
+    "status": "SUCCESS",
+    "durationMs": 9182,
+    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
+    "error": null
+  },
+  {
     "id": "log_1792237857236_dbdev",
     "jobType": "LOGIN_SYNC",
     "jobName": "Webpage Login Asset Auto-Sync",
