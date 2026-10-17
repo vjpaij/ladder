@@ -69,7 +69,7 @@ const TX_TYPES = {
 };
 
 // Autocomplete dropdown component
-function AutocompleteDropdown({ items, onSelect, isLoading, highlightText }) {
+function AutocompleteDropdown({ items, onSelect, isLoading, highlightText, category }) {
   if (!items.length && !isLoading) return null;
 
   return (
@@ -95,6 +95,7 @@ function AutocompleteDropdown({ items, onSelect, isLoading, highlightText }) {
               <HoldingLogo 
                 symbol={item.symbol || item.schemeCode} 
                 name={item.schemeName || item.name} 
+                category_id={category}
                 className="w-7 h-7 rounded-lg text-[10px] shrink-0" 
               />
               <div className="flex-1 min-w-0">
@@ -598,6 +599,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
                       onSelect={handleSelectResult}
                       isLoading={isSearching}
                       highlightText={searchQuery}
+                      category={portfolio}
                     />
                   )}
                 </AnimatePresence>

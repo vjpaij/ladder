@@ -29,6 +29,7 @@ import { useThemeAuth } from '../context/ThemeAuthContext';
 import FxRateModal from './FxRateModal';
 import RestoreBackupModal from './RestoreBackupModal';
 import SyncLogsModal from './SyncLogsModal';
+import HoldingLogo from './HoldingLogo';
 
 export default function TopNavbar({ 
   currentView,
@@ -255,6 +256,13 @@ export default function TopNavbar({
                         className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-slate-800/60 transition-colors text-left group cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
+                          <HoldingLogo
+                            holding={item}
+                            symbol={item.symbol}
+                            name={item.name}
+                            category_id={item.category_id}
+                            className="w-6 h-6 rounded-lg text-[9px] shrink-0"
+                          />
                           <span className="font-mono text-xs font-black text-white group-hover:text-emerald-400 transition-colors shrink-0">
                             {item.symbol || 'ASSET'}
                           </span>

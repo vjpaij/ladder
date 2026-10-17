@@ -1,5 +1,60 @@
 [
   {
+    "id": "log_1792220493438_6ngs8",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (07:00 AM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-17T07:01:33.438Z",
+    "status": "SUCCESS",
+    "durationMs": 2152,
+    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792220491283_90i1i",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (07:00 AM IST)",
+    "scheduledTime": "07:00 AM IST",
+    "runTime": "2026-10-17T07:01:31.283Z",
+    "status": "SUCCESS",
+    "durationMs": 126288,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
+    "id": "log_1792220459011_euem8",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-17T07:00:59.010Z",
+    "status": "SUCCESS",
+    "durationMs": 22388,
+    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1792220455285_ya6pr",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-17T07:00:55.284Z",
+    "status": "SUCCESS",
+    "durationMs": 19256,
+    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1792220405865_t6i0f",
+    "jobType": "CLOUD_BACKUP",
+    "jobName": "Automated Daily Cloud Backup",
+    "scheduledTime": "08:25 AM IST",
+    "runTime": "2026-10-17T07:00:05.865Z",
+    "status": "SUCCESS",
+    "durationMs": 40869,
+    "details": "Lossless gzip backup saved to Supabase Storage (ladder_backup_2026-10-17T06-59-24-998Z.json.gz).",
+    "error": null
+  },
+  {
     "id": "log_1792178591860_o3t6a",
     "jobType": "LOGIN_SYNC",
     "jobName": "Webpage Login Asset Auto-Sync",

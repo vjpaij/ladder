@@ -1,7 +1,17 @@
+import stockLogosMap from '../data/stockLogosMap.js';
+
 const pushLogos = (urls, domain) => {
   if (!domain) return;
-  urls.push(`https://unavatar.io/${domain}?fallback=false`);
   urls.push(`https://logos.hunter.io/${domain}`);
+  urls.push(`https://unavatar.io/${domain}?fallback=false`);
+};
+
+// Known custom domain mappings for companies or schemes
+const KNOWN_STOCK_DOMAINS = {
+  'INDOTECH': 'indo-tech.com',
+  'SWANENERGY': 'swanenergy.com',
+  'SEQUENT': 'sequent.in',
+  'DHOOTTRANS': 'dhoottransmission.com'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {
@@ -62,9 +72,6 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
     if (n.includes('mahindra')) pushLogos(urls, 'mahindramanulife.com');
     if (n.includes('union')) pushLogos(urls, 'unionmf.com');
     if (n.includes('max')) { pushLogos(urls, 'maxlifeinsurance.com'); pushLogos(urls, 'maxpension.co.in'); }
-    
-    const firstWord = n.split(' ')[0].replace(/[^a-z0-9]/g, '');
-    if (firstWord) pushLogos(urls, `${firstWord}.com`);
     return urls;
   }
 
@@ -94,35 +101,41 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
     if (n.includes('tata neu') || n.includes('tataneu')) pushLogos(urls, 'tatadigital.com');
     if (n.includes('bajaj')) pushLogos(urls, 'bajajfinserv.in');
     if (n.includes('credila')) pushLogos(urls, 'hdfccredila.com');
-    
-    const firstWord = n.split(' ')[0].replace(/[^a-z0-9]/g, '');
-    if (firstWord) pushLogos(urls, `${firstWord}.com`);
     return urls;
   }
 
   // Indian Stocks (Default / Fallback)
+  // 1. Direct match from verified Indian stock logos repository map
+  const mappedFile = stockLogosMap[cleanSym] || stockLogosMap[rawSym];
+  if (mappedFile) {
+    urls.push(`https://cdn.jsdelivr.net/gh/dharunashokkumar/indian-listed-company-logos@main/data/logos/${mappedFile}`);
+    urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos/main/data/logos/${mappedFile}`);
+  }
+
+  // 2. Direct stock domain override (e.g. Indo Tech Transformers -> indo-tech.com)
+  if (KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]) {
+    pushLogos(urls, KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]);
+  }
+
+  // 3. Fallbacks using cleaned symbol on Indian stock logos repo
   if (s) {
-    urls.push(`https://dharunashokkumar.github.io/indian-listed-company-logos/nse/NSE_${s}.svg`);
-    urls.push(`https://dharunashokkumar.github.io/indian-listed-company-logos/bse/BSE_${s}.svg`);
+    urls.push(`https://cdn.jsdelivr.net/gh/dharunashokkumar/indian-listed-company-logos@main/data/logos/nse/NSE_${s}.svg`);
+    urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos/main/data/logos/nse/NSE_${s}.svg`);
+    urls.push(`https://cdn.jsdelivr.net/gh/dharunashokkumar/indian-listed-company-logos@main/data/logos/bse/BSE_${s}.svg`);
+    urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos/main/data/logos/bse/BSE_${s}.svg`);
     urls.push(`https://assets.parqet.com/logos/symbol/${s}`);
     urls.push(`https://companiesmarketcap.com/img/company-logos/64/${s}.webp`);
-    urls.push(`https://storage.googleapis.com/iex/api/logos/${s}.png`);
   }
   
-  // Clean company name guesses
+  // 4. Exact multi-word company domain guesses (never isolate generic first words like "indo")
   const cleanCompanyName = n.replace(/\b(ltd|limited|company|corp|corporation|inc|industries|finance|financial|services)\b/g, '').trim();
   const words = cleanCompanyName.split(' ').map(w => w.replace(/[^a-z0-9]/g, '')).filter(Boolean);
   
-  if (words.length > 0) {
-    if (words.length > 1) pushLogos(urls, `${words[0]}${words[1]}.com`); 
-    pushLogos(urls, `${words[0]}.com`); 
-    pushLogos(urls, `${words[0]}.in`); 
-    pushLogos(urls, `${words[0]}.co.in`); 
-  }
-  
-  // Final fallback to symbol.com
-  if (s) {
-    pushLogos(urls, `${s.toLowerCase()}.com`);
+  if (words.length > 1) {
+    pushLogos(urls, `${words[0]}-${words[1]}.com`);
+    pushLogos(urls, `${words[0]}${words[1]}.com`);
+    pushLogos(urls, `${words[0]}${words[1]}.co.in`);
+    pushLogos(urls, `${words[0]}${words[1]}.in`);
   }
 
   return urls;
