@@ -322,7 +322,7 @@ function AuthenticatedApp() {
       case 'stock_analysis':
         return <StockAnalysisView key="stock_analysis" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
       case 'buy_analysis':
-        return <BuyAnalysisView key="buy_analysis" />;
+        return <StockAnalysisView key="stock_analysis_buy" initialTab="buy" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
       case 'indian_stocks':
         return <IndianStocksView key="indian_stocks" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onRefresh={fetchDashboardData} onOpenAddModal={() => { setTargetPortfolio('in_stocks'); setCurrentView('add_investment'); }} />;
       case 'us_stocks':

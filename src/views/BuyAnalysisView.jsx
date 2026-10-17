@@ -617,9 +617,12 @@ function SummaryBar({ summary }) {
 
 // Module-level client cache for instant 0ms switching across views
 let _clientBuyAnalysisCache = null;
+export function getClientBuyAnalysisCache() {
+  return _clientBuyAnalysisCache;
+}
 
 // ─── Main View ────────────────────────────────────────────────────────────────
-export default function BuyAnalysisView() {
+export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
   const [data, setData] = useState(_clientBuyAnalysisCache);
   const [loading, setLoading] = useState(!_clientBuyAnalysisCache);
   const [error, setError] = useState(null);
@@ -638,6 +641,15 @@ export default function BuyAnalysisView() {
   const [watchlistInput, setWatchlistInput] = useState('');
   const [showWatchlistInput, setShowWatchlistInput] = useState(false);
 
+  useEffect(() => {
+    if (onStatsChange && _clientBuyAnalysisCache?.analyses) {
+      const strongBuy = _clientBuyAnalysisCache.analyses.filter(a => a.buySignal === 'STRONG_BUY').length;
+      const buy = _clientBuyAnalysisCache.analyses.filter(a => a.buySignal === 'BUY').length;
+      const watch = _clientBuyAnalysisCache.analyses.filter(a => a.buySignal === 'WATCH').length;
+      onStatsChange({ strongBuy, buy, watch, total: _clientBuyAnalysisCache.analyses.length });
+    }
+  }, [onStatsChange]);
+
   const fetchData = useCallback(async (force = false) => {
     try {
       if (!_clientBuyAnalysisCache || force) {
@@ -649,6 +661,12 @@ export default function BuyAnalysisView() {
       const res = await axios.get(`${API_BASE}/buy-analysis?${params}`);
       _clientBuyAnalysisCache = res.data;
       setData(res.data);
+      if (onStatsChange && res.data?.analyses) {
+        const strongBuy = res.data.analyses.filter(a => a.buySignal === 'STRONG_BUY').length;
+        const buy = res.data.analyses.filter(a => a.buySignal === 'BUY').length;
+        const watch = res.data.analyses.filter(a => a.buySignal === 'WATCH').length;
+        onStatsChange({ strongBuy, buy, watch, total: res.data.analyses.length });
+      }
     } catch (err) {
       if (!_clientBuyAnalysisCache) {
         setError(err.response?.data?.error || err.message || 'Failed to load buy analysis');
@@ -656,7 +674,7 @@ export default function BuyAnalysisView() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onStatsChange]);
 
   useEffect(() => {
     fetchData();
@@ -738,23 +756,24 @@ export default function BuyAnalysisView() {
     return list;
   }, [data?.analyses, signalFilter, sourceFilter, searchQuery, sortBy]);
 
-  return (
-    <AnimatedPage>
-      <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
+  const innerContent = (
+    <div className={embedded ? "space-y-5" : "p-4 md:p-6 max-w-7xl mx-auto space-y-5"}>
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          {!embedded && (
             <h1 className="text-2xl font-black" style={{ color: 'var(--text-primary)' }}>
               Buy Analysis
             </h1>
-            {data?.generatedAt && (
-              <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-                <Clock className="w-3 h-3" />
-                Evaluated {new Date(data.generatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                · {data.candidateCount} candidates screened
-              </p>
-            )}
-          </div>
+          )}
+          {data?.generatedAt && (
+            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-emerald-400" />
+              Evaluated {new Date(data.generatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              · {data.candidateCount} candidates screened
+            </p>
+          )}
+        </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Add to Watchlist */}
             <div className="relative">
@@ -921,15 +940,24 @@ export default function BuyAnalysisView() {
             </p>
           </div>
         </div>
-      </div>
 
-      {/* SIP Plan Modal */}
-      {selectedSipAnalysis && (
-        <SipPlanModal
-          analysis={selectedSipAnalysis}
-          onClose={() => setSelectedSipSymbol(null)}
-        />
-      )}
+        {/* SIP Plan Modal */}
+        {selectedSipAnalysis && (
+          <SipPlanModal
+            analysis={selectedSipAnalysis}
+            onClose={() => setSelectedSipSymbol(null)}
+          />
+        )}
+      </div>
+  );
+
+  if (embedded) {
+    return innerContent;
+  }
+
+  return (
+    <AnimatedPage>
+      {innerContent}
     </AnimatedPage>
   );
 }

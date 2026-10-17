@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
   AlertOctagon,
@@ -21,12 +22,13 @@ import {
   ShieldAlert,
   ShieldCheck,
   TrendingDown,
-  TrendingUp
+  TrendingUp,
+  Sparkles
 } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from '../components/HoldingLogo';
-import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
+import BuyAnalysisView, { getClientBuyAnalysisCache } from './BuyAnalysisView';
 
 const STATE_META = {
   NORMAL: {
@@ -126,8 +128,37 @@ function StateBadge({ state, isCompounding, dataQuality }) {
 // Client-side in-memory cache to make page switching instantaneous (< 1ms)
 let cachedStockAnalysisData = null;
 
-export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
+export default function StockAnalysisView({ holdings = [], onSelectHolding, initialTab }) {
   const { formatMoney } = useThemeAuth();
+  const [activeAnalysisMode, setActiveAnalysisMode] = useState(() => {
+    if (initialTab && (initialTab === 'buy' || initialTab === 'sell')) {
+      return initialTab;
+    }
+    try {
+      return localStorage.getItem('ladder_stock_analysis_tab') || 'buy';
+    } catch {
+      return 'buy';
+    }
+  });
+
+  const handleModeChange = (mode) => {
+    setActiveAnalysisMode(mode);
+    try {
+      localStorage.setItem('ladder_stock_analysis_tab', mode);
+    } catch {}
+  };
+
+  const [buyStats, setBuyStats] = useState(() => {
+    const cached = getClientBuyAnalysisCache();
+    if (cached?.analyses) {
+      const strongBuy = cached.analyses.filter(a => a.buySignal === 'STRONG_BUY').length;
+      const buy = cached.analyses.filter(a => a.buySignal === 'BUY').length;
+      const watch = cached.analyses.filter(a => a.buySignal === 'WATCH').length;
+      return { strongBuy, buy, watch, total: cached.analyses.length };
+    }
+    return null;
+  });
+
   const [market, setMarket] = useState('IN'); // 'IN' | 'US'
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState('ALL'); // 'ALL' | 'COMPOUNDING' | 'WATCH' | 'TRIM' | 'RISK'
@@ -289,115 +320,205 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
     };
   }, [analyses]);
 
+  const buyOpportunityCount = buyStats ? (buyStats.strongBuy + buyStats.buy) : 0;
+  const sellCandidateCount = (counts.trim || 0) + (counts.risk || 0);
+
   return (
-    <AnimatedPage className="space-y-5">
-      {/* 1. Executive Hero Header */}
-      <AnimatedItem>
-        <div className="glass-card rounded-3xl border border-slate-800 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-emerald-400 mb-1">
-                <CandlestickChart className="w-4 h-4" />
-                <span className="text-[10px] font-bold tracking-[0.16em] uppercase">Decision Support</span>
-              </div>
-              <h2 className="text-2xl font-black text-inherit">Stock Analysis & Exit Intelligence</h2>
+    <div className="space-y-5">
+      {/* 1. Master Executive Stock Analysis Header */}
+      <div className="glass-card rounded-3xl border border-slate-800 p-4 md:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-cyan-400 mb-1">
+              <CandlestickChart className="w-4 h-4" />
+              <span className="text-[10px] font-bold tracking-[0.16em] uppercase">Confluence Intelligence Engine</span>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Market Selector Pill Switcher */}
-              <div className="flex items-center p-1 rounded-2xl border border-slate-800 bg-slate-950/50 shadow-inner">
-                <button
-                  onClick={() => setMarket('IN')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    !isUsMarket
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
-                  }`}
-                >
-                  <span className="text-sm">🇮🇳</span>
-                  <span>Indian Stocks</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
-                    {data?.analyses?.length || 0}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setMarket('US')}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                    isUsMarket
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'
-                  }`}
-                >
-                  <span className="text-sm">🇺🇸</span>
-                  <span>US Stocks</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
-                    {data?.usAnalyses?.length || 0}
-                  </span>
-                </button>
-              </div>
+            <h2 className="text-2xl md:text-3xl font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              Stock Analysis
+            </h2>
+          </div>
 
-              {data?.dataIntegrity && (
-                <div
-                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold ${
-                    data.dataIntegrity.status === 'VERIFIED_ACCURATE'
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                      : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                  }`}
-                  title={`Audited ${data.dataIntegrity.activeEquitiesAudited} stocks: ${data.dataIntegrity.reconciliationsApplied?.length || 0} feed bad ticks reconciled, ${data.dataIntegrity.corporateActionsVerified?.length || 0} corporate actions verified.`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Data Integrity: {data.dataIntegrity.dataHealthScorePct}%</span>
-                </div>
+          {/* Master Mode Switcher: Buy Analysis vs Sell Analysis */}
+          <div className="flex items-center p-1 rounded-2xl border border-slate-800 bg-slate-950/80 backdrop-blur-md shadow-inner">
+            <button
+              type="button"
+              onClick={() => handleModeChange('buy')}
+              className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeAnalysisMode === 'buy'
+                  ? 'text-emerald-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {activeAnalysisMode === 'buy' && (
+                <motion.div
+                  layoutId="stockAnalysisModeIndicator"
+                  className="absolute inset-0 bg-emerald-500/20 border border-emerald-500/40 rounded-xl shadow-sm"
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
               )}
-              <button
-                onClick={() => reload(false)}
-                disabled={refreshing || loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/40 text-[10px] font-bold text-slate-300 hover:text-emerald-400 hover:border-emerald-500/30 transition-colors"
-              >
-                <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
-              </button>
-            </div>
-          </div>
+              <TrendingUp className="w-4 h-4 relative z-10" />
+              <span className="relative z-10">Buy Analysis</span>
+              {buyOpportunityCount > 0 && (
+                <span className="relative z-10 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-500/40">
+                  {buyOpportunityCount}
+                </span>
+              )}
+            </button>
 
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
-            <Metric
-              label="Active Stocks"
-              value={summary?.activePositions ?? '—'}
-            />
-            <Metric
-              label="Portfolio Value"
-              value={money(formatMoney, summary?.totalValueINR)}
-            />
-            <Metric
-              label="Unrealized P&L"
-              value={money(formatMoney, summary?.unrealizedPnlINR)}
-              tone={summary?.unrealizedPnlINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}
-            />
-            <Metric
-              label="Compounding Leaders"
-              value={counts.compounding}
-              tone="text-emerald-400"
-            />
-            <Metric
-              label="Positions for Review"
-              value={counts.trim + counts.risk}
-              tone={counts.trim > 0 ? 'text-rose-400' : 'text-inherit'}
-            />
+            <button
+              type="button"
+              onClick={() => handleModeChange('sell')}
+              className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeAnalysisMode === 'sell'
+                  ? 'text-rose-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {activeAnalysisMode === 'sell' && (
+                <motion.div
+                  layoutId="stockAnalysisModeIndicator"
+                  className="absolute inset-0 bg-rose-500/20 border border-rose-500/40 rounded-xl shadow-sm"
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
+              )}
+              <ShieldAlert className="w-4 h-4 relative z-10" />
+              <span className="relative z-10">Sell Analysis</span>
+              {sellCandidateCount > 0 && (
+                <span className="relative z-10 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-rose-500/25 text-rose-300 border border-rose-500/40">
+                  {sellCandidateCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
-      </AnimatedItem>
+      </div>
 
-      {error && (
-        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300 flex items-center gap-2">
-          <AlertOctagon className="w-4 h-4 shrink-0 text-rose-400" />
-          <span>{error}</span>
-        </div>
-      )}
+      {/* Main Content Area switching between Buy Analysis and Sell Analysis */}
+      <AnimatePresence mode="wait">
+        {activeAnalysisMode === 'buy' ? (
+          <motion.div
+            key="buy_analysis_pane"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <BuyAnalysisView embedded={true} onStatsChange={setBuyStats} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="sell_analysis_pane"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-5"
+          >
+            {/* 2. Executive Hero Header for Sell & Exit Intelligence */}
+            <div className="glass-card rounded-3xl border border-slate-800 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-rose-400 mb-1">
+                      <ShieldAlert className="w-4 h-4" />
+                      <span className="text-[10px] font-bold tracking-[0.16em] uppercase">Exit & Hold Strategy</span>
+                    </div>
+                    <h3 className="text-xl font-black text-inherit">Portfolio Sell & Risk Analysis</h3>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Market Selector Pill Switcher */}
+                    <div className="flex items-center p-1 rounded-2xl border border-slate-800 bg-slate-950/50 shadow-inner">
+                      <button
+                        onClick={() => setMarket('IN')}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          !isUsMarket
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-sm">🇮🇳</span>
+                        <span>Indian Stocks</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
+                          {data?.analyses?.length || 0}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setMarket('US')}
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isUsMarket
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-sm">🇺🇸</span>
+                        <span>US Stocks</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
+                          {data?.usAnalyses?.length || 0}
+                        </span>
+                      </button>
+                    </div>
+
+                    {data?.dataIntegrity && (
+                      <div
+                        className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold ${
+                          data.dataIntegrity.status === 'VERIFIED_ACCURATE'
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                        }`}
+                        title={`Audited ${data.dataIntegrity.activeEquitiesAudited} stocks: ${data.dataIntegrity.reconciliationsApplied?.length || 0} feed bad ticks reconciled, ${data.dataIntegrity.corporateActionsVerified?.length || 0} corporate actions verified.`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Data Integrity: {data.dataIntegrity.dataHealthScorePct}%</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => reload(false)}
+                      disabled={refreshing || loading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/40 text-[10px] font-bold text-slate-300 hover:text-emerald-400 hover:border-emerald-500/30 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+                  <Metric
+                    label="Active Stocks"
+                    value={summary?.activePositions ?? '—'}
+                  />
+                  <Metric
+                    label="Portfolio Value"
+                    value={money(formatMoney, summary?.totalValueINR)}
+                  />
+                  <Metric
+                    label="Unrealized P&L"
+                    value={money(formatMoney, summary?.unrealizedPnlINR)}
+                    tone={summary?.unrealizedPnlINR >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+                  />
+                  <Metric
+                    label="Compounding Leaders"
+                    value={counts.compounding}
+                    tone="text-emerald-400"
+                  />
+                  <Metric
+                    label="Positions for Review"
+                    value={counts.trim + counts.risk}
+                    tone={counts.trim > 0 ? 'text-rose-400' : 'text-inherit'}
+                  />
+                </div>
+              </div>
+
+            {error && (
+              <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300 flex items-center gap-2">
+                <AlertOctagon className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{error}</span>
+              </div>
+            )}
 
       {/* 2. Main Workspace Layout */}
       <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] 2xl:grid-cols-[400px_1fr] gap-5 items-start">
         {/* Left Column: Filter Tabs, Search & Holdings List */}
-        <AnimatedItem>
+        <div className="min-w-0">
           <section className="glass-card rounded-3xl border border-slate-800 p-4 sticky top-20 max-h-[calc(100vh-100px)] flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-inherit">{isUsMarket ? 'US Equities' : 'Indian Equities'}</h3>
@@ -478,10 +599,10 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
               )}
             </div>
           </section>
-        </AnimatedItem>
+        </div>
 
         {/* Right Column: In-Depth Dossier & Action Directives */}
-        <AnimatedItem delay={0.05}>
+        <div className="min-w-0">
           <div className="space-y-5">
             {!selected ? (
               <div className="glass-card rounded-3xl border border-slate-800 p-12 text-center text-sm text-slate-500">
@@ -1157,8 +1278,11 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding }) {
               </>
             )}
           </div>
-        </AnimatedItem>
+        </div>
       </div>
-    </AnimatedPage>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
