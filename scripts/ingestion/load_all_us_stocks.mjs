@@ -26,18 +26,31 @@ function parseUsOrderDate(str) {
   return iso ? iso[1] : null;
 }
 
+import fs from "fs";
+
 function getFallbackFxRate(dateStr, historicalFxMap = {}) {
   if (dateStr && historicalFxMap[dateStr]) return historicalFxMap[dateStr];
   try {
+    const fxFile = './data/historical_fx_rates.json';
+    if (fs.existsSync(fxFile)) {
+      const rates = JSON.parse(fs.readFileSync(fxFile, 'utf-8'));
+      if (dateStr && rates[dateStr]) return rates[dateStr];
+      if (dateStr) {
+        const prev = Object.keys(rates).filter(d => d < dateStr).sort().reverse();
+        if (prev.length > 0) return rates[prev[0]];
+        const next = Object.keys(rates).filter(d => d > dateStr).sort();
+        if (next.length > 0) return rates[next[0]];
+      }
+    }
     const pPath = './data/fx_rates_persistent.json';
     if (fs.existsSync(pPath)) {
       const pData = JSON.parse(fs.readFileSync(pPath, 'utf-8'));
       if (pData?.USD_INR?.rate) return pData.USD_INR.rate;
     }
   } catch (e) {
-    console.warn('[Load US Stocks] Failed reading persistent FX file:', e.message);
+    console.warn('[Load US Stocks] Failed reading FX file:', e.message);
   }
-  return 1.0;
+  return 85.0;
 }
 
 const nameToTicker = {

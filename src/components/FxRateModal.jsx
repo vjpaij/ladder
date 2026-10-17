@@ -41,7 +41,7 @@ function formatDateDDMMYYYY(dateStr) {
 export default function FxRateModal({ isOpen, onClose }) {
   const { formatMoney } = useThemeAuth();
 
-  const [fxRangeFilter, setFxRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
+  const [fxRangeFilter, setFxRangeFilter] = useState(() => computeRangeDates('ALL'));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -257,7 +257,7 @@ export default function FxRateModal({ isOpen, onClose }) {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <ChartRangeSelector
-                  initialRange="1M"
+                  initialRange="ALL"
                   onChange={(range) => setFxRangeFilter(range)}
                 />
 

@@ -28,7 +28,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
   const isLoan = activeHolding?.category_id === 'loans';
   const isEodAsset = ['bank', 'epf', 'loans', 'credit_cards'].includes(activeHolding?.category_id);
   const [loanViewTab, setLoanViewTab] = useState(activeHolding?.initialTab || 'history');
-  const [chartRangeFilter, setChartRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
+  const [chartRangeFilter, setChartRangeFilter] = useState(() => computeRangeDates('ALL'));
   // Amortization refresh tick — incremented on every successful transaction save/delete
   // so LoanAmortizationSection re-fetches its schedule data reactively.
   const [amortRefreshTick, setAmortRefreshTick] = useState(0);

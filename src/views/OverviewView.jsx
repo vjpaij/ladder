@@ -34,7 +34,7 @@ const PIE_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#06B6D4', '#647
 export default function OverviewView({ summary, holdings, liabilities, onNavigate }) {
   const { formatMoney, fxRate, currency } = useThemeAuth();
   const [returnMetric, setReturnMetric] = useState('xirr'); // 'xirr' | 'absolute'
-  const [rangeFilter, setRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
+  const [rangeFilter, setRangeFilter] = useState(() => computeRangeDates('ALL'));
   const [sortColumn, setSortColumn] = useState('currentINR');
   const [sortDirection, setSortDirection] = useState('desc');
   const [perfSearch, setPerfSearch] = useState('');

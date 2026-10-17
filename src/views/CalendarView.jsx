@@ -108,8 +108,8 @@ export default function CalendarView() {
         return parsed;
       }
     } catch (e) {}
-    const defaultDynamic = computeRangeDates('RELATIVE', 1, 'M');
-    return { type: 'RELATIVE', count: 1, unit: 'M', rangeKey: '1M', ...defaultDynamic };
+    const defaultDynamic = computeRangeDates('ALL');
+    return { type: 'ALL', rangeKey: 'ALL', ...defaultDynamic };
   });
 
   const calendarRangeFilterRef = useRef(calendarRangeFilter);
@@ -433,7 +433,7 @@ export default function CalendarView() {
             </div>
 
             <ChartRangeSelector
-              initialRange={calendarRangeFilter.rangeKey || '1M'}
+              initialRange={calendarRangeFilter.rangeKey || 'ALL'}
               rangeType={calendarRangeFilter.type}
               relativeCount={calendarRangeFilter.count}
               relativeUnit={calendarRangeFilter.unit}

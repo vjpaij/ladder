@@ -130,7 +130,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
 
   // Benchmark Growth settings & Date Picker
   const [benchmark, setBenchmark] = useState('NIFTY_50');
-  const [growthRangeFilter, setGrowthRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
+  const [growthRangeFilter, setGrowthRangeFilter] = useState(() => computeRangeDates('ALL'));
   const [growthData, setGrowthData] = useState(null);
   const [loadingGrowth, setLoadingGrowth] = useState(false);
 
@@ -2167,7 +2167,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
               </div>
 
               <ChartRangeSelector
-                initialRange="1M"
+                initialRange="ALL"
                 onChange={(range) => setGrowthRangeFilter(range)}
               />
             </div>

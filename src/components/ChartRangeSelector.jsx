@@ -54,7 +54,7 @@ export function computeRangeDates(type, count = 1, unit = 'M', customStart = '',
 /**
  * Parse an existing range string like '1M', '3M', '6M', '1Y', 'ALL', 'CUSTOM'
  */
-export function parseInitialRange(initialRange = '1M') {
+export function parseInitialRange(initialRange = 'ALL') {
   if (!initialRange || initialRange === 'ALL') {
     return { type: 'ALL', count: 1, unit: 'M' };
   }
@@ -69,7 +69,7 @@ export function parseInitialRange(initialRange = '1M') {
       unit: match[2].toUpperCase()
     };
   }
-  return { type: 'RELATIVE', count: 1, unit: 'M' };
+  return { type: 'ALL', count: 1, unit: 'M' };
 }
 
 export default function ChartRangeSelector({
@@ -78,7 +78,7 @@ export default function ChartRangeSelector({
   relativeUnit: controlledUnit,
   startDate: controlledStartDate,
   endDate: controlledEndDate,
-  initialRange = '1M',
+  initialRange = 'ALL',
   onChange,
   className = '',
   popoverAlign = 'right'

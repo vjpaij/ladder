@@ -54,7 +54,7 @@ export default function HoldingChartsSection({
         </div>
 
         <ChartRangeSelector
-          initialRange="1M"
+          initialRange="ALL"
           onChange={(range) => setChartRangeFilter(range)}
         />
       </div>

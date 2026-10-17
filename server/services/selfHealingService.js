@@ -78,12 +78,20 @@ export async function healTransactionFxRates() {
 
     for (const tx of usTxs) {
       const currentRate = Number(tx.fx_rate) || 0;
-      // If fx_rate is missing or 0
-      if (currentRate <= 0) {
-        const accurateRate = getHistoricalFxRate(tx.date) || getPersistedRate('USD_INR');
+      // If fx_rate is missing, 0, corrupted default (46.61), or anomalously low for post-2020 (< 70)
+      const isCorrupted = currentRate <= 0 || Math.abs(currentRate - 46.61) < 0.1 || (tx.date >= '2020-01-01' && currentRate < 70);
+      if (isCorrupted) {
+        // Try note extraction first if available
+        const noteMatch = (tx.notes || '').match(/FX:\s*₹?([0-9.]+)/);
+        const noteFx = noteMatch ? parseFloat(noteMatch[1]) : null;
+        const accurateRate = (noteFx && noteFx > 70) ? noteFx : (getHistoricalFxRate(tx.date) || getPersistedRate('USD_INR'));
         if (accurateRate && accurateRate > 0) {
-          console.log(`[Self-Healing] Healing missing FX rate for TX ${tx.id} (${tx.symbol} on ${tx.date}): -> ${accurateRate}`);
-          await db.update('transactions', tx.id, { fx_rate: accurateRate });
+          console.log(`[Self-Healing] Healing corrupted/missing FX rate for TX ${tx.id} (${tx.symbol} on ${tx.date}): ${currentRate} -> ${accurateRate}`);
+          let newNotes = tx.notes;
+          if (tx.type === 'DIVIDEND' && (!tx.notes || !tx.notes.includes('FX:'))) {
+            newNotes = (tx.notes ? tx.notes + ' | ' : '') + `FX: ₹${Number(accurateRate).toFixed(2)}/$`;
+          }
+          await db.update('transactions', tx.id, { fx_rate: Number(Number(accurateRate).toFixed(4)), notes: newNotes });
           healedCount.updated++;
           if (tx.holding_id) affectedHoldingIds.add(tx.holding_id);
         }

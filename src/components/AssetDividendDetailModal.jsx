@@ -156,7 +156,7 @@ export default function AssetDividendDetailModal({
   const { theme, fxRate, currency: globalCurrency, showError, showConfirm } = useThemeAuth();
   const [chartTab, setChartTab] = useState('annual'); // 'annual' | 'cumulative'
   const [localCurrency, setLocalCurrency] = useState('DEFAULT'); // 'DEFAULT' | 'INR' | 'USD'
-  const [divRangeFilter, setDivRangeFilter] = useState(() => computeRangeDates('RELATIVE', 1, 'M'));
+  const [divRangeFilter, setDivRangeFilter] = useState(() => computeRangeDates('ALL'));
   
   const [divSearch, setDivSearch] = useState('');
   const [divSort, setDivSort] = useState({ field: 'raw_date', direction: 'desc' });
@@ -723,7 +723,7 @@ export default function AssetDividendDetailModal({
                 <div className="flex items-center gap-2 flex-wrap">
                   {/* Calendar Range Selector */}
                   <ChartRangeSelector
-                    initialRange="1M"
+                    initialRange="ALL"
                     onChange={(range) => setDivRangeFilter(range)}
                   />
 
