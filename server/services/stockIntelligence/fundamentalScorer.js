@@ -165,19 +165,38 @@ export function computeFundamentalScore(fundamentals = {}) {
     entries.push([key, { pts: points, max, value, known: true }]);
   };
 
+  // Detect if company is an IPO or recent listing (< 4 years public statements)
+  const isIpo = (annualSales.length < 4) || (quarterlySales.length < 5);
+
   const salesCagr = annualSales.length >= 4 ? cagr(annualSales.at(-4), annualSales.at(-1), 3)
+    : (isIpo && annualSales.length >= 2) ? cagr(annualSales[0], annualSales.at(-1), annualSales.length - 1)
     : isFiniteNumber(fundamentals.yoySalesGrowthPct) ? Number(fundamentals.yoySalesGrowthPct) : null;
   const profitCagr = annualPat.length >= 4 ? cagr(annualPat.at(-4), annualPat.at(-1), 3)
+    : (isIpo && annualPat.length >= 2) ? cagr(annualPat[0], annualPat.at(-1), annualPat.length - 1)
     : isFiniteNumber(fundamentals.yoyPatGrowthPct) ? Number(fundamentals.yoyPatGrowthPct) : null;
   add('yoySalesGrowth', salesCagr === null ? null : growthPoints(salesCagr), 15, salesCagr === null ? 'Unknown' : `${salesCagr.toFixed(1)}%`);
   add('yoyProfitGrowth', profitCagr === null ? null : growthPoints(profitCagr), 15, profitCagr === null ? 'Unknown' : `${profitCagr.toFixed(1)}%`);
-  add('salesDoubling', annualSales.length >= 4 ? doublingPoints(annualSales.at(-1), annualSales.at(-4)) : null, 10,
-    annualSales.length >= 4 && annualSales.at(-4) > 0 ? `${(annualSales.at(-1) / annualSales.at(-4)).toFixed(2)}x / 3y` : 'Unknown');
-  add('profitDoubling', annualPat.length >= 4 ? doublingPoints(annualPat.at(-1), annualPat.at(-4)) : null, 10,
-    annualPat.length >= 4 && annualPat.at(-4) > 0 ? `${(annualPat.at(-1) / annualPat.at(-4)).toFixed(2)}x / 3y` : 'Unknown');
-  add('epsTrend', epsPoints(annualEps), 10, annualEps.length >= 4 ? annualEps.slice(-4).join(' → ') : 'Unknown');
-  add('sameQuarterSalesGrowth', yearOverYearPoints(quarterlySales), 8, quarterlySales.length >= 5 ? 'Latest quarter vs same quarter last year' : 'Unknown');
-  add('sameQuarterProfitGrowth', yearOverYearPoints(quarterlyPat), 8, quarterlyPat.length >= 5 ? 'Latest quarter vs same quarter last year' : 'Unknown');
+
+  // Growth acceleration / doubling points
+  const salesExpansion = annualSales.length >= 4 ? doublingPoints(annualSales.at(-1), annualSales.at(-4))
+    : (isIpo && annualSales.length >= 2) ? doublingPoints(annualSales.at(-1), annualSales[0])
+    : (isIpo && isFiniteNumber(fundamentals.yoySalesGrowthPct) && Number(fundamentals.yoySalesGrowthPct) >= 20) ? 8 : null;
+  add('salesDoubling', salesExpansion, 10,
+    annualSales.length >= 4 && annualSales.at(-4) > 0 ? `${(annualSales.at(-1) / annualSales.at(-4)).toFixed(2)}x / 3y`
+    : isIpo && annualSales.length >= 2 && annualSales[0] > 0 ? `${(annualSales.at(-1) / annualSales[0]).toFixed(2)}x (IPO Growth)`
+    : isIpo && isFiniteNumber(fundamentals.yoySalesGrowthPct) ? `+${fundamentals.yoySalesGrowthPct}% YoY (IPO Expansion)` : 'Unknown');
+
+  const profitExpansion = annualPat.length >= 4 ? doublingPoints(annualPat.at(-1), annualPat.at(-4))
+    : (isIpo && annualPat.length >= 2) ? doublingPoints(annualPat.at(-1), annualPat[0])
+    : (isIpo && isFiniteNumber(fundamentals.yoyPatGrowthPct) && Number(fundamentals.yoyPatGrowthPct) >= 20) ? 8 : null;
+  add('profitDoubling', profitExpansion, 10,
+    annualPat.length >= 4 && annualPat.at(-4) > 0 ? `${(annualPat.at(-1) / annualPat.at(-4)).toFixed(2)}x / 3y`
+    : isIpo && annualPat.length >= 2 && annualPat[0] > 0 ? `${(annualPat.at(-1) / annualPat[0]).toFixed(2)}x (IPO Profit)`
+    : isIpo && isFiniteNumber(fundamentals.yoyPatGrowthPct) ? `+${fundamentals.yoyPatGrowthPct}% YoY (IPO Expansion)` : 'Unknown');
+
+  add('epsTrend', epsPoints(annualEps), 10, (annualEps.length >= 2 ? annualEps.slice(-4).join(' → ') : 'Unknown'));
+  add('sameQuarterSalesGrowth', yearOverYearPoints(quarterlySales), 8, (quarterlySales.length >= 2 ? (quarterlySales.length >= 5 ? 'Latest quarter vs same quarter last year' : 'Recent post-listing quarterly revenue trend') : 'Unknown'));
+  add('sameQuarterProfitGrowth', yearOverYearPoints(quarterlyPat), 8, (quarterlyPat.length >= 2 ? (quarterlyPat.length >= 5 ? 'Latest quarter vs same quarter last year' : 'Recent post-listing quarterly profit trend') : 'Unknown'));
 
   if (financialSector) {
     // Financial sector (banks/NBFCs): deposits are operational liabilities, not industrial debt.
@@ -205,15 +224,27 @@ export function computeFundamentalScore(fundamentals = {}) {
   const fetchedAtMs = fundamentals.fetchedAt ? Date.parse(fundamentals.fetchedAt) : null;
   const freshness = fundamentals.fetchedAt ? (Number.isFinite(fetchedAtMs) && Date.now() - fetchedAtMs <= 180 * 86400000) : true;
   const reportingPeriodFresh = fundamentals.latestQuarter ? latestQuarterIsFresh(fundamentals.latestQuarter) : true;
-  const hasCoreStatements = annualSales.length >= 4 && annualPat.length >= 4 && annualEps.length >= 4
-    && quarterlySales.length >= 5 && quarterlyPat.length >= 5;
+  // For new listings / demergers: accept either annual or quarterly statements (>= 1 period of sales & profit)
+  const isDemergerOrRecent = isIpo || annualEps.length < 4 || annualSales.length < 4 || (quarterlySales.length < 8);
+  const hasCoreStatements = isDemergerOrRecent
+    ? ((annualSales.length >= 1 || quarterlySales.length >= 1) && (annualPat.length >= 1 || quarterlyPat.length >= 1))
+    : (annualSales.length >= 3 && annualPat.length >= 3 && annualEps.length >= 3 && quarterlySales.length >= 4 && quarterlyPat.length >= 4);
   const hasRequiredBalanceSheet = financialSector || isFiniteNumber(fundamentals.debtToEquity) || isFiniteNumber(fundamentals.rocePct) || isFiniteNumber(fundamentals.roePct);
   const hasProfitabilityRatio = isFiniteNumber(fundamentals.rocePct) || isFiniteNumber(fundamentals.roePct);
-  const isValid = !unavailable && coveragePct >= 60 && hasCoreStatements
+  const minCoverage = isIpo ? 35 : 50;
+  const isValid = !unavailable && coveragePct >= minCoverage && hasCoreStatements
     && hasRequiredBalanceSheet && hasProfitabilityRatio && freshness && reportingPeriodFresh;
   const hasGovernanceRedFlag = (isFiniteNumber(fundamentals.promoterPledgePct) && Number(fundamentals.promoterPledgePct) > 20)
     || (!financialSector && isFiniteNumber(fundamentals.debtToEquity) && Number(fundamentals.debtToEquity) > 3);
   const tags = deriveTags(fundamentals);
+  if (isIpo) {
+    tags.unshift({
+      tag: 'NEW_LISTING_OR_DEMERGER',
+      label: 'New Listing / Demerger Base',
+      color: 'purple',
+      informational: true
+    });
+  }
   const valuationCheck = evaluateValuation(fundamentals);
 
   return {
@@ -232,12 +263,13 @@ export function computeFundamentalScore(fundamentals = {}) {
     hasProfitabilityRatio,
     hasGovernanceRedFlag,
     valuationCheck,
+    isIpo,
     fundamentalGrade: score >= 70 ? 'A' : score >= 55 ? 'B' : score >= 40 ? 'C' : 'D',
     reason: isValid ? null : unavailable ? 'Verified fundamental snapshot unavailable'
       : !freshness || !reportingPeriodFresh ? 'Fundamental snapshot or latest reporting period is stale or undated'
         : !hasCoreStatements ? 'Required annual and same-quarter financial history is incomplete'
           : !hasRequiredBalanceSheet ? 'Debt data is unknown; business balance-sheet quality cannot be assessed'
             : !hasProfitabilityRatio ? 'ROCE/ROE data is unavailable'
-          : `Fundamental coverage is ${coveragePct}%; at least 60% is required`
+          : `Fundamental coverage is ${coveragePct}%; at least ${minCoverage}% is required`
   };
 }

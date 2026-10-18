@@ -403,7 +403,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            <BuyAnalysisView embedded={true} onStatsChange={setBuyStats} />
+            <BuyAnalysisView embedded={true} onStatsChange={setBuyStats} holdings={holdings} onSelectHolding={onSelectHolding} />
           </motion.div>
         ) : (
           <motion.div

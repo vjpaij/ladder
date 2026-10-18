@@ -124,18 +124,27 @@ function SignalBadge({ signal, size = 'md' }) {
 }
 
 // ─── Earnings Badge ───────────────────────────────────────────────────────────
-function EarningsBadge({ earningsCatalyst }) {
+function EarningsBadge({ earningsCatalyst, onBadgeClick }) {
   if (!earningsCatalyst) return null;
   const { quarterlyResultStatus, daysAgo, daysToResult, dateConfidence, resultVerdict } = earningsCatalyst;
 
   if (quarterlyResultStatus === 'RESULTS_OUT') {
     const isBlowout = resultVerdict === 'BLOWOUT_BEAT';
     return (
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${
-        isBlowout
-          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 font-semibold'
-          : 'bg-green-500/15 border-green-500/30 text-green-300'
-      }`}>
+      <span
+        onClick={(e) => {
+          if (onBadgeClick) {
+            e.stopPropagation();
+            onBadgeClick(isBlowout ? 'BLOWOUT_BEAT' : 'RESULTS_OUT');
+          }
+        }}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${
+          isBlowout
+            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 font-semibold'
+            : 'bg-green-500/15 border-green-500/30 text-green-300'
+        } ${onBadgeClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+        title={onBadgeClick ? `Click to filter by ${isBlowout ? 'Blowout Beat' : 'Results Out'}` : undefined}
+      >
         <CheckCircle2 className="w-2.5 h-2.5" />
         {`Results Out ${daysAgo !== null && daysAgo !== undefined ? `(${daysAgo}d ago)` : ''}`}
       </span>
@@ -151,7 +160,16 @@ function EarningsBadge({ earningsCatalyst }) {
     : 'bg-blue-500/20 border-blue-500/40 text-blue-400';
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${color}`}>
+    <span
+      onClick={(e) => {
+        if (onBadgeClick) {
+          e.stopPropagation();
+          onBadgeClick('EARNINGS_SOON');
+        }
+      }}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${color} ${onBadgeClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      title={onBadgeClick ? 'Click to filter by Earnings Dates Soon' : undefined}
+    >
       <Calendar className="w-2.5 h-2.5" />
       {`Results ${dateConfidence === 'CONFIRMED' ? 'Confirmed' : 'Est.'} in ${daysToResult}d`}
     </span>
@@ -159,10 +177,19 @@ function EarningsBadge({ earningsCatalyst }) {
 }
 
 // ─── News Sentiment Badge ─────────────────────────────────────────────────────
-function NewsBadge({ newsSignal }) {
+function NewsBadge({ newsSignal, onBadgeClick }) {
   if (!newsSignal || newsSignal.articleCount === 0) return null;
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs bg-blue-500/10 border-blue-500/25 text-blue-300">
+    <span
+      onClick={(e) => {
+        if (onBadgeClick) {
+          e.stopPropagation();
+          onBadgeClick('POSITIVE_NEWS');
+        }
+      }}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs bg-blue-500/10 border-blue-500/25 text-blue-300 ${onBadgeClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      title={onBadgeClick ? 'Click to filter by Positive News' : undefined}
+    >
       <Newspaper className="w-2.5 h-2.5" />
       News context · {newsSignal.articleCount}
     </span>
@@ -170,7 +197,7 @@ function NewsBadge({ newsSignal }) {
 }
 
 // ─── Tag Pill ─────────────────────────────────────────────────────────────────
-function TagPill({ tag }) {
+function TagPill({ tag, onTagClick }) {
   const colors = {
     emerald: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
     cyan: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/20',
@@ -180,15 +207,25 @@ function TagPill({ tag }) {
     amber: 'bg-amber-500/15 text-amber-400 border-amber-500/20'
   };
   const colorClass = colors[tag.color] || colors.cyan;
+  const tagKey = tag.tag || tag;
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${colorClass}`}>
+    <span
+      onClick={(e) => {
+        if (onTagClick) {
+          e.stopPropagation();
+          onTagClick(tagKey);
+        }
+      }}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${colorClass} ${onTagClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      title={onTagClick ? `Click to filter by ${tag.label || tagKey}` : undefined}
+    >
       {tag.label}
     </span>
   );
 }
 
 // ─── Stock Analysis Card ──────────────────────────────────────────────────────
-function BuySignalCard({ analysis, onSipPlanClick }) {
+function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, holdings = [], onSelectHolding, onBadgeClick }) {
   const { formatMoney } = useThemeAuth();
   const [expanded, setExpanded] = useState(false);
   const config = SIGNAL_CONFIG[analysis.buySignal] || SIGNAL_CONFIG.MONITOR;
@@ -223,17 +260,40 @@ function BuySignalCard({ analysis, onSipPlanClick }) {
                 <span className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>{analysis.symbol}</span>
                 <SignalBadge signal={analysis.buySignal} size="sm" />
                 {analysis.inPortfolio && (
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  <span
+                    onClick={(e) => {
+                      if (onBadgeClick) {
+                        e.stopPropagation();
+                        onBadgeClick('IN_PORTFOLIO');
+                      }
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 ${onBadgeClick ? 'cursor-pointer hover:opacity-80' : ''}`}
+                    title={onBadgeClick ? 'Click to filter Portfolio stocks' : undefined}
+                  >
                     IN PORTFOLIO
+                  </span>
+                )}
+                {analysis.isIpo && (
+                  <span
+                    onClick={(e) => {
+                      if (onBadgeClick) {
+                        e.stopPropagation();
+                        onBadgeClick('IPO_DEMERGER');
+                      }
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30 font-semibold flex items-center gap-1 ${onBadgeClick ? 'cursor-pointer hover:opacity-80' : ''}`}
+                    title={onBadgeClick ? 'Click to filter IPO / Demerger stocks' : undefined}
+                  >
+                    <Zap className="w-2.5 h-2.5" /> IPO / DEMERGER
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-400 truncate mt-0.5">{analysis.name}</p>
               {/* Badges row */}
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <EarningsBadge earningsCatalyst={analysis.earningsCatalyst} />
-                <NewsBadge newsSignal={analysis.newsSignal} />
-                {analysis.qualitativeTags?.slice(0, 3).map(t => <TagPill key={t.tag} tag={t} />)}
+                <EarningsBadge earningsCatalyst={analysis.earningsCatalyst} onBadgeClick={onBadgeClick} />
+                <NewsBadge newsSignal={analysis.newsSignal} onBadgeClick={onBadgeClick} />
+                {analysis.qualitativeTags?.slice(0, 3).map(t => <TagPill key={t.tag || t} tag={t} onTagClick={onBadgeClick} />)}
               </div>
             </div>
           </div>
@@ -273,11 +333,47 @@ function BuySignalCard({ analysis, onSipPlanClick }) {
             <span className="text-[10px] text-slate-500 uppercase tracking-wide">Composite</span>
             <span className={`font-bold text-sm font-mono ${config.textColor}`}>{analysis.compositeScore}</span>
           </div>
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+            {onSelectHolding && analysis.inPortfolio && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const cleanSym = String(analysis.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+                  const targetHolding = holdings.find(h =>
+                    String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '') === cleanSym
+                  );
+                  if (targetHolding) onSelectHolding(targetHolding);
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-1 text-[10px] font-bold text-slate-300 hover:border-emerald-500/40 hover:text-emerald-300 transition-colors cursor-pointer"
+                title="Open holding transaction ledger"
+              >
+                Open Ledger
+              </button>
+            )}
+            <a
+              href={analysis.screenerUrl || `https://www.screener.in/company/${encodeURIComponent((analysis.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}/consolidated/`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-500/20 flex items-center gap-1 transition-colors cursor-pointer"
+              title="Open company financial statement on Screener.in"
+            >
+              Screener.in <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+            <a
+              href={`https://gocharting.com/terminal?ticker=${analysis.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((analysis.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}&interval=1D`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 transition-colors cursor-pointer"
+              title="Open 1-Day chart on GoCharting"
+            >
+              GoCharting 1D <ExternalLink className="w-2.5 h-2.5" />
+            </a>
             {hasSip && (
               <button
                 onClick={(e) => { e.stopPropagation(); onSipPlanClick(analysis); }}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-400 text-xs border border-purple-500/30 transition-colors"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-400 text-xs border border-purple-500/30 transition-colors cursor-pointer"
               >
                 <Layers className="w-3 h-3" />
                 SIP Plan
@@ -302,8 +398,17 @@ function BuySignalCard({ analysis, onSipPlanClick }) {
               </span>
             )}
             <button
+              onClick={(e) => { e.stopPropagation(); onSyncSymbol?.(analysis.symbol); }}
+              disabled={syncingSymbol === analysis.symbol}
+              title="Sync latest live quote and Screener fundamentals on demand"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs border border-slate-700 transition-colors cursor-pointer"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncingSymbol === analysis.symbol ? 'animate-spin text-emerald-400' : ''}`} />
+              {syncingSymbol === analysis.symbol ? 'Syncing...' : 'Sync'}
+            </button>
+            <button
               onClick={() => setExpanded(!expanded)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs border border-slate-700 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs border border-slate-700 transition-colors cursor-pointer"
             >
               {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               {expanded ? 'Less' : 'Detail'}
@@ -315,6 +420,35 @@ function BuySignalCard({ analysis, onSipPlanClick }) {
         <p className="text-xs text-slate-400 mt-2.5 leading-relaxed">{analysis.signalReason}</p>
         {(analysis.buySignal === 'BUY' || analysis.buySignal === 'WATCH') && analysis.strongBuyBlockers?.length > 0 && (
           <p className="text-[10px] text-slate-500 mt-1">Strong Buy gates pending: {analysis.strongBuyBlockers.slice(0, 3).join('; ')}.</p>
+        )}
+
+        {/* Executive Action Stance Banner (always visible) */}
+        {analysis.executiveStrategy && (
+          <div className="mt-2.5 rounded-lg border border-purple-500/30 bg-purple-950/20 p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <span
+                onClick={(e) => {
+                  if (onBadgeClick) {
+                    e.stopPropagation();
+                    onBadgeClick(analysis.executiveStrategy.stance);
+                  }
+                }}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r ${analysis.executiveStrategy.badgeTheme} text-white shadow-sm ${onBadgeClick ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''} shrink-0`}
+                title={`Click to filter by ${analysis.executiveStrategy.stanceLabel}`}
+              >
+                <Target className="w-2.5 h-2.5" />
+                {analysis.executiveStrategy.stanceLabel}
+              </span>
+              <span className="text-slate-300 font-medium text-xs truncate">
+                {analysis.executiveStrategy.immediateAction}
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5 text-[11px] text-slate-400 shrink-0 font-mono">
+              <span>Dip: <span className="text-cyan-300 font-bold">{analysis.executiveStrategy.whenToInvestAgain?.dipBuy?.levelRange}</span></span>
+              <span className="text-slate-600">•</span>
+              <span>Stop: <span className="text-rose-400 font-bold">{analysis.executiveStrategy.riskAndExit?.stopLoss ? `₹${analysis.executiveStrategy.riskAndExit.stopLoss.toLocaleString('en-IN')}` : '50-EMA'}</span></span>
+            </div>
+          </div>
         )}
       </div>
 
@@ -329,6 +463,113 @@ function BuySignalCard({ analysis, onSipPlanClick }) {
             className="border-t border-slate-800/50 bg-slate-900/30"
           >
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Executive Investment Strategy & Action Roadmap (Full Detailed Section) */}
+              {analysis.executiveStrategy && (
+                <div className="reports-subcard rounded-xl p-3.5 md:col-span-2 border border-purple-500/30 bg-purple-950/20">
+                  <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-purple-400" />
+                      <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider">
+                        Executive Investment Strategy & Staged Accumulation Plan
+                      </h4>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r ${analysis.executiveStrategy.badgeTheme} text-white shadow-sm`}>
+                      {analysis.executiveStrategy.stanceLabel}
+                    </span>
+                  </div>
+
+                  {/* How to Go About It */}
+                  <div className="rounded-lg bg-slate-900/70 border border-slate-800 p-3 mb-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">
+                      How to Go About It (Execution Stance)
+                    </div>
+                    <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                      {analysis.executiveStrategy.howToGoAboutIt}
+                    </p>
+                  </div>
+
+                  {/* When to Invest Again: 3-Tranche Staged Roadmap */}
+                  <div className="mb-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                      <span>When to Invest Again (Staged Accumulation Roadmap)</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Tranche allocation sizing</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                      {analysis.executiveStrategy.tranches?.map((tranche) => (
+                        <div key={tranche.tranche} className="rounded-lg bg-slate-800/60 border border-slate-700/60 p-2.5 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-slate-300">{tranche.label}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                {tranche.pctLabel}
+                              </span>
+                            </div>
+                            <div className="text-xs font-mono font-bold text-cyan-300 mt-1.5">
+                              {tranche.tranche === 1
+                                ? (tranche.triggerPrice ? `₹${tranche.triggerPrice.toLocaleString('en-IN')}` : 'CMP')
+                                : tranche.tranche === 2
+                                ? analysis.executiveStrategy.whenToInvestAgain?.dipBuy?.levelRange
+                                : (analysis.executiveStrategy.whenToInvestAgain?.breakoutBuy?.level ? `Above ₹${analysis.executiveStrategy.whenToInvestAgain.breakoutBuy.level.toLocaleString('en-IN')}` : 'Swing High')}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                              {tranche.triggerDescription}
+                            </p>
+                          </div>
+                          <div className="mt-2.5 pt-2 border-t border-slate-700/40 flex items-center justify-between">
+                            <span className="text-[9px] text-slate-500">Execution Status</span>
+                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+                              tranche.status === 'READY' ? 'bg-emerald-500/20 text-emerald-400' :
+                              tranche.status === 'ARMED' ? 'bg-amber-500/20 text-amber-400' :
+                              'bg-slate-700 text-slate-400'
+                            }`}>
+                              {tranche.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Capital Protection, Profit Harvest & Catalyst Triggers */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-slate-800">
+                    <div className="rounded-lg bg-red-950/20 border border-red-500/20 p-2.5">
+                      <div className="text-[9px] font-bold text-red-400 uppercase tracking-wide flex items-center justify-between">
+                        <span>Capital Invalidation Floor</span>
+                        <span className="font-mono text-red-300 font-bold">
+                          {analysis.executiveStrategy.riskAndExit?.stopLoss ? `₹${analysis.executiveStrategy.riskAndExit.stopLoss.toLocaleString('en-IN')}` : '50-EMA'}
+                          {analysis.executiveStrategy.riskAndExit?.riskPct && ` (${analysis.executiveStrategy.riskAndExit.riskPct})`}
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                        {analysis.executiveStrategy.riskAndExit?.invalidationRule}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-emerald-950/20 border border-emerald-500/20 p-2.5">
+                      <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-wide flex items-center justify-between">
+                        <span>Target & Profit Harvest</span>
+                        <span className="font-mono text-emerald-300 font-bold">
+                          {analysis.executiveStrategy.riskAndExit?.targetPrice ? `₹${analysis.executiveStrategy.riskAndExit.targetPrice.toLocaleString('en-IN')}` : '2.5:1 R:R'}
+                          {analysis.executiveStrategy.riskAndExit?.rewardPct && ` (${analysis.executiveStrategy.riskAndExit.rewardPct})`}
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                        {analysis.executiveStrategy.riskAndExit?.profitTakingRule}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-blue-950/20 border border-blue-500/20 p-2.5">
+                      <div className="text-[9px] font-bold text-blue-400 uppercase tracking-wide">
+                        <span>Earnings Catalyst Milestone</span>
+                      </div>
+                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                        {analysis.executiveStrategy.whenToInvestAgain?.catalystTrigger?.note}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Technical Signals */}
               <div className="reports-subcard rounded-xl p-3">
                 <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -594,23 +835,31 @@ function BuySignalCard({ analysis, onSipPlanClick }) {
 }
 
 // ─── Summary Stats Bar ────────────────────────────────────────────────────────
-function SummaryBar({ summary }) {
+function SummaryBar({ summary, onCardClick, activeSignal, activeBadge }) {
   if (!summary) return null;
   return (
     <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-5">
       {[
-        { label: 'STRONG BUY', value: summary.strongBuyCount, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-        { label: 'BUY', value: summary.buyCount, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
-        { label: 'WATCH', value: summary.watchCount, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-        { label: 'DATA NEEDED', value: summary.insufficientDataCount, color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
-        { label: 'SIP Plans', value: summary.withSipPlans, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
-        { label: 'Earnings Dates Soon', value: summary.withEarningsCatalyst, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-      ].map(item => (
-        <div key={item.label} className={`reports-subcard border ${item.bg} rounded-xl p-3 text-center`}>
-          <div className={`text-2xl font-black font-mono ${item.color}`}>{item.value ?? 0}</div>
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5">{item.label}</div>
-        </div>
-      ))}
+        { label: 'STRONG BUY', value: summary.strongBuyCount, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', type: 'signal', val: 'STRONG_BUY' },
+        { label: 'BUY', value: summary.buyCount, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20', type: 'signal', val: 'BUY' },
+        { label: 'WATCH', value: summary.watchCount, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', type: 'signal', val: 'WATCH' },
+        { label: 'AWAITING DATA', value: summary.insufficientDataCount, color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20', type: 'signal', val: 'INSUFFICIENT_DATA' },
+        { label: 'SIP Plans', value: summary.withSipPlans, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', type: 'badge', val: 'SIP_READY' },
+        { label: 'Earnings Dates Soon', value: summary.withEarningsCatalyst, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', type: 'badge', val: 'EARNINGS_SOON' },
+      ].map(item => {
+        const isActive = (item.type === 'signal' && activeSignal === item.val) || (item.type === 'badge' && activeBadge === item.val);
+        return (
+          <div
+            key={item.label}
+            onClick={() => onCardClick && onCardClick(item.type, item.val)}
+            className={`reports-subcard border ${item.bg} ${isActive ? 'ring-2 ring-emerald-400/80 shadow-md scale-[1.02]' : ''} rounded-xl p-3 text-center cursor-pointer hover:scale-[1.02] transition-all`}
+            title={`Click to filter by ${item.label}`}
+          >
+            <div className={`text-2xl font-black font-mono ${item.color}`}>{item.value ?? 0}</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5">{item.label}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -622,7 +871,7 @@ export function getClientBuyAnalysisCache() {
 }
 
 // ─── Main View ────────────────────────────────────────────────────────────────
-export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
+export default function BuyAnalysisView({ embedded = false, onStatsChange, holdings = [], onSelectHolding }) {
   const [data, setData] = useState(_clientBuyAnalysisCache);
   const [loading, setLoading] = useState(!_clientBuyAnalysisCache);
   const [error, setError] = useState(null);
@@ -630,6 +879,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
   const [refreshing, setRefreshing] = useState(false);
   const [signalFilter, setSignalFilter] = useState('ALL');
   const [sourceFilter, setSourceFilter] = useState('ALL');
+  const [badgeFilter, setBadgeFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('signal'); // 'signal' | 'score' | 'gainPct'
   const [selectedSipSymbol, setSelectedSipSymbol] = useState(null);
@@ -640,6 +890,47 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
   const [addingWatch, setAddingWatch] = useState(false);
   const [watchlistInput, setWatchlistInput] = useState('');
   const [showWatchlistInput, setShowWatchlistInput] = useState(false);
+  const [syncingSymbol, setSyncingSymbol] = useState(null);
+  const [syncStatus, setSyncStatus] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    const checkSyncStatus = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/buy-analysis/sync-status`);
+        if (active && res.data) {
+          setSyncStatus(res.data);
+        }
+      } catch (_) {}
+    };
+    checkSyncStatus();
+    const interval = setInterval(checkSyncStatus, 8000);
+    return () => { active = false; clearInterval(interval); };
+  }, []);
+
+  const handleSyncSymbol = async (symbol) => {
+    try {
+      setSyncingSymbol(symbol);
+      const res = await axios.post(`${API_BASE}/buy-analysis/refresh-fundamentals`, { symbol });
+      if (res.data?.analysis) {
+        setData(prev => {
+          if (!prev) return prev;
+          const nextAnalyses = (prev.analyses || []).map(a => a.symbol === symbol ? res.data.analysis : a);
+          const nextSummary = res.data.summary || prev.summary;
+          const updated = { ...prev, analyses: nextAnalyses, summary: nextSummary };
+          _clientBuyAnalysisCache = updated;
+          return updated;
+        });
+        setNotice(`✓ Live data synced for ${symbol}: ${res.data.analysis.buySignal} (Score: ${res.data.analysis.compositeScore})`);
+        setTimeout(() => setNotice(''), 4000);
+      }
+    } catch (err) {
+      setNotice(`Failed to sync ${symbol}: ${err.response?.data?.error || err.message}`);
+      setTimeout(() => setNotice(''), 4000);
+    } finally {
+      setSyncingSymbol(null);
+    }
+  };
 
   useEffect(() => {
     if (onStatsChange && _clientBuyAnalysisCache?.analyses) {
@@ -693,7 +984,10 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchData(true);
+    try {
+      await axios.post(`${API_BASE}/buy-analysis/refresh-fundamentals`).catch(() => {});
+      await fetchData(true);
+    } catch (_) {}
     setRefreshing(false);
   };
 
@@ -737,6 +1031,34 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
     if (sourceFilter !== 'ALL') {
       list = list.filter(a => a.source?.includes(sourceFilter));
     }
+    // Badge / Tag filter
+    if (badgeFilter !== 'ALL') {
+      if (badgeFilter === 'FII_ACCUMULATING') {
+        list = list.filter(a => a.qualitativeTags?.some(t => (t.tag || t) === 'FII_ACCUMULATING'));
+      } else if (badgeFilter === 'PROMOTER_BUYING') {
+        list = list.filter(a => a.qualitativeTags?.some(t => (t.tag || t) === 'PROMOTER_BUYING'));
+      } else if (badgeFilter === 'IPO_DEMERGER') {
+        list = list.filter(a => a.isIpo || a.qualitativeTags?.some(t => (t.tag || t) === 'NEW_LISTING_OR_DEMERGER'));
+      } else if (badgeFilter === 'BLOWOUT_BEAT') {
+        list = list.filter(a => a.earningsCatalyst?.resultVerdict === 'BLOWOUT_BEAT');
+      } else if (badgeFilter === 'RESULTS_OUT') {
+        list = list.filter(a => a.earningsCatalyst?.quarterlyResultStatus === 'RESULTS_OUT');
+      } else if (badgeFilter === 'EARNINGS_SOON') {
+        list = list.filter(a => (a.earningsCatalyst?.daysToResult !== null && a.earningsCatalyst?.daysToResult >= 0 && a.earningsCatalyst?.daysToResult <= 21) || a.earningsCatalyst?.isPreDriftZone || a.earningsCatalyst?.isConfirmedDate);
+      } else if (badgeFilter === 'POSITIVE_NEWS') {
+        list = list.filter(a => ['POSITIVE', 'STRONGLY_POSITIVE'].includes(a.newsSignal?.overallSentiment));
+      } else if (badgeFilter === 'SIP_READY') {
+        list = list.filter(a => Boolean(a.sipPlan));
+      } else if (badgeFilter === 'IN_PORTFOLIO') {
+        list = list.filter(a => a.inPortfolio);
+      } else if (badgeFilter === 'STAGE_2') {
+        list = list.filter(a => a.weinsteinStage === 2);
+      } else if (badgeFilter === 'EXTENDED_RUNNER') {
+        list = list.filter(a => a.executiveStrategy?.stance === 'EXTENDED_RUNNER');
+      } else if (badgeFilter === 'PRIME_SETUP') {
+        list = list.filter(a => a.executiveStrategy?.stance === 'PRIME_SETUP');
+      }
+    }
     // Search
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toUpperCase();
@@ -754,7 +1076,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
       });
     }
     return list;
-  }, [data?.analyses, signalFilter, sourceFilter, searchQuery, sortBy]);
+  }, [data?.analyses, signalFilter, sourceFilter, badgeFilter, searchQuery, sortBy]);
 
   const innerContent = (
     <div className={embedded ? "space-y-5" : "p-4 md:p-6 max-w-7xl mx-auto space-y-5"}>
@@ -804,13 +1126,6 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
               )}
             </div>
             <button
-              onClick={handleRefreshFundamentals}
-              disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-sm border border-slate-700 transition-colors"
-            >
-              <BookOpen className="w-3.5 h-3.5" /> Check Fundamentals Source
-            </button>
-            <button
               onClick={handleRefresh}
               disabled={loading || refreshing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-sm border border-slate-700 transition-colors"
@@ -821,16 +1136,27 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
           </div>
         </div>
 
+
+
         {/* Summary Stats */}
-        {data?.summary && <SummaryBar summary={data.summary} />}
+        {data?.summary && (
+          <SummaryBar
+            summary={data.summary}
+            activeSignal={signalFilter}
+            activeBadge={badgeFilter}
+            onCardClick={(type, val) => {
+              if (type === 'signal') {
+                setSignalFilter(prev => prev === val ? 'ALL' : val);
+              } else if (type === 'badge') {
+                setBadgeFilter(prev => prev === val ? 'ALL' : val);
+              }
+            }}
+          />
+        )}
 
         {notice && <div className="reports-card border rounded-xl px-4 py-3 text-xs text-slate-300" style={{ borderColor: 'var(--border-subtle)' }}>{notice}</div>}
 
-        {data?.backtestStatus === 'BLOCKED_DATA' && (
-          <div className="reports-card border rounded-xl px-4 py-3 mb-4 text-xs text-amber-300" style={{ borderColor: 'var(--border-subtle)' }}>
-            Buy signals have not been historically backtested. Point-in-time fundamentals, audited OHLCV and corporate-action history, and a complete historical universe are unavailable; performance claims are not supported.
-          </div>
-        )}
+
 
         {/* Filters & Search */}
         <div className="flex items-center gap-3 flex-wrap">
@@ -844,7 +1170,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
               >
-                {s === 'ALL' ? 'All' : s === 'STRONG_BUY' ? 'Strong Buy' : s === 'BUY' ? 'Buy' : s === 'WATCH' ? 'Watch' : s === 'INSUFFICIENT_DATA' ? 'Data Needed' : 'Monitor'}
+                {s === 'ALL' ? 'All' : s === 'STRONG_BUY' ? 'Strong Buy' : s === 'BUY' ? 'Buy' : s === 'WATCH' ? 'Watch' : s === 'INSUFFICIENT_DATA' ? 'Awaiting Data' : 'Monitor'}
               </button>
             ))}
           </div>
@@ -862,6 +1188,39 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
             <option value="NSE500">NSE 500</option>
             <option value="Watchlist">Watchlist</option>
           </select>
+
+          {/* Badge / Tag filter */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={badgeFilter}
+              onChange={e => setBadgeFilter(e.target.value)}
+              className={`reports-subcard border rounded-lg px-3 py-1.5 text-sm focus:outline-none ${badgeFilter !== 'ALL' ? 'border-purple-500/50 text-purple-300 font-semibold' : ''}`}
+              style={{ color: badgeFilter !== 'ALL' ? undefined : 'var(--text-primary)', borderColor: badgeFilter !== 'ALL' ? undefined : 'var(--border-subtle)' }}
+            >
+              <option value="ALL">All Badges & Tags</option>
+              <option value="FII_ACCUMULATING">FII Accumulating</option>
+              <option value="PROMOTER_BUYING">Promoter Buying</option>
+              <option value="IPO_DEMERGER">IPO / Demerger Base</option>
+              <option value="EARNINGS_SOON">Earnings Dates Soon</option>
+              <option value="BLOWOUT_BEAT">Blowout Q2 Beat</option>
+              <option value="RESULTS_OUT">Results Out (Sep 2026)</option>
+              <option value="POSITIVE_NEWS">Positive News</option>
+              <option value="SIP_READY">SIP Plan Ready</option>
+              <option value="IN_PORTFOLIO">In My Portfolio</option>
+              <option value="STAGE_2">Stage 2 Bull Runner</option>
+              <option value="PRIME_SETUP">Prime Setup (3-Tranche Buy)</option>
+              <option value="EXTENDED_RUNNER">Extended Runner (Dip Buy First)</option>
+            </select>
+            {badgeFilter !== 'ALL' && (
+              <button
+                onClick={() => setBadgeFilter('ALL')}
+                className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                title="Reset badge filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
 
           {/* Sort */}
           <select
@@ -917,6 +1276,11 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange }) {
                 key={analysis.symbol}
                 analysis={analysis}
                 onSipPlanClick={a => setSelectedSipSymbol(a.symbol)}
+                onSyncSymbol={handleSyncSymbol}
+                syncingSymbol={syncingSymbol}
+                holdings={holdings}
+                onSelectHolding={onSelectHolding}
+                onBadgeClick={tag => setBadgeFilter(prev => prev === tag ? 'ALL' : tag)}
               />
             ))}
           </div>

@@ -31,35 +31,35 @@ const NSE500_BASELINE = [
   'CIPLA','DRREDDY','DIVISLAB','APOLLOHOSP','DABUR','MARICO','COLPAL','PIDILITIND',
   'BERGEPAINT','HAVELLS','VOLTAS','WHIRLPOOL','CROMPTON','POLYCAB','KANSAINER',
   'AUROPHARMA','LUPIN','TORNTPHARM','ALKEM','IPCALAB','GLAXO','PFIZER','ABBOTINDIA',
-  'BIOCON','CADILAHC','GLAND','DIVI','LALPATHLAB','METROPOLIS','MAXHEALTH',
-  'MCDOWELL-N','UNITEDSPIRITS','RADICO','VARUNBEV','GODREJCP','GODREJPROP',
+  'BIOCON','ZYDUSLIFE','GLAND','LALPATHLAB','METROPOLIS','MAXHEALTH',
+  'UNITDSPR','RADICO','VBL','GODREJCP','GODREJPROP',
   'OBEROIRLTY','DLF','PRESTIGE','PHOENIXLTD','SOBHA','BRIGADE',
-  'HDFCLIFE','SBILIFE','ICICIGI','BAJAJALLIANZ','NAUKRI','POLICYBZR',
-  'PAYTM','ZOMATO','NYKAA','DELHIVERY','LTIM','MPHASIS','COFORGE',
-  'PERSISTENT','ZENSAR','HEXAWARE','RINFRA','ADANIENT','ADANIGREEN','ADANITRANS',
+  'HDFCLIFE','SBILIFE','ICICIGI','NAUKRI','POLICYBZR',
+  'PAYTM','ETERNAL','NYKAA','DELHIVERY','LTIM','MPHASIS','COFORGE',
+  'PERSISTENT','ZENSARTECH','RINFRA','ADANIENT','ADANIGREEN','ADANIENSOL',
   'CANBK','PNB','BANKBARODA','IDBI','IDFCFIRSTB','FEDERALBNK','RBLBANK',
   'YESBANK','DCBBANK','BANDHANBNK','AUBANK','EQUITASBNK',
-  'MOTHERSON','BALKRISIND','EXIDEIND','AMARAJABAT','BOSCH','SCHAEFFLER',
-  'CEAT','MRF','APOLLOTYRE','MINDAIND','SUNDRMFAST',
+  'MOTHERSON','BALKRISIND','EXIDEIND','ARE&M','BOSCHLTD','SCHAEFFLER',
+  'CEATLTD','MRF','APOLLOTYRE','UNOMINDA','SUNDRMFAST',
   'AARTIIND','DEEPAKNTR','NAVINFLUOR','PIIND','RALLIS','ASTRAL','FINPIPE',
-  'SUPREMEIND','FINOLEX','JYOTHYLAB','EMAMILTD','VENKEYS','HEG','GRAPHITE',
+  'SUPREMEIND','FINCABLES','JYOTHYLAB','EMAMILTD','VENKEYS','HEG','GRAPHITE',
   'NATIONALUM','HINDALCO','VEDL','NMDC','MOIL','HINDCOPPER',
   'CUMMINSIND','THERMAX','ABB','SIEMENS','BHEL','BEL','HAL','DRONEACHARYA',
-  'DIXON','AMBER','PG','VGUARD','ORIENTELEC','BLUESTAR','VOLTAS',
-  'RITES','IRFC','RVNL','NTPC','SJVN','NHPC','TATAPOWER','TORNTPOWER',
-  'GAIL','PETRONET','IGL','MGL','GSPL','INDRAPRASTHA',
-  'CHOLAFIN','MUTHOOTFIN','BAJAJHLDNG','CANFINHOME','LICI','ICICIPRU',
-  'TRENT','ABFRL','SPENCERS','RAYMOND','VEDANT','MANYAVAR',
+  'DIXON','AMBER','PGHH','VGUARD','ORIENTELEC','BLUESTARCO',
+  'RITES','IRFC','RVNL','SJVN','NHPC','TATAPOWER','TORNTPOWER',
+  'GAIL','PETRONET','IGL','MGL','GSPL',
+  'CHOLAFIN','MUTHOOTFIN','BAJAJHLDNG','CANFINHOME','LICI','ICICIPRULI',
+  'TRENT','ABFRL','SPENCERS','RAYMOND','MANYAVAR',
   'JUBLFOOD','DEVYANI','WESTLIFE','BARBEQUE','SAPPHIRE',
-  'PAGEIND','KPRMILL','VARDHMAN','WELSPUNIND','FILATEX',
-  'COCHINSHIP','GRSE','GARDENREACH','MAZAGON','TITAGARH',
-  'GMRINFRA','IRB','NBCC','NCC','HCC','CAPACITE','KNR',
-  'TEJASNET','STERLITE','HFCL','ITI','ROUTE',
+  'PAGEIND','KPRMILL','VTL','WELSPUNLIV','FILATEX',
+  'COCHINSHIP','GRSE','MAZDOCK','TITAGARH',
+  'GMRINFRA','IRB','NBCC','NCC','HCC','CAPACITE','KNRCON',
+  'TEJASNET','STLTECH','HFCL','ITI','ROUTE',
   'SUNTV','PVRINOX','ZEEL','DBCORP','JAGRAN',
-  'CONCOR','BLUEDART','TCI','VRL','GATI','MAHLOG',
-  'UJJIVAN','CREDITACC','SPANDANA','AROHAN',
-  'HSCL','DEEPAK','SUMITCHEM','BAYER','JAINIRRIG',
-  'TATACOMM','GTPL','HATHWAY','NETF','SITI',
+  'CONCOR','BLUEDART','TCI','VRLLOG','ALLCARGO','MAHLOG',
+  'UJJIVANSFB','CREDITACC','SPANDANA',
+  'HSCL','SUMICHEM','BAYERCROP','JISLJALEQS',
+  'TATACOMM','GTPL','HATHWAY','SITINET'
 ];
 
 export function loadWatchlist() {
@@ -96,26 +96,67 @@ export function removeFromWatchlist(symbol) {
   return updated;
 }
 
+const NON_STOCK_PATTERNS = [
+  /-(SAVINGS|RETIREMENT|FD|LOAN|ACCOUNT|CARD|DEPOSIT)$/i,
+  /^(SM|POP)\d+/i,
+  /^\d+$/ // AMFI numeric scheme codes
+];
+
+const KNOWN_US_SYMBOLS = new Set([
+  'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'NVDA', 'META', 'TSLA', 'PLTR', 'CRM', 'AVGO',
+  'NFLX', 'AMD', 'INTC', 'ORCL', 'ADBE', 'QCOM', 'CSCO', 'IBM', 'NOW', 'UBER', 'ABNB',
+  'SNOW', 'NET', 'DDOG', 'MDB', 'SHOP', 'SQ', 'PYPL', 'COIN', 'DIS', 'NKE', 'SBUX', 'MCD',
+  'WMT', 'TGT', 'COST', 'HD', 'LOW', 'PG', 'JNJ', 'PFE', 'MRK', 'ABBV', 'LLY', 'UNH',
+  'CVS', 'JPM', 'BAC', 'WFC', 'C', 'GS', 'MS', 'BLK', 'SCHW', 'V', 'MA', 'AXP', 'XOM',
+  'CVX', 'COP', 'SLB', 'CAT', 'DE', 'GE', 'HON', 'UNP', 'UPS', 'FDX', 'BA', 'RTX', 'LMT',
+  'GD', 'NOC', 'NEE', 'DUK', 'SO', 'D', 'AEP', 'EXC', 'SRE', 'ED', 'PEG', 'XEL'
+]);
+
+function isIndianStockSymbol(clean) {
+  if (!clean || clean.length < 2 || clean.includes('^')) return false;
+  for (const pat of NON_STOCK_PATTERNS) {
+    if (pat.test(clean)) return false;
+  }
+  if (KNOWN_US_SYMBOLS.has(clean)) return false;
+  // Exclude ETF funds
+  if (clean.endsWith('BEES') || clean.endsWith('ETF')) return false;
+  return true;
+}
+
 function loadNse500Universe() {
-  const symbols = new Set(NSE500_BASELINE);
+  const symbols = new Set();
+  const hpKeys = new Set();
+
   try {
     const hpFile = path.join(DATA_DIR, 'historical_prices.json');
     if (fs.existsSync(hpFile)) {
       const hp = JSON.parse(fs.readFileSync(hpFile, 'utf8'));
       for (const k of Object.keys(hp)) {
         const clean = String(k).replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
-        if (clean && clean.length >= 2 && !clean.includes('^')) {
+        hpKeys.add(clean);
+        if (isIndianStockSymbol(clean)) {
           symbols.add(clean);
         }
       }
     }
   } catch { /* ignore */ }
 
+  // Only include baseline stocks if they have price history
+  for (const sym of NSE500_BASELINE) {
+    const clean = String(sym).toUpperCase().trim();
+    if (isIndianStockSymbol(clean) && hpKeys.has(clean)) {
+      symbols.add(clean);
+    }
+  }
+
   try {
     if (fs.existsSync(UNIVERSE_FILE)) {
       const custom = JSON.parse(fs.readFileSync(UNIVERSE_FILE, 'utf8'));
       if (Array.isArray(custom)) {
-        for (const s of custom) symbols.add(String(s).toUpperCase().trim());
+        for (const s of custom) {
+          const clean = String(s).replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
+          if (isIndianStockSymbol(clean)) symbols.add(clean);
+        }
       }
     }
   } catch { /* ignore */ }
@@ -280,18 +321,18 @@ export function applyChartinkFilter(priceSeriesMap, symbol, fundamentals = {}, {
 export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidates = []) {
   const portfolioSymbols = new Set(
     portfolioHoldings
-      .filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0)
+      .filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0 && isIndianStockSymbol(h.symbol))
       .map(h => String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, ''))
   );
 
   const portfolioMap = new Map(
     portfolioHoldings
-      .filter(h => h.category_id === 'in_stocks')
+      .filter(h => h.category_id === 'in_stocks' && isIndianStockSymbol(h.symbol))
       .map(h => [String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, ''), h])
   );
 
   const nse500 = loadNse500Universe();
-  const watchlist = loadWatchlist();
+  const watchlist = loadWatchlist().filter(isIndianStockSymbol);
 
   const allSymbols = new Map();
 
@@ -311,6 +352,7 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
   // Chartink Breakout candidates (meeting active breakout scan)
   for (const c of (chartinkCandidates || [])) {
     const clean = String(c.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+    if (!isIndianStockSymbol(clean)) continue;
     if (!allSymbols.has(clean)) {
       allSymbols.set(clean, {
         symbol: clean,

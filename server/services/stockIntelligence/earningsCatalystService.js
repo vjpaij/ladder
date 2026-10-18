@@ -52,6 +52,35 @@ function estimateNextResultDate(lastResultDateStr) {
 }
 
 /**
+ * Estimates upcoming Q2 result date staggered across the active reporting window (Oct 19 to Nov 14).
+ * Uses company sector cadence: IT (early), Financials (mid), Auto/FMCG/CapGoods (later).
+ */
+function estimateQ2ResultDate(symbol, sector = '') {
+  let hash = 0;
+  for (let i = 0; i < symbol.length; i++) hash = (hash * 31 + symbol.charCodeAt(i)) & 0xffffffff;
+  const offsetDays = Math.abs(hash) % 24;
+
+  if (/it|tech|software|infotech/i.test(sector)) {
+    const day = 19 + (Math.abs(hash) % 6);
+    return `2026-10-${String(day).padStart(2, '0')}`;
+  }
+  if (/bank|finan|nbfc|insur/i.test(sector)) {
+    const day = 21 + (Math.abs(hash) % 8);
+    return `2026-10-${String(day).padStart(2, '0')}`;
+  }
+  if (/auto|fmcg|consum/i.test(sector)) {
+    const dayOffset = Math.abs(hash) % 11;
+    if (dayOffset <= 7) return `2026-10-${String(24 + dayOffset).padStart(2, '0')}`;
+    return `2026-11-${String(dayOffset - 7).padStart(2, '0')}`;
+  }
+  if (offsetDays <= 12) {
+    return `2026-10-${String(20 + offsetDays).padStart(2, '0')}`;
+  } else {
+    return `2026-11-${String(offsetDays - 12).padStart(2, '0')}`;
+  }
+}
+
+/**
  * For a given symbol and today's date, compute the earnings catalyst object.
  * Accurately detects whether results for the latest completed quarter are already out
  * or upcoming, and generates pre/post earnings guidance.
@@ -75,16 +104,17 @@ export function computeEarningsCatalyst(symbol, fundamentals = {}, today = new D
   let quarterlyResultStatus = isCurrentQuarterOut ? 'RESULTS_OUT' : 'UPCOMING';
   let lastResultDate = fundamentals.lastResultDate || entry.lastResultDate || null;
   let nextResultDate = fundamentals.nextResultDate || entry.nextResultDate || null;
-  let isConfirmedDate = Boolean(fundamentals.nextResultDateConfirmed || entry.nextResultDateConfirmed || fundamentals.upcomingBoardMeetingDate);
+  let isConfirmedDate = false;
   let daysToResult = null;
   let daysAgo = null;
+
+  const todayMs = new Date(`${today}T00:00:00Z`).getTime();
 
   if (isCurrentQuarterOut) {
     // Sep 2026 results are ALREADY OUT!
     if (!lastResultDate) {
       lastResultDate = '2026-10-14'; // Mid October default if filing date absent
     }
-    const todayMs = new Date(`${today}T00:00:00Z`).getTime();
     const lastMs = new Date(`${lastResultDate}T00:00:00Z`).getTime();
     daysAgo = Math.max(0, Math.round((todayMs - lastMs) / 86400000));
     // Next quarter is Dec 2026 (Q3), announced in Jan/Feb 2027
@@ -92,17 +122,25 @@ export function computeEarningsCatalyst(symbol, fundamentals = {}, today = new D
     isConfirmedDate = false;
   } else {
     // Q2 results are UPCOMING / PENDING
-    if (fundamentals.upcomingBoardMeetingDate) {
-      nextResultDate = fundamentals.upcomingBoardMeetingDate;
+    const boardDate = fundamentals.upcomingBoardMeetingDate;
+    if (boardDate && boardDate >= today) {
+      nextResultDate = boardDate;
       isConfirmedDate = true;
-    } else if (!nextResultDate) {
-      // Typical Q2 announcement window (between Oct 20 and Nov 14)
-      nextResultDate = '2026-11-06';
-      isConfirmedDate = false;
+    } else {
+      if (boardDate && boardDate < today) {
+        // Meeting was held recently in early October
+        const boardMs = new Date(`${boardDate}T00:00:00Z`).getTime();
+        if (todayMs - boardMs <= 14 * 86400000 && !lastResultDate) {
+          lastResultDate = boardDate;
+        }
+      }
+      if (!nextResultDate || nextResultDate < today) {
+        nextResultDate = estimateQ2ResultDate(clean, fundamentals.sector);
+        isConfirmedDate = false;
+      }
     }
-    const todayMs = new Date(`${today}T00:00:00Z`).getTime();
     const nextMs = new Date(`${nextResultDate}T00:00:00Z`).getTime();
-    daysToResult = Math.round((nextMs - todayMs) / 86400000);
+    daysToResult = Math.max(0, Math.round((nextMs - todayMs) / 86400000));
   }
 
   // Growth performance metrics from fundamentals
@@ -164,7 +202,7 @@ export function computeEarningsCatalyst(symbol, fundamentals = {}, today = new D
     ? Number(((beats / historicalSurprises.length) * 100).toFixed(0))
     : null;
 
-  const isPreDriftZone = daysToResult !== null && daysToResult >= 0 && daysToResult <= 10;
+  const isPreDriftZone = daysToResult !== null && daysToResult >= 0 && daysToResult <= 14;
   const isPostResultZone = isCurrentQuarterOut && daysAgo !== null && daysAgo <= 20;
 
   if (!isCurrentQuarterOut && isPreDriftZone && beatRate !== null && beatRate >= 70) {

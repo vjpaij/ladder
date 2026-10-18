@@ -15,6 +15,15 @@ function cleanSymbol(symbol) {
   return String(symbol || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
 }
 
+function isFundamentalsCacheComplete(data) {
+  if (!data || typeof data !== 'object') return false;
+  // Must have annual and quarterly arrays parsed from full financial tables (at least 1 period)
+  const hasAnnual = Array.isArray(data.annualSales) && data.annualSales.length >= 1
+    && Array.isArray(data.annualPat) && data.annualPat.length >= 1;
+  const hasQuarterly = Array.isArray(data.quarterlySales) && data.quarterlySales.length >= 1;
+  return hasAnnual && hasQuarterly;
+}
+
 function getCachedFundamentals(sym) {
   const clean = cleanSymbol(sym);
   const cachePath = path.join(CACHE_DIR, `${clean}.json`);
@@ -22,7 +31,7 @@ function getCachedFundamentals(sym) {
     try {
       const data = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
       const age = Date.now() - (data.fetchedAt ? new Date(data.fetchedAt).getTime() : 0);
-      if (age < CACHE_TTL_MS) {
+      if (age < CACHE_TTL_MS && isFundamentalsCacheComplete(data)) {
         return { ...data, fromCache: true };
       }
     } catch {
@@ -126,7 +135,7 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
         const text = tr.replace(/<[^>]+>/g, '|').split('|').map(s => s.trim()).filter(Boolean);
         if (text.length >= 2) {
           const rawKey = text[0].replace(/&nbsp;/g, ' ').replace(/\+/g, '').trim();
-          const cleanKey = rawKey.split(' ')[0] === 'Sales' ? 'Sales' :
+          const cleanKey = (rawKey.startsWith('Sales') || rawKey.startsWith('Revenue')) ? 'Sales' :
                            rawKey.split(' ')[0] === 'Net' && rawKey.includes('Profit') ? 'Net Profit' : rawKey;
           const values = text.slice(1)
             .filter(v => v !== '+')
@@ -149,7 +158,7 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
         const text = tr.replace(/<[^>]+>/g, '|').split('|').map(s => s.trim()).filter(Boolean);
         if (text.length >= 2) {
           const rawKey = text[0].replace(/&nbsp;/g, ' ').replace(/\+/g, '').trim();
-          const cleanKey = rawKey.split(' ')[0] === 'Sales' ? 'Sales' :
+          const cleanKey = (rawKey.startsWith('Sales') || rawKey.startsWith('Revenue')) ? 'Sales' :
                            rawKey.split(' ')[0] === 'Net' && rawKey.includes('Profit') ? 'Net Profit' :
                            rawKey.includes('EPS') ? 'EPS' : rawKey;
           const values = text.slice(1)

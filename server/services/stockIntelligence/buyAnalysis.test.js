@@ -6,6 +6,7 @@ import { buildSipPlan, shouldGenerateSipPlan } from './sipPositionBuilder.js';
 import { computeEarningsCatalyst } from './earningsCatalystService.js';
 import { isNoise, extractSignals } from './newsIntelService.js';
 import { buildBuyAnalyses } from './buyAnalysisService.js';
+import { buildExecutiveStrategy } from './executiveStrategyBuilder.js';
 
 test('Fundamental Scorer: awards high score for strong compounder', () => {
   const fundamentals = {
@@ -170,4 +171,43 @@ test('Buy Analysis Engine: classifies STRONG_BUY on dual-pillar confluence', () 
   assert.ok(tcs.fundamentalScore >= 70, `Fundamental score: ${tcs.fundamentalScore}`);
   assert.ok(tcs.buySignal === 'STRONG_BUY' || tcs.buySignal === 'BUY', `Signal was ${tcs.buySignal}`);
   assert.ok(tcs.sipPlan !== null, 'SIP plan should be generated for strong candidate');
+  assert.ok(tcs.executiveStrategy !== null, 'Executive strategy must be generated');
+  assert.ok(tcs.executiveStrategy.howToGoAboutIt.length > 0, 'howToGoAboutIt must be populated');
+  assert.ok(tcs.executiveStrategy.whenToInvestAgain.dipBuy.levelRange, 'whenToInvestAgain dip buy must be present');
+  assert.equal(tcs.executiveStrategy.tranches.length, 3, 'Must have 3 tranches');
 });
+
+test('Executive Strategy Builder: identifies extended runner (RPEL case) and prescribes staged dip accumulation', () => {
+  const strategy = buildExecutiveStrategy({
+    symbol: 'RPEL',
+    name: 'R.P.P. Infra Projects Limited',
+    buySignal: 'STRONG_BUY',
+    compositeScore: 96,
+    technicalScore: 92,
+    fundamentalScore: 100,
+    fundamentalGrade: 'A',
+    currentPrice: 1811.50,
+    high52w: 1885.20,
+    ema50: 1663.20,
+    sma30w: 1125.00,
+    weinsteinStage: 2,
+    stopLoss: 1573.70,
+    targetPrice: 2350.00,
+    riskRewardRatio: 2.5,
+    peRatio: 118,
+    earningsCatalyst: { quarterlyResultStatus: 'RESULTS_OUT', resultVerdict: 'BLOWOUT_BEAT' }
+  });
+
+  assert.equal(strategy.symbol, 'RPEL');
+  assert.equal(strategy.isExtended, true, 'RPEL must be flagged as extended');
+  assert.equal(strategy.stance, 'EXTENDED_RUNNER');
+  assert.ok(strategy.howToGoAboutIt.includes('3-tranche opportunistic accumulation'));
+  assert.ok(strategy.whenToInvestAgain.dipBuy.levelRange.includes('1,646') || strategy.whenToInvestAgain.dipBuy.levelRange.includes('1,680') || strategy.whenToInvestAgain.dipBuy.low > 1600);
+  assert.ok(strategy.whenToInvestAgain.breakoutBuy.level >= 1885);
+  assert.equal(strategy.tranches.length, 3);
+  assert.equal(strategy.tranches[0].ratio, 0.30);
+  assert.equal(strategy.tranches[1].ratio, 0.35);
+  assert.equal(strategy.tranches[2].ratio, 0.35);
+  assert.equal(strategy.riskAndExit.stopLoss, 1573.70);
+});
+

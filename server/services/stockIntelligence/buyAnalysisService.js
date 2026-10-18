@@ -21,6 +21,7 @@ import { computeFundamentalScore } from './fundamentalScorer.js';
 import { applyChartinkFilter } from './buyUniverseProvider.js';
 import { computeEarningsCatalyst } from './earningsCatalystService.js';
 import { shouldGenerateSipPlan, buildSipPlan } from './sipPositionBuilder.js';
+import { buildExecutiveStrategy } from './executiveStrategyBuilder.js';
 
 const BUY_ANALYSIS_VERSION = 'buy-analysis-v1.0';
 
@@ -60,6 +61,21 @@ function computeTechnicalBuyScore(trendData = {}, chartinkFilter = {}, currentPr
   } else if (trendData.weinsteinStage === 4) {
     score -= 30;
     signals.push('⚠ Stage 4 Structural Downtrend — avoid long entry');
+  }
+
+  // Adaptive IPO Base setup
+  if (trendData?.isIpo) {
+    if (trendData.weinsteinStage === 2) {
+      score += 30;
+      signals.push('New Listing / Demerger Base Breakout confirmed ✓');
+    } else if (trendData.weinsteinStage === 1) {
+      score += 18;
+      signals.push('Consolidating in Base (New Listing / Demerger) ✓');
+    }
+    if (Number.isFinite(trendData.drawdownFrom20WeekHighPct) && trendData.drawdownFrom20WeekHighPct >= -10) {
+      score += 20;
+      signals.push('Within 10% of post-listing all-time high ✓');
+    }
   }
 
   // 2. Moving Average Alignment: 50-EMA & 30-Week SMA (up to 25 pts)
@@ -197,6 +213,7 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
   const isSetupEligible = trendData.weinsteinStage === 2
     || (trendData.weinsteinStage === 1 && (trendData.drawdownFrom20WeekHighPct >= -15 || currentPrice >= (chartinkFilter?.high52w || 0) * 0.85))
     || (currentPrice > (chartinkFilter?.ema50 || 0) && techScore >= 50)
+    || (trendData.isIpo && trendData.weinsteinStage <= 2)
     || (earningsCatalyst?.quarterlyResultStatus === 'RESULTS_OUT' && earningsCatalyst?.resultVerdict === 'BLOWOUT_BEAT')
     || chartinkFilter.passes;
 
@@ -217,7 +234,7 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
   }
 
   // STRONG BUY — Dual-pillar excellence, Stage 2 Bull, favorable R:R, no red flags
-  const isStrongBuyTech = techScore >= 65 && trendData.weinsteinStage === 2;
+  const isStrongBuyTech = techScore >= 65 && (trendData.weinsteinStage === 2 || (trendData.isIpo && trendData.weinsteinStage <= 2));
   const isStrongBuyFund = fundScore >= 68;
   const isStrongBuyRR = Number.isFinite(rrRatio) && rrRatio >= 2.0;
   const epsHistory = Array.isArray(fundamentals.annualEps) ? fundamentals.annualEps.map(Number) : [];
@@ -396,7 +413,9 @@ export function buildBuyAnalyses(
           earningsCatalyst: catalystsMap[clean] || null,
           newsSignal: newsMap[clean] || null,
           sipPlan: null,
+          executiveStrategy: null,
           ruleVersion: BUY_ANALYSIS_VERSION,
+        isIpo: false,
           evaluatedAt: todayStr,
           dataQuality: 'INCOMPLETE'
         });
@@ -407,9 +426,32 @@ export function buildBuyAnalyses(
       const last252 = prices.slice(-252);
       const high52w = last252.length > 0 ? Math.max(...last252.map(p => p.close)) : currentPrice;
 
-      // Technical trend analysis (reusing existing engine)
+      // Technical trend analysis (reusing existing engine with adaptive IPO Base support)
       const priceSeriesAsOf = Object.fromEntries(prices.map(row => [row.date, row.close]));
-      const trendData = analyzeTechnicalTrend(priceSeriesAsOf, { today: todayStr });
+      let trendData = analyzeTechnicalTrend(priceSeriesAsOf, { today: todayStr });
+      const isIpoListing = prices.length >= 15 && (trendData.state === 'DATA_UNAVAILABLE' || prices.length < 200);
+
+      if (isIpoListing && trendData.state === 'DATA_UNAVAILABLE') {
+        const ipoCloses = prices.map(p => p.close);
+        const ipoHigh = Math.max(...ipoCloses);
+        const ipoLow = Math.min(...ipoCloses);
+        const drawdownFromHigh = ((currentPrice / ipoHigh) - 1) * 100;
+        const isNearHighs = drawdownFromHigh >= -12;
+        const isConsolidating = currentPrice >= ipoLow * 1.05;
+        const weinsteinStage = isNearHighs ? 2 : isConsolidating ? 1 : 4;
+
+        trendData = {
+          state: 'NORMAL',
+          isIpo: true,
+          dailyObservations: prices.length,
+          weinsteinStage,
+          weinsteinStageLabel: isNearHighs ? 'Stage 2 (Base Breakout · New Listing / Demerger)' : isConsolidating ? 'Stage 1 (Base Consolidation · New Listing / Demerger)' : 'Stage 4 (Base Breakdown)',
+          drawdownFrom20WeekHighPct: drawdownFromHigh,
+          chandelierStopPrice: Math.max(ipoLow, Number((currentPrice * 0.92).toFixed(2))),
+          sma30Week: null,
+          evidence: ['Adaptive IPO Base evaluated from post-listing trading history']
+        };
+      }
       const latestPriceAgeDays = Math.floor((Date.parse(`${todayStr}T00:00:00Z`)
         - Date.parse(`${prices[prices.length - 1].date}T00:00:00Z`)) / 86400000);
 
@@ -478,6 +520,33 @@ export function buildBuyAnalyses(
         });
       }
 
+      // Executive Investment Strategy & When to Invest Again Roadmap (computed for all stocks)
+      const executiveStrategy = buildExecutiveStrategy({
+        symbol: clean,
+        name,
+        buySignal: signal,
+        compositeScore: Math.round((techResult.score + fundResult.score) / 2),
+        technicalScore: techResult.score,
+        fundamentalScore: fundResult.score,
+        fundamentalGrade: fundResult.fundamentalGrade,
+        currentPrice,
+        high52w,
+        ema50: chartinkFilter.ema50,
+        sma30w: trendData.sma30Week,
+        weinsteinStage: trendData.weinsteinStage,
+        weinsteinStageLabel: trendData.weinsteinStageLabel,
+        stopLoss: techResult.stopLoss,
+        targetPrice: techResult.targetPrice,
+        riskRewardRatio: techResult.rrRatio,
+        pctFromHigh52w: chartinkFilter.pctFromHigh52w,
+        isIpo: Boolean(trendData?.isIpo || fundResult?.isIpo),
+        peRatio: fundamentals.peRatio || null,
+        earningsCatalyst,
+        newsSignal,
+        qualitativeTags: fundResult.tags,
+        strongBuyBlockers
+      });
+
       const analysis = {
         // Identity
         symbol: clean,
@@ -504,6 +573,7 @@ export function buildBuyAnalyses(
         isStrongBuyEligible,
         strongBuyBlockers,
         ruleVersion: BUY_ANALYSIS_VERSION,
+        isIpo: Boolean(trendData?.isIpo || fundResult?.isIpo),
 
         // Technical details
         currentPrice,
@@ -544,6 +614,9 @@ export function buildBuyAnalyses(
 
         // SIP plan
         sipPlan,
+
+        // Executive Strategy & Roadmap
+        executiveStrategy,
 
         // Explanation
         explanation: buildExplanation({
@@ -596,7 +669,11 @@ export function buildBuyPortfolioSummary(analyses = []) {
     avoidCount: counts.AVOID || 0,
     insufficientDataCount: counts.INSUFFICIENT_DATA || 0,
     withSipPlans: analyses.filter(a => a.sipPlan !== null).length,
-    withEarningsCatalyst: analyses.filter(a => a.earningsCatalyst?.isPreDriftZone).length,
+    withEarningsCatalyst: analyses.filter(a =>
+      (a.earningsCatalyst?.daysToResult !== null && a.earningsCatalyst?.daysToResult >= 0 && a.earningsCatalyst?.daysToResult <= 21)
+      || a.earningsCatalyst?.isPreDriftZone
+      || a.earningsCatalyst?.isConfirmedDate
+    ).length,
     withPositiveNews: analyses.filter(a => ['POSITIVE', 'STRONGLY_POSITIVE'].includes(a.newsSignal?.overallSentiment)).length,
     ruleVersion: BUY_ANALYSIS_VERSION
   };

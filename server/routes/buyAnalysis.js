@@ -57,7 +57,7 @@ function loadCachedFundamentalsForSymbols(symbols = []) {
         if (!file.endsWith('.json')) continue;
         const sym = file.slice(0, -5).toUpperCase();
         try {
-          _fundamentalsCacheMap[sym] = JSON.parse(fs.readFileSync(path.join(cacheDir, file), 'utf8'));
+          const parsed = JSON.parse(fs.readFileSync(path.join(cacheDir, file), 'utf8')); if (Array.isArray(parsed.annualSales) && parsed.annualSales.length >= 1) { _fundamentalsCacheMap[sym] = parsed; }
         } catch (_) {}
       }
     } catch (_) {}
@@ -73,29 +73,47 @@ function loadCachedFundamentalsForSymbols(symbols = []) {
   return result;
 }
 
-// Non-blocking background worker for warming candidate prices and fundamentals
+// Non-blocking autonomous background worker for continuous universe warming
 let _isWarmingInProgress = false;
+let _backgroundQueue = [];
+let _warmingTimeout = null;
+
 function triggerBackgroundWarming(candidates = []) {
-  if (_isWarmingInProgress || !candidates || candidates.length === 0) return;
-  _isWarmingInProgress = true;
-  setImmediate(async () => {
-    try {
-      for (const c of candidates) {
-        try {
-          await ensureHistoricalPricesForSymbol(c.symbol, 'in_stocks');
-        } catch (_) {}
-        try {
-          const f = await fetchCompanyFundamentals(c.symbol);
-          if (f && f.status === 'AVAILABLE' && _fundamentalsCacheMap) {
-            _fundamentalsCacheMap[c.symbol] = f;
-          }
-        } catch (_) {}
-        await new Promise(r => setTimeout(r, 400));
-      }
-    } catch (_) {} finally {
-      _isWarmingInProgress = false;
+  for (const c of candidates) {
+    if (c?.symbol && !_backgroundQueue.some(q => q.symbol === c.symbol)) {
+      _backgroundQueue.push(c);
     }
-  });
+  }
+  processNextWarmingItem();
+}
+
+async function processNextWarmingItem() {
+  if (_isWarmingInProgress || _backgroundQueue.length === 0) return;
+  _isWarmingInProgress = true;
+
+  try {
+    const candidate = _backgroundQueue.shift();
+    if (candidate?.symbol) {
+      const sym = candidate.symbol;
+      try {
+        await ensureHistoricalPricesForSymbol(sym, 'in_stocks');
+      } catch (_) {}
+      try {
+        const f = await fetchCompanyFundamentals(sym);
+        if (f && ['AVAILABLE', 'PARTIAL'].includes(f.status) && _fundamentalsCacheMap) {
+          _fundamentalsCacheMap[sym] = f;
+        }
+      } catch (_) {}
+    }
+  } catch (_) {
+  } finally {
+    _isWarmingInProgress = false;
+    if (_backgroundQueue.length > 0) {
+      _warmingTimeout = setTimeout(processNextWarmingItem, 1500);
+    } else {
+      runBuyAnalysisEngine({ forceRefresh: true }).catch(() => {});
+    }
+  }
 }
 
 // Load disk snapshot on server boot for instant 0ms responses
@@ -108,6 +126,20 @@ try {
     }
   }
 } catch (_) {}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/buy-analysis/sync-status
+// Real-time background sync and universe health monitor
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/buy-analysis/sync-status', authenticateToken, (req, res) => {
+  res.json({
+    isWarming: _isWarmingInProgress,
+    queueRemaining: _backgroundQueue.length,
+    generatedAt: _buyAnalysisCache?.generatedAt || null,
+    totalEvaluated: _buyAnalysisCache?.analyses?.length || 0,
+    summary: _buyAnalysisCache?.summary || null
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/buy-analysis
@@ -169,11 +201,22 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
   const symbols = enrichedCandidates.map(c => c.symbol);
   const fundamentalsMap = loadCachedFundamentalsForSymbols(symbols);
 
-  // Non-blocking background warming for priority breakout and watchlist candidates
-  const priorityCandidates = enrichedCandidates.filter(c => c.source.includes('Chartink Breakout') || c.source.includes('Watchlist'));
-  const needsWarming = priorityCandidates.filter(c => (!history[c.symbol] && !history[`${c.symbol}.NS`]) || !fundamentalsMap[c.symbol]);
-  if (needsWarming.length > 0) {
-    triggerBackgroundWarming(needsWarming.slice(0, 10));
+  // Non-blocking background warming: prioritize portfolio stocks and breakout candidates with incomplete data
+  const candidatesNeedingData = enrichedCandidates.filter(c => {
+    const hasPrice = history[c.symbol] || history[`${c.symbol}.NS`];
+    const f = fundamentalsMap[c.symbol];
+    const hasCompleteFund = f && Array.isArray(f.annualSales) && f.annualSales.length >= 4;
+    return !hasPrice || !hasCompleteFund;
+  });
+  candidatesNeedingData.sort((a, b) => {
+    if (a.inPortfolio && !b.inPortfolio) return -1;
+    if (!a.inPortfolio && b.inPortfolio) return 1;
+    const aPri = a.source.includes('Chartink') || a.source.includes('Watchlist') ? 1 : 0;
+    const bPri = b.source.includes('Chartink') || b.source.includes('Watchlist') ? 1 : 0;
+    return bPri - aPri;
+  });
+  if (candidatesNeedingData.length > 0) {
+    triggerBackgroundWarming(candidatesNeedingData);
   }
 
   // Compute earnings catalysts for all symbols
@@ -257,8 +300,16 @@ router.post('/buy-analysis/refresh-fundamentals', authenticateToken, async (req,
 
     const symbol = req.body?.symbol;
     if (symbol) {
-      const fund = await fetchCompanyFundamentals(symbol, { forceRefresh: true });
-      return res.json({ symbol, fundamentals: fund });
+      const clean = String(symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+      await ensureHistoricalPricesForSymbol(clean, 'in_stocks').catch(() => {});
+      const fund = await fetchCompanyFundamentals(clean, { forceRefresh: true });
+      if (_fundamentalsCacheMap) {
+        _fundamentalsCacheMap[clean] = fund;
+      }
+      invalidateBuyCache();
+      const freshResult = await runBuyAnalysisEngine({ forceRefresh: true });
+      const updatedAnalysis = freshResult.analyses?.find(a => a.symbol === clean);
+      return res.json({ symbol: clean, fundamentals: fund, analysis: updatedAnalysis, summary: freshResult.summary });
     }
 
     // Background refresh for top candidates (portfolio + watchlist)

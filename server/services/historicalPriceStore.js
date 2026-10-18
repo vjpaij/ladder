@@ -149,7 +149,11 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
     const symbolMap = {
       'TATAMOTORS': 'TMPV.NS',
       'TATAMTRDVR': 'TMPV.NS',
-      'SWANENERGY': '503310.BO'
+      'SWANENERGY': '503310.BO',
+      'RINFRA': 'RELINFRA.NS',
+      'GMRINFRA': 'GMRAIRPORT.NS',
+      'BARBEQUE': '543283.BO',
+      'DRONEACHARYA': 'DRONACHARYA.BO'
     };
 
     let fetchSym = symbolMap[symbol] || symbol;
