@@ -93,7 +93,13 @@ export async function saveHistoricalPricesToFile() {
   const tempPath = `${HISTORICAL_PRICES_FILE}.${Date.now()}.tmp`;
   try {
     await fs.promises.writeFile(tempPath, JSON.stringify(historicalPricesCache, null, 2), 'utf-8');
-    await fs.promises.rename(tempPath, HISTORICAL_PRICES_FILE);
+    try {
+      await fs.promises.rename(tempPath, HISTORICAL_PRICES_FILE);
+    } catch (renameErr) {
+      // Windows EPERM / EBUSY fallback
+      await fs.promises.copyFile(tempPath, HISTORICAL_PRICES_FILE);
+      await fs.promises.unlink(tempPath).catch(() => {});
+    }
   } catch (e) {
     console.error('[Historical Pricing] Failed to save historical prices to disk:', e.message);
     try {

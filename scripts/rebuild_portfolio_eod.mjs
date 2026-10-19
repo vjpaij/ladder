@@ -557,6 +557,20 @@ async function rebuildEod() {
       mfVal = prevLog.mutual_funds;
       npsVal = prevLog.nps;
 
+      // If pension funds published updated weekend NAVs, reflect them
+      let weekendNpsVal = 0;
+      let hasWeekendNps = false;
+      npsHoldings.forEach(h => {
+        const prices = npsHistoricalPrices[h.symbol] || {};
+        if (prices[dateStr] && prices[dateStr] > 0) {
+          hasWeekendNps = true;
+          weekendNpsVal += (holdingQty[h.id] || 0) * prices[dateStr];
+        }
+      });
+      if (hasWeekendNps && weekendNpsVal > 0) {
+        npsVal = Number(weekendNpsVal.toFixed(2));
+      }
+
       const totalAssets = Number((curSavings + curEpf + inVal + usVal + mfVal + npsVal).toFixed(2));
       const wealth = Number((totalAssets - curDebt).toFixed(2));
 

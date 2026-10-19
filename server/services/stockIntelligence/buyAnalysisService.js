@@ -552,6 +552,8 @@ export function buildBuyAnalyses(
         symbol: clean,
         name,
         source,
+        sector: fundamentals.sector || 'Unknown',
+        industry: fundamentals.industry || 'Unknown',
         inPortfolio,
         portfolioQuantity: inPortfolio ? portfolioQuantity : 0,
         portfolioAvgPrice: inPortfolio ? portfolioAvgPrice : 0,
@@ -637,6 +639,42 @@ export function buildBuyAnalyses(
     } catch (err) {
       // Individual stock failure doesn't block others
       console.warn(`[BuyAnalysis] Skipped ${candidate.symbol}: ${err.message}`);
+    }
+  }
+
+  // Sector Momentum & Cyclical Tailwinds Engine
+  const sectorGroups = {};
+  for (const a of results) {
+    const sec = a.sector || 'Unknown';
+    if (!sectorGroups[sec]) sectorGroups[sec] = { total: 0, stage2Count: 0 };
+    sectorGroups[sec].total++;
+    if (a.weinsteinStage === 2 && a.currentPrice > (a.ema50 || 0)) {
+      sectorGroups[sec].stage2Count++;
+    }
+  }
+
+  const boomingSectors = new Set();
+  for (const [sec, data] of Object.entries(sectorGroups)) {
+    if (data.total >= 4 && sec !== 'Unknown') {
+      const breadthPct = (data.stage2Count / data.total) * 100;
+      if (breadthPct >= 50) {
+        boomingSectors.add(sec);
+      }
+    }
+  }
+
+  for (const a of results) {
+    if (boomingSectors.has(a.sector)) {
+      a.hasSectorTailwind = true;
+      a.compositeScore = Math.min(100, a.compositeScore + 5);
+      if (Array.isArray(a.qualitativeTags) && !a.qualitativeTags.some(t => t.tag === 'SECTOR_TAILWIND')) {
+        a.qualitativeTags.unshift({
+          tag: 'SECTOR_TAILWIND',
+          label: `Sector Boom · ${a.sector}`,
+          color: 'indigo',
+          informational: true
+        });
+      }
     }
   }
 

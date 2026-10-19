@@ -59,7 +59,7 @@ function yearOverYearPoints(values, max = 8) {
 function ratioPoints(value, max = 7) {
   if (!isFiniteNumber(value)) return null;
   const ratio = Number(value);
-  return ratio >= 25 ? max : ratio >= 18 ? Math.round(max * 0.71) : ratio >= 12 ? Math.round(max * 0.43) : 0;
+  return ratio >= 25 ? max : ratio >= 18 ? Math.round(max * 0.71) : ratio >= 12 ? Math.round(max * 0.43) : ratio >= 10 ? Math.round(max * 0.35) : 0;
 }
 
 function debtPoints(value) {
@@ -210,7 +210,7 @@ export function computeFundamentalScore(fundamentals = {}) {
     add('roe', ratioPoints(fundamentals.roePct, 7), 7, isFiniteNumber(fundamentals.roePct) ? `${fundamentals.roePct}%` : 'Unknown');
   } else {
     // D/E not directly parsed from Screener card: evaluate capital efficiency proxy
-    const capitalEfficiency = (isFiniteNumber(fundamentals.rocePct) && Number(fundamentals.rocePct) >= 15) ? 6 : null;
+    const capitalEfficiency = (isFiniteNumber(fundamentals.rocePct) && Number(fundamentals.rocePct) >= 10) ? 6 : null;
     add('debtEquity', capitalEfficiency, 10, capitalEfficiency ? 'Capital efficiency proxy (ROCE >= 15%)' : 'Unknown');
     add('roce', ratioPoints(fundamentals.rocePct, 7), 7, isFiniteNumber(fundamentals.rocePct) ? `${fundamentals.rocePct}%` : 'Unknown');
     add('roe', ratioPoints(fundamentals.roePct, 7), 7, isFiniteNumber(fundamentals.roePct) ? `${fundamentals.roePct}%` : 'Unknown');

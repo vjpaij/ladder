@@ -61,20 +61,20 @@ export function buildSipPlan({
       status: 'READY', conditions: ['Price remains above trailing stop floor', 'Stage 2 or base breakout structure intact', 'Size calibrated within portfolio risk limit']
     },
     {
-      tranche: 2, label: 'Support retest', ratio: TRANCHE_RATIOS[1], amount: amounts[1],
-      triggerType: 'SUPPORT_RETEST', triggerDescription: support ? `Accumulate on orderly pullback into 50-EMA support zone ₹${pullbackLow}–₹${pullbackHigh} with confirmed rebound.` : 'Accumulate on 50-EMA support retest with confirmed rebound.',
+      tranche: 2, label: 'Support retest (Dip SIP)', ratio: TRANCHE_RATIOS[1], amount: amounts[1],
+      triggerType: 'SUPPORT_RETEST', triggerDescription: support ? `Accumulate on constructive pullback into 50-EMA support zone ₹${pullbackLow}–₹${pullbackHigh} with confirmed rebound for high-growth compounders.` : 'Accumulate on 50-EMA support rebound.',
       triggerPriceRange: support ? { low: pullbackLow, high: pullbackHigh } : null,
       estimatedShares: sharesForAmount(amounts[1], support), estimatedAvgPrice: support,
-      rationale: 'Second 35% tranche lowers average cost basis during constructive consolidation above rising moving averages.',
-      status: 'ARMED', conditions: ['Price tests 50-EMA support and prints a recovery candle', 'Weekly technical trend remains bullish', 'Cancel if 50-EMA support fails on a closing basis']
+      rationale: 'Second 35% tranche accumulates shares at key technical support during healthy pullbacks to lower average cost.',
+      status: 'ARMED', conditions: ['Price tests 50-EMA support and prints a bullish recovery candle', 'Constructive dip accumulation for fundamentally strong compounders', 'Weekly technical trend remains bullish or in base', 'Cancel if 50-EMA support fails on a closing basis']
     },
     {
       tranche: 3, label: 'Trend continuation', ratio: TRANCHE_RATIOS[2], amount: amounts[2],
       triggerType: 'TREND_CONTINUATION', triggerDescription: breakoutLevel ? `Deploy final tranche on high-volume breakout close above ₹${breakoutLevel}.` : 'Deploy final tranche on confirmed swing-high breakout.',
       triggerPriceRange: breakoutLevel ? { low: breakoutLevel, high: null } : null,
       estimatedShares: sharesForAmount(amounts[2], breakoutLevel), estimatedAvgPrice: breakoutLevel,
-      rationale: 'Final 35% tranche scales into established trend acceleration. Confirms institutional accumulation.',
-      status: 'CONTINGENT', conditions: ['Closing breakout above 52-week or swing high', 'Volume expansion accompanies breakout', 'Total position does not exceed single-stock portfolio allocation cap']
+      rationale: 'Final 35% tranche completes position sizing on proven momentum acceleration.',
+      status: 'CONTINGENT', conditions: ['Closing breakout above 52-week or swing high with expanding volume', 'Weekly Stage 2 trend confirmation intact', 'Total position does not exceed single-stock portfolio allocation cap']
     }
   ];
 
