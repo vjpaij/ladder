@@ -656,13 +656,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           {isUsMarket ? 'Finviz.com' : 'Screener.in'} <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                         <a
-                          href={isUsMarket ? `https://gocharting.com/terminal?ticker=NASDAQ:${encodeURIComponent(selected.symbol)}&interval=1D` : `https://gocharting.com/terminal?ticker=${selected.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((selected.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}&interval=1D`}
+                          href={isUsMarket ? `https://gocharting.com/terminal?ticker=NASDAQ:${encodeURIComponent(selected.symbol)}` : `https://gocharting.com/terminal?ticker=${selected.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((selected.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}`}
                           target="_blank"
                           rel="noreferrer"
                           className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 transition-colors"
-                          title="Open 1-Day chart on GoCharting"
+                          title="Open chart on GoCharting"
                         >
-                          GoCharting 1D <ExternalLink className="w-2.5 h-2.5" />
+                          GoCharting <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       </div>
                     </div>

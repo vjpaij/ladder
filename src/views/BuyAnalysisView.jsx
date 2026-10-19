@@ -361,14 +361,14 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
               Screener.in <ExternalLink className="w-2.5 h-2.5" />
             </a>
             <a
-              href={`https://gocharting.com/terminal?ticker=${analysis.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((analysis.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}&interval=1D`}
+              href={`https://gocharting.com/terminal?ticker=${analysis.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((analysis.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}`}
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 transition-colors cursor-pointer"
-              title="Open 1-Day chart on GoCharting"
+              title="Open chart on GoCharting"
             >
-              GoCharting 1D <ExternalLink className="w-2.5 h-2.5" />
+              GoCharting <ExternalLink className="w-2.5 h-2.5" />
             </a>
             {hasSip && (
               <button
