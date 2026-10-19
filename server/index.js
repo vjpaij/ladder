@@ -55,6 +55,7 @@ import syncLogsRouter from './routes/syncLogs.js';
 import stockIntelligenceRouter, { runDailyStockAnalysisAudit } from './routes/stockIntelligence.js';
 import buyAnalysisRouter, { runBuyAnalysisEngine } from './routes/buyAnalysis.js';
 import stockLogosRouter from './routes/stockLogos.js';
+import tradingJournalRouter from './routes/tradingJournal.js';
 import { logSyncEvent } from './services/syncLogService.js';
 
 // Re-export background EOD rebuild helper for backward compatibility
@@ -96,6 +97,7 @@ app.use('/api', syncLogsRouter);
 app.use('/api', stockIntelligenceRouter);
 app.use('/api', buyAnalysisRouter);
 app.use('/api', stockLogosRouter);
+app.use('/api', tradingJournalRouter);
 
 // -------------------------------------------------------------
 // Sync Status API — surfaces WAL gaps and cache/Supabase divergence
@@ -297,8 +299,10 @@ app.listen(PORT, async () => {
     // Synchronize latest authoritative NAVs for active NPS and MF holdings
     await syncAllMissingNavs({ persistToDb: true });
 
-    // Refresh all active holdings prices (US, IN, MF, NPS) on startup
-    await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: true });
+    // Refresh all active holdings prices (US, IN, MF, NPS) on startup strictly if market is open per Rule 18 & 22
+    if (isAnyMarketOpen()) {
+      await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
+    }
   } catch (err) {
     console.warn('[PriceEngine Priming Warning]:', err.message);
   }
@@ -323,7 +327,8 @@ app.listen(PORT, async () => {
           console.log(`[LiveTicker] Market session is active (IN: ${inOpen ? 'OPEN' : 'CLOSED'}, US: ${usOpen ? 'OPEN' : 'CLOSED'}). Polling live quotes every 10s.`);
           lastTickerMarketState = 'OPEN';
         }
-        await refreshActiveHoldingsPrices();
+        const marketSession = (inOpen && usOpen) ? 'ALL' : (inOpen ? 'IN' : 'US');
+        await refreshActiveHoldingsPrices({ marketSession, persistToDb: false });
         nextDelay = 10000;
       }
     } catch (err) {

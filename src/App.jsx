@@ -28,6 +28,7 @@ const ReportsView = lazy(() => import('./components/ReportsView'));
 const DatabaseStudioView = lazy(() => import('./views/DatabaseStudioView'));
 const ExcelToolsView = lazy(() => import('./views/ExcelToolsView'));
 const AddInvestmentView = lazy(() => import('./views/AddInvestmentView'));
+const TradingJournalView = lazy(() => import('./views/TradingJournalView'));
 
 // Minimal loading fallback shown while a lazy chunk is fetching
 function ViewLoader() {
@@ -323,6 +324,9 @@ function AuthenticatedApp() {
         return <StockAnalysisView key="stock_analysis" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
       case 'buy_analysis':
         return <StockAnalysisView key="stock_analysis_buy" initialTab="buy" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
+      case 'stock_journal':
+      case 'trade_journal':
+        return <TradingJournalView key="trade_journal" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
       case 'indian_stocks':
         return <IndianStocksView key="indian_stocks" summary={summary} holdings={holdings} onDeleteHolding={handleDeleteHolding} onEditHolding={handleEditHolding} onRefresh={fetchDashboardData} onOpenAddModal={() => { setTargetPortfolio('in_stocks'); setCurrentView('add_investment'); }} />;
       case 'us_stocks':

@@ -52,10 +52,10 @@ const SIGNAL_CONFIG = {
   MONITOR: {
     label: 'MONITOR',
     shortLabel: 'MON',
-    color: 'from-slate-500 to-slate-400',
-    bgColor: 'bg-slate-500/10',
-    borderColor: 'border-slate-500/30',
-    textColor: 'text-slate-400',
+    color: 'from-neutral-500 to-neutral-400',
+    bgColor: 'bg-white/[0.04]',
+    borderColor: 'border-[var(--border-color)]',
+    textColor: 'text-[var(--text-muted)]',
     glowColor: '',
     icon: BarChart3,
     description: 'Below thresholds — monitoring'
@@ -74,10 +74,10 @@ const SIGNAL_CONFIG = {
   INSUFFICIENT_DATA: {
     label: 'INSUFFICIENT DATA',
     shortLabel: 'DATA',
-    color: 'from-slate-500 to-slate-400',
-    bgColor: 'bg-slate-500/10',
-    borderColor: 'border-slate-500/30',
-    textColor: 'text-slate-400',
+    color: 'from-neutral-500 to-neutral-400',
+    bgColor: 'bg-white/[0.04]',
+    borderColor: 'border-[var(--border-color)]',
+    textColor: 'text-[var(--text-muted)]',
     glowColor: '',
     icon: Info,
     description: 'Required price or financial evidence is missing, stale, or unsupported'
@@ -94,7 +94,7 @@ function ScoreGauge({ score, max = 100, color = 'emerald', size = 'sm' }) {
     cyan: 'bg-cyan-400',
     amber: 'bg-amber-400',
     red: 'bg-red-400',
-    slate: 'bg-slate-500'
+    slate: 'bg-[var(--border-color)]'
   };
   const dotColor = colors[color] || 'bg-emerald-400';
 
@@ -103,10 +103,10 @@ function ScoreGauge({ score, max = 100, color = 'emerald', size = 'sm' }) {
       {Array.from({ length: dots }).map((_, i) => (
         <div
           key={i}
-          className={`rounded-full transition-all ${size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5'} ${i < filled ? dotColor : 'bg-slate-700'}`}
+          className={`rounded-full transition-all ${size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5'} ${i < filled ? dotColor : 'bg-[var(--border-color)]'}`}
         />
       ))}
-      <span className={`font-mono font-bold ${size === 'sm' ? 'text-xs' : 'text-sm'} text-slate-300 ml-1`}>{score}</span>
+      <span className={`font-mono font-bold ${size === 'sm' ? 'text-xs' : 'text-sm'} text-[var(--text-primary)] ml-1`}>{score}</span>
     </div>
   );
 }
@@ -292,7 +292,7 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 truncate mt-0.5">{analysis.name}</p>
+              <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">{analysis.name}</p>
               {/* Badges row */}
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <EarningsBadge earningsCatalyst={analysis.earningsCatalyst} onBadgeClick={onBadgeClick} />
@@ -313,28 +313,28 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
               </span>
             )}
             {analysis.lastPriceDate && (
-              <span className="text-[9px] text-slate-500">Close {analysis.lastPriceDate}{Number.isFinite(analysis.latestPriceAgeDays) ? ` · ${analysis.latestPriceAgeDays}d old` : ''}</span>
+              <span className="text-[9px] text-[var(--text-muted)]">Close {analysis.lastPriceDate}{Number.isFinite(analysis.latestPriceAgeDays) ? ` · ${analysis.latestPriceAgeDays}d old` : ''}</span>
             )}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${analysis.fundamentalsStatus === 'AVAILABLE' ? 'border-emerald-500/30 text-emerald-500' : 'border-slate-600 text-slate-500'}`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${analysis.fundamentalsStatus === 'AVAILABLE' ? 'border-emerald-500/30 text-emerald-400' : 'border-[var(--border-color)] text-[var(--text-muted)]'}`}>
               {analysis.source}
             </span>
           </div>
         </div>
 
         {/* Score Row */}
-        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-800/50">
+        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--border-color)]">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wide">Technical</span>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Technical</span>
             <ScoreGauge score={techScore} color={techColor} />
           </div>
-          <div className="w-px h-4 bg-slate-700" />
+          <div className="w-px h-4 bg-[var(--border-color)]" />
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wide">Fundamental</span>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Fundamental</span>
             <ScoreGauge score={fundScore} color={fundColor} />
           </div>
-          <div className="w-px h-4 bg-slate-700" />
+          <div className="w-px h-4 bg-[var(--border-color)]" />
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wide">Composite</span>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Composite</span>
             <span className={`font-bold text-sm font-mono ${config.textColor}`}>{analysis.compositeScore}</span>
           </div>
           <div className="ml-auto flex items-center gap-1.5 flex-wrap">
@@ -348,7 +348,7 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                   );
                   if (targetHolding) onSelectHolding(targetHolding);
                 }}
-                className="rounded-lg border border-slate-700 bg-slate-800/80 px-2 py-1 text-[10px] font-bold text-slate-300 hover:border-emerald-500/40 hover:text-emerald-300 transition-colors cursor-pointer"
+                className="rounded-lg border border-[var(--border-color)] reports-subcard px-2.5 py-1 text-[10px] font-bold text-[var(--text-primary)] hover:border-emerald-500/40 hover:text-emerald-400 transition-colors cursor-pointer"
                 title="Open holding transaction ledger"
               >
                 Open Ledger
@@ -405,14 +405,14 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
               onClick={(e) => { e.stopPropagation(); onSyncSymbol?.(analysis.symbol); }}
               disabled={syncingSymbol === analysis.symbol}
               title="Sync latest live quote and Screener fundamentals on demand"
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs border border-slate-700 transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg reports-subcard hover:bg-white/5 text-[var(--text-primary)] text-xs border border-[var(--border-color)] transition-colors cursor-pointer"
             >
               <RefreshCw className={`w-3 h-3 ${syncingSymbol === analysis.symbol ? 'animate-spin text-emerald-400' : ''}`} />
               {syncingSymbol === analysis.symbol ? 'Syncing...' : 'Sync'}
             </button>
             <button
               onClick={() => setExpanded(!expanded)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs border border-slate-700 transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg reports-subcard hover:bg-white/5 text-[var(--text-primary)] text-xs border border-[var(--border-color)] transition-colors cursor-pointer"
             >
               {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               {expanded ? 'Less' : 'Detail'}
@@ -421,14 +421,14 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
         </div>
 
         {/* Signal Reason (always visible) */}
-        <p className="text-xs text-slate-400 mt-2.5 leading-relaxed">{analysis.signalReason}</p>
+        <p className="text-xs text-[var(--text-secondary)] mt-2.5 leading-relaxed">{analysis.signalReason}</p>
         {(analysis.buySignal === 'BUY' || analysis.buySignal === 'WATCH') && analysis.strongBuyBlockers?.length > 0 && (
-          <p className="text-[10px] text-slate-500 mt-1">Strong Buy gates pending: {analysis.strongBuyBlockers.slice(0, 3).join('; ')}.</p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-1">Strong Buy gates pending: {analysis.strongBuyBlockers.slice(0, 3).join('; ')}.</p>
         )}
 
         {/* Executive Action Stance Banner (always visible) */}
         {analysis.executiveStrategy && (
-          <div className="mt-2.5 rounded-lg border border-purple-500/30 bg-purple-950/20 p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="mt-2.5 rounded-lg border border-purple-500/30 bg-purple-500/10 p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <span
                 onClick={(e) => {
@@ -443,13 +443,13 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                 <Target className="w-2.5 h-2.5" />
                 {analysis.executiveStrategy.stanceLabel}
               </span>
-              <span className="text-slate-300 font-medium text-xs truncate">
+              <span className="text-[var(--text-primary)] font-medium text-xs truncate">
                 {analysis.executiveStrategy.immediateAction}
               </span>
             </div>
-            <div className="flex items-center gap-2.5 text-[11px] text-slate-400 shrink-0 font-mono">
-              <span>Dip: <span className="text-cyan-300 font-bold">{analysis.executiveStrategy.whenToInvestAgain?.dipBuy?.levelRange}</span></span>
-              <span className="text-slate-600">•</span>
+            <div className="flex items-center gap-2.5 text-[11px] text-[var(--text-secondary)] shrink-0 font-mono">
+              <span>Dip: <span className="text-cyan-400 font-bold">{analysis.executiveStrategy.whenToInvestAgain?.dipBuy?.levelRange}</span></span>
+              <span className="text-[var(--text-muted)]">•</span>
               <span>Stop: <span className="text-rose-400 font-bold">{analysis.executiveStrategy.riskAndExit?.stopLoss ? `₹${analysis.executiveStrategy.riskAndExit.stopLoss.toLocaleString('en-IN')}` : '50-EMA'}</span></span>
             </div>
           </div>
@@ -464,12 +464,12 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="border-t border-slate-800/50 bg-slate-900/30"
+            className="border-t border-[var(--border-color)] reports-card"
           >
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Executive Investment Strategy & Action Roadmap (Full Detailed Section) */}
               {analysis.executiveStrategy && (
-                <div className="reports-subcard rounded-xl p-3.5 md:col-span-2 border border-purple-500/30 bg-purple-950/20">
+                <div className="reports-subcard rounded-xl p-3.5 md:col-span-2 border border-purple-500/30 bg-purple-500/10">
                   <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <Target className="w-4 h-4 text-purple-400" />
@@ -483,48 +483,48 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                   </div>
 
                   {/* How to Go About It */}
-                  <div className="rounded-lg bg-slate-900/70 border border-slate-800 p-3 mb-3">
+                  <div className="rounded-lg reports-subcard border border-[var(--border-color)] p-3 mb-3">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-purple-400 mb-1">
                       How to Go About It (Execution Stance)
                     </div>
-                    <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                    <p className="text-xs text-[var(--text-primary)] leading-relaxed font-medium">
                       {analysis.executiveStrategy.howToGoAboutIt}
                     </p>
                   </div>
 
                   {/* When to Invest Again: 3-Tranche Staged Roadmap */}
                   <div className="mb-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center justify-between">
                       <span>When to Invest Again (Staged Accumulation Roadmap)</span>
-                      <span className="text-[10px] text-slate-500 font-normal">Tranche allocation sizing</span>
+                      <span className="text-[10px] text-[var(--text-muted)] font-normal">Tranche allocation sizing</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                       {analysis.executiveStrategy.tranches?.map((tranche) => (
-                        <div key={tranche.tranche} className="rounded-lg bg-slate-800/60 border border-slate-700/60 p-2.5 flex flex-col justify-between">
+                        <div key={tranche.tranche} className="rounded-lg reports-subcard border border-[var(--border-color)] p-2.5 flex flex-col justify-between">
                           <div>
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-slate-300">{tranche.label}</span>
+                              <span className="text-[10px] font-bold text-[var(--text-primary)]">{tranche.label}</span>
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                                 {tranche.pctLabel}
                               </span>
                             </div>
-                            <div className="text-xs font-mono font-bold text-cyan-300 mt-1.5">
+                            <div className="text-xs font-mono font-bold text-cyan-400 mt-1.5">
                               {tranche.tranche === 1
                                 ? (tranche.triggerPrice ? `₹${tranche.triggerPrice.toLocaleString('en-IN')}` : 'CMP')
                                 : tranche.tranche === 2
                                 ? analysis.executiveStrategy.whenToInvestAgain?.dipBuy?.levelRange
                                 : (analysis.executiveStrategy.whenToInvestAgain?.breakoutBuy?.level ? `Above ₹${analysis.executiveStrategy.whenToInvestAgain.breakoutBuy.level.toLocaleString('en-IN')}` : 'Swing High')}
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                            <p className="text-[10px] text-[var(--text-secondary)] mt-1.5 leading-relaxed">
                               {tranche.triggerDescription}
                             </p>
                           </div>
-                          <div className="mt-2.5 pt-2 border-t border-slate-700/40 flex items-center justify-between">
-                            <span className="text-[9px] text-slate-500">Execution Status</span>
+                          <div className="mt-2.5 pt-2 border-t border-[var(--border-color)] flex items-center justify-between">
+                            <span className="text-[9px] text-[var(--text-muted)]">Execution Status</span>
                             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
                               tranche.status === 'READY' ? 'bg-emerald-500/20 text-emerald-400' :
                               tranche.status === 'ARMED' ? 'bg-amber-500/20 text-amber-400' :
-                              'bg-slate-700 text-slate-400'
+                              'reports-subcard border border-[var(--border-color)] text-[var(--text-muted)]'
                             }`}>
                               {tranche.status}
                             </span>
@@ -535,8 +535,8 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                   </div>
 
                   {/* Capital Protection, Profit Harvest & Catalyst Triggers */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-slate-800">
-                    <div className="rounded-lg bg-red-950/20 border border-red-500/20 p-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-[var(--border-color)]">
+                    <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-2.5">
                       <div className="text-[9px] font-bold text-red-400 uppercase tracking-wide flex items-center justify-between">
                         <span>Capital Invalidation Floor</span>
                         <span className="font-mono text-red-300 font-bold">
@@ -544,12 +544,12 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                           {analysis.executiveStrategy.riskAndExit?.riskPct && ` (${analysis.executiveStrategy.riskAndExit.riskPct})`}
                         </span>
                       </div>
-                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                      <p className="text-[9px] text-[var(--text-secondary)] mt-1 leading-tight">
                         {analysis.executiveStrategy.riskAndExit?.invalidationRule}
                       </p>
                     </div>
 
-                    <div className="rounded-lg bg-emerald-950/20 border border-emerald-500/20 p-2.5">
+                    <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5">
                       <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-wide flex items-center justify-between">
                         <span>Target & Profit Harvest</span>
                         <span className="font-mono text-emerald-300 font-bold">
@@ -557,16 +557,16 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                           {analysis.executiveStrategy.riskAndExit?.rewardPct && ` (${analysis.executiveStrategy.riskAndExit.rewardPct})`}
                         </span>
                       </div>
-                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                      <p className="text-[9px] text-[var(--text-secondary)] mt-1 leading-tight">
                         {analysis.executiveStrategy.riskAndExit?.profitTakingRule}
                       </p>
                     </div>
 
-                    <div className="rounded-lg bg-blue-950/20 border border-blue-500/20 p-2.5">
+                    <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-2.5">
                       <div className="text-[9px] font-bold text-blue-400 uppercase tracking-wide">
                         <span>Earnings Catalyst Milestone</span>
                       </div>
-                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                      <p className="text-[9px] text-[var(--text-secondary)] mt-1 leading-tight">
                         {analysis.executiveStrategy.whenToInvestAgain?.catalystTrigger?.note}
                       </p>
                     </div>
@@ -575,14 +575,14 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
               )}
 
               {/* Technical Signals */}
-              <div className="reports-subcard rounded-xl p-3">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <div className="reports-subcard rounded-xl p-3 border border-[var(--border-color)]">
+                <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <BarChart3 className="w-3.5 h-3.5" /> Technical Signals
                 </h4>
                 <ul className="space-y-1">
                   {analysis.technicalSignals?.slice(0, 6).map((sig, i) => (
-                    <li key={i} className="text-xs text-slate-300 flex items-start gap-1.5">
-                      <span className={`mt-0.5 shrink-0 ${sig.includes('✓') ? 'text-emerald-400' : sig.includes('⚠') ? 'text-amber-400' : 'text-slate-500'}`}>
+                    <li key={i} className="text-xs text-[var(--text-secondary)] flex items-start gap-1.5">
+                      <span className={`mt-0.5 shrink-0 ${sig.includes('✓') ? 'text-emerald-400' : sig.includes('⚠') ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>
                         {sig.includes('✓') ? '✓' : sig.includes('⚠') ? '⚠' : '·'}
                       </span>
                       <span>{sig.replace(' ✓', '').replace(' ⚠', '')}</span>
@@ -590,46 +590,46 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                   ))}
                 </ul>
                 {analysis.stopLoss && (
-                  <div className="mt-2 pt-2 border-t border-slate-700/50 flex items-center justify-between">
-                    <span className="text-[10px] text-slate-500">Stop Loss</span>
+                  <div className="mt-2 pt-2 border-t border-[var(--border-color)] flex items-center justify-between">
+                    <span className="text-[10px] text-[var(--text-muted)]">Stop Loss</span>
                     <span className="text-xs font-mono font-semibold text-red-400">₹{analysis.stopLoss?.toLocaleString('en-IN')}</span>
                   </div>
                 )}
                 {analysis.riskRewardRatio && (
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-slate-500">R:R Ratio</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">R:R Ratio</span>
                     <span className={`text-xs font-mono font-semibold ${analysis.riskRewardRatio >= 2 ? 'text-emerald-400' : 'text-amber-400'}`}>{analysis.riskRewardRatio}:1</span>
                   </div>
                 )}
                 {analysis.targetPrice && (
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-slate-500">Next close pivot estimate</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">Next close pivot estimate</span>
                     <span className="text-xs font-mono font-semibold text-cyan-400">₹{analysis.targetPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {analysis.weinsteinStageLabel && (
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-slate-500">Weinstein Stage</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">Weinstein Stage</span>
                     <span className={`text-xs ${analysis.weinsteinStage === 2 ? 'text-emerald-400' : analysis.weinsteinStage === 1 ? 'text-amber-400' : 'text-red-400'}`}>{analysis.weinsteinStageLabel?.split(' (')[0]}</span>
                   </div>
                 )}
               </div>
 
               {/* Fundamentals Detail */}
-              <div className="reports-subcard rounded-xl p-3">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <div className="reports-subcard rounded-xl p-3 border border-[var(--border-color)]">
+                <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <BookOpen className="w-3.5 h-3.5" /> Fundamentals
                 </h4>
                 {analysis.fundamentalsStatus !== 'AVAILABLE' ? (
-                  <p className="text-xs text-slate-500">{analysis.fundamentalDataReason || 'No current authorized fundamental snapshot is available.'}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{analysis.fundamentalDataReason || 'No current authorized fundamental snapshot is available.'}</p>
                 ) : (
                   <div className="space-y-1.5">
                     {Object.entries(analysis.fundamentalBreakdown || {}).map(([key, val]) => (
                       <div key={key} className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <span className="text-[10px] text-[var(--text-muted)] capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-400">{val.value}</span>
-                          <span className={`text-xs font-bold ${val.pts >= val.max * 0.7 ? 'text-emerald-400' : val.pts >= val.max * 0.4 ? 'text-amber-400' : 'text-slate-500'}`}>
+                          <span className="text-[10px] text-[var(--text-secondary)]">{val.value}</span>
+                          <span className={`text-xs font-bold ${val.pts >= val.max * 0.7 ? 'text-emerald-400' : val.pts >= val.max * 0.4 ? 'text-amber-400' : 'text-[var(--text-muted)]'}`}>
                             {val.pts}/{val.max}
                           </span>
                         </div>
@@ -637,10 +637,10 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                     ))}
                   </div>
                 )}
-                <p className="text-[10px] text-slate-500 mt-2">Coverage {analysis.fundamentalCoveragePct ?? 0}%. Snapshot status: {analysis.dataQuality || 'UNKNOWN'}.</p>
+                <p className="text-[10px] text-[var(--text-muted)] mt-2">Coverage {analysis.fundamentalCoveragePct ?? 0}%. Snapshot status: {analysis.dataQuality || 'UNKNOWN'}.</p>
                 {analysis.screenerUrl && (
                   <a href={analysis.screenerUrl} target="_blank" rel="noreferrer"
-                    className="mt-2 flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300">
+                    className="mt-2 flex items-center gap-1 text-[10px] text-cyan-400 hover:text-cyan-300">
                     <ExternalLink className="w-2.5 h-2.5" /> Screener.in
                   </a>
                 )}
@@ -648,10 +648,10 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
 
               {/* Earnings Catalyst & Quarterly Results Detail */}
               {analysis.earningsCatalyst && (
-                <div className="reports-subcard rounded-xl p-3">
+                <div className="reports-subcard rounded-xl p-3 border border-[var(--border-color)]">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-blue-400" /> Quarterly Results & Catalysts
+                    <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-cyan-400" /> Quarterly Results & Catalysts
                     </h4>
                     {analysis.earningsCatalyst.quarterlyResultStatus === 'RESULTS_OUT' ? (
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
@@ -662,7 +662,7 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                         {analysis.earningsCatalyst.resultVerdict?.replace('_', ' ')}
                       </span>
                     ) : (
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/25">
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/25">
                         UPCOMING
                       </span>
                     )}
@@ -672,35 +672,35 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                     {analysis.earningsCatalyst.quarterlyResultStatus === 'RESULTS_OUT' ? (
                       <>
                         <div className="flex justify-between">
-                          <span className="text-[10px] text-slate-500">Latest Reported Quarter</span>
+                          <span className="text-[10px] text-[var(--text-muted)]">Latest Reported Quarter</span>
                           <span className="font-semibold text-emerald-400">{analysis.earningsCatalyst.latestReportedQuarter}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-[10px] text-slate-500">Announcement Date</span>
-                          <span className="font-mono text-slate-300">
+                          <span className="text-[10px] text-[var(--text-muted)]">Announcement Date</span>
+                          <span className="font-mono text-[var(--text-secondary)]">
                             {analysis.earningsCatalyst.lastResultDate} {analysis.earningsCatalyst.daysAgo !== null ? `(${analysis.earningsCatalyst.daysAgo}d ago)` : ''}
                           </span>
                         </div>
                         {analysis.earningsCatalyst.lastResultTitle && (
-                          <div className="text-[10px] text-slate-400 italic bg-slate-800/40 p-1.5 rounded truncate">
+                          <div className="text-[10px] text-[var(--text-secondary)] italic reports-subcard border border-[var(--border-color)] p-1.5 rounded truncate">
                             {analysis.earningsCatalyst.lastResultTitle}
                           </div>
                         )}
                         <div className="grid grid-cols-3 gap-1.5 pt-1 text-center font-mono">
-                          <div className="bg-slate-800/50 p-1.5 rounded">
-                            <div className="text-[9px] text-slate-500">YoY PAT</div>
+                          <div className="reports-subcard border border-[var(--border-color)] p-1.5 rounded">
+                            <div className="text-[9px] text-[var(--text-muted)]">YoY PAT</div>
                             <div className={`text-xs font-bold ${(analysis.yoyPatGrowthPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                               {(analysis.yoyPatGrowthPct || 0) >= 0 ? '+' : ''}{analysis.yoyPatGrowthPct ?? '—'}%
                             </div>
                           </div>
-                          <div className="bg-slate-800/50 p-1.5 rounded">
-                            <div className="text-[9px] text-slate-500">YoY Sales</div>
+                          <div className="reports-subcard border border-[var(--border-color)] p-1.5 rounded">
+                            <div className="text-[9px] text-[var(--text-muted)]">YoY Sales</div>
                             <div className={`text-xs font-bold ${(analysis.yoySalesGrowthPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                               {(analysis.yoySalesGrowthPct || 0) >= 0 ? '+' : ''}{analysis.yoySalesGrowthPct ?? '—'}%
                             </div>
                           </div>
-                          <div className="bg-slate-800/50 p-1.5 rounded">
-                            <div className="text-[9px] text-slate-500">OPM</div>
+                          <div className="reports-subcard border border-[var(--border-color)] p-1.5 rounded">
+                            <div className="text-[9px] text-[var(--text-muted)]">OPM</div>
                             <div className="text-xs font-bold text-cyan-400">
                               {analysis.earningsCatalyst.latestOpmPct ? `${analysis.earningsCatalyst.latestOpmPct}%` : '—'}
                             </div>
@@ -710,40 +710,40 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                     ) : (
                       <>
                         <div className="flex justify-between">
-                          <span className="text-[10px] text-slate-500">Target Result Date</span>
+                          <span className="text-[10px] text-[var(--text-muted)]">Target Result Date</span>
                           <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{analysis.earningsCatalyst.nextResultDate}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-[10px] text-slate-500">Days Away</span>
-                          <span className={`font-bold ${(analysis.earningsCatalyst.daysToResult || 0) <= 7 ? 'text-red-400' : (analysis.earningsCatalyst.daysToResult || 0) <= 15 ? 'text-amber-400' : 'text-slate-300'}`}>
+                          <span className="text-[10px] text-[var(--text-muted)]">Days Away</span>
+                          <span className={`font-bold ${(analysis.earningsCatalyst.daysToResult || 0) <= 7 ? 'text-red-400' : (analysis.earningsCatalyst.daysToResult || 0) <= 15 ? 'text-amber-400' : 'text-[var(--text-primary)]'}`}>
                             {analysis.earningsCatalyst.daysToResult !== null ? `${analysis.earningsCatalyst.daysToResult} days` : 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-[10px] text-slate-500">Date Status</span>
-                          <span className="font-semibold text-slate-300">{analysis.earningsCatalyst.dateConfidence || 'UNKNOWN'}</span>
+                          <span className="text-[10px] text-[var(--text-muted)]">Date Status</span>
+                          <span className="font-semibold text-[var(--text-secondary)]">{analysis.earningsCatalyst.dateConfidence || 'UNKNOWN'}</span>
                         </div>
                       </>
                     )}
 
                     {analysis.earningsCatalyst.signalNote && (
-                      <p className="text-[10px] text-slate-300 mt-1.5 leading-relaxed bg-slate-800/30 p-2 rounded border border-slate-700/30">
+                      <p className="text-[10px] text-[var(--text-secondary)] mt-1.5 leading-relaxed reports-subcard p-2 rounded border border-[var(--border-color)]">
                         {analysis.earningsCatalyst.signalNote}
                       </p>
                     )}
 
                     {/* How to Know Beforehand Decision Support */}
                     {analysis.earningsCatalyst.howToKnowBeforehand && (
-                      <div className="mt-2 pt-2 border-t border-slate-700/50">
+                      <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
                         <div className="text-[10px] font-semibold text-purple-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                           <Target className="w-3 h-3" /> Pre/Post Earnings Decision Playbook
                         </div>
-                        <p className="text-[10px] text-slate-300 leading-relaxed font-medium mb-1.5">
+                        <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed font-medium mb-1.5">
                           {analysis.earningsCatalyst.howToKnowBeforehand.strategy}
                         </p>
                         <ul className="space-y-0.5">
                           {analysis.earningsCatalyst.howToKnowBeforehand.keyRules?.map((rule, rIdx) => (
-                            <li key={rIdx} className="text-[9px] text-slate-400 flex items-start gap-1">
+                            <li key={rIdx} className="text-[9px] text-[var(--text-muted)] flex items-start gap-1">
                               <span className="text-purple-400 mt-0.5">•</span>
                               <span>{rule}</span>
                             </li>
@@ -756,10 +756,10 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
               )}
 
               {/* News & Corporate Intelligence Panel */}
-              <div className="reports-subcard rounded-xl p-3">
+              <div className="reports-subcard rounded-xl p-3 border border-[var(--border-color)]">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Newspaper className="w-3.5 h-3.5 text-blue-400" /> Corporate & Market Intelligence
+                  <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                    <Newspaper className="w-3.5 h-3.5 text-cyan-400" /> Corporate & Market Intelligence
                   </h4>
                   {analysis.newsSignal?.articles?.length > 0 && (
                     <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${
@@ -767,7 +767,7 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : analysis.newsSignal.overallSentiment?.includes('NEGATIVE')
                         ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        : 'bg-slate-700 text-slate-300'
+                        : 'reports-subcard border border-[var(--border-color)] text-[var(--text-secondary)]'
                     }`}>
                       {analysis.newsSignal.overallSentiment}
                     </span>
@@ -776,13 +776,13 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                 {analysis.newsSignal?.articles?.length > 0 ? (
                   <ul className="space-y-2">
                     {analysis.newsSignal.articles.slice(0, 3).map((article, i) => (
-                      <li key={i} className="border-b border-slate-700/30 pb-2 last:border-0 last:pb-0">
+                      <li key={i} className="border-b border-[var(--border-color)] pb-2 last:border-0 last:pb-0">
                         <a href={article.link} target="_blank" rel="noreferrer"
-                          className="text-[10px] text-slate-300 hover:text-white leading-relaxed line-clamp-2 block">
+                          className="text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] leading-relaxed line-clamp-2 block">
                           {article.title}
                         </a>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span className="text-[9px] text-slate-500 font-mono">{article.feedName}</span>
+                          <span className="text-[9px] text-[var(--text-muted)] font-mono">{article.feedName}</span>
                           {article.signals?.map((sig, j) => (
                             <span key={j} className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${sig.weight > 0 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'}`}>
                               {sig.label} {sig.weight > 0 ? `+${sig.weight}` : sig.weight}
@@ -793,7 +793,7 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-slate-500 py-1">
+                  <p className="text-xs text-[var(--text-muted)] py-1">
                     No material corporate filings, order awards, or regulatory disclosures detected in recent RSS & BSE feeds.
                   </p>
                 )}
@@ -801,25 +801,25 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
 
               {/* SIP Plan Summary (inline) */}
               {analysis.sipPlan && (
-                <div className="reports-subcard rounded-xl p-3 md:col-span-2">
+                <div className="reports-subcard rounded-xl p-3 border border-[var(--border-color)] md:col-span-2">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5" /> Opportunistic SIP Plan
+                    <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-purple-400" /> Opportunistic SIP Plan
                     </h4>
                     <button
                       onClick={() => onSipPlanClick(analysis)}
-                      className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                      className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer"
                     >
                       <ExternalLink className="w-2.5 h-2.5" /> Full Plan
                     </button>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {analysis.sipPlan.tranches?.map(t => (
-                      <div key={t.tranche} className="bg-slate-800/50 rounded-lg p-2">
-                        <div className="text-[9px] text-slate-500 uppercase">{t.label}</div>
+                      <div key={t.tranche} className="reports-subcard border border-[var(--border-color)] rounded-lg p-2">
+                        <div className="text-[9px] text-[var(--text-muted)] uppercase">{t.label}</div>
                         <div className="text-xs font-bold text-purple-400 font-mono mt-0.5">{t.amount ? `₹${t.amount.toLocaleString('en-IN')}` : `${Math.round(t.ratio * 100)}% of budget`}</div>
-                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">{t.triggerType === 'IMMEDIATE' ? 'Now' : t.triggerType === 'PRICE_PULLBACK' ? 'On pullback' : 'On 52wk high'}</div>
-                        <div className={`text-[9px] mt-1 px-1 py-0.5 rounded text-center ${t.status === 'READY' ? 'bg-emerald-500/20 text-emerald-400' : t.status === 'ARMED' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-500'}`}>
+                        <div className="text-[9px] text-[var(--text-muted)] mt-0.5 leading-tight">{t.triggerType === 'IMMEDIATE' ? 'Now' : t.triggerType === 'PRICE_PULLBACK' ? 'On pullback' : 'On 52wk high'}</div>
+                        <div className={`text-[9px] mt-1 px-1 py-0.5 rounded text-center ${t.status === 'READY' ? 'bg-emerald-500/20 text-emerald-400' : t.status === 'ARMED' ? 'bg-amber-500/20 text-amber-400' : 'reports-subcard border border-[var(--border-color)] text-[var(--text-muted)]'}`}>
                           {t.status}
                         </div>
                       </div>
@@ -844,12 +844,12 @@ function SummaryBar({ summary, onCardClick, activeSignal, activeBadge }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-5">
       {[
-        { label: 'STRONG BUY', value: summary.strongBuyCount, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', type: 'signal', val: 'STRONG_BUY' },
-        { label: 'BUY', value: summary.buyCount, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20', type: 'signal', val: 'BUY' },
-        { label: 'WATCH', value: summary.watchCount, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', type: 'signal', val: 'WATCH' },
-        { label: 'AWAITING DATA', value: summary.insufficientDataCount, color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20', type: 'signal', val: 'INSUFFICIENT_DATA' },
-        { label: 'SIP Plans', value: summary.withSipPlans, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', type: 'badge', val: 'SIP_READY' },
-        { label: 'Earnings Dates Soon', value: summary.withEarningsCatalyst, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', type: 'badge', val: 'EARNINGS_SOON' },
+        { label: 'STRONG BUY', value: summary.strongBuyCount, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', type: 'signal', val: 'STRONG_BUY' },
+        { label: 'BUY', value: summary.buyCount, color: 'text-cyan-500 dark:text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20', type: 'signal', val: 'BUY' },
+        { label: 'WATCH', value: summary.watchCount, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', type: 'signal', val: 'WATCH' },
+        { label: 'AWAITING DATA', value: summary.insufficientDataCount, color: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg-surface)] border-[var(--border-color)]', type: 'signal', val: 'INSUFFICIENT_DATA' },
+        { label: 'SIP Plans', value: summary.withSipPlans, color: 'text-purple-500 dark:text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', type: 'badge', val: 'SIP_READY' },
+        { label: 'Earnings Dates Soon', value: summary.withEarningsCatalyst, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', type: 'badge', val: 'EARNINGS_SOON' },
       ].map(item => {
         const isActive = (item.type === 'signal' && activeSignal === item.val) || (item.type === 'badge' && activeBadge === item.val);
         return (
@@ -860,7 +860,7 @@ function SummaryBar({ summary, onCardClick, activeSignal, activeBadge }) {
             title={`Click to filter by ${item.label}`}
           >
             <div className={`text-2xl font-black font-mono ${item.color}`}>{item.value ?? 0}</div>
-            <div className="text-[10px] text-slate-500 uppercase tracking-wide mt-0.5">{item.label}</div>
+            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mt-0.5">{item.label}</div>
           </div>
         );
       })}
@@ -1093,7 +1093,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
             </h1>
           )}
           {data?.generatedAt && (
-            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+            <p className="text-xs text-[var(--text-muted)] mt-0.5 flex items-center gap-1.5">
               <Clock className="w-3 h-3 text-emerald-400" />
               Evaluated {new Date(data.generatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
               · {data.candidateCount} candidates screened
@@ -1118,13 +1118,13 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
                     {addingWatch ? '...' : 'Add'}
                   </button>
                   <button onClick={() => setShowWatchlistInput(false)}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors">
+                    className="p-1.5 rounded-lg reports-subcard border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ) : (
                 <button onClick={() => setShowWatchlistInput(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-400 border border-purple-500/30 text-sm transition-colors">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-600 dark:text-purple-400 border border-purple-500/30 text-sm transition-colors cursor-pointer">
                   <PlusCircle className="w-3.5 h-3.5" /> Watchlist
                 </button>
               )}
@@ -1132,15 +1132,13 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
             <button
               onClick={handleRefresh}
               disabled={loading || refreshing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-sm border border-slate-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg reports-subcard border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm transition-colors cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading || refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
         </div>
-
-
 
         {/* Summary Stats */}
         {data?.summary && (
@@ -1158,9 +1156,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
           />
         )}
 
-        {notice && <div className="reports-card border rounded-xl px-4 py-3 text-xs text-slate-300" style={{ borderColor: 'var(--border-subtle)' }}>{notice}</div>}
-
-
+        {notice && <div className="reports-card border rounded-xl px-4 py-3 text-xs text-[var(--text-secondary)]" style={{ borderColor: 'var(--border-subtle)' }}>{notice}</div>}
 
         {/* Filters & Search */}
         <div className="flex items-center gap-3 flex-wrap">
@@ -1170,9 +1166,9 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
               <button
                 key={s}
                 onClick={() => setSignalFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${signalFilter === s
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${signalFilter === s
                   ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'}`}
               >
                 {s === 'ALL' ? 'All' : s === 'STRONG_BUY' ? 'Strong Buy' : s === 'BUY' ? 'Buy' : s === 'WATCH' ? 'Watch' : s === 'INSUFFICIENT_DATA' ? 'Awaiting Data' : 'Monitor'}
               </button>
@@ -1183,7 +1179,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
           <select
             value={sourceFilter}
             onChange={e => setSourceFilter(e.target.value)}
-            className="reports-subcard border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
+            className="reports-subcard border rounded-lg px-3 py-1.5 text-sm focus:outline-none cursor-pointer"
             style={{ color: 'var(--text-primary)', borderColor: 'var(--border-subtle)' }}
           >
             <option value="ALL">All Sources</option>
@@ -1198,7 +1194,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
             <select
               value={badgeFilter}
               onChange={e => setBadgeFilter(e.target.value)}
-              className={`reports-subcard border rounded-lg px-3 py-1.5 text-sm focus:outline-none ${badgeFilter !== 'ALL' ? 'border-purple-500/50 text-purple-300 font-semibold' : ''}`}
+              className={`reports-subcard border rounded-lg px-3 py-1.5 text-sm focus:outline-none cursor-pointer ${badgeFilter !== 'ALL' ? 'border-purple-500/50 text-purple-600 dark:text-purple-300 font-semibold' : ''}`}
               style={{ color: badgeFilter !== 'ALL' ? undefined : 'var(--text-primary)', borderColor: badgeFilter !== 'ALL' ? undefined : 'var(--border-subtle)' }}
             >
               <option value="ALL">All Badges & Tags</option>
@@ -1218,7 +1214,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
             {badgeFilter !== 'ALL' && (
               <button
                 onClick={() => setBadgeFilter('ALL')}
-                className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                className="px-2 py-1 text-xs rounded reports-subcard border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 title="Reset badge filter"
               >
                 Clear
@@ -1230,7 +1226,7 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value)}
-            className="reports-subcard border rounded-lg px-3 py-1.5 text-sm focus:outline-none"
+            className="reports-subcard border rounded-lg px-3 py-1.5 text-sm focus:outline-none cursor-pointer"
             style={{ color: 'var(--text-primary)', borderColor: 'var(--border-subtle)' }}
           >
             <option value="signal">Sort: Signal Strength</option>
@@ -1240,35 +1236,45 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
 
           {/* Search */}
           <div className="relative flex-1 min-w-48">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
             <input
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search symbol or name..."
-              className="w-full reports-subcard border rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none"
+              className="w-full reports-subcard border rounded-lg pl-9 pr-8 py-1.5 text-sm focus:outline-none placeholder-[var(--text-muted)]"
               style={{ color: 'var(--text-primary)', borderColor: 'var(--border-subtle)' }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {filteredAnalyses.length > 0 && (
-            <span className="text-xs text-slate-500">{filteredAnalyses.length} results</span>
+            <span className="text-xs text-[var(--text-muted)]">{filteredAnalyses.length} results</span>
           )}
         </div>
 
         {/* Content */}
         {loading && !data ? (
-          <div className="flex items-center justify-center py-24 text-slate-500">
-            <RefreshCw className="w-6 h-6 animate-spin mr-3" />
+          <div className="flex items-center justify-center py-24 text-[var(--text-muted)]">
+            <RefreshCw className="w-6 h-6 animate-spin mr-3 text-cyan-400" />
             <span>Running buy analysis across {200}+ stocks...</span>
           </div>
         ) : error ? (
           <div className="reports-card border border-red-500/30 rounded-2xl p-6 text-center">
             <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-3" />
             <p className="text-red-400 font-semibold">{error}</p>
-            <button onClick={() => fetchData(true)} className="mt-3 px-4 py-2 bg-slate-800 rounded-lg text-slate-300 text-sm">Retry</button>
+            <button onClick={() => fetchData(true)} className="mt-3 px-4 py-2 reports-subcard border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] hover:bg-white/10 text-sm cursor-pointer">Retry</button>
           </div>
         ) : filteredAnalyses.length === 0 ? (
-          <div className="reports-card rounded-2xl p-8 text-center text-slate-500">
+          <div className="reports-card rounded-2xl p-8 text-center text-[var(--text-muted)]">
             <Target className="w-8 h-8 mx-auto mb-3 opacity-30" />
             <p>No stocks match the current filters.</p>
             <p className="text-xs mt-1">Try broadening the signal filter or refreshing fundamentals.</p>
@@ -1292,18 +1298,18 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
 
         {/* Legend */}
         <div className="reports-card rounded-2xl p-4 border" style={{ borderColor: 'var(--border-subtle)' }}>
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Signal Guide</h3>
+          <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-3">Signal Guide</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {Object.entries(SIGNAL_CONFIG).map(([key, config]) => (
               <div key={key} className={`${config.bgColor} border ${config.borderColor} rounded-xl p-2.5`}>
                 <SignalBadge signal={key} size="sm" />
-                <p className="text-[10px] text-slate-500 mt-1.5 leading-tight">{config.description}</p>
+                <p className="text-[10px] text-[var(--text-muted)] mt-1.5 leading-tight">{config.description}</p>
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-3 border-t border-slate-800/50">
-            <p className="text-[10px] text-slate-500 leading-relaxed">
-              <strong className="text-slate-400">Scores:</strong> Fundamentals with incomplete or stale coverage are labeled insufficient. Buy states require a close-based setup with an estimated reward/risk of at least 2:1. Strong Buy also requires confirmed volume, valuation, filing, pledge, leverage, and portfolio-risk evidence; missing evidence blocks the label.
+          <div className="mt-3 pt-3 border-t border-[var(--border-color)]">
+            <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+              <strong className="text-[var(--text-primary)] font-bold">Scores:</strong> Fundamentals with incomplete or stale coverage are labeled insufficient. Buy states require a close-based setup with an estimated reward/risk of at least 2:1. Strong Buy also requires confirmed volume, valuation, filing, pledge, leverage, and portfolio-risk evidence; missing evidence blocks the label.
               SIP plans are manual, budgeted by the user, and expire for re-evaluation. News and estimated result dates do not independently change a signal.
             </p>
           </div>

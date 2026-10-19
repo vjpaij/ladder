@@ -18,6 +18,7 @@ import {
   SearchCheck,
   PlusCircle,
   Clock,
+  BookOpen,
 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import logoImg from '../assets/logo.png';
@@ -39,6 +40,7 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
         { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'reports', label: 'Reports', icon: PieChart },
         { id: 'stock_analysis', label: 'Stock Analysis', icon: SearchCheck },
+        { id: 'trade_journal', label: 'Trade Journal', icon: BookOpen },
       ]
     },
     {

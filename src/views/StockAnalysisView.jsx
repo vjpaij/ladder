@@ -18,12 +18,14 @@ import {
   RefreshCw,
   Scale,
   Search,
+  SearchCheck,
   Settings2,
   ShieldAlert,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useThemeAuth } from '../context/ThemeAuthContext';
@@ -57,7 +59,7 @@ const STATE_META = {
   },
   DATA_UNAVAILABLE: {
     label: 'IPO (<40w)',
-    tone: 'text-slate-400 border-slate-600/50 bg-white/[0.03]'
+    tone: 'text-[var(--text-muted)] border-[var(--border-color)] bg-[var(--bg-card)]'
   }
 };
 
@@ -87,10 +89,10 @@ function money(formatMoney, amount, compact = false, currency = 'INR') {
 
 function Metric({ label, value, detail, tone = 'text-inherit' }) {
   return (
-    <div className="reports-subcard rounded-2xl border border-slate-800/70 p-3 min-w-0 flex flex-col justify-between" title={typeof value === 'string' ? value : undefined}>
-      <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold leading-tight">{label}</div>
+    <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3 min-w-0 flex flex-col justify-between" title={typeof value === 'string' ? value : undefined}>
+      <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold leading-tight">{label}</div>
       <div className={`mt-1 text-base font-black font-mono break-words leading-tight ${tone}`}>{value}</div>
-      {detail && <div className="mt-1 text-[10px] text-slate-400 break-words leading-snug">{detail}</div>}
+      {detail && <div className="mt-1 text-[10px] text-[var(--text-secondary)] break-words leading-snug">{detail}</div>}
     </div>
   );
 }
@@ -98,7 +100,7 @@ function Metric({ label, value, detail, tone = 'text-inherit' }) {
 function StateBadge({ state, isCompounding, dataQuality }) {
   if (isCompounding) {
     return (
-      <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-emerald-300 border-emerald-500/40 bg-emerald-500/15 flex items-center gap-1">
+      <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-emerald-400 dark:text-emerald-300 border-emerald-500/40 bg-emerald-500/15 flex items-center gap-1">
         <ShieldCheck className="w-3 h-3 text-emerald-400" /> Bull
       </span>
     );
@@ -106,13 +108,13 @@ function StateBadge({ state, isCompounding, dataQuality }) {
   if (state === 'DATA_UNAVAILABLE') {
     if (dataQuality === 'PRICE_HISTORY_QUOTE_MISMATCH') {
       return (
-        <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-amber-300 border-amber-500/30 bg-amber-500/10">
+        <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-amber-500 dark:text-amber-300 border-amber-500/30 bg-amber-500/10">
           Quote Gap
         </span>
       );
     }
     return (
-      <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-slate-400 border-slate-700 bg-white/[0.03]">
+      <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold whitespace-nowrap text-[var(--text-muted)] border-[var(--border-color)] bg-[var(--bg-card)]">
         IPO (&lt;40w)
       </span>
     );
@@ -131,7 +133,7 @@ let cachedStockAnalysisData = null;
 export default function StockAnalysisView({ holdings = [], onSelectHolding, initialTab }) {
   const { formatMoney } = useThemeAuth();
   const [activeAnalysisMode, setActiveAnalysisMode] = useState(() => {
-    if (initialTab && (initialTab === 'buy' || initialTab === 'sell')) {
+    if (initialTab && (initialTab === 'buy' || initialTab === 'sell' || initialTab === 'journal')) {
       return initialTab;
     }
     try {
@@ -309,7 +311,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
   };
 
   const priceChart = selected?.history || [];
-  const returnTone = value => value === null || value === undefined ? 'text-slate-400' : value >= 0 ? 'text-emerald-400' : 'text-rose-400';
+  const returnTone = value => value === null || value === undefined ? 'text-[var(--text-muted)]' : value >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400';
 
   const counts = useMemo(() => {
     return {
@@ -328,40 +330,41 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
   return (
     <div className="space-y-5">
       {/* 1. Master Executive Stock Analysis Header */}
-      <div className="glass-card rounded-3xl border border-slate-800 p-4 md:p-5">
+      <div className="reports-card rounded-3xl border border-[var(--border-color)] p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-cyan-400 mb-1">
-              <CandlestickChart className="w-4 h-4" />
-              <span className="text-[10px] font-bold tracking-[0.16em] uppercase">Confluence Intelligence Engine</span>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-600 dark:text-cyan-400">
+              <SearchCheck className="w-5 h-5" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              Stock Analysis
-            </h2>
+            <div>
+              <h2 className="text-xl font-black text-[var(--text-primary)]">
+                Stock Analysis
+              </h2>
+            </div>
           </div>
 
           {/* Master Mode Switcher: Buy Analysis vs Sell Analysis */}
-          <div className="flex items-center p-1 rounded-2xl border border-slate-800 bg-slate-950/80 backdrop-blur-md shadow-inner">
+          <div className="flex items-center p-1 rounded-2xl border border-[var(--border-color)] reports-subcard shadow-inner">
             <button
               type="button"
               onClick={() => handleModeChange('buy')}
               className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeAnalysisMode === 'buy'
-                  ? 'text-emerald-300'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-emerald-500 dark:text-emerald-300'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               {activeAnalysisMode === 'buy' && (
                 <motion.div
                   layoutId="stockAnalysisModeIndicator"
-                  className="absolute inset-0 bg-emerald-500/20 border border-emerald-500/40 rounded-xl shadow-sm"
+                  className="absolute inset-0 bg-emerald-500/15 border border-emerald-500/40 rounded-xl shadow-sm"
                   transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}
               <TrendingUp className="w-4 h-4 relative z-10" />
               <span className="relative z-10">Buy Analysis</span>
               {buyOpportunityCount > 0 && (
-                <span className="relative z-10 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/25 text-emerald-300 border border-emerald-500/40">
+                <span className="relative z-10 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 dark:text-emerald-300 border border-emerald-500/40">
                   {buyOpportunityCount}
                 </span>
               )}
@@ -372,21 +375,21 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
               onClick={() => handleModeChange('sell')}
               className={`relative flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeAnalysisMode === 'sell'
-                  ? 'text-rose-300'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-rose-500 dark:text-rose-300'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               {activeAnalysisMode === 'sell' && (
                 <motion.div
                   layoutId="stockAnalysisModeIndicator"
-                  className="absolute inset-0 bg-rose-500/20 border border-rose-500/40 rounded-xl shadow-sm"
+                  className="absolute inset-0 bg-rose-500/15 border border-rose-500/40 rounded-xl shadow-sm"
                   transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}
               <ShieldAlert className="w-4 h-4 relative z-10" />
               <span className="relative z-10">Sell Analysis</span>
               {sellCandidateCount > 0 && (
-                <span className="relative z-10 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-rose-500/25 text-rose-300 border border-rose-500/40">
+                <span className="relative z-10 text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/40">
                   {sellCandidateCount}
                 </span>
               )}
@@ -417,29 +420,30 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
             className="space-y-5"
           >
             {/* 2. Executive Hero Header for Sell & Exit Intelligence */}
-            <div className="glass-card rounded-3xl border border-slate-800 p-5">
+            <div className="reports-card rounded-3xl border border-[var(--border-color)] p-4 md:p-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-rose-400 mb-1">
-                      <ShieldAlert className="w-4 h-4" />
-                      <span className="text-[10px] font-bold tracking-[0.16em] uppercase">Exit & Hold Strategy</span>
-                    </div>
-                    <h3 className="text-xl font-black text-inherit">Portfolio Sell & Risk Analysis</h3>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-600 dark:text-rose-400">
+                    <ShieldAlert className="w-5 h-5" />
                   </div>
+                  <div>
+                    <h3 className="text-xl font-black text-inherit">Sell & Risk Analysis</h3>
+                  </div>
+                </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* Market Selector Pill Switcher */}
-                    <div className="flex items-center p-1 rounded-2xl border border-slate-800 bg-slate-950/50 shadow-inner">
+                    <div className="flex items-center p-1 rounded-2xl border border-[var(--border-color)] reports-subcard shadow-inner">
                       <button
                         onClick={() => setMarket('IN')}
                         className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           !isUsMarket
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                            : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                            ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
                         }`}
                       >
                         <span className="text-sm">🇮🇳</span>
                         <span>Indian Stocks</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-secondary)]">
                           {data?.analyses?.length || 0}
                         </span>
                       </button>
@@ -447,13 +451,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         onClick={() => setMarket('US')}
                         className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                           isUsMarket
-                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                            : 'text-slate-400 hover:text-slate-200 border border-transparent'
+                            ? 'bg-cyan-500/20 text-cyan-500 dark:text-cyan-300 border border-cyan-500/40 shadow-sm'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
                         }`}
                       >
                         <span className="text-sm">🇺🇸</span>
                         <span>US Stocks</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-slate-400">
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-secondary)]">
                           {data?.usAnalyses?.length || 0}
                         </span>
                       </button>
@@ -463,8 +467,8 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       <div
                         className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold ${
                           data.dataIntegrity.status === 'VERIFIED_ACCURATE'
-                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                            : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500 dark:text-emerald-300'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-500 dark:text-amber-300'
                         }`}
                         title={`Audited ${data.dataIntegrity.activeEquitiesAudited} stocks: ${data.dataIntegrity.reconciliationsApplied?.length || 0} feed bad ticks reconciled, ${data.dataIntegrity.corporateActionsVerified?.length || 0} corporate actions verified.`}
                       >
@@ -475,7 +479,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     <button
                       onClick={() => reload(false)}
                       disabled={refreshing || loading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/40 text-[10px] font-bold text-slate-300 hover:text-emerald-400 hover:border-emerald-500/30 transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border-color)] reports-subcard text-[10px] font-bold text-[var(--text-secondary)] hover:text-emerald-500 dark:hover:text-emerald-400 hover:border-emerald-500/30 transition-colors cursor-pointer"
                     >
                       <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
                       <span>Refresh</span>
@@ -527,35 +531,35 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
       <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] 2xl:grid-cols-[400px_1fr] gap-5 items-start">
         {/* Left Column: Filter Tabs, Search & Holdings List */}
         <div className="min-w-0">
-          <section className="glass-card rounded-3xl border border-slate-800 p-4 sticky top-20 max-h-[calc(100vh-100px)] flex flex-col">
+          <section className="reports-card rounded-3xl border border-[var(--border-color)] p-4 sticky top-20 max-h-[calc(100vh-100px)] flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-inherit">{isUsMarket ? 'US Equities' : 'Indian Equities'}</h3>
-              <span className="text-[10px] text-slate-500 font-mono">{visible.length} / {analyses.length}</span>
+              <span className="text-[10px] text-[var(--text-muted)] font-mono">{visible.length} / {analyses.length}</span>
             </div>
 
             {/* Filter Tabs */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3 bg-slate-950/40 p-1.5 rounded-2xl border border-slate-800/80">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3 reports-subcard p-1.5 rounded-2xl border border-[var(--border-color)]">
               <button
                 onClick={() => setActiveTab('ALL')}
-                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors ${activeTab === 'ALL' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors cursor-pointer ${activeTab === 'ALL' ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-300 border border-emerald-500/30' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
               >
                 All ({counts.all})
               </button>
               <button
                 onClick={() => setActiveTab('COMPOUNDING')}
-                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 ${activeTab === 'COMPOUNDING' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer ${activeTab === 'COMPOUNDING' ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-300 border border-emerald-500/30' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
               >
                 <ShieldCheck className="w-3 h-3 text-emerald-400" /> Bull ({counts.compounding})
               </button>
               <button
                 onClick={() => setActiveTab('TRIM')}
-                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 ${activeTab === 'TRIM' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer ${activeTab === 'TRIM' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/30' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
               >
                 <AlertTriangle className="w-3 h-3 text-rose-400" /> Trim ({counts.trim})
               </button>
               <button
                 onClick={() => setActiveTab('FOUR_RED_EMA')}
-                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 ${activeTab === 'FOUR_RED_EMA' ? 'bg-rose-500/25 text-rose-300 border border-rose-500/40 shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer ${activeTab === 'FOUR_RED_EMA' ? 'bg-rose-500/25 text-rose-500 dark:text-rose-300 border border-rose-500/40 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                 title="Stocks with last 4 daily candles closed continuously Red below 21-day EMA and >= 5% below 21-EMA"
               >
                 <CandlestickChart className="w-3 h-3 text-rose-400" /> 4 Red &lt; 21 EMA ({counts.fourRedEma})
@@ -564,13 +568,23 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
             {/* Search Input */}
             <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" />
               <input
                 value={query}
                 onChange={event => setQuery(event.target.value)}
                 placeholder="Search symbol, company, sector..."
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/30 py-2 pl-9 pr-3 text-xs text-inherit outline-none focus:border-emerald-500/50"
+                className="w-full rounded-xl border border-[var(--border-color)] reports-subcard py-2 pl-9 pr-8 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-emerald-500/50"
               />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Holdings Scroll List - Uses Full Available Height */}
@@ -580,10 +594,10 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                   key={item.holdingId}
                   onClick={() => setSelectedId(item.holdingId)}
                   title={item.name}
-                  className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors border ${
+                  className={`w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors border cursor-pointer ${
                     activeId === item.holdingId
                       ? 'bg-emerald-500/15 border-emerald-500/40 shadow-sm'
-                      : 'border-transparent hover:bg-white/[0.04]'
+                      : 'border-transparent hover:bg-[var(--bg-card)]'
                   }`}
                 >
                   <HoldingLogo holding={item} className="w-7 h-7 rounded-lg shrink-0" />
@@ -594,7 +608,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       </span>
                       {item.has4RedCandlesBelow21Ema && (
                         <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-black border border-rose-500/40 bg-rose-500/20 text-rose-300 shadow-sm whitespace-nowrap"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-black border border-rose-500/40 bg-rose-500/20 text-rose-500 dark:text-rose-300 shadow-sm whitespace-nowrap"
                           title={`Last 4 daily candles closed Red below 21-day EMA (${item.distanceToDailyEma21Pct}% below 21-EMA)`}
                         >
                           <CandlestickChart className="w-2.5 h-2.5 text-rose-400 shrink-0" />
@@ -602,7 +616,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-slate-500 flex items-center gap-1.5 font-mono">
+                    <div className="text-[10px] text-[var(--text-muted)] flex items-center gap-1.5 font-mono">
                       <span>{item.symbol}</span>
                       <span>•</span>
                       <span>{item.currentWeightPct.toFixed(1)}% wt</span>
@@ -618,10 +632,10 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                 </button>
               ))}
               {visible.length === 0 && !loading && (
-                <div className="py-12 text-center text-xs text-slate-500">No holdings match the active filter.</div>
+                <div className="py-12 text-center text-xs text-[var(--text-muted)]">No holdings match the active filter.</div>
               )}
               {loading && (
-                <div className="py-12 text-center text-xs text-slate-500">Evaluating technical and fundamental engines…</div>
+                <div className="py-12 text-center text-xs text-[var(--text-muted)]">Evaluating technical and fundamental engines…</div>
               )}
             </div>
           </section>
@@ -631,24 +645,24 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
         <div className="min-w-0">
           <div className="space-y-5">
             {!selected ? (
-              <div className="glass-card rounded-3xl border border-slate-800 p-12 text-center text-sm text-slate-500">
+              <div className="reports-card rounded-3xl border border-[var(--border-color)] p-12 text-center text-sm text-[var(--text-muted)]">
                 Select an Indian equity holding on the left to inspect technical, fundamental, and staged exit intelligence.
               </div>
             ) : (
               <>
                 {/* Holding Header Card */}
-                <section className="glass-card rounded-3xl border border-slate-800 p-5">
+                <section className="reports-card rounded-3xl border border-[var(--border-color)] p-5">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex items-center gap-3.5">
                       <HoldingLogo holding={selected} className="w-12 h-12 rounded-2xl" />
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-xl font-black text-inherit">{selected.name}</h3>
-                          <span className="text-xs text-slate-400 font-mono">{selected.symbol}</span>
+                          <span className="text-xs text-[var(--text-muted)] font-mono">{selected.symbol}</span>
                           <StateBadge state={selected.state} isCompounding={selected.compoundingShield?.isActive} dataQuality={selected.dataQuality} />
                           {selected.has4RedCandlesBelow21Ema && (
                             <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black border border-rose-500/50 bg-rose-500/20 text-rose-200 shadow-sm"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black border border-rose-500/50 bg-rose-500/20 text-rose-500 dark:text-rose-200 shadow-sm"
                               title={`Last 4 daily candles closed continuously Red below 21-day EMA (latest ${selected.distanceToDailyEma21Pct}% below 21-EMA)`}
                             >
                               <CandlestickChart className="w-3.5 h-3.5 text-rose-400" />
@@ -656,7 +670,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
                           <span>{selected.quantity.toLocaleString()} shares held</span>
                           <span>•</span>
                           <span>{selected.currentWeightPct.toFixed(2)}% of {isUsMarket ? 'US equity' : 'Indian equity'}</span>
@@ -677,7 +691,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         {onSelectHolding && (
                           <button
                             onClick={() => onSelectHolding(holdings.find(h => String(h.id) === selected.holdingId))}
-                            className="rounded-lg border border-slate-700 px-2 py-1 text-[10px] font-bold text-slate-300 hover:border-emerald-500/40 hover:text-emerald-300 transition-colors"
+                            className="rounded-lg border border-[var(--border-color)] reports-subcard px-2 py-1 text-[10px] font-bold text-[var(--text-secondary)] hover:border-emerald-500/40 hover:text-emerald-500 dark:hover:text-emerald-300 transition-colors cursor-pointer"
                           >
                             Open Ledger
                           </button>
@@ -686,7 +700,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           href={selected.fundamentals?.screenerUrl || (isUsMarket ? `https://finviz.com/quote.ashx?t=${encodeURIComponent(selected.symbol)}` : `https://www.screener.in/search/?q=${encodeURIComponent(selected.symbol)}`)}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-500/20 flex items-center gap-1 transition-colors"
+                          className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-bold text-cyan-600 dark:text-cyan-300 hover:bg-cyan-500/20 flex items-center gap-1 transition-colors"
                         >
                           {isUsMarket ? 'Finviz.com' : 'Screener.in'} <ExternalLink className="w-2.5 h-2.5" />
                         </a>
@@ -694,7 +708,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           href={isUsMarket ? `https://gocharting.com/terminal?ticker=NASDAQ:${encodeURIComponent(selected.symbol)}` : `https://gocharting.com/terminal?ticker=${selected.symbol?.endsWith('.BO') ? 'BSE:' : 'NSE:'}${encodeURIComponent((selected.symbol || '').replace(/\.(NS|BO)$/i, '').trim())}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 transition-colors"
+                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-600 dark:text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 transition-colors"
                           title="Open chart on GoCharting"
                         >
                           GoCharting <ExternalLink className="w-2.5 h-2.5" />
@@ -729,48 +743,48 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                     return (
                       <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <div className="reports-subcard rounded-2xl border border-slate-800/80 p-3 flex flex-col justify-between">
-                          <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold flex items-center justify-between">
+                        <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3 flex flex-col justify-between">
+                          <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold flex items-center justify-between">
                             <span>Close Price</span>
-                            <span className="text-[10px] text-slate-400 font-mono">
+                            <span className="text-[10px] text-[var(--text-muted)] font-mono">
                               Val: {money(formatMoney, currentVal, true, isUs ? 'USD' : 'INR')}
                             </span>
                           </div>
-                          <div className="mt-1 text-base font-black font-mono text-emerald-400">
+                          <div className="mt-1 text-base font-black font-mono text-emerald-500 dark:text-emerald-400">
                             {money(formatMoney, curPrice, true, isUs ? 'USD' : 'INR')}
                           </div>
-                          <div className="mt-1 text-[10px] text-slate-400 font-mono">
+                          <div className="mt-1 text-[10px] text-[var(--text-muted)] font-mono">
                             {exchangeSub || 'Latest Market Quote'}
                           </div>
                         </div>
 
-                        <div className="reports-subcard rounded-2xl border border-slate-800/80 p-3 flex flex-col justify-between">
-                          <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">
+                        <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3 flex flex-col justify-between">
+                          <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">
                             Avg Buy Price
                           </div>
                           <div className="mt-1 text-base font-black font-mono text-inherit">
                             {money(formatMoney, avgBuy, true, isUs ? 'USD' : 'INR')}
                           </div>
-                          <div className="mt-1 text-[10px] text-slate-400 font-mono">
+                          <div className="mt-1 text-[10px] text-[var(--text-muted)] font-mono">
                             Invested: {money(formatMoney, investedVal, true, isUs ? 'USD' : 'INR')}{isUs && selected.investedValueINR ? ` (${money(formatMoney, selected.investedValueINR)})` : ''}
                           </div>
                         </div>
 
-                        <div className="reports-subcard rounded-2xl border border-slate-800/80 p-3 flex flex-col justify-between">
-                          <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">
+                        <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3 flex flex-col justify-between">
+                          <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">
                             Total Gain / Loss
                           </div>
-                          <div className={`mt-1 text-base font-black font-mono ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <div className={`mt-1 text-base font-black font-mono ${isPositive ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                             {isPositive ? '+' : '-'}{money(formatMoney, Math.abs(unpnl), false, isUs ? 'USD' : 'INR')}
                           </div>
                           <div className="mt-1 text-[10px] font-mono font-bold flex items-center gap-2">
-                            <span className={isPositive ? 'text-emerald-400/90' : 'text-rose-400/90'}>
+                            <span className={isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
                               Abs: {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
                             </span>
                             {selected.xirrPct !== undefined && selected.xirrPct !== null && (
                               <>
-                                <span className="text-slate-600 font-normal">•</span>
-                                <span className={Number(selected.xirrPct) >= 0 ? 'text-emerald-400/90' : 'text-rose-400/90'}>
+                                <span className="text-[var(--text-muted)] font-normal">•</span>
+                                <span className={Number(selected.xirrPct) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
                                   XIRR: {Number(selected.xirrPct) >= 0 ? '+' : ''}{Number(selected.xirrPct).toFixed(2)}%
                                 </span>
                               </>
@@ -808,11 +822,11 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     }[actionType];
 
                     const actionTheme = {
-                      EXIT: 'border-red-500/50 bg-red-500/[0.08] text-red-300',
-                      TRIM: 'border-rose-500/40 bg-rose-500/[0.07] text-rose-300',
-                      WATCH: 'border-amber-500/40 bg-amber-500/[0.07] text-amber-300',
-                      IPO_HOLD: 'border-cyan-500/30 bg-cyan-500/[0.06] text-cyan-300',
-                      HOLD: 'border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-300'
+                      EXIT: 'border-red-500/50 bg-red-500/[0.08] text-red-600 dark:text-red-300',
+                      TRIM: 'border-rose-500/40 bg-rose-500/[0.07] text-rose-600 dark:text-rose-300',
+                      WATCH: 'border-amber-500/40 bg-amber-500/[0.07] text-amber-600 dark:text-amber-300',
+                      IPO_HOLD: 'border-cyan-500/30 bg-cyan-500/[0.06] text-cyan-600 dark:text-cyan-300',
+                      HOLD: 'border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-300'
                     }[actionType];
 
                     const sellQty = isFullExit
@@ -855,39 +869,39 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           </div>
                           <span className={`text-xs font-black font-mono px-3 py-1 rounded-full border ${
                             sellQty > 0
-                              ? 'border-rose-500/50 bg-rose-500/20 text-rose-200'
-                              : 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300'
+                              ? 'border-rose-500/50 bg-rose-500/20 text-rose-600 dark:text-rose-200'
+                              : 'border-emerald-500/40 bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
                           }`}>
                             {sellQty > 0 ? `Sell: ${sellQty.toLocaleString()} shares` : 'Sell: 0 shares'}
                           </span>
                         </div>
 
-                        <p className="text-xs leading-relaxed text-slate-300 mb-3">
+                        <p className="text-xs leading-relaxed text-[var(--text-secondary)] mb-3">
                           {reasonText}
                         </p>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
-                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Action Needed</div>
-                            <div className={`mt-0.5 text-sm font-black font-mono ${sellQty > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                          <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Action Needed</div>
+                            <div className={`mt-0.5 text-sm font-black font-mono ${sellQty > 0 ? 'text-rose-500 dark:text-rose-300' : 'text-emerald-500 dark:text-emerald-300'}`}>
                               {sellQty > 0 ? `Sell ${sellQty.toLocaleString()} shs` : 'Do Not Sell'}
                             </div>
                           </div>
-                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
-                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Keep Holding</div>
+                          <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Keep Holding</div>
                             <div className="mt-0.5 text-sm font-black font-mono text-inherit">
                               {remainingShares.toLocaleString()} shares
                             </div>
                           </div>
-                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
-                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Trailing Stop Floor</div>
+                          <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Trailing Stop Floor</div>
                             <div className="mt-0.5 text-sm font-black font-mono text-inherit">
                               {money(formatMoney, selected.compoundingShield?.trailingFloorPrice || selected.trailingFloorPrice || selected.chandelierStopPrice, true)}
                             </div>
                           </div>
-                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-2.5">
-                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Safety Cushion</div>
-                            <div className="mt-0.5 text-sm font-black font-mono text-cyan-300">
+                          <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
+                            <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Safety Cushion</div>
+                            <div className="mt-0.5 text-sm font-black font-mono text-cyan-500 dark:text-cyan-300">
                               {selected.bufferToTrailingFloorPct !== null && selected.bufferToTrailingFloorPct !== undefined ? `+${selected.bufferToTrailingFloorPct}%` : (selected.compoundingShield?.bufferToTrailingFloorPct ? `+${selected.compoundingShield.bufferToTrailingFloorPct}%` : '—')}
                             </div>
                           </div>
@@ -898,7 +912,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                   {/* 4. STAGED MULTI-TRANCHE EXIT PLAN & EXECUTION TRACKER */}
                   {selected.stagedExitPlan && (
-                    <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                    <div className="mt-4 rounded-2xl border border-[var(--border-color)] reports-subcard p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2">
                           <Layers className="w-4 h-4 text-cyan-400" />
@@ -910,10 +924,10 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                       {/* Ledger Audit Status Message */}
                       {selected.stagedExitPlan.ledgerAudit?.auditMessage && (
-                        <div className="mb-3 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.05] p-2.5 text-[10px] text-cyan-200 flex items-center justify-between">
+                        <div className="mb-3 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.05] p-2.5 text-[10px] text-cyan-600 dark:text-cyan-200 flex items-center justify-between">
                           <span>{selected.stagedExitPlan.ledgerAudit.auditMessage}</span>
                           {selected.stagedExitPlan.ledgerAudit.recentSharesSold > 0 && (
-                            <span className="font-bold text-emerald-300 font-mono">
+                            <span className="font-bold text-emerald-500 dark:text-emerald-300 font-mono">
                               Locked {money(formatMoney, selected.stagedExitPlan.ledgerAudit.totalGrossProceedsLocked)}
                             </span>
                           )}
@@ -927,15 +941,15 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                             ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
                             : selected.stagedExitPlan.tranche1?.status === 'PENDING'
                               ? 'border-rose-500/30 bg-rose-500/[0.05]'
-                              : 'border-slate-800 bg-slate-900/30 opacity-70'
+                              : 'border-[var(--border-color)] reports-subcard opacity-70'
                         }`}>
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="text-[10px] font-bold text-inherit">{selected.stagedExitPlan.tranche1?.name}</span>
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                                 selected.stagedExitPlan.tranche1?.status === 'COMPLETED'
-                                   ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
-                                  : 'border-amber-500/30 text-amber-300 bg-amber-500/10'
+                                   ? 'border-emerald-500/40 text-emerald-500 dark:text-emerald-300 bg-emerald-500/10'
+                                  : 'border-amber-500/30 text-amber-500 dark:text-amber-300 bg-amber-500/10'
                               }`}>
                                 {selected.stagedExitPlan.tranche1?.status}
                               </span>
@@ -943,7 +957,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                             <div className="text-base font-black font-mono text-inherit">
                               {selected.stagedExitPlan.tranche1?.targetShares?.toLocaleString() || '—'} shares
                             </div>
-                            <div className="text-[10px] text-slate-400 mt-1">
+                            <div className="text-[10px] text-[var(--text-muted)] mt-1">
                               Trigger: 30w-SMA ({(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche1?.triggerPrice})
                             </div>
                           </div>
@@ -955,15 +969,15 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                             ? 'border-rose-500/50 bg-rose-500/10'
                             : selected.stagedExitPlan.tranche2?.status === 'ARMED'
                               ? 'border-amber-500/30 bg-amber-500/[0.05]'
-                              : 'border-slate-800 bg-slate-900/30 opacity-70'
+                              : 'border-[var(--border-color)] reports-subcard opacity-70'
                         }`}>
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="text-[10px] font-bold text-inherit">{selected.stagedExitPlan.tranche2?.name}</span>
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                                 selected.stagedExitPlan.tranche2?.status === 'READY'
-                                  ? 'border-rose-500/40 text-rose-300 bg-rose-500/20'
-                                  : 'border-slate-700 text-slate-400'
+                                  ? 'border-rose-500/40 text-rose-500 dark:text-rose-300 bg-rose-500/20'
+                                  : 'border-[var(--border-color)] text-[var(--text-muted)]'
                               }`}>
                                 {selected.stagedExitPlan.tranche2?.status}
                               </span>
@@ -971,25 +985,25 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                             <div className="text-base font-black font-mono text-inherit">
                               {selected.stagedExitPlan.tranche2?.targetShares?.toLocaleString() || '—'} shares
                             </div>
-                            <div className="text-[10px] text-slate-400 mt-1">
+                            <div className="text-[10px] text-[var(--text-muted)] mt-1">
                               Trigger Floor: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche2?.triggerPrice}
                             </div>
                           </div>
                         </div>
 
                         {/* Tranche 3 Card */}
-                        <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-3 opacity-70 flex flex-col justify-between">
+                        <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-3 opacity-70 flex flex-col justify-between">
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="text-[10px] font-bold text-inherit">{selected.stagedExitPlan.tranche3?.name}</span>
-                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-slate-700 text-slate-400">
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-[var(--border-color)] text-[var(--text-muted)]">
                                 {selected.stagedExitPlan.tranche3?.status}
                               </span>
                             </div>
                             <div className="text-base font-black font-mono text-inherit">
                               {selected.stagedExitPlan.tranche3?.targetShares?.toLocaleString() || '—'} shares
                             </div>
-                            <div className="text-[10px] text-slate-400 mt-1">
+                            <div className="text-[10px] text-[var(--text-muted)] mt-1">
                               Full Exit Floor: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche3?.triggerPrice}
                             </div>
                           </div>
@@ -1001,20 +1015,20 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                   {/* 5. PRINCIPAL HARVEST ("HOUSE MONEY") MILESTONE */}
                   {selected.principalHarvest?.isEligible && (
                     <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] p-3.5 flex items-start gap-3">
-                      <Flame className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <Flame className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                          <span className="text-xs font-bold text-amber-600 dark:text-amber-300 uppercase tracking-wider">
                             Multi-Bagger Milestone: 100% Principal Harvest Eligible
                           </span>
-                          <span className="text-[10px] font-mono text-amber-400 font-bold">
+                          <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold">
                             Gain: +{selected.principalHarvest.gainPct}%
                           </span>
                         </div>
-                        <div className="pt-1 flex flex-wrap items-center gap-4 text-[10px] text-slate-300">
+                        <div className="pt-1 flex flex-wrap items-center gap-4 text-[10px] text-[var(--text-secondary)]">
                           <span>Sell <b>{selected.principalHarvest.sharesToHarvest} shares</b> to recover ₹{selected.principalHarvest.capitalRecoveredINR?.toLocaleString('en-IN', { maximumFractionDigits: 0 })} principal</span>
                           <span>•</span>
-                          <span className="text-emerald-300 font-bold">{selected.principalHarvest.remainingShares} shares ride risk-free</span>
+                          <span className="text-emerald-600 dark:text-emerald-300 font-bold">{selected.principalHarvest.remainingShares} shares ride risk-free</span>
                         </div>
                       </div>
                     </div>
@@ -1022,22 +1036,22 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                 </section>
 
                 {/* 6. DUAL-TAB DOSSIER: TECHNICAL VS FUNDAMENTAL ANALYSIS */}
-                <section className="glass-card rounded-3xl border border-slate-800 p-5">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                <section className="reports-card rounded-3xl border border-[var(--border-color)] p-5">
+                  <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3 mb-4">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setActiveDossierTab('TECHNICAL')}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors ${activeDossierTab === 'TECHNICAL' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${activeDossierTab === 'TECHNICAL' ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                       >
                         Technical Analysis & Trailing Stops
                       </button>
                       <button
                         onClick={() => setActiveDossierTab('FUNDAMENTAL')}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 ${activeDossierTab === 'FUNDAMENTAL' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer ${activeDossierTab === 'FUNDAMENTAL' ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                       >
                         {isUsMarket ? 'Finviz Institutional Fundamentals' : 'Screener.in Fundamentals & Health'}
                         {selected.fundamentals?.status === 'AVAILABLE' && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
                         )}
                       </button>
                     </div>
@@ -1051,30 +1065,30 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           <CandlestickChart className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                           <div className="flex-1 space-y-1">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-rose-500 dark:text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
                                 <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
                                 4 Red Candles Below 21-Day Daily EMA Triggered
                               </span>
-                              <span className="text-xs font-mono font-bold text-rose-400 bg-rose-950/60 border border-rose-500/40 px-2 py-0.5 rounded-lg">
+                              <span className="text-xs font-mono font-bold text-rose-500 dark:text-rose-400 bg-rose-500/15 border border-rose-500/40 px-2 py-0.5 rounded-lg">
                                 {selected.distanceToDailyEma21Pct}% below 21-EMA
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-300 leading-relaxed">
+                            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                               The last 4 daily candles have closed continuously as Red and below the 21-day Daily EMA ({money(formatMoney, selected.dailyEma21, true, isUsMarket ? 'USD' : 'INR')}), with the latest close {Math.abs(selected.distanceToDailyEma21Pct)}% below the 21-day EMA (threshold: ≥ 5.0%). This reflects short-term distribution momentum.
                             </p>
                             {/* Itemized 4 candles breakdown */}
                             {selected.dailyCandlePatternDetails?.candles && (
                               <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                                 {selected.dailyCandlePatternDetails.candles.map((c, idx) => (
-                                  <div key={c.date} className="rounded-xl border border-rose-500/25 bg-rose-950/30 p-2 text-[10px]">
-                                    <div className="text-slate-400 font-mono text-[9px] flex items-center justify-between">
+                                  <div key={c.date} className="rounded-xl border border-rose-500/25 bg-rose-500/10 p-2 text-[10px]">
+                                    <div className="text-[var(--text-muted)] font-mono text-[9px] flex items-center justify-between">
                                       <span>Day -{4 - idx} ({c.date.slice(5)})</span>
-                                      <span className="text-rose-400 font-bold">Red ✓</span>
+                                      <span className="text-rose-500 dark:text-rose-400 font-bold">Red ✓</span>
                                     </div>
                                     <div className="font-mono font-bold text-inherit mt-1">
                                       Close: {money(formatMoney, c.close, true, isUsMarket ? 'USD' : 'INR')}
                                     </div>
-                                    <div className="text-[9px] text-slate-400 font-mono mt-0.5">
+                                    <div className="text-[9px] text-[var(--text-muted)] font-mono mt-0.5">
                                       21-EMA: {money(formatMoney, c.ema21, true, isUsMarket ? 'USD' : 'INR')}{c.diffPct !== null ? ` (${c.diffPct}%)` : ''}
                                     </div>
                                   </div>
@@ -1089,7 +1103,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         <Metric
                           label="Trend Stage"
                           value={selected.weinsteinStage ? `Stage ${selected.weinsteinStage}` : 'Stage —'}
-                          tone={selected.weinsteinStage === 2 ? 'text-emerald-400' : selected.weinsteinStage === 4 ? 'text-rose-400' : selected.weinsteinStage === 3 ? 'text-amber-300' : 'text-inherit'}
+                          tone={selected.weinsteinStage === 2 ? 'text-emerald-500 dark:text-emerald-400' : selected.weinsteinStage === 4 ? 'text-rose-500 dark:text-rose-400' : selected.weinsteinStage === 3 ? 'text-amber-500 dark:text-amber-300' : 'text-inherit'}
                           detail={selected.weinsteinStage === 2 ? 'Advancing Bull' : selected.weinsteinStage === 3 ? 'Distribution Top' : selected.weinsteinStage === 4 ? 'Decline / Bear' : selected.weinsteinStage === 1 ? 'Base Building' : 'Evaluating'}
                         />
                         <Metric
@@ -1100,13 +1114,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         <Metric
                           label="Trailing Stop (Exit Floor)"
                           value={selected.chandelierStopPrice ? money(formatMoney, selected.chandelierStopPrice, true, isUsMarket ? 'USD' : 'INR') : '—'}
-                          tone={selected.currentPrice >= selected.chandelierStopPrice ? 'text-emerald-400' : 'text-rose-400'}
+                          tone={selected.currentPrice >= selected.chandelierStopPrice ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
                           detail="3.0× ATR floor from peak"
                         />
                         <Metric
                           label="20-Week Peak & Drop"
                           value={selected.drawdownFrom20WeekHighPct !== null ? `${selected.drawdownFrom20WeekHighPct.toFixed(1)}%` : '—'}
-                          tone={selected.drawdownFrom20WeekHighPct > -20 ? 'text-emerald-400' : 'text-rose-400'}
+                          tone={selected.drawdownFrom20WeekHighPct > -20 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
                           detail={`Peak: ${money(formatMoney, selected.peak20WeekPrice, true, isUsMarket ? 'USD' : 'INR')}`}
                         />
                       </div>
@@ -1115,25 +1129,25 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         <Metric
                           label="21-Day Daily EMA"
                           value={selected.dailyEma21 ? money(formatMoney, selected.dailyEma21, true, isUsMarket ? 'USD' : 'INR') : '—'}
-                          tone={selected.has4RedCandlesBelow21Ema ? 'text-rose-400' : (selected.distanceToDailyEma21Pct !== null && selected.distanceToDailyEma21Pct >= 0 ? 'text-emerald-400' : 'text-inherit')}
+                          tone={selected.has4RedCandlesBelow21Ema ? 'text-rose-500 dark:text-rose-400' : (selected.distanceToDailyEma21Pct !== null && selected.distanceToDailyEma21Pct >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-inherit')}
                           detail={selected.distanceToDailyEma21Pct !== null ? `${selected.distanceToDailyEma21Pct >= 0 ? '+' : ''}${selected.distanceToDailyEma21Pct}% vs 21-EMA` : 'Evaluating daily series'}
                         />
                         <Metric
                           label="Daily Red Breakdown"
                           value={selected.has4RedCandlesBelow21Ema ? 'Triggered (≥5%)' : `${selected.consecutiveDailyRedCandles || 0} Red Days`}
-                          tone={selected.has4RedCandlesBelow21Ema ? 'text-rose-400' : 'text-inherit'}
+                          tone={selected.has4RedCandlesBelow21Ema ? 'text-rose-500 dark:text-rose-400' : 'text-inherit'}
                           detail={selected.has4RedCandlesBelow21Ema ? '4 Red Candles < 21-EMA' : (selected.consecutiveDailyBelowEma > 0 ? `${selected.consecutiveDailyBelowEma}d below 21-EMA` : 'Normal fluctuation')}
                         />
                         <Metric
                           label="Distance to 30w Trend"
                           value={selected.weeklyClose && selected.sma30Week ? `${((selected.weeklyClose / selected.sma30Week - 1) * 100).toFixed(2)}%` : '—'}
-                          tone={selected.weeklyClose >= selected.sma30Week ? 'text-emerald-400' : 'text-rose-400'}
+                          tone={selected.weeklyClose >= selected.sma30Week ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
                           detail={selected.weeklyClose >= selected.sma30Week ? 'Trading above 30w line' : `${selected.weeksBelowAverage}w below 30w line`}
                         />
                         <Metric
                           label="Cushion to Stop Floor"
                           value={selected.bufferToTrailingFloorPct !== null ? `+${selected.bufferToTrailingFloorPct}%` : '—'}
-                          tone="text-cyan-400"
+                          tone="text-cyan-500 dark:text-cyan-400"
                           detail={`Stop floor: ${money(formatMoney, selected.trailingFloorPrice, true, isUsMarket ? 'USD' : 'INR')}`}
                         />
                       </div>
@@ -1157,9 +1171,9 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <h5 className="text-xs font-bold text-inherit">Daily Adjusted Close Timeline</h5>
-                          <span className="text-[10px] text-slate-500 font-mono">{priceChart.length} stored trading days</span>
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono">{priceChart.length} stored trading days</span>
                         </div>
-                        <div className="h-56 rounded-2xl border border-slate-800/80 bg-slate-950/30 p-2.5">
+                        <div className="h-56 rounded-2xl border border-[var(--border-color)] reports-subcard p-2.5">
                           {priceChart.length > 1 ? (
                             <ResponsiveContainer width="100%" height="100%">
                               <LineChart data={priceChart}>
@@ -1177,12 +1191,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                                 />
                                 <Tooltip
                                   contentStyle={{
-                                    background: 'var(--surface-primary, #10131b)',
-                                    border: '1px solid #334155',
+                                    background: 'var(--bg-surface)',
+                                    border: '1px solid var(--border-color)',
                                     borderRadius: 12,
-                                    fontSize: 11
+                                    fontSize: 11,
+                                    color: 'var(--text-primary)'
                                   }}
-                                  labelStyle={{ color: '#94a3b8' }}
+                                  labelStyle={{ color: 'var(--text-secondary)' }}
                                   formatter={value => [money(formatMoney, value, true, isUsMarket ? 'USD' : 'INR'), 'Close']}
                                 />
                                 <Line
@@ -1196,7 +1211,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                               </LineChart>
                             </ResponsiveContainer>
                           ) : (
-                            <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                            <div className="h-full flex items-center justify-center text-xs text-[var(--text-muted)]">
                               Not enough stored daily closes to chart.
                             </div>
                           )}
@@ -1207,14 +1222,14 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     /* Fundamental Pillar Content */
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-slate-500 uppercase">
+                        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
                           {selected.fundamentals?.source || (isUsMarket ? 'Finviz Institutional' : 'Screener.in')}
                         </span>
                         {!isUsMarket && (
                           <button
                             onClick={() => handleRefreshFundamentals(selected.symbol)}
                             disabled={refreshing}
-                            className="text-[10px] font-bold text-cyan-300 hover:text-cyan-200 flex items-center gap-1"
+                            className="text-[10px] font-bold text-cyan-600 dark:text-cyan-300 hover:text-cyan-500 flex items-center gap-1 cursor-pointer"
                           >
                             <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} /> Refresh Fundamentals
                           </button>
@@ -1226,25 +1241,25 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         <Metric
                           label={isUsMarket ? 'Operating Margin (OPM)' : 'Operating Margin (OPM)'}
                           value={selected.fundamentals?.latestOpmPct !== null && selected.fundamentals?.latestOpmPct !== undefined ? `${selected.fundamentals.latestOpmPct}%` : '—'}
-                          tone={selected.fundamentals?.opmTrendDirection === 'EXPANDING' ? 'text-emerald-400' : selected.fundamentals?.opmTrendDirection === 'CONTRACTING' ? 'text-rose-400' : 'text-inherit'}
+                          tone={selected.fundamentals?.opmTrendDirection === 'EXPANDING' ? 'text-emerald-500 dark:text-emerald-400' : selected.fundamentals?.opmTrendDirection === 'CONTRACTING' ? 'text-rose-500 dark:text-rose-400' : 'text-inherit'}
                           detail={isUsMarket ? `Net Margin: ${selected.fundamentals?.netMarginPct ? `${selected.fundamentals.netMarginPct}%` : '—'}` : `Trend: ${selected.fundamentals?.opmTrendDirection || 'Stable'}`}
                         />
                         <Metric
                           label={isUsMarket ? 'YoY EPS Growth' : 'YoY Net Profit Growth'}
                           value={selected.fundamentals?.yoyPatGrowthPct !== null && selected.fundamentals?.yoyPatGrowthPct !== undefined ? `${selected.fundamentals.yoyPatGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.yoyPatGrowthPct}%` : '—'}
-                          tone={selected.fundamentals?.yoyPatGrowthPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+                          tone={selected.fundamentals?.yoyPatGrowthPct >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
                           detail={isUsMarket ? (selected.fundamentals?.qoqPatGrowthPct ? `QoQ: ${selected.fundamentals.qoqPatGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.qoqPatGrowthPct}%` : 'Annualized trend') : (selected.fundamentals?.latestQuarter ? `Quarter: ${selected.fundamentals.latestQuarter}` : 'Latest reporting')}
                         />
                         <Metric
                           label="YoY Sales Growth"
                           value={selected.fundamentals?.yoySalesGrowthPct !== null && selected.fundamentals?.yoySalesGrowthPct !== undefined ? `${selected.fundamentals.yoySalesGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.yoySalesGrowthPct}%` : '—'}
-                          tone={selected.fundamentals?.yoySalesGrowthPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+                          tone={selected.fundamentals?.yoySalesGrowthPct >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
                           detail={isUsMarket ? (selected.fundamentals?.qoqSalesGrowthPct ? `QoQ: ${selected.fundamentals.qoqSalesGrowthPct >= 0 ? '+' : ''}${selected.fundamentals.qoqSalesGrowthPct}%` : 'Revenue growth') : (selected.fundamentals?.latestSalesCr ? `₹${selected.fundamentals.latestSalesCr} Cr sales` : 'Quarterly revenue')}
                         />
                         <Metric
                           label={isUsMarket ? 'Debt to Equity' : 'Promoter Pledging'}
                           value={isUsMarket ? (selected.fundamentals?.debtToEquity !== null && selected.fundamentals?.debtToEquity !== undefined ? `${selected.fundamentals.debtToEquity}x` : '0 (Zero Debt)') : (selected.fundamentals?.promoterPledgePct > 0 ? `${selected.fundamentals.promoterPledgePct}%` : '0% (Clean)')}
-                          tone={isUsMarket ? (selected.fundamentals?.debtToEquity > 1.5 ? 'text-rose-400' : 'text-emerald-400') : (selected.fundamentals?.promoterPledgePct > 15 ? 'text-rose-400' : 'text-emerald-400')}
+                          tone={isUsMarket ? (selected.fundamentals?.debtToEquity > 1.5 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400') : (selected.fundamentals?.promoterPledgePct > 15 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400')}
                           detail={isUsMarket ? `Current Ratio: ${selected.fundamentals?.currentRatio ? `${selected.fundamentals.currentRatio}x` : 'Solid'}` : `Holding: ${selected.fundamentals?.promoterHoldingPct ? `${selected.fundamentals.promoterHoldingPct}%` : 'N/A'}`}
                         />
                       </div>
@@ -1259,13 +1274,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         <Metric
                           label={isUsMarket ? 'Gross Margin %' : 'ROCE %'}
                           value={isUsMarket ? (selected.fundamentals?.grossMarginPct ? `${selected.fundamentals.grossMarginPct}%` : '—') : (selected.fundamentals?.rocePct ? `${selected.fundamentals.rocePct}%` : '—')}
-                          tone={isUsMarket ? 'text-emerald-400' : (selected.fundamentals?.rocePct > 20 ? 'text-emerald-400' : 'text-inherit')}
+                          tone={isUsMarket ? 'text-emerald-500 dark:text-emerald-400' : (selected.fundamentals?.rocePct > 20 ? 'text-emerald-500 dark:text-emerald-400' : 'text-inherit')}
                           detail={isUsMarket ? 'Gross profitability' : 'Return on capital'}
                         />
                         <Metric
                           label="ROE %"
                           value={selected.fundamentals?.roePct ? `${selected.fundamentals.roePct}%` : '—'}
-                          tone={selected.fundamentals?.roePct > 15 ? 'text-emerald-400' : 'text-inherit'}
+                          tone={selected.fundamentals?.roePct > 15 ? 'text-emerald-500 dark:text-emerald-400' : 'text-inherit'}
                           detail={isUsMarket ? `ROA: ${selected.fundamentals?.roaPct ? `${selected.fundamentals.roaPct}%` : '—'}` : 'Return on equity'}
                         />
                         <Metric
@@ -1277,13 +1292,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                       {/* 4-Quarter OPM History (if available) */}
                       {selected.fundamentals?.opmHistory?.length > 0 && (
-                        <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-3.5">
+                        <div className="rounded-2xl border border-[var(--border-color)] reports-subcard p-3.5">
                           <h5 className="text-xs font-bold text-inherit mb-2.5">Quarterly Operating Margin (OPM %) Trajectory</h5>
                           <div className="grid grid-cols-4 gap-2">
                             {selected.fundamentals.opmHistory.map((q, idx) => (
-                              <div key={idx} className="reports-subcard p-2 rounded-xl text-center">
-                                <div className="text-[9px] text-slate-500 font-bold">{q.quarter}</div>
-                                <div className="text-sm font-black font-mono text-cyan-300 mt-1">{q.opm}%</div>
+                              <div key={idx} className="reports-subcard p-2 rounded-xl text-center border border-[var(--border-color)]">
+                                <div className="text-[9px] text-[var(--text-muted)] font-bold">{q.quarter}</div>
+                                <div className="text-sm font-black font-mono text-cyan-600 dark:text-cyan-300 mt-1">{q.opm}%</div>
                               </div>
                             ))}
                           </div>
@@ -1294,22 +1309,22 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                 </section>
 
                 {/* 7. POSITION RISK LIMIT CONFIGURATION */}
-                <section className="glass-card rounded-3xl border border-slate-800 p-5">
+                <section className="reports-card rounded-3xl border border-[var(--border-color)] p-5">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
-                      <Settings2 className="w-4 h-4 text-cyan-400" />
+                      <Settings2 className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
                       <h3 className="text-sm font-bold text-inherit">Position Concentration Risk Guard</h3>
                     </div>
                     <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full border ${
                       data?.config?.maxPositionWeightPct
-                        ? 'border-cyan-500/40 text-cyan-300 bg-cyan-500/10 font-bold'
-                        : 'border-slate-700 text-slate-400 bg-slate-900/40'
+                        ? 'border-cyan-500/40 text-cyan-600 dark:text-cyan-300 bg-cyan-500/10 font-bold'
+                        : 'border-[var(--border-color)] text-[var(--text-muted)] reports-subcard'
                     }`}>
                       {data?.config?.maxPositionWeightPct ? `Active Cap: ${data.config.maxPositionWeightPct}%` : 'No Cap (Positions Unconstrained)'}
                     </span>
                   </div>
                   <form onSubmit={saveRiskLimit} className="flex flex-wrap items-end gap-3 mt-3">
-                    <label className="text-[10px] text-slate-400">
+                    <label className="text-[10px] text-[var(--text-muted)]">
                       Maximum weight cap within Indian equities (%)
                       <input
                         type="number"
@@ -1319,12 +1334,12 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         value={maxWeight}
                         onChange={event => setMaxWeight(event.target.value)}
                         placeholder="Optional (e.g. 15.0%)"
-                        className="mt-1 block w-44 rounded-xl border border-slate-800 bg-slate-950/30 px-3 py-2 text-xs text-inherit outline-none focus:border-cyan-500/50"
+                        className="mt-1 block w-44 rounded-xl border border-[var(--border-color)] reports-subcard px-3 py-2 text-xs text-inherit outline-none focus:border-cyan-500/50"
                       />
                     </label>
                     <button
                       disabled={savingConfig}
-                      className="rounded-xl bg-cyan-500/15 border border-cyan-500/30 px-3 py-2 text-[10px] font-bold text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-50 transition-colors"
+                      className="rounded-xl bg-cyan-500/15 border border-cyan-500/30 px-3 py-2 text-[10px] font-bold text-cyan-600 dark:text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-50 transition-colors cursor-pointer"
                     >
                       {savingConfig ? 'Saving…' : 'Save Cap'}
                     </button>
@@ -1332,32 +1347,32 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       type="button"
                       disabled={savingConfig}
                       onClick={clearRiskLimit}
-                      className="rounded-xl border border-slate-700 px-3 py-2 text-[10px] text-slate-400 hover:text-slate-200 hover:border-slate-600 disabled:opacity-50 transition-colors"
+                      className="rounded-xl border border-[var(--border-color)] reports-subcard px-3 py-2 text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-cyan-500/50 disabled:opacity-50 transition-colors cursor-pointer"
                     >
                       Disable Limit
                     </button>
-                    {configMessage && <span className="text-[10px] text-slate-400">{configMessage}</span>}
+                    {configMessage && <span className="text-[10px] text-[var(--text-muted)]">{configMessage}</span>}
                   </form>
                 </section>
 
                 {/* 8. STATE TRANSITION AUDIT TRAIL */}
                 {history.length > 0 && (
-                  <section className="glass-card rounded-3xl border border-slate-800 p-4">
+                  <section className="reports-card rounded-3xl border border-[var(--border-color)] p-4">
                     <div className="flex items-center justify-between text-xs font-bold text-inherit mb-2.5">
                       <div className="flex items-center gap-2">
-                        <History className="w-3.5 h-3.5 text-slate-400" />
+                        <History className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                         <span>State History ({history.length} events)</span>
                       </div>
                     </div>
                     <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
                       {history.slice(0, 8).map(event => (
-                        <div key={event.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] p-2 rounded-xl bg-slate-950/30 border border-slate-800/60">
-                          <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                        <div key={event.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                          <span className="text-[var(--text-secondary)] font-medium flex items-center gap-1.5">
                             <span>{formatStateLabel(event.from)}</span>
-                            <span className="text-slate-600">→</span>
-                            <span className="text-emerald-400 font-bold">{formatStateLabel(event.to)}</span>
+                            <span className="text-[var(--text-muted)]">→</span>
+                            <span className="text-emerald-500 dark:text-emerald-400 font-bold">{formatStateLabel(event.to)}</span>
                           </span>
-                          <span className="text-slate-500 font-mono text-[9px]">
+                          <span className="text-[var(--text-muted)] font-mono text-[9px]">
                             {new Date(event.at).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(event.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                           </span>
                         </div>

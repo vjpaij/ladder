@@ -1084,10 +1084,10 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
     }
   }
 
-  const shouldRefreshUs = forceAll || marketSession === 'ALL' || marketSession === 'US';
-  const shouldRefreshIn = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleIndian;
-  const shouldRefreshMf = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleMf;
-  const shouldRefreshNps = forceAll || marketSession === 'ALL' || marketSession === 'IN' || hasStaleNps;
+  const shouldRefreshUs = (marketSession === 'ALL' || marketSession === 'US');
+  const shouldRefreshIn = (marketSession === 'ALL' || marketSession === 'IN') && (forceAll || hasStaleIndian);
+  const shouldRefreshMf = (marketSession === 'ALL' || marketSession === 'IN') && (forceAll || hasStaleMf);
+  const shouldRefreshNps = (marketSession === 'ALL' || marketSession === 'IN') && (forceAll || hasStaleNps);
 
   // Execute all asset classes concurrently in parallel
   await Promise.all([

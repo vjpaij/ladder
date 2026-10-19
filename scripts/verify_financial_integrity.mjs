@@ -82,25 +82,29 @@ async function runIntegrityAudit() {
 
     let sumRes, pnlRes, holdingsRes, latestCalendarLog, catSums = {};
     for (let attempt = 1; attempt <= 10; attempt++) {
-      [sumRes, pnlRes, holdingsRes] = await Promise.all([
-        fetch('http://127.0.0.1:5000/api/summary', { headers: authHeaders }).then(r => r.json()),
-        fetch('http://127.0.0.1:5000/api/daily-pnl?range=1M', { headers: authHeaders }).then(r => r.json()),
-        fetch('http://127.0.0.1:5000/api/holdings', { headers: authHeaders }).then(r => r.json())
-      ]);
-      latestCalendarLog = pnlRes[pnlRes.length - 1];
-      catSums = {};
-      holdingsRes.forEach(h => {
-        const cat = h.category_id;
-        if (!catSums[cat]) catSums[cat] = 0;
-        catSums[cat] = Number((catSums[cat] + (h.currentValueINR || 0)).toFixed(2));
-      });
-      const inStockSum = catSums['in_stocks'] || 0;
-      const inStockSummary = Number((sumRes.categoryMetrics?.find(c => c.id === 'in_stocks')?.currentINR || 0).toFixed(2));
-      const usStockSum = catSums['us_stocks'] || 0;
-      const usStockSummary = Number((sumRes.categoryMetrics?.find(c => c.id === 'us_stocks')?.currentINR || 0).toFixed(2));
+      try {
+        [sumRes, pnlRes, holdingsRes] = await Promise.all([
+          fetch('http://localhost:5000/api/summary', { headers: authHeaders }).then(r => r.json()),
+          fetch('http://localhost:5000/api/daily-pnl?range=1M', { headers: authHeaders }).then(r => r.json()),
+          fetch('http://localhost:5000/api/holdings', { headers: authHeaders }).then(r => r.json())
+        ]);
+        latestCalendarLog = pnlRes[pnlRes.length - 1];
+        catSums = {};
+        holdingsRes.forEach(h => {
+          const cat = h.category_id;
+          if (!catSums[cat]) catSums[cat] = 0;
+          catSums[cat] = Number((catSums[cat] + (h.currentValueINR || 0)).toFixed(2));
+        });
+        const inStockSum = catSums['in_stocks'] || 0;
+        const inStockSummary = Number((sumRes.categoryMetrics?.find(c => c.id === 'in_stocks')?.currentINR || 0).toFixed(2));
+        const usStockSum = catSums['us_stocks'] || 0;
+        const usStockSummary = Number((sumRes.categoryMetrics?.find(c => c.id === 'us_stocks')?.currentINR || 0).toFixed(2));
 
-      if (sumRes.netWorthINR === latestCalendarLog.net_worth_inr && inStockSum === inStockSummary && usStockSum === usStockSummary) break;
-      await new Promise(r => setTimeout(r, 200));
+        if (sumRes.netWorthINR === latestCalendarLog.net_worth_inr && inStockSum === inStockSummary && usStockSum === usStockSummary) break;
+      } catch (e) {
+        if (attempt === 10) throw e;
+      }
+      await new Promise(r => setTimeout(r, 300));
     }
 
     // Net Worth Parity

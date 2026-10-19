@@ -149,9 +149,9 @@ export async function createCloudBackup({ tagSuffix = '' } = {}) {
     }
   };
 
-  // Stock-analysis state is separate from portfolio tables, so capture these
-  // user-keyed append-only events and preferences alongside the core snapshot.
-  for (const filename of ['stock_intelligence_state.json', 'stock_intelligence_config.json']) {
+  // Stock-analysis and trading journal data are separate from relational portfolio tables,
+  // so capture these user-keyed events, journal entries, and preferences alongside the core snapshot.
+  for (const filename of ['trading_journal.json', 'stock_intelligence_state.json', 'stock_intelligence_config.json']) {
     const filePath = path.join(process.cwd(), 'data', filename);
     if (!fs.existsSync(filePath)) continue;
     try {
