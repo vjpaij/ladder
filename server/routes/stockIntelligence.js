@@ -72,6 +72,19 @@ function loadAllCachedFundamentals(symbols = []) {
 }
 
 /**
+ * Loads cached daily candles from data/daily_candles_cache.json
+ */
+function loadDailyCandlesCache() {
+  const cacheFile = path.join(process.cwd(), 'data', 'daily_candles_cache.json');
+  if (fs.existsSync(cacheFile)) {
+    try {
+      return JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+    } catch (_) {}
+  }
+  return {};
+}
+
+/**
  * Runs the daily Stock Analysis audit, records state transitions, and logs sync event
  */
 export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHEDULED' } = {}) {
@@ -116,6 +129,7 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
 
     // Load available cached fundamentals
     let fundamentalsMap = loadAllCachedFundamentals(symbols);
+    const candleCache = loadDailyCandlesCache();
 
     // Evaluate analyses on validated data
     const analyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
@@ -125,7 +139,8 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
       transactions,
       dividends,
       metadata,
-      fundamentalsMap
+      fundamentalsMap,
+      candleCache
     });
 
     // Record any state changes into persistent history
@@ -225,6 +240,8 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
       ? getBacktest(healedPriceMap, usSymbols)
       : { version: '30w-confirmed-breakdown-v1', activeEquities: usSymbols.length };
 
+    const candleCache = loadDailyCandlesCache();
+
     const analyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
       today: getTodayIST(),
       backtest,
@@ -233,7 +250,8 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
       dividends,
       metadata,
       fundamentalsMap,
-      categoryId: 'in_stocks'
+      categoryId: 'in_stocks',
+      candleCache
     });
 
     const usAnalyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
@@ -244,7 +262,8 @@ router.get('/stock-intelligence/overview', authenticateToken, async (req, res) =
       dividends,
       metadata,
       fundamentalsMap: usFundamentalsMap,
-      categoryId: 'us_stocks'
+      categoryId: 'us_stocks',
+      candleCache
     });
 
     recordStateTransitions(userId, [...analyses, ...usAnalyses]);

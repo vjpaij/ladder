@@ -9,6 +9,7 @@ import {
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage } from '../components/AnimatedPage';
 import SipPlanModal from '../components/SipPlanModal';
+import HoldingLogo from '../components/HoldingLogo';
 import axios from 'axios';
 
 const API_BASE = '/api';
@@ -229,7 +230,6 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
   const { formatMoney } = useThemeAuth();
   const [expanded, setExpanded] = useState(false);
   const config = SIGNAL_CONFIG[analysis.buySignal] || SIGNAL_CONFIG.MONITOR;
-  const Icon = config.icon;
   const fundScore = analysis.fundamentalScore || 0;
   const techScore = analysis.technicalScore || 0;
 
@@ -251,10 +251,14 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
         <div className="flex items-start justify-between gap-3">
           {/* Left: Symbol + Signal */}
           <div className="flex items-start gap-3 min-w-0">
-            {/* Signal icon */}
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${config.bgColor}`}>
-              <Icon className={`w-4.5 h-4.5 ${config.textColor}`} style={{ width: '18px', height: '18px' }} />
-            </div>
+            {/* Company Logo */}
+            <HoldingLogo
+              holding={analysis}
+              symbol={analysis.symbol}
+              name={analysis.name}
+              category="in_stocks"
+              className="w-10 h-10 rounded-xl shrink-0"
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>{analysis.symbol}</span>

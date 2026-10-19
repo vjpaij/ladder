@@ -14,6 +14,7 @@ export default function HoldingLogo({
   const [urlIndex, setUrlIndex] = useState(0);
   const [failed, setFailed] = useState(false);
   const [urls, setUrls] = useState([]);
+  const [triedWebLookup, setTriedWebLookup] = useState(false);
 
   const finalName = name || holding?.name || holding?.clean_name || holding?.asset_name || holding?.company || '';
   const finalSymbol = symbol || holding?.symbol || '';
@@ -25,6 +26,7 @@ export default function HoldingLogo({
       setUrls(generatedUrls);
       setUrlIndex(0);
       setFailed(false);
+      setTriedWebLookup(false);
     } else {
       setUrls([]);
       setFailed(true);
@@ -39,6 +41,20 @@ export default function HoldingLogo({
   const handleImageError = () => {
     if (urlIndex < urls.length - 1) {
       setUrlIndex(prev => prev + 1);
+    } else if (!triedWebLookup && cleanSym && (finalCategory === 'in_stocks' || finalCategory === 'us_stocks' || !finalCategory)) {
+      setTriedWebLookup(true);
+      fetch(`/api/stock-logo/${encodeURIComponent(cleanSym)}?name=${encodeURIComponent(finalName)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.logoUrl && !urls.includes(data.logoUrl)) {
+            setUrls(prev => [...prev, data.logoUrl]);
+            setUrlIndex(urls.length);
+            setFailed(false);
+          } else {
+            setFailed(true);
+          }
+        })
+        .catch(() => setFailed(true));
     } else {
       setFailed(true);
     }

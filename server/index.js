@@ -54,6 +54,7 @@ import reportsRouter from './routes/reports.js';
 import syncLogsRouter from './routes/syncLogs.js';
 import stockIntelligenceRouter, { runDailyStockAnalysisAudit } from './routes/stockIntelligence.js';
 import buyAnalysisRouter, { runBuyAnalysisEngine } from './routes/buyAnalysis.js';
+import stockLogosRouter from './routes/stockLogos.js';
 import { logSyncEvent } from './services/syncLogService.js';
 
 // Re-export background EOD rebuild helper for backward compatibility
@@ -94,6 +95,7 @@ app.use('/api', reportsRouter);
 app.use('/api', syncLogsRouter);
 app.use('/api', stockIntelligenceRouter);
 app.use('/api', buyAnalysisRouter);
+app.use('/api', stockLogosRouter);
 
 // -------------------------------------------------------------
 // Sync Status API — surfaces WAL gaps and cache/Supabase divergence

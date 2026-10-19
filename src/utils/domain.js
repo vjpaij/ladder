@@ -1,9 +1,12 @@
 import stockLogosMap from '../data/stockLogosMap.js';
+import stockDomainsMap from '../data/stockDomainsMap.js';
 
 const pushLogos = (urls, domain) => {
   if (!domain) return;
   urls.push(`https://logos.hunter.io/${domain}`);
   urls.push(`https://unavatar.io/${domain}?fallback=false`);
+  urls.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+  urls.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
 };
 
 // Known custom domain mappings for companies or schemes
@@ -11,7 +14,13 @@ const KNOWN_STOCK_DOMAINS = {
   'INDOTECH': 'indo-tech.com',
   'SWANENERGY': 'swanenergy.com',
   'SEQUENT': 'sequent.in',
-  'DHOOTTRANS': 'dhoottransmission.com'
+  'DHOOTTRANS': 'dhoottransmission.com',
+  'SHANKESH': 'shankeshjewellers.com',
+  ...stockDomainsMap
+};
+
+const KNOWN_STOCK_LOGOS = {
+  'SHANKESH': 'https://shankeshjewellers.com/web_assets/assets/images/logos/Shankesh-logo.png'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {
@@ -105,16 +114,21 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
   }
 
   // Indian Stocks (Default / Fallback)
-  // 1. Direct match from verified Indian stock logos repository map
+  // 0. Direct high-res logo override
+  if (KNOWN_STOCK_LOGOS[cleanSym] || KNOWN_STOCK_LOGOS[rawSym]) {
+    urls.push(KNOWN_STOCK_LOGOS[cleanSym] || KNOWN_STOCK_LOGOS[rawSym]);
+  }
+
+  // 1. Direct stock domain override (auto-discovered web domains)
+  if (KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]) {
+    pushLogos(urls, KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]);
+  }
+
+  // 2. Direct match from verified Indian stock logos repository map
   const mappedFile = stockLogosMap[cleanSym] || stockLogosMap[rawSym];
   if (mappedFile) {
     urls.push(`https://cdn.jsdelivr.net/gh/dharunashokkumar/indian-listed-company-logos@main/data/logos/${mappedFile}`);
     urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos/main/data/logos/${mappedFile}`);
-  }
-
-  // 2. Direct stock domain override (e.g. Indo Tech Transformers -> indo-tech.com)
-  if (KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]) {
-    pushLogos(urls, KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]);
   }
 
   // 3. Fallbacks using cleaned symbol on Indian stock logos repo

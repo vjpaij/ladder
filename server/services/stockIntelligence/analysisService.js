@@ -291,7 +291,7 @@ function calculatePrincipalHarvest(holding, currentPrice, investedValueINR) {
   };
 }
 
-export function buildStockAnalyses(holdings, historicalPriceMap, { today, backtest, config, transactions = [], dividends = [], metadata = [], fundamentalsMap = {}, categoryId = 'in_stocks' } = {}) {
+export function buildStockAnalyses(holdings, historicalPriceMap, { today, backtest, config, transactions = [], dividends = [], metadata = [], fundamentalsMap = {}, categoryId = 'in_stocks', candleCache = {} } = {}) {
   const metadataBySymbol = new Map(metadata.map(row => [cleanSym(row.symbol), row]));
   const targetCategory = categoryId || 'in_stocks';
   const targetStocks = holdings.filter(item => item.category_id === targetCategory && Number(item.quantity) > 0);
@@ -346,9 +346,11 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
   };
 
   const interim = targetStocks.map(holding => {
+    const clean = cleanSym(holding.symbol);
+    const candleList = candleCache?.[holding.symbol] || candleCache?.[clean] || null;
     const raw = priceSeriesFor(holding.symbol, historicalPriceMap);
     const prices = normalizePriceSeries(raw);
-    const trend = analyzeTechnicalTrend(raw, { today });
+    const trend = analyzeTechnicalTrend(raw, { today, candleMapList: candleList });
     const quantity = Number(holding.quantity) || 0;
     const isUs = targetCategory === 'us_stocks';
     const currency = isUs ? 'USD' : 'INR';
@@ -360,7 +362,6 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const nativeInvestedValue = isUs ? openCostBasisINR(holding, hTxs, { inrConversion: false }) : (Number(holding.investedValueINR) || openCostBasisINR(holding, hTxs));
     const currentValueINR = isUs ? (Number(holding.current_value_inr) || (nativeCurrentValue * (Number(holding.fx_rate) || 94.96))) : nativeCurrentValue;
     const investedValueINR = isUs ? (Number(holding.invested_amount_inr) || openCostBasisINR(holding, hTxs, { inrConversion: true })) : nativeInvestedValue;
-    const clean = cleanSym(holding.symbol);
 
     // Compute Holding-Level Cashflows for XIRR (in holding's native currency)
     const flows = hTxs
@@ -558,6 +559,7 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       referencePriceDate: item.quoteDate,
       estimatedGrossProceedsINR: suggestedSellQuantity ? suggestedSellQuantity * item.currentPrice : null,
       technicalState: item.state,
+      tag4Red21Ema: item.has4RedCandlesBelow21Ema ? '4 Red < 21 EMA' : null,
       explanation,
       stagedExitPlan,
       principalHarvest,
@@ -581,6 +583,7 @@ export function buildPortfolioSummary(analyses) {
     unrealizedPnlINR: totalValueINR - totalCostINR,
     states: counts,
     compoundingCount: analyses.filter(item => item.compoundingShield?.isActive).length,
+    fourRedBelow21EmaCount: analyses.filter(item => item.has4RedCandlesBelow21Ema).length,
     withPriceHistory: analyses.filter(item => item.weeklyObservations > 0).length,
     fundamentalsAvailable: analyses.filter(item => item.fundamentals.status === 'AVAILABLE').length
   };

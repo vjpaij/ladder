@@ -52,7 +52,7 @@ export function calculateWeeklyATR(weeklyCloses = [], period = 14) {
   return recent.reduce((sum, v) => sum + v, 0) / period;
 }
 
-export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOString().slice(0, 10) } = {}) {
+export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOString().slice(0, 10), candleMapList = null } = {}) {
   const daily = normalizePriceSeries(rawPrices);
   const weekly = aggregateWeeklyCloses(daily, { today });
   const latest = weekly.at(-1);
@@ -76,6 +76,7 @@ export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOStrin
       isCompoundingProtected: false,
       trailingFloorPrice: null,
       bufferToTrailingFloorPct: null,
+      ...analyzeDaily21EmaPattern(daily, candleMapList),
       evidence: [],
       invalidation: 'Build at least 40 completed weekly observations before evaluating a trend.'
     };
@@ -165,6 +166,7 @@ export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOStrin
     isCompoundingProtected,
     trailingFloorPrice,
     bufferToTrailingFloorPct,
+    ...analyzeDaily21EmaPattern(daily, candleMapList),
     evidence,
     invalidation: confirmed
       ? 'The technical exit concern clears after two completed weekly closes above the 30-week average.'
@@ -184,4 +186,145 @@ export function observedReturn(series, days) {
   }
   if (!base || !(base.close > 0)) return null;
   return { pct: (last.close / base.close - 1) * 100, from: base.date, to: last.date };
+}
+
+/**
+ * Calculates Exponential Moving Average (EMA) across a daily price series
+ */
+export function calculateDailyEMA(series = [], period = 21) {
+  if (!Array.isArray(series) || series.length < period) return [];
+  const k = 2 / (period + 1);
+  const emas = new Array(series.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += series[i].close;
+  let prev = sum / period;
+  emas[period - 1] = prev;
+  for (let i = period; i < series.length; i++) {
+    prev = series[i].close * k + prev * (1 - k);
+    emas[i] = prev;
+  }
+  return emas;
+}
+
+/**
+ * Analyzes the daily chart pattern requested by user:
+ * 1. Last 4 candles continuously closed as Red on Daily chart
+ * 2. All 4 red candles closed below the 21-day EMA
+ * 3. Last red candle is 5% or more below the 21-day EMA
+ */
+export function analyzeDaily21EmaPattern(dailySeries = [], candleMapList = null) {
+  // If candleMapList has at least 21 valid candles with open & close, use it directly as authoritative
+  let mergedSeries = dailySeries;
+  if (Array.isArray(candleMapList) && candleMapList.length >= 21) {
+    mergedSeries = candleMapList.map(c => ({
+      date: c.date,
+      close: Number(c.close),
+      open: c.open !== null && c.open !== undefined ? Number(c.open) : null,
+      high: c.high !== null && c.high !== undefined ? Number(c.high) : null,
+      low: c.low !== null && c.low !== undefined ? Number(c.low) : null
+    })).filter(c => /^\d{4}-\d{2}-\d{2}$/.test(c.date) && Number.isFinite(c.close) && c.close > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } else if (Array.isArray(candleMapList) && candleMapList.length > 0) {
+    const ohlcByDate = new Map(candleMapList.map(c => [c.date, c]));
+    mergedSeries = dailySeries.map(row => {
+      const ohlc = ohlcByDate.get(row.date);
+      return {
+        date: row.date,
+        close: ohlc?.close ? Number(ohlc.close) : row.close,
+        open: ohlc?.open ?? null,
+        high: ohlc?.high ?? null,
+        low: ohlc?.low ?? null
+      };
+    });
+  }
+
+  const n = mergedSeries.length;
+  if (n < 21) {
+    return {
+      has4RedCandlesBelow21Ema: false,
+      dailyEma21: null,
+      distanceToDailyEma21Pct: null,
+      consecutiveDailyRedCandles: 0,
+      consecutiveDailyBelowEma: 0,
+      dailyCandlePatternDetails: null
+    };
+  }
+
+  const emas = calculateDailyEMA(mergedSeries, 21);
+  const latestEma = emas.at(-1);
+  const latestClose = mergedSeries.at(-1)?.close;
+  const distanceToDailyEma21Pct = (latestEma && latestClose)
+    ? Number((((latestClose / latestEma) - 1) * 100).toFixed(2))
+    : null;
+
+  // Determine if a candle at index i is "Red"
+  // On a Daily candlestick chart:
+  // If open price is available and > 0, close < open defines a Red candlestick body.
+  // If open is missing or equal to close, fallback to close < prev close.
+  const isRed = (idx) => {
+    if (idx < 0 || idx >= n) return false;
+    const c = mergedSeries[idx];
+    if (c.open !== null && c.open !== undefined && Number.isFinite(c.open) && c.open > 0) {
+      return c.close < c.open;
+    }
+    if (idx > 0) {
+      return c.close < mergedSeries[idx - 1].close;
+    }
+    return false;
+  };
+
+  // Count consecutive red candles from the end
+  let consecutiveDailyRedCandles = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    if (isRed(i)) consecutiveDailyRedCandles++;
+    else break;
+  }
+
+  // Count consecutive closes below 21-EMA from the end
+  let consecutiveDailyBelowEma = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    if (emas[i] !== null && mergedSeries[i].close < emas[i]) consecutiveDailyBelowEma++;
+    else break;
+  }
+
+  // Check the last 4 candles
+  const last4Indices = [n - 4, n - 3, n - 2, n - 1];
+  const all4Red = last4Indices.every(idx => isRed(idx));
+  const all4BelowEma = last4Indices.every(idx => emas[idx] !== null && mergedSeries[idx].close < emas[idx]);
+  const isLast5PctBelow = distanceToDailyEma21Pct !== null && distanceToDailyEma21Pct <= -5.0;
+
+  const has4RedCandlesBelow21Ema = all4Red && all4BelowEma && isLast5PctBelow;
+
+  const last4Candles = last4Indices.map(idx => {
+    const c = mergedSeries[idx];
+    const ema = emas[idx];
+    const diff = (ema && c.close) ? Number((((c.close / ema) - 1) * 100).toFixed(2)) : null;
+    return {
+      date: c.date,
+      open: c.open,
+      close: c.close,
+      ema21: ema ? Number(ema.toFixed(2)) : null,
+      diffPct: diff,
+      isRed: isRed(idx),
+      isBelowEma: ema !== null && c.close < ema
+    };
+  });
+
+  return {
+    has4RedCandlesBelow21Ema,
+    dailyEma21: latestEma ? Number(latestEma.toFixed(2)) : null,
+    distanceToDailyEma21Pct,
+    consecutiveDailyRedCandles,
+    consecutiveDailyBelowEma,
+    dailyCandlePatternDetails: {
+      matched: has4RedCandlesBelow21Ema,
+      all4Red,
+      all4BelowEma,
+      isLast5PctBelow,
+      latestClose,
+      latestEma: latestEma ? Number(latestEma.toFixed(2)) : null,
+      distanceToEmaPct: distanceToDailyEma21Pct,
+      candles: last4Candles
+    }
+  };
 }

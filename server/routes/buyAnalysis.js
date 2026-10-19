@@ -77,10 +77,11 @@ function loadCachedFundamentalsForSymbols(symbols = []) {
 let _isWarmingInProgress = false;
 let _backgroundQueue = [];
 let _warmingTimeout = null;
+const _attemptedWarmingSymbols = new Set();
 
 function triggerBackgroundWarming(candidates = []) {
   for (const c of candidates) {
-    if (c?.symbol && !_backgroundQueue.some(q => q.symbol === c.symbol)) {
+    if (c?.symbol && !_attemptedWarmingSymbols.has(c.symbol) && !_backgroundQueue.some(q => q.symbol === c.symbol)) {
       _backgroundQueue.push(c);
     }
   }
@@ -95,6 +96,7 @@ async function processNextWarmingItem() {
     const candidate = _backgroundQueue.shift();
     if (candidate?.symbol) {
       const sym = candidate.symbol;
+      _attemptedWarmingSymbols.add(sym);
       try {
         await ensureHistoricalPricesForSymbol(sym, 'in_stocks');
       } catch (_) {}
@@ -111,7 +113,7 @@ async function processNextWarmingItem() {
     if (_backgroundQueue.length > 0) {
       _warmingTimeout = setTimeout(processNextWarmingItem, 1500);
     } else {
-      runBuyAnalysisEngine({ forceRefresh: true }).catch(() => {});
+      console.log('[Buy Analysis] Background warming queue completed.');
     }
   }
 }
@@ -203,6 +205,7 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
 
   // Non-blocking background warming: prioritize portfolio stocks and breakout candidates with incomplete data
   const candidatesNeedingData = enrichedCandidates.filter(c => {
+    if (_attemptedWarmingSymbols.has(c.symbol)) return false;
     const hasPrice = history[c.symbol] || history[`${c.symbol}.NS`];
     const f = fundamentalsMap[c.symbol];
     const hasCompleteFund = f && Array.isArray(f.annualSales) && f.annualSales.length >= 4;

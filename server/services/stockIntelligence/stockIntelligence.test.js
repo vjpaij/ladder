@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregateWeeklyCloses, analyzeTechnicalTrend, normalizePriceSeries, calculateWeeklyATR } from './technicalIndicators.js';
+import { aggregateWeeklyCloses, analyzeTechnicalTrend, normalizePriceSeries, calculateWeeklyATR, analyzeDaily21EmaPattern } from './technicalIndicators.js';
 import { runTrendStrategy } from './backtestEngine.js';
 import { buildStockAnalyses, openCostBasisINR } from './analysisService.js';
 
@@ -141,3 +141,44 @@ test('principal harvest correctly identifies doublers and computes 100% capital 
   assert.equal(result.principalHarvest.remainingShares, 50);
   assert.equal(result.principalHarvest.capitalRecoveredINR, 50000);
 });
+
+test('analyzeDaily21EmaPattern correctly detects 4 red candles below 21 EMA with >= 5% breakdown', () => {
+  // Create 30 days of prices. Days 0-25 are around 100.
+  // Last 4 days (days 26, 27, 28, 29) drop continuously: 98 -> 95 -> 92 -> 88.
+  // 21-day EMA is around 97-98, so all 4 are below EMA, and day 29 (88) is ~10% below EMA (>= 5%).
+  const start = new Date('2025-01-01T00:00:00Z');
+  const dailySeries = [];
+  for (let i = 0; i < 30; i++) {
+    const dStr = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
+    let close = 100;
+    let open = 100;
+    if (i === 26) { open = 99; close = 98; }
+    else if (i === 27) { open = 98; close = 95; }
+    else if (i === 28) { open = 95; close = 92; }
+    else if (i === 29) { open = 92; close = 88; }
+    dailySeries.push({ date: dStr, open, close });
+  }
+
+  const result = analyzeDaily21EmaPattern(dailySeries);
+  assert.equal(result.has4RedCandlesBelow21Ema, true);
+  assert.ok(result.distanceToDailyEma21Pct <= -5.0);
+  assert.equal(result.consecutiveDailyRedCandles >= 4, true);
+  assert.equal(result.dailyCandlePatternDetails.matched, true);
+  assert.equal(result.dailyCandlePatternDetails.all4Red, true);
+  assert.equal(result.dailyCandlePatternDetails.all4BelowEma, true);
+  assert.equal(result.dailyCandlePatternDetails.isLast5PctBelow, true);
+
+  // If the last candle was only 2% below EMA (e.g. 96 instead of 88), pattern should NOT trigger
+  dailySeries[29] = { date: dailySeries[29].date, open: 97, close: 96 };
+  const resultNot5Pct = analyzeDaily21EmaPattern(dailySeries);
+  assert.equal(resultNot5Pct.has4RedCandlesBelow21Ema, false);
+  assert.equal(resultNot5Pct.dailyCandlePatternDetails.isLast5PctBelow, false);
+
+  // If one of the 4 candles was green (close > open), pattern should NOT trigger
+  dailySeries[28] = { date: dailySeries[28].date, open: 90, close: 93 }; // green candle
+  dailySeries[29] = { date: dailySeries[29].date, open: 92, close: 88 };
+  const resultGreen = analyzeDaily21EmaPattern(dailySeries);
+  assert.equal(resultGreen.has4RedCandlesBelow21Ema, false);
+  assert.equal(resultGreen.dailyCandlePatternDetails.all4Red, false);
+});
+

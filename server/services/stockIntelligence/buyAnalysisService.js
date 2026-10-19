@@ -378,6 +378,8 @@ export function buildBuyAnalyses(
     try {
       const { symbol, name, source, inPortfolio, portfolioQuantity, portfolioAvgPrice } = candidate;
       const clean = String(symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+      const fundObj = fundMap[clean] || fundMap[symbol] || {};
+      const resolvedName = (name && name !== clean) ? name : (fundObj.name || name || clean);
 
       // Get raw price series for this symbol
       const rawSeries = historyMap[symbol]
@@ -392,7 +394,7 @@ export function buildBuyAnalyses(
       if (currentPrice <= 0) {
         results.push({
           symbol: clean,
-          name: name || clean,
+          name: resolvedName,
           source,
           inPortfolio: Boolean(inPortfolio),
           portfolioQuantity: inPortfolio ? Number(portfolioQuantity) || 0 : 0,
@@ -504,7 +506,7 @@ export function buildBuyAnalyses(
       if (opts.includeSipPlans !== false && shouldGenerateSipPlan({ buySignal: signal, fundamentalScore: fundResult.score, fundamentalDataValid: fundResult.isValid }, earningsCatalyst)) {
         sipPlan = buildSipPlan({
           symbol: clean,
-          name,
+          name: resolvedName,
           buySignal: signal,
           currentPrice,
           ema50: chartinkFilter.ema50,
@@ -523,7 +525,7 @@ export function buildBuyAnalyses(
       // Executive Investment Strategy & When to Invest Again Roadmap (computed for all stocks)
       const executiveStrategy = buildExecutiveStrategy({
         symbol: clean,
-        name,
+        name: resolvedName,
         buySignal: signal,
         compositeScore: Math.round((techResult.score + fundResult.score) / 2),
         technicalScore: techResult.score,
@@ -550,7 +552,7 @@ export function buildBuyAnalyses(
       const analysis = {
         // Identity
         symbol: clean,
-        name,
+        name: resolvedName,
         source,
         sector: fundamentals.sector || 'Unknown',
         industry: fundamentals.industry || 'Unknown',

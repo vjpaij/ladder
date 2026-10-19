@@ -235,13 +235,14 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
     const term = query.trim().toLowerCase();
     return analyses
       .filter(item => {
-        const matchesSearch = !term || `${item.name} ${item.symbol} ${item.sector || ''}`.toLowerCase().includes(term);
+        const matchesSearch = !term || `${item.name} ${item.symbol} ${item.sector || ''} ${item.has4RedCandlesBelow21Ema ? '4 red candles 21 ema' : ''}`.toLowerCase().includes(term);
         if (!matchesSearch) return false;
 
         if (activeTab === 'COMPOUNDING') return item.compoundingShield?.isActive;
         if (activeTab === 'WATCH') return item.state === 'WATCH';
         if (activeTab === 'TRIM') return item.state === 'TECHNICAL_TRIM_CANDIDATE' || item.state === 'FUNDAMENTAL_TRIM_CANDIDATE' || item.state === 'FULL_EXIT_CANDIDATE';
         if (activeTab === 'RISK') return item.state === 'PORTFOLIO_RISK_TRIM';
+        if (activeTab === 'FOUR_RED_EMA') return item.has4RedCandlesBelow21Ema;
         return true;
       })
       .sort((a, b) => {
@@ -316,7 +317,8 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
       compounding: analyses.filter(i => i.compoundingShield?.isActive).length,
       watch: analyses.filter(i => i.state === 'WATCH').length,
       trim: analyses.filter(i => i.state === 'TECHNICAL_TRIM_CANDIDATE' || i.state === 'FUNDAMENTAL_TRIM_CANDIDATE' || i.state === 'FULL_EXIT_CANDIDATE').length,
-      risk: analyses.filter(i => i.state === 'PORTFOLIO_RISK_TRIM').length
+      risk: analyses.filter(i => i.state === 'PORTFOLIO_RISK_TRIM').length,
+      fourRedEma: analyses.filter(i => i.has4RedCandlesBelow21Ema).length
     };
   }, [analyses]);
 
@@ -481,7 +483,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
                   <Metric
                     label="Active Stocks"
                     value={summary?.activePositions ?? '—'}
@@ -505,6 +507,12 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     value={counts.trim + counts.risk}
                     tone={counts.trim > 0 ? 'text-rose-400' : 'text-inherit'}
                   />
+                  <Metric
+                    label="4 Red < 21 EMA"
+                    value={counts.fourRedEma}
+                    tone={counts.fourRedEma > 0 ? 'text-rose-400' : 'text-inherit'}
+                    detail={counts.fourRedEma > 0 ? `${counts.fourRedEma} acute breakdowns` : '0 breakdowns'}
+                  />
                 </div>
               </div>
 
@@ -526,7 +534,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
             </div>
 
             {/* Filter Tabs */}
-            <div className="grid grid-cols-3 gap-1.5 mb-3 bg-slate-950/40 p-1.5 rounded-2xl border border-slate-800/80">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3 bg-slate-950/40 p-1.5 rounded-2xl border border-slate-800/80">
               <button
                 onClick={() => setActiveTab('ALL')}
                 className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors ${activeTab === 'ALL' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
@@ -544,6 +552,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                 className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 ${activeTab === 'TRIM' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 <AlertTriangle className="w-3 h-3 text-rose-400" /> Trim ({counts.trim})
+              </button>
+              <button
+                onClick={() => setActiveTab('FOUR_RED_EMA')}
+                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 ${activeTab === 'FOUR_RED_EMA' ? 'bg-rose-500/25 text-rose-300 border border-rose-500/40 shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                title="Stocks with last 4 daily candles closed continuously Red below 21-day EMA and >= 5% below 21-EMA"
+              >
+                <CandlestickChart className="w-3 h-3 text-rose-400" /> 4 Red &lt; 21 EMA ({counts.fourRedEma})
               </button>
             </div>
 
@@ -573,8 +588,19 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                 >
                   <HoldingLogo holding={item} className="w-7 h-7 rounded-lg shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold text-inherit leading-snug line-clamp-1" title={item.name}>
-                      {item.name}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-bold text-inherit leading-snug line-clamp-1" title={item.name}>
+                        {item.name}
+                      </span>
+                      {item.has4RedCandlesBelow21Ema && (
+                        <span
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-black border border-rose-500/40 bg-rose-500/20 text-rose-300 shadow-sm whitespace-nowrap"
+                          title={`Last 4 daily candles closed Red below 21-day EMA (${item.distanceToDailyEma21Pct}% below 21-EMA)`}
+                        >
+                          <CandlestickChart className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+                          4 Red &lt; 21 EMA
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] text-slate-500 flex items-center gap-1.5 font-mono">
                       <span>{item.symbol}</span>
@@ -620,6 +646,15 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           <h3 className="text-xl font-black text-inherit">{selected.name}</h3>
                           <span className="text-xs text-slate-400 font-mono">{selected.symbol}</span>
                           <StateBadge state={selected.state} isCompounding={selected.compoundingShield?.isActive} dataQuality={selected.dataQuality} />
+                          {selected.has4RedCandlesBelow21Ema && (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black border border-rose-500/50 bg-rose-500/20 text-rose-200 shadow-sm"
+                              title={`Last 4 daily candles closed continuously Red below 21-day EMA (latest ${selected.distanceToDailyEma21Pct}% below 21-EMA)`}
+                            >
+                              <CandlestickChart className="w-3.5 h-3.5 text-rose-400" />
+                              <span>4 Red Candles &lt; 21 EMA ({selected.distanceToDailyEma21Pct}%)</span>
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
                           <span>{selected.quantity.toLocaleString()} shares held</span>
@@ -1010,6 +1045,46 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                   {activeDossierTab === 'TECHNICAL' ? (
                     <div className="space-y-4">
+                      {/* 4 Red Candles < 21-EMA Alert Banner */}
+                      {selected.has4RedCandlesBelow21Ema && (
+                        <div className="rounded-2xl border border-rose-500/40 bg-rose-500/[0.08] p-4 flex items-start gap-3">
+                          <CandlestickChart className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                          <div className="flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                                4 Red Candles Below 21-Day Daily EMA Triggered
+                              </span>
+                              <span className="text-xs font-mono font-bold text-rose-400 bg-rose-950/60 border border-rose-500/40 px-2 py-0.5 rounded-lg">
+                                {selected.distanceToDailyEma21Pct}% below 21-EMA
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-300 leading-relaxed">
+                              The last 4 daily candles have closed continuously as Red and below the 21-day Daily EMA ({money(formatMoney, selected.dailyEma21, true, isUsMarket ? 'USD' : 'INR')}), with the latest close {Math.abs(selected.distanceToDailyEma21Pct)}% below the 21-day EMA (threshold: ≥ 5.0%). This reflects short-term distribution momentum.
+                            </p>
+                            {/* Itemized 4 candles breakdown */}
+                            {selected.dailyCandlePatternDetails?.candles && (
+                              <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                                {selected.dailyCandlePatternDetails.candles.map((c, idx) => (
+                                  <div key={c.date} className="rounded-xl border border-rose-500/25 bg-rose-950/30 p-2 text-[10px]">
+                                    <div className="text-slate-400 font-mono text-[9px] flex items-center justify-between">
+                                      <span>Day -{4 - idx} ({c.date.slice(5)})</span>
+                                      <span className="text-rose-400 font-bold">Red ✓</span>
+                                    </div>
+                                    <div className="font-mono font-bold text-inherit mt-1">
+                                      Close: {money(formatMoney, c.close, true, isUsMarket ? 'USD' : 'INR')}
+                                    </div>
+                                    <div className="text-[9px] text-slate-400 font-mono mt-0.5">
+                                      21-EMA: {money(formatMoney, c.ema21, true, isUsMarket ? 'USD' : 'INR')}{c.diffPct !== null ? ` (${c.diffPct}%)` : ''}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
                           label="Trend Stage"
@@ -1038,6 +1113,18 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
+                          label="21-Day Daily EMA"
+                          value={selected.dailyEma21 ? money(formatMoney, selected.dailyEma21, true, isUsMarket ? 'USD' : 'INR') : '—'}
+                          tone={selected.has4RedCandlesBelow21Ema ? 'text-rose-400' : (selected.distanceToDailyEma21Pct !== null && selected.distanceToDailyEma21Pct >= 0 ? 'text-emerald-400' : 'text-inherit')}
+                          detail={selected.distanceToDailyEma21Pct !== null ? `${selected.distanceToDailyEma21Pct >= 0 ? '+' : ''}${selected.distanceToDailyEma21Pct}% vs 21-EMA` : 'Evaluating daily series'}
+                        />
+                        <Metric
+                          label="Daily Red Breakdown"
+                          value={selected.has4RedCandlesBelow21Ema ? 'Triggered (≥5%)' : `${selected.consecutiveDailyRedCandles || 0} Red Days`}
+                          tone={selected.has4RedCandlesBelow21Ema ? 'text-rose-400' : 'text-inherit'}
+                          detail={selected.has4RedCandlesBelow21Ema ? '4 Red Candles < 21-EMA' : (selected.consecutiveDailyBelowEma > 0 ? `${selected.consecutiveDailyBelowEma}d below 21-EMA` : 'Normal fluctuation')}
+                        />
+                        <Metric
                           label="Distance to 30w Trend"
                           value={selected.weeklyClose && selected.sma30Week ? `${((selected.weeklyClose / selected.sma30Week - 1) * 100).toFixed(2)}%` : '—'}
                           tone={selected.weeklyClose >= selected.sma30Week ? 'text-emerald-400' : 'text-rose-400'}
@@ -1049,6 +1136,9 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           tone="text-cyan-400"
                           detail={`Stop floor: ${money(formatMoney, selected.trailingFloorPrice, true, isUsMarket ? 'USD' : 'INR')}`}
                         />
+                      </div>
+
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
                           label="30-Day Return"
                           value={selected.observed30DayReturn ? `${selected.observed30DayReturn.pct >= 0 ? '+' : ''}${selected.observed30DayReturn.pct.toFixed(2)}%` : '—'}

@@ -5,6 +5,7 @@ import {
   X, Layers, Target, ShieldCheck, TrendingUp, Calendar,
   CheckCircle2, Clock, AlertTriangle, ChevronRight, DollarSign
 } from 'lucide-react';
+import HoldingLogo from './HoldingLogo';
 
 const STATUS_STYLES = {
   READY: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -131,14 +132,18 @@ export default function SipPlanModal({ analysis, onClose }) {
           {/* Header */}
           <div className="flex items-center justify-between p-5 border-b border-inherit sticky top-0 modal-surface rounded-t-2xl z-10">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                <Layers className="w-4.5 h-4.5 text-purple-400" style={{ width: '18px', height: '18px' }} />
-              </div>
+              <HoldingLogo
+                holding={analysis}
+                symbol={analysis.symbol}
+                name={analysis.name}
+                category="in_stocks"
+                className="w-10 h-10 rounded-xl shrink-0"
+              />
               <div>
                 <h2 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>
                   SIP Accumulation Plan
                 </h2>
-              <p className="text-xs text-slate-400">{analysis.symbol} · {analysis.buySignal?.replace('_', ' ')} · Opportunistic</p>
+                <p className="text-xs text-slate-400">{analysis.name ? `${analysis.name} · ` : ''}{analysis.symbol} · {analysis.buySignal?.replace('_', ' ')} · Opportunistic</p>
                 <p className="text-[10px] text-slate-500">Review by {new Date(sipPlan.expiresAt).toLocaleDateString('en-IN')}</p>
               </div>
             </div>
