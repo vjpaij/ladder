@@ -22,7 +22,8 @@ import {
   Coins,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  FileSpreadsheet
 } from 'lucide-react';
 import {
   AreaChart,
@@ -36,6 +37,8 @@ import axios from 'axios';
 import { useThemeAuth } from '../../src/context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
 import TradeDetailModal from './TradeDetailModal';
+import GoChartingView from './GoChartingView';
+import StockFinancialsView from './StockFinancialsView';
 
 export default function SymbolTradeLogsModal({
   symbolData,
@@ -46,6 +49,7 @@ export default function SymbolTradeLogsModal({
   onRefresh
 }) {
   const { currency, formatMoney } = useThemeAuth();
+  const [symbolViewMode, setSymbolViewMode] = useState('LEDGER'); // 'LEDGER' | 'CHART' | 'FINANCIALS'
   const [selectedTradeDossier, setSelectedTradeDossier] = useState(null);
   const [modalSortField, setModalSortField] = useState('date');
   const [modalSortOrder, setModalSortOrder] = useState('desc');
@@ -129,7 +133,9 @@ export default function SymbolTradeLogsModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
         transition={{ duration: 0.2 }}
-        className="modal-surface reports-card rounded-3xl border border-[var(--border-color)] shadow-2xl w-full max-w-4xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        className={`modal-surface reports-card rounded-3xl border border-[var(--border-color)] shadow-2xl w-full ${
+          symbolViewMode === 'LEDGER' ? 'max-w-4xl' : 'max-w-4xl xl:max-w-5xl'
+        } overflow-hidden my-auto max-h-[92vh] flex flex-col transition-all duration-200`}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)] reports-subcard">
@@ -150,8 +156,8 @@ export default function SymbolTradeLogsModal({
                 </span>
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                   isProfitable
-                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-400'
-                    : 'border-rose-500/40 bg-rose-500/15 text-rose-400'
+                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'
+                    : 'border-rose-500/40 bg-rose-500/15 text-rose-600 dark:text-rose-300'
                 }`}>
                   Net {isProfitable ? '+' : ''}{formatVal(displayNetPnl)} ({displayRoiPct >= 0 ? '+' : ''}{displayRoiPct?.toFixed(1)}%)
                 </span>
@@ -181,9 +187,65 @@ export default function SymbolTradeLogsModal({
           </div>
         </div>
 
+        {/* Top Mode Switcher Bar */}
+        <div className="flex items-center gap-2 px-6 py-2.5 border-b border-[var(--border-color)] reports-subcard overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setSymbolViewMode('LEDGER')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              symbolViewMode === 'LEDGER'
+                ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Trades Ledger & KPIs ({symbolData.trades?.length || 0})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSymbolViewMode('CHART')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              symbolViewMode === 'CHART'
+                ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>GoCharting 1D Technical Chart</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSymbolViewMode('FINANCIALS')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              symbolViewMode === 'FINANCIALS'
+                ? 'bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/40 shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Quarterly Results & Financials</span>
+          </button>
+        </div>
+
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Analysis Confluence Badges from Buy and Sell Analysis */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {symbolViewMode === 'CHART' ? (
+            <GoChartingView
+              symbol={symbolData.symbol}
+              name={symbolData.name}
+              market={symbolData.market}
+            />
+          ) : symbolViewMode === 'FINANCIALS' ? (
+            <StockFinancialsView
+              symbol={symbolData.symbol}
+              name={symbolData.name}
+              market={symbolData.market}
+            />
+          ) : (
+            <>
+              {/* Analysis Confluence Badges from Buy and Sell Analysis */}
           {Array.isArray(symbolData.analysisBadges) && symbolData.analysisBadges.length > 0 && (
             <div className="p-3.5 rounded-2xl reports-subcard border border-[var(--border-color)] flex flex-wrap items-center gap-2">
               <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] mr-1 flex items-center gap-1">
@@ -614,8 +676,10 @@ export default function SymbolTradeLogsModal({
               </table>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </>
+      )}
+    </div>
+  </motion.div>
 
       {/* Trade Dossier Modal */}
       {selectedTradeDossier && (

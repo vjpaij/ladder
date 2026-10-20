@@ -20,10 +20,14 @@ import {
   Percent,
   Plus,
   Check,
-  Save
+  Save,
+  BarChart3,
+  FileSpreadsheet
 } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
+import GoChartingView from './GoChartingView';
+import StockFinancialsView from './StockFinancialsView';
 
 const AVAILABLE_TAGS = [
   'Followed Plan',
@@ -44,6 +48,7 @@ const AVAILABLE_TAGS = [
 
 export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onRefresh }) {
   const { currency, formatMoney } = useThemeAuth();
+  const [activeViewTab, setActiveViewTab] = useState('ORDER'); // 'ORDER' | 'CHART' | 'FINANCIALS'
   const [isDeleting, setIsDeleting] = useState(false);
   const [notes, setNotes] = useState(trade?.notes || '');
   const [tags, setTags] = useState(Array.isArray(trade?.tags) ? trade.tags : []);
@@ -141,7 +146,9 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
         transition={{ duration: 0.2 }}
-        className="modal-surface reports-card rounded-3xl border border-[var(--border-color)] shadow-2xl w-full max-w-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        className={`modal-surface reports-card rounded-3xl border border-[var(--border-color)] shadow-2xl w-full ${
+          activeViewTab === 'ORDER' ? 'max-w-2xl' : 'max-w-4xl xl:max-w-5xl'
+        } overflow-hidden my-auto max-h-[92vh] flex flex-col transition-all duration-200`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)] reports-subcard">
@@ -208,9 +215,68 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
           </div>
         </div>
 
+        {/* Top Mode Switcher Bar */}
+        <div className="flex items-center gap-2 px-6 py-2.5 border-b border-[var(--border-color)] reports-subcard overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveViewTab('ORDER')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeViewTab === 'ORDER'
+                ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Order & Charges</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveViewTab('CHART')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeViewTab === 'CHART'
+                ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Technical Chart (GoCharting 1D)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveViewTab('FINANCIALS')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeViewTab === 'FINANCIALS'
+                ? 'bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/40 shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Quarterly Results & P&L</span>
+          </button>
+        </div>
+
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Hero P&L Banner */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+          {activeViewTab === 'CHART' ? (
+            <GoChartingView
+              symbol={trade.symbol}
+              name={trade.name}
+              market={trade.market}
+              executionPrice={trade.entryPrice}
+              executionDate={trade.entryDate || trade.date}
+              tradeType={trade.tradeType}
+            />
+          ) : activeViewTab === 'FINANCIALS' ? (
+            <StockFinancialsView
+              symbol={trade.symbol}
+              name={trade.name}
+              market={trade.market}
+            />
+          ) : (
+            <>
+              {/* Hero P&L Banner */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="reports-subcard p-3 rounded-2xl border border-[var(--border-color)]">
               <span className="text-[10px] uppercase font-bold text-[var(--text-muted)] block">Gross P&L</span>
@@ -548,7 +614,9 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
               </div>
             </div>
           )}
-        </div>
+        </>
+      )}
+    </div>
       </motion.div>
     </div>,
     document.body

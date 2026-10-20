@@ -61,7 +61,7 @@
   --border-color: #CBD5E1;
   --text-primary: #0F172A;
   --text-secondary: #334155;
-  --text-muted: #64748B;
+  --text-muted: #475569;
   --accent-emerald: #059669;
   --accent-crimson: #DC2626;
   --accent-indigo: #2563EB;
@@ -79,7 +79,7 @@
   --border-color: #E7E0D8;
   --text-primary: #1C1917;
   --text-secondary: #44403C;
-  --text-muted: #78716C;
+  --text-muted: #57534E;
   --accent-emerald: #D97706;
   --accent-crimson: #DC2626;
   --accent-indigo: #EA580C;
@@ -97,7 +97,7 @@
   --border-color: #CBD5E1;
   --text-primary: #0F172A;
   --text-secondary: #334155;
-  --text-muted: #64748B;
+  --text-muted: #475569;
   --accent-emerald: #0284C7;
   --accent-crimson: #DC2626;
   --accent-indigo: #0284C7;
@@ -285,44 +285,128 @@ body {
 .light .text-slate-300, .light .text-slate-400,
 .warm_light .text-slate-300, .warm_light .text-slate-400,
 .nordic_light .text-slate-300, .nordic_light .text-slate-400 {
-  color: #334155 !important;
+  color: #1E293B !important;
 }
 
 .light .text-slate-500, .light .text-slate-600,
-.warm_light .text-slate-500, .warm_light .text-slate-600,
 .nordic_light .text-slate-500, .nordic_light .text-slate-600 {
-  color: #64748B !important;
+  color: #334155 !important;
+}
+.warm_light .text-slate-500, .warm_light .text-slate-600 {
+  color: #44403C !important;
 }
 
-.light .text-emerald-400, .warm_light .text-emerald-400, .nordic_light .text-emerald-400 {
-  color: #059669 !important;
+/* Light Theme Variables High-Contrast Guarantees */
+.light .text-\[var\(--text-muted\)\],
+.nordic_light .text-\[var\(--text-muted\)\],
+.light [class*="text-[var(--text-muted)]"],
+.nordic_light [class*="text-[var(--text-muted)]"] {
+  color: #475569 !important;
+}
+.warm_light .text-\[var\(--text-muted\)\],
+.warm_light [class*="text-[var(--text-muted)]"] {
+  color: #57534E !important;
 }
 
-.light .text-rose-400, .warm_light .text-rose-400, .nordic_light .text-rose-400 {
-  color: #DC2626 !important;
+.light .text-\[var\(--text-secondary\)\],
+.nordic_light .text-\[var\(--text-secondary\)\],
+.light [class*="text-[var(--text-secondary)]"],
+.nordic_light [class*="text-[var(--text-secondary)]"] {
+  color: #1E293B !important;
+}
+.warm_light .text-\[var\(--text-secondary\)\],
+.warm_light [class*="text-[var(--text-secondary)]"] {
+  color: #292524 !important;
 }
 
-.light .text-indigo-400, .warm_light .text-indigo-400, .nordic_light .text-indigo-400 {
-  color: #2563EB !important;
+/* Vibrant, readable badges and indicators in light themes */
+.light .text-emerald-400, .light .text-emerald-500, .light .text-emerald-600,
+.warm_light .text-emerald-400, .warm_light .text-emerald-500, .warm_light .text-emerald-600,
+.nordic_light .text-emerald-400, .nordic_light .text-emerald-500, .nordic_light .text-emerald-600 {
+  color: #047857 !important;
 }
 
-.light .text-purple-400, .warm_light .text-purple-400, .nordic_light .text-purple-400 {
-  color: #7C3AED !important;
+.light .text-rose-400, .light .text-rose-500, .light .text-rose-600,
+.warm_light .text-rose-400, .warm_light .text-rose-500, .warm_light .text-rose-600,
+.nordic_light .text-rose-400, .nordic_light .text-rose-500, .nordic_light .text-rose-600 {
+  color: #B91C1C !important;
 }
 
-.light .text-amber-400, .warm_light .text-amber-400, .nordic_light .text-amber-400 {
-  color: #D97706 !important;
+.light .text-indigo-400, .light .text-indigo-500, .light .text-indigo-600,
+.warm_light .text-indigo-400, .warm_light .text-indigo-500, .warm_light .text-indigo-600,
+.nordic_light .text-indigo-400, .nordic_light .text-indigo-500, .nordic_light .text-indigo-600 {
+  color: #4338CA !important;
 }
 
-.light .text-cyan-400, .warm_light .text-cyan-400, .nordic_light .text-cyan-400 {
-  color: #0891B2 !important;
+.light .text-purple-400, .light .text-purple-500, .light .text-purple-600,
+.warm_light .text-purple-400, .warm_light .text-purple-500, .warm_light .text-purple-600,
+.nordic_light .text-purple-400, .nordic_light .text-purple-500, .nordic_light .text-purple-600 {
+  color: #6D28D9 !important;
 }
 
-.light .text-blue-400, .warm_light .text-blue-400, .nordic_light .text-blue-400 {
-  color: #2563EB !important;
+.light .text-amber-400, .light .text-amber-500, .light .text-amber-600,
+.warm_light .text-amber-400, .warm_light .text-amber-500, .warm_light .text-amber-600,
+.nordic_light .text-amber-400, .nordic_light .text-amber-500, .nordic_light .text-amber-600 {
+  color: #B45309 !important;
 }
 
-.light .bg-blue-600\/10, .warm_light .bg-blue-600\/10, .nordic_light .bg-blue-600\/10 {
+.light .text-yellow-400, .light .text-yellow-500, .light .text-yellow-600,
+.warm_light .text-yellow-400, .warm_light .text-yellow-500, .warm_light .text-yellow-600,
+.nordic_light .text-yellow-400, .nordic_light .text-yellow-500, .nordic_light .text-yellow-600 {
+  color: #854D0E !important;
+}
+
+.light .text-cyan-400, .light .text-cyan-500, .light .text-cyan-600,
+.warm_light .text-cyan-400, .warm_light .text-cyan-500, .warm_light .text-cyan-600,
+.nordic_light .text-cyan-400, .nordic_light .text-cyan-500, .nordic_light .text-cyan-600 {
+  color: #0E7490 !important;
+}
+
+.light .text-blue-400, .light .text-blue-500, .light .text-blue-600,
+.warm_light .text-blue-400, .warm_light .text-blue-500, .warm_light .text-blue-600,
+.nordic_light .text-blue-400, .nordic_light .text-blue-500, .nordic_light .text-blue-600 {
+  color: #1D4ED8 !important;
+}
+
+/* Light Mode Soft Badge Background Tints with High-Contrast Borders */
+.light .bg-emerald-500\/10, .light .bg-emerald-500\/15, .light .bg-emerald-500\/20,
+.warm_light .bg-emerald-500\/10, .warm_light .bg-emerald-500\/15, .warm_light .bg-emerald-500\/20,
+.nordic_light .bg-emerald-500\/10, .nordic_light .bg-emerald-500\/15, .nordic_light .bg-emerald-500\/20 {
+  background-color: #ECFDF5 !important;
+  border-color: #A7F3D0 !important;
+}
+
+.light .bg-rose-500\/10, .light .bg-rose-500\/15, .light .bg-rose-500\/20,
+.warm_light .bg-rose-500\/10, .warm_light .bg-rose-500\/15, .warm_light .bg-rose-500\/20,
+.nordic_light .bg-rose-500\/10, .nordic_light .bg-rose-500\/15, .nordic_light .bg-rose-500\/20 {
+  background-color: #FFF1F2 !important;
+  border-color: #FECDD3 !important;
+}
+
+.light .bg-cyan-500\/10, .light .bg-cyan-500\/15, .light .bg-cyan-500\/20,
+.warm_light .bg-cyan-500\/10, .warm_light .bg-cyan-500\/15, .warm_light .bg-cyan-500\/20,
+.nordic_light .bg-cyan-500\/10, .nordic_light .bg-cyan-500\/15, .nordic_light .bg-cyan-500\/20 {
+  background-color: #ECFEFF !important;
+  border-color: #A5F3FC !important;
+}
+
+.light .bg-amber-500\/10, .light .bg-amber-500\/15, .light .bg-amber-500\/20,
+.warm_light .bg-amber-500\/10, .warm_light .bg-amber-500\/15, .warm_light .bg-amber-500\/20,
+.nordic_light .bg-amber-500\/10, .nordic_light .bg-amber-500\/15, .nordic_light .bg-amber-500\/20 {
+  background-color: #FFFBEB !important;
+  border-color: #FDE68A !important;
+}
+
+.light .bg-purple-500\/10, .light .bg-purple-500\/15, .light .bg-purple-500\/20,
+.warm_light .bg-purple-500\/10, .warm_light .bg-purple-500\/15, .warm_light .bg-purple-500\/20,
+.nordic_light .bg-purple-500\/10, .nordic_light .bg-purple-500\/15, .nordic_light .bg-purple-500\/20 {
+  background-color: #FAF5FF !important;
+  border-color: #E9D5FF !important;
+}
+
+.light .bg-blue-600\/10, .light .bg-blue-500\/10, .light .bg-blue-500\/15,
+.warm_light .bg-blue-600\/10, .warm_light .bg-blue-500\/10, .warm_light .bg-blue-500\/15,
+.nordic_light .bg-blue-600\/10, .nordic_light .bg-blue-500\/10, .nordic_light .bg-blue-500\/15 {
   background-color: #EFF6FF !important;
   border-color: #BFDBFE !important;
   color: #1D4ED8 !important;
@@ -474,15 +558,37 @@ body {
   -webkit-text-fill-color: transparent !important;
 }
 
+/* Universal Form Input Contrast */
+input, select, textarea {
+  color: var(--text-primary);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #3B82F6 !important;
+  outline: none;
+}
+
 .light input, .warm_light input, .nordic_light input,
-.light select, .warm_light select, .nordic_light select {
+.light select, .warm_light select, .nordic_light select,
+.light textarea, .warm_light textarea, .nordic_light textarea {
   color: #0F172A !important;
   background-color: #FFFFFF !important;
   border-color: #CBD5E1 !important;
 }
 
-.light input::placeholder, .warm_light input::placeholder, .nordic_light input::placeholder {
-  color: #94A3B8 !important;
+.warm_light input, .warm_light select, .warm_light textarea {
+  color: #1C1917 !important;
+  background-color: #FFFFFF !important;
+  border-color: #E7E0D8 !important;
+}
+
+.light input::placeholder, .warm_light input::placeholder, .nordic_light input::placeholder,
+.light textarea::placeholder, .warm_light textarea::placeholder, .nordic_light textarea::placeholder {
+  color: #64748B !important;
 }
 
 /* ─── Reports Theme Utilities (Strict Single-Source Theme Parity) ── */
@@ -496,6 +602,52 @@ body {
   background-color: var(--bg-card) !important;
   border: 1px solid var(--border-color) !important;
   color: var(--text-primary) !important;
+}
+
+/* Light Theme Card High-Contrast Overrides */
+.light .reports-card, .nordic_light .reports-card {
+  background-color: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+.warm_light .reports-card {
+  background-color: #FFFFFF !important;
+  border-color: #E7E0D8 !important;
+  color: #1C1917 !important;
+}
+
+.light .reports-subcard, .nordic_light .reports-subcard {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+.warm_light .reports-subcard {
+  background-color: #F7F3EE !important;
+  border-color: #E7E0D8 !important;
+  color: #1C1917 !important;
+}
+
+/* Dark Theme Specific Card Boosts */
+.midnight .reports-card {
+  background-color: rgba(14, 26, 56, 0.95) !important;
+  border-color: rgba(56, 189, 248, 0.22) !important;
+  color: #F0F6FF !important;
+}
+.midnight .reports-subcard {
+  background-color: #14234B !important;
+  border-color: rgba(56, 189, 248, 0.2) !important;
+  color: #F0F6FF !important;
+}
+
+.sunset .reports-card {
+  background-color: rgba(31, 13, 36, 0.95) !important;
+  border-color: rgba(244, 114, 182, 0.22) !important;
+  color: #FFF1F2 !important;
+}
+.sunset .reports-subcard {
+  background-color: #2D1435 !important;
+  border-color: rgba(244, 114, 182, 0.2) !important;
+  color: #FFF1F2 !important;
 }
 
 .reports-subcard.is-selected {
@@ -535,6 +687,13 @@ body {
   background-color: var(--bg-main) !important;
   border-bottom: 1px solid var(--border-color) !important;
   color: var(--text-muted) !important;
+  font-weight: 700 !important;
+}
+
+.light .reports-table-head, .warm_light .reports-table-head, .nordic_light .reports-table-head {
+  background-color: #F1F5F9 !important;
+  border-bottom: 1px solid #CBD5E1 !important;
+  color: #334155 !important;
 }
 
 .reports-table-row {
@@ -546,16 +705,33 @@ body {
   background-color: var(--bg-card) !important;
 }
 
+.light .reports-table-row:hover, .warm_light .reports-table-row:hover, .nordic_light .reports-table-row:hover {
+  background-color: #F1F5F9 !important;
+}
+
 .reports-table-sticky-head {
   background-color: var(--bg-main) !important;
+}
+.light .reports-table-sticky-head, .warm_light .reports-table-sticky-head, .nordic_light .reports-table-sticky-head {
+  background-color: #F1F5F9 !important;
+  color: #334155 !important;
 }
 
 .reports-table-sticky-cell {
   background-color: var(--bg-surface) !important;
 }
+.light .reports-table-sticky-cell, .warm_light .reports-table-sticky-cell, .nordic_light .reports-table-sticky-cell {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
 
 .reports-table-row:hover .reports-table-sticky-cell {
   background-color: var(--bg-card) !important;
+}
+.light .reports-table-row:hover .reports-table-sticky-cell,
+.warm_light .reports-table-row:hover .reports-table-sticky-cell,
+.nordic_light .reports-table-row:hover .reports-table-sticky-cell {
+  background-color: #F1F5F9 !important;
 }
 
 .light .reports-subcard, .warm_light .reports-subcard, .nordic_light .reports-subcard {

@@ -6,6 +6,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { deleteDividend, updateDividend } from '../services/dividendService.js';
 import { deleteStockSplit, updateStockSplit } from '../services/corporateActionService.js';
 import { supabase } from '../supabaseClient.js';
+import { scheduleAutoSyncFromPortfolio } from '../services/tradingJournalService.js';
 
 const router = express.Router();
 
@@ -76,6 +77,8 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
 
     triggerEodRebuildIfPastDate(txs[0].date);
 
+    scheduleAutoSyncFromPortfolio();
+
     res.json({ success: true, message: 'Transaction deleted and holding position automatically recalculated.' });
   } catch (err) {
     console.error('[Delete Transaction Error]:', err);
@@ -142,6 +145,8 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
       db.invalidateCache('loan_amortization');
     }
     triggerEodRebuildIfPastDate(updates.date || txs[0].date);
+
+    scheduleAutoSyncFromPortfolio();
 
     res.json({ success: true, message: 'Transaction updated and holding position automatically recalculated.' });
   } catch (err) {

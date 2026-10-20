@@ -18,6 +18,7 @@ import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.j
 import { getHistoricalPricesMap, ensureHistoricalPricesForSymbol, formatDateDDMMYYYY } from '../services/historicalPriceStore.js';
 import { computeHoldingValueINR } from '../services/portfolioCalculator.js';
 import { recalculateHoldingState } from '../services/recalculator.js';
+import { scheduleAutoSyncFromPortfolio } from '../services/tradingJournalService.js';
 import { calculateXirr } from '../services/xirrCalculator.js';
 import { invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
@@ -468,6 +469,7 @@ router.post('/holdings', authenticateToken, async (req, res) => {
       date: new Date().toISOString().split('T')[0],
       notes: `Initial purchase of ${name} (${symbol})`
     });
+    scheduleAutoSyncFromPortfolio();
 
     import('../../scripts/sync_asset_metadata.mjs')
       .then(m => m.syncAssetMetadata(false))
@@ -1828,6 +1830,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           name: targetHolding.name || name.trim(),
           notes: data.notes || `Bonus issue (+${txQty} shares credited at ₹0 cost, avg cost diluted from ₹${preBonusAvg.toFixed(2)} to ₹${newAvg.toFixed(2)})`
         });
+        scheduleAutoSyncFromPortfolio();
 
         await recalculateHoldingState(holdingId);
         triggerEodRebuildIfPastDate(txDate);
@@ -1860,6 +1863,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       }
 
       await db.insert('transactions', txRecord);
+      scheduleAutoSyncFromPortfolio();
       await recalculateHoldingState(holdingId);
       invalidateBenchmarkCache();
       triggerEodRebuildIfPastDate(txDate);
@@ -1943,6 +1947,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           name: finalName,
           notes: notes || ''
         });
+        scheduleAutoSyncFromPortfolio();
       } else if (balance !== undefined) {
         const currentBal = Number(targetHolding.current_price) || 0;
         const targetBal = Math.max(0, Number(balance));
@@ -1969,6 +1974,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
             name: finalName,
             notes: notes || `Balance Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
           });
+          scheduleAutoSyncFromPortfolio();
         }
       }
 
@@ -2030,6 +2036,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           name: finalName,
           notes: notes || ''
         });
+        scheduleAutoSyncFromPortfolio();
 
         // Auto-settle the matching projected amortization row for this month
         if (txType === 'EMI_PAYMENT' || txType === 'PREPAYMENT') {
@@ -2061,6 +2068,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
             name: finalName,
             notes: notes || `Loan Adjustment (${diff > 0 ? '+' : '-'}₹${absDiff.toFixed(2)})`
           });
+          scheduleAutoSyncFromPortfolio();
 
           // Auto-settle the matching projected amortization row for this month
           if (txType === 'EMI_PAYMENT') {
@@ -2134,6 +2142,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
           name: finalName,
           notes: notes || ''
         });
+        scheduleAutoSyncFromPortfolio();
       } else if (balance !== undefined) {
         const currentBal = Number(targetCard.outstanding_balance) || 0;
         const targetBal = Math.max(0, Number(balance));
@@ -2155,6 +2164,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
             name: finalName,
             notes: notes || `Card Adjustment (${diff > 0 ? '+' : '-'}₹${Math.abs(diff).toFixed(2)})`
           });
+          scheduleAutoSyncFromPortfolio();
         }
       }
 

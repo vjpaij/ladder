@@ -260,18 +260,21 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
           )}
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls: Auto-Sync Indicator & Optional Force Sync Trigger */}
         <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleSyncPortfolio}
-            disabled={syncing}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold reports-subcard hover:border-emerald-500/40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
-            title="Scan Ladder transactions table and import past closed trades"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-            <span>{syncing ? 'Syncing...' : 'Sync from Portfolio'}</span>
-          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 shadow-sm">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            <span>✓ Auto-Synced with Portfolio</span>
+            <button
+              type="button"
+              onClick={handleSyncPortfolio}
+              disabled={syncing}
+              className="p-1 -mr-1 rounded-lg hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-200 transition-colors cursor-pointer"
+              title="Force instant re-sync with Ladder portfolio transactions"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
 
           <button
             type="button"

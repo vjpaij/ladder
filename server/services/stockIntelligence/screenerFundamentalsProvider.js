@@ -150,9 +150,20 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
     let annualSales = [];
     let annualPat = [];
     let annualEps = [];
+    const annualLabels = [];
+    const annualRows = {};
 
     if (plMatch) {
       const plTable = plMatch[0];
+      const theadMatch = plTable.match(/<thead>[\s\S]*?<\/thead>/);
+      if (theadMatch) {
+        const ths = theadMatch[0].match(/<th[^>]*>([\s\S]*?)<\/th>/g) || [];
+        for (const th of ths.slice(1)) {
+          const l = th.replace(/<[^>]+>/g, '').trim();
+          if (l) annualLabels.push(l);
+        }
+      }
+
       const trs = plTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
       for (const tr of trs) {
         const text = tr.replace(/<[^>]+>/g, '|').split('|').map(s => s.trim()).filter(Boolean);
@@ -160,13 +171,14 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
           const rawKey = text[0].replace(/&nbsp;/g, ' ').replace(/\+/g, '').trim();
           const cleanKey = (rawKey.startsWith('Sales') || rawKey.startsWith('Revenue')) ? 'Sales' :
                            rawKey.split(' ')[0] === 'Net' && rawKey.includes('Profit') ? 'Net Profit' :
-                           rawKey.includes('EPS') ? 'EPS' : rawKey;
+                           rawKey.includes('EPS') ? 'EPS in Rs' : rawKey;
           const values = text.slice(1)
             .filter(v => v !== '+')
             .map(v => Number(v.replace(/,/g, '').replace(/%/g, '')) || 0);
+          annualRows[cleanKey] = values;
           if (cleanKey === 'Sales') annualSales = values;
           if (cleanKey === 'Net Profit') annualPat = values;
-          if (cleanKey === 'EPS') annualEps = values;
+          if (cleanKey === 'EPS in Rs') annualEps = values;
         }
       }
     }
@@ -347,7 +359,12 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
       annualEps,
       quarterlySales: salesArr,
       quarterlyPat: patArr,
+      quarterLabels,
+      quarterHeaders: quarterLabels,
       quarterRows,
+      annualLabels,
+      annualHeaders: annualLabels,
+      annualRows,
       epsConsecutiveGrowthYears,
       debtToEquity: ratios['Debt to Equity'] ?? null,
       lastResultDate,

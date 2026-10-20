@@ -118,6 +118,20 @@ export function debouncedSyncToCloud() {
   }, 2500);
 }
 
+// Debounced auto-sync trigger for portfolio mutations (buys, sells, splits, deletes)
+let autoSyncPortfolioTimeout = null;
+export function scheduleAutoSyncFromPortfolio(delayMs = 300) {
+  if (autoSyncPortfolioTimeout) clearTimeout(autoSyncPortfolioTimeout);
+  autoSyncPortfolioTimeout = setTimeout(async () => {
+    try {
+      console.log('[TradingJournal] Auto-syncing journal from portfolio transactions (debounced)...');
+      await syncFromPortfolioTransactions();
+    } catch (err) {
+      console.warn('[TradingJournal] scheduleAutoSyncFromPortfolio failed:', err.message);
+    }
+  }, delayMs);
+}
+
 function loadJournalFromDisk() {
   if (cachedJournal !== null) return cachedJournal;
   try {
@@ -287,7 +301,15 @@ function enrichTrade(trade) {
 }
 
 export function getAllTrades(filters = {}) {
-  const trades = loadJournalFromDisk();
+  if (cachedJournal === null) {
+    loadJournalFromDisk();
+  }
+  if (!cachedJournal || cachedJournal.length === 0) {
+    syncFromPortfolioTransactions().catch(err => {
+      console.warn('[TradingJournal] Auto-sync in getAllTrades caught error:', err.message);
+    });
+  }
+  const trades = cachedJournal || [];
   let result = [...trades];
 
   if (filters.market && filters.market !== 'ALL') {
@@ -1019,6 +1041,16 @@ function loadAnalysisBadgesMap() {
  * Returns symbol-wise aggregated metrics for the Trade Journal master table
  */
 export async function getSymbolAggregatedTrades(filters = {}) {
+  if (cachedJournal === null) {
+    loadJournalFromDisk();
+  }
+  if (!cachedJournal || cachedJournal.length === 0) {
+    try {
+      await syncFromPortfolioTransactions();
+    } catch (err) {
+      console.warn('[TradingJournal] Auto-sync in getSymbolAggregatedTrades caught error:', err.message);
+    }
+  }
   const allTrades = getAllTrades(filters);
   const badgeMap = loadAnalysisBadgesMap();
 
