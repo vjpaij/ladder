@@ -160147,5 +160147,28 @@
     "total_wealth": 18659549.67,
     "daily_pnl": -141035.93,
     "pnl_pct": -0.75
+  },
+  {
+    "date": "2026-10-20",
+    "hdfc": 10184.25,
+    "indusind": 8923.75,
+    "idfc": 1585588.68,
+    "rbl": 20855,
+    "sbi": 1367.05,
+    "federal": 0,
+    "savings": 1626918.73,
+    "mutual_funds": 4475323.45,
+    "indian_stocks": 9858172.36,
+    "us_stocks": 1815897.65,
+    "nps": 502985.75,
+    "epf": 4794473,
+    "loan": 4431050,
+    "credits": 7153.87,
+    "debt": 4438203.87,
+    "total_assets": 23073770.94,
+    "wealth": 18635567.07,
+    "total_wealth": 18635567.07,
+    "daily_pnl": -23982.6,
+    "pnl_pct": -0.13
   }
 ]

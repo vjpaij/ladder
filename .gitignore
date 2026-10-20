@@ -32,4 +32,5 @@ data/buy_analysis_snapshot.json
 data/news_intel_cache.json
 data/daily_candles_cache.json
 data/stock_logos_cache.json
-
+data/*.csv
+*.csv

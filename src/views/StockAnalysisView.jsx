@@ -10,6 +10,7 @@ import {
   BarChart3,
   CandlestickChart,
   CheckCircle2,
+  Download,
   Clock3,
   ExternalLink,
   Flame,
@@ -131,7 +132,7 @@ function StateBadge({ state, isCompounding, dataQuality }) {
 let cachedStockAnalysisData = null;
 
 export default function StockAnalysisView({ holdings = [], onSelectHolding, initialTab }) {
-  const { formatMoney } = useThemeAuth();
+  const { formatMoney, showSuccess, showError } = useThemeAuth();
   const [activeAnalysisMode, setActiveAnalysisMode] = useState(() => {
     if (initialTab && (initialTab === 'buy' || initialTab === 'sell' || initialTab === 'journal')) {
       return initialTab;
@@ -310,6 +311,35 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
     }
   };
 
+
+  const [downloadingPlan, setDownloadingPlan] = useState(false);
+
+  const handleDownloadActionPlan = async () => {
+    if (downloadingPlan) return;
+    setDownloadingPlan(true);
+    try {
+      const response = await axios.get('/api/stock-intelligence/action-plan-csv', {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const todayStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `ladder_action_plan_${todayStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      if (showSuccess) showSuccess('Next Market Day Action Plan downloaded successfully!');
+    } catch (err) {
+      console.error('[Action Plan Download Error]:', err);
+      if (showError) showError('Failed to download action plan: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setDownloadingPlan(false);
+    }
+  };
+
   const priceChart = selected?.history || [];
   const returnTone = value => value === null || value === undefined ? 'text-[var(--text-muted)]' : value >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400';
 
@@ -343,8 +373,23 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
             </div>
           </div>
 
-          {/* Master Mode Switcher: Buy Analysis vs Sell Analysis */}
-          <div className="flex items-center p-1 rounded-2xl border border-[var(--border-color)] reports-subcard shadow-inner">
+
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Download Next Market Day Action Plan */}
+            <button
+              type="button"
+              onClick={handleDownloadActionPlan}
+              disabled={downloadingPlan}
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-cyan-500/15 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-600 dark:text-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow active:scale-95 disabled:opacity-50"
+              title="Download Next Market Day Action Plan (Buys, Sells, Trims & Sizing CSV)"
+            >
+              <Download className={`w-4 h-4 ${downloadingPlan ? 'animate-bounce' : ''}`} />
+              <span className="hidden sm:inline">Next Day Action Plan</span>
+              <span className="sm:hidden">Action Plan</span>
+            </button>
+
+            {/* Master Mode Switcher: Buy Analysis vs Sell Analysis */}
+            <div className="flex items-center p-1 rounded-2xl border border-[var(--border-color)] reports-subcard shadow-inner">
             <button
               type="button"
               onClick={() => handleModeChange('buy')}
@@ -394,6 +439,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                 </span>
               )}
             </button>
+          </div>
           </div>
         </div>
       </div>

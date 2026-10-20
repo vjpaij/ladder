@@ -13,6 +13,7 @@ import { loadAllCachedUsFundamentals } from '../services/stockIntelligence/usFun
 import { logSyncEvent } from '../services/syncLogService.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { validateAndHealStockData } from '../services/stockIntelligence/dataIntegrityValidator.js';
+import { generateActionPlan } from '../services/stockIntelligence/actionPlanService.js';
 
 const router = express.Router();
 const backtestCache = new Map();
@@ -326,6 +327,26 @@ router.post('/stock-intelligence/config', authenticateToken, (req, res) => {
     res.json({ config });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+
+router.get('/stock-intelligence/action-plan-csv', authenticateToken, async (req, res) => {
+  try {
+    const budget = req.query.budget ? Number(req.query.budget) : 10000;
+    const plan = await generateActionPlan({ userId: getUserKey(req.user), budgetPerBuy: budget });
+
+    if (req.query.format === 'json') {
+      return res.json(plan);
+    }
+
+    const filename = `ladder_action_plan_${plan.today}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(plan.csv);
+  } catch (error) {
+    console.error('[Stock Intelligence] Action plan generation failed:', error.message);
+    res.status(500).json({ error: 'Failed to generate action plan.' });
   }
 });
 
