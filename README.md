@@ -2,6 +2,10 @@
 
 Ladder is an institutional-grade personal finance and investment management dashboard designed for tracking multi-asset portfolios including Indian Equity, US Equity, Mutual Funds, Fixed Income / Retirement (Bank Accounts, Fixed Deposits, NPS, EPF), Liabilities (Loans, Credit Cards), and Dividends.
 
+### Resilient data loading
+
+Large database tables are fetched with explicit pagination, and simultaneous cold reads for the same table share one request. Portfolio summaries use indexed holding lookups, while calendar history is parsed and sorted once per file update, calendar rows render incrementally, and derived caches are cleared after successful portfolio writes. Cache snapshots merge untouched tables from the last verified snapshot and reject accidental empty replacements, so a single-table maintenance job cannot blank unrelated pages. The NPS recovery migration checks NAVs and cloud duplicates, recalculates FIFO positions, and persists snapshots through the database cache writer.
+
 ---
 
 ## Architecture & System Overview
@@ -117,7 +121,9 @@ Ladder is an institutional-grade personal finance and investment management dash
    - **Write-Ahead Log (WAL) Dual-Write Architecture**: Every database mutation (`insert`, `update`, `delete`) in `server/db.js` logs to `data/pending_writes.json` (WAL). A background worker (`server/services/walFlusherService.js`) retries failed writes to Supabase every 30s using `supabaseAdmin`, completely eliminating data loss from transient network drops or RLS mismatches.
    - **Pre-Backup Synchronous WAL Flush**: Before any backup is produced, all pending WAL entries are flushed to Supabase. If any writes remain pending, the backup is safely generated from local cache and marked `PARTIAL` with user notifications.
    - **Atomic Two-Phase Snapshot Commit & SHA-256 Checksums**: Local cache snapshots in `data/db_cache_snapshot.json` execute an atomic three-phase write (`.tmp` write -> atomic `renameSync` -> `.bak` secondary copy) protected by SHA-256 checksums, with automatic fallback recovery on corruption.
-   - **Service-Role Key RLS Bypass for Database Restores**: Database restoration (`restore_backup.mjs` and `POST /api/cloud-backups/restore`) leverages `supabaseAdmin` with the Service Role key, bypassing RLS constraints. Restores automatically create a pre-restore safety snapshot before touching any table, exclude local user credentials, and trigger a fresh cache rebuild and WAL purge post-restore.
+   - **Service-Role Key RLS Bypass for Database Restores**: Database restoration (`restore_backup.mjs` and `POST /api/cloud-backups/restore`) leverages `supabaseAdmin` with the Service Role key, bypassing RLS constraints. Restores automatically create a pre-restore safety snapshot before touching any table, exclude local user credentials, seed RAM and the checksummed disk cache from the exact restored snapshot, and clear the WAL after restore.
+   - **Legacy Transaction Type Compatibility & Restore Preflight**: Old backups containing `DEPOSIT` or `WITHDRAWAL` are normalized to the database's accepted `CREDIT` or `DEBIT` values. Every transaction type is checked before live tables are cleared; unsupported values stop the restore before changing live data.
+   - **Append-Only Automatic EOD Catch-Up**: Login catch-up, scheduled EOD jobs, and daily sync preserve validated historical valuations and append only missing finalized dates. Full-history replay remains reserved for explicit backfills and past-dated transaction changes.
    - **Lossless Gzip Cloud Backup Engine**: Captures full database snapshots across all 13 core tables, compresses them losslessly with gzip (`.json.gz`, shrinking storage by 93.2% from 15.2 MB to 1.0 MB), and uploads them directly to Supabase Cloud Storage (bucket `ladder_backups`).
    - **10-Day Retention Policy**: Unlimited backups within 10 days. Automatically prunes snapshots older than 10 days both in Supabase Cloud Storage and local disk storage.
    - **Automated Daily Schedule (08:25 AM IST)**: Executes automatically every morning just before 8:30 AM IST (08:25 AM IST / 02:55 UTC) via the Express server scheduler and GitHub Actions (`.github/workflows/daily_backup.yml`).

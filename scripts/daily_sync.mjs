@@ -52,7 +52,7 @@ async function runDailySync() {
     results.push(await runScript('./scripts/sync_daily_prices.mjs'));
 
     // 2. Rebuild historical EOD logs & synchronize pnl_history
-    results.push(await runScript('./scripts/rebuild_portfolio_eod.mjs'));
+    results.push(await runScript('./scripts/rebuild_portfolio_eod.mjs', ['--incremental']));
 
     // 3. Verify financial data integrity & invariance assertions
     results.push(await runScript('./scripts/verify_financial_integrity.mjs'));

@@ -45,7 +45,8 @@ import holdingsRouter from './routes/holdings.js';
 import transactionsRouter from './routes/transactions.js';
 import liabilitiesRouter from './routes/liabilities.js';
 import dividendsRouter from './routes/dividends.js';
-import calendarRouter from './routes/calendar.js';
+import calendarRouter, { invalidateEodLogsCache, invalidateTxDatesCache } from './routes/calendar.js';
+import { invalidateSummaryCache } from './routes/summary.js';
 import backupRouter from './routes/backup.js';
 import databaseRouter from './routes/database.js';
 import sipsRouter from './routes/sips.js';
@@ -71,6 +72,22 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http:
   .filter(Boolean);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
+
+// Keep derived dashboard/calendar caches coherent after successful domain
+// writes, regardless of which CRUD route handled the mutation.
+app.use('/api', (req, res, next) => {
+  const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  const domainWrite = /^\/(transactions|holdings|liabilities|dividends|sips|refresh-prices|database)(\/|$)/.test(req.path);
+  if (mutating && domainWrite) {
+    res.on('finish', () => {
+      if (res.statusCode >= 200 && res.statusCode < 400) {
+        invalidateSummaryCache();
+        invalidateTxDatesCache();
+      }
+    });
+  }
+  next();
+});
 
 
 
@@ -541,7 +558,7 @@ app.listen(PORT, async () => {
         } catch (e) {
           console.warn('[EOD Scheduler] Closing price persist warning:', e.message);
         }
-        const child = fork('./scripts/rebuild_portfolio_eod.mjs');
+        const child = fork('./scripts/rebuild_portfolio_eod.mjs', ['--incremental']);
         child.on('exit', (code) => {
           console.log(`[EOD Scheduler] Scheduled rebuild (${label}) completed with exit code ${code}`);
           logSyncEvent({

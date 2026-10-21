@@ -24,9 +24,9 @@ export function resolveHoldingPrice(h, liveQuote = null) {
     const nse = (quote && quote.nse_price > 0) ? Number(quote.nse_price) : (Number(h.nse_price) || 0);
     const bse = (quote && quote.bse_price > 0) ? Number(quote.bse_price) : (Number(h.bse_price) || 0);
     const maxEx = Math.max(nse, bse);
-    if (maxEx > 0) {
-      price = Math.max(price, maxEx);
-    }
+    // When either exchange has a quote, the canonical price must come from
+    // those exchange quotes. A stale persisted current_price must never win.
+    if (maxEx > 0) price = maxEx;
   }
   return price;
 }

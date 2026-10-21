@@ -1,4 +1,6 @@
 import express from 'express';
+import { invalidateEodLogsCache, invalidateTxDatesCache, invalidateCalendarValuationCache } from './calendar.js';
+import { invalidateSummaryCache } from './summary.js';
 import axios from 'axios';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
@@ -266,6 +268,10 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
       durationMs,
       details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedCount || 'all'} holdings updated).${missedEodStatus?.needed ? ' Catch-up EOD rebuild launched.' : ''}`
     });
+    // Invalidate server-side caches so next poll gets fresh data
+    invalidateSummaryCache();
+    invalidateTxDatesCache();
+    invalidateCalendarValuationCache();
     res.json({ success: true, ...result, missedEodStatus });
   } catch (err) {
     const durationMs = Date.now() - startTime;

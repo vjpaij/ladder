@@ -12,6 +12,8 @@ import { AnimatedPage, AnimatedItem } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
 import ChartRangeSelector, { computeRangeDates } from '../components/ChartRangeSelector';
 
+const CALENDAR_ROWS_PER_PAGE = 180;
+
 // Helper for stylish date formatting (e.g. "07 Aug 2026")
 function formatPrettyDate(dateStr) {
   if (!dateStr) return '—';
@@ -93,6 +95,7 @@ export default function CalendarView() {
   });
   const [sortField, setSortField] = useState('date');
   const [sortDirection, setSortDirection] = useState('desc');
+  const [visibleCount, setVisibleCount] = useState(CALENDAR_ROWS_PER_PAGE);
 
   // Range & Custom Date pickers with persistence
   const [calendarRangeFilter, setCalendarRangeFilter] = useState(() => {
@@ -119,6 +122,7 @@ export default function CalendarView() {
 
   const handleGranularityChange = (newGran) => {
     setGranularity(newGran);
+    setVisibleCount(CALENDAR_ROWS_PER_PAGE);
     try {
       localStorage.setItem('ladder_calendar_granularity', newGran);
     } catch (e) {}
@@ -126,6 +130,7 @@ export default function CalendarView() {
 
   const handleRangeChange = (newRange) => {
     setCalendarRangeFilter(newRange);
+    setVisibleCount(CALENDAR_ROWS_PER_PAGE);
     calendarRangeFilterRef.current = newRange;
     try {
       localStorage.setItem('ladder_calendar_range', JSON.stringify(newRange));
@@ -185,7 +190,7 @@ export default function CalendarView() {
     return () => window.removeEventListener('ladder-data-updated', handleUpdate);
   }, []);
 
-  const [modalTab, setModalTab] = useState('changed');
+  const [modalTab, setModalTab] = useState('all');
 
   const handleRangeClick = (range) => {
     setActiveRange(range);
@@ -196,10 +201,13 @@ export default function CalendarView() {
     const key = log.period_key || log.log_date || log.date;
     setSelectedLog(log);
     setSelectedModalKey(key);
-    setModalTab('changed');
+    // Portfolio balances should be visible immediately, including unchanged
+    // assets carried forward on weekends and exchange holidays.
+    setModalTab('all');
   };
 
   const handleSort = (field) => {
+    setVisibleCount(CALENDAR_ROWS_PER_PAGE);
     if (sortField === field) {
       setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -315,6 +323,11 @@ export default function CalendarView() {
       return 0;
     });
   }, [displayLogs, sortField, sortDirection]);
+
+  // Keep full-history metrics and sorting, but mount only a small page of rows.
+  // Re-rendering thousands of animated cards/table rows made a single selection
+  // expensive even though the selected record itself is small.
+  const visibleLogs = useMemo(() => sortedLogs.slice(0, visibleCount), [sortedLogs, visibleCount]);
 
   const previousLogs = useMemo(() => {
     const chronologicalLogs = [...displayLogs].sort((a, b) => (a.log_date || '').localeCompare(b.log_date || ''));
@@ -497,7 +510,7 @@ export default function CalendarView() {
                 </button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 max-h-[500px] overflow-y-auto p-2 pr-1 pb-1 custom-scrollbar">
-                {sortedLogs.map((log, i) => {
+                {visibleLogs.map((log, i) => {
                 const isPos = log.daily_pnl_inr > 0;
                 const isNeg = log.daily_pnl_inr < 0;
                 const isSelected = selectedLog && (selectedLog.period_key === log.period_key || selectedLog.log_date === log.log_date);
@@ -682,7 +695,7 @@ export default function CalendarView() {
                   </tr>
                 </thead>
                 <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs font-mono">
-                  {sortedLogs.map((log, i) => {
+                  {visibleLogs.map((log, i) => {
                     const isPos = log.daily_pnl_inr > 0;
                     const isNeg = log.daily_pnl_inr < 0;
                     const dateInfo = formatDetailedDate(log.log_date);
@@ -805,6 +818,21 @@ export default function CalendarView() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {sortedLogs.length > visibleLogs.length && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+              <span className="text-[11px] text-slate-500">
+                Showing {visibleLogs.length.toLocaleString()} of {sortedLogs.length.toLocaleString()} records
+              </span>
+              <button
+                type="button"
+                onClick={() => setVisibleCount((count) => Math.min(count + CALENDAR_ROWS_PER_PAGE, sortedLogs.length))}
+                className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900/60 text-xs font-semibold text-slate-300 hover:text-white hover:border-slate-500 transition-colors"
+              >
+                Load older records
+              </button>
             </div>
           )}
 

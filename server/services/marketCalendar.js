@@ -164,17 +164,16 @@ const INDIAN_FESTIVAL_CALENDAR = {
     { date: '2025-11-05', name: 'Guru Nanak Jayanti' }
   ],
   2026: [
-    { date: '2026-02-19', name: 'Chhatrapati Shivaji Maharaj Jayanti' },
-    { date: '2026-03-20', name: 'Holi' },
-    { date: '2026-04-02', name: 'Ram Navami' },
-    { date: '2026-04-06', name: 'Mahavir Jayanti' },
-    { date: '2026-04-14', name: 'Dr. Ambedkar Jayanti' },
-    { date: '2026-06-02', name: 'Eid ul-Adha (Bakri Eid)' },
-    { date: '2026-08-27', name: 'Ganesh Chaturthi' },
-    { date: '2026-10-02', name: 'Dussehra' },
-    { date: '2026-10-20', name: 'Diwali Laxmi Pujan' },
-    { date: '2026-10-21', name: 'Diwali Balipratipada' },
-    { date: '2026-11-04', name: 'Guru Nanak Jayanti' }
+    // NSE circular NSE/FAOP/71777 (12 Dec 2025), 2026 trading holidays.
+    { date: '2026-03-03', name: 'Holi' },
+    { date: '2026-03-26', name: 'Ram Navami' },
+    { date: '2026-03-31', name: 'Mahavir Jayanti' },
+    { date: '2026-05-28', name: 'Bakri Eid' },
+    { date: '2026-06-26', name: 'Muharram' },
+    { date: '2026-09-14', name: 'Ganesh Chaturthi' },
+    { date: '2026-10-20', name: 'Dussehra' },
+    { date: '2026-11-10', name: 'Diwali Balipratipada' },
+    { date: '2026-11-24', name: 'Guru Nanak Jayanti' }
   ],
   2027: [
     { date: '2027-03-06', name: 'Mahashivratri' },
@@ -278,7 +277,7 @@ const SPECIAL_TRADING_SESSIONS = [
   // Annual Diwali Muhurat Trading Sessions (Evening 1-hour festive trading)
   { date: '2024-11-01', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:00', endTime: '19:00' },
   { date: '2025-10-21', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
-  { date: '2026-10-20', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
+  { date: '2026-11-08', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
   { date: '2027-10-29', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
   { date: '2028-10-18', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' }
 ];

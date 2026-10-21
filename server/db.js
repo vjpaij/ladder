@@ -34,6 +34,9 @@ function getSupabaseTableName(tableName) {
 
 // ─── In-Memory Cache ─────────────────────────────────────────────────────────
 const dbCache = new Map();
+// Share cold table reads between concurrent API requests (for example the
+// dashboard's parallel summary/holdings/liabilities calls during startup).
+const pendingSelects = new Map();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // ─── Snapshot Paths ───────────────────────────────────────────────────────────
@@ -114,11 +117,38 @@ export function debouncedSaveSnapshot() {
  * Phase 2: Atomic rename .tmp -> primary
  * Phase 3: Copy primary -> .bak
  */
-export function saveCacheSnapshotToDisk() {
+export function saveCacheSnapshotToDisk({ allowEmptyReplacement = false, allowEmptyTables = [] } = {}) {
   try {
     const serialized = {};
     for (const [key, entry] of dbCache.entries()) {
       serialized[key] = { data: entry.data, timestamp: entry.timestamp };
+    }
+
+    // A few maintenance scripts run in their own Node process and may only
+    // populate the table they changed (for example pnl_history after an EOD
+    // rebuild). Merge untouched tables from the last verified snapshot so a
+    // partial process can never replace the whole application cache.
+    const previous = readAndVerifySnapshot(SNAPSHOT_FILE) || readAndVerifySnapshot(SNAPSHOT_BAK);
+    if (previous?.tables) {
+      for (const [key, previousEntry] of Object.entries(previous.tables)) {
+        const current = serialized[key];
+        if (!current) {
+          serialized[key] = previousEntry;
+          continue;
+        }
+        const explicitlyAllowedEmpty = allowEmptyReplacement || allowEmptyTables.includes(key);
+        if (!explicitlyAllowedEmpty && Array.isArray(previousEntry.data) && previousEntry.data.length > 0 && Array.isArray(current.data) && current.data.length === 0) {
+          console.warn(`[DB Cache] Ignoring empty ${key} replacement; verified snapshot contains ${previousEntry.data.length} rows.`);
+          serialized[key] = previousEntry;
+        }
+      }
+    }
+
+    // Do not let a delayed per-table debounce overwrite an explicit full
+    // snapshot operation with a less complete view of the cache.
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
     }
     const checksum = computeChecksum(serialized);
     const payload = JSON.stringify({ savedAt: Date.now(), checksum, tables: serialized }, null, 2);
@@ -350,29 +380,38 @@ export const db = {
       return fallback;
     }
 
-    // 4. Fetch from Supabase with pagination safety and resilient cache fallback
+    // 4. Coalesce concurrent cold reads, retaining explicit pagination and the
+    // existing cache fallback. This avoids duplicate full-table downloads when
+    // independent routes request the same large table at startup.
     let allRows = [];
-    let from = 0;
-    const batchSize = 1000;
-    try {
-      while (true) {
-        const { data, error } = await supabase
-          .from(sTable)
-          .select('*')
-          .range(from, from + batchSize - 1);
-        if (error) {
-          console.warn(`[DB Select Network/Egress Warning - ${sTable}]:`, error.message);
-          if (cached !== null && Array.isArray(cached) && cached.length > 0) return cached;
-          break;
+    let pending = pendingSelects.get(sTable);
+    if (!pending || forceRefresh) {
+      pending = (async () => {
+        const rows = [];
+        let from = 0;
+        const batchSize = 1000;
+        while (true) {
+          const { data, error } = await supabase
+            .from(sTable)
+            .select('*')
+            .range(from, from + batchSize - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          rows.push(...data);
+          if (data.length < batchSize) break;
+          from += batchSize;
         }
-        if (!data || data.length === 0) break;
-        allRows.push(...data);
-        if (data.length < batchSize) break;
-        from += batchSize;
-      }
+        return rows;
+      })();
+      pendingSelects.set(sTable, pending);
+    }
+    try {
+      allRows = await pending;
     } catch (netErr) {
-      console.warn(`[DB Select Network Exception - ${sTable}]:`, netErr.message);
+      console.warn(`[DB Select Network/Egress Warning - ${sTable}]:`, netErr.message);
       if (cached !== null && Array.isArray(cached) && cached.length > 0) return cached;
+    } finally {
+      if (pendingSelects.get(sTable) === pending) pendingSelects.delete(sTable);
     }
 
     if (allRows.length > 0) {
@@ -534,7 +573,7 @@ export const db = {
     const cached = dbCache.get(sTable);
     if (cached && Array.isArray(cached.data)) {
       cached.data = cached.data.filter(u => String(u.id) !== String(id));
-      saveCacheSnapshotToDisk();
+      saveCacheSnapshotToDisk({ allowEmptyTables: cached.data.length === 0 ? [sTable] : [] });
     }
 
     // Dual-write delete to Supabase (Ingress is always attempted) — record to WAL on any failure

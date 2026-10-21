@@ -15,17 +15,71 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
+// ─── Server-Side EOD Log Cache ────────────────────────────────────────────────
+// Caches portfolio_eod_logs.json in RAM. The 3.2 MB file is only re-parsed when
+// its mtime changes (i.e. after an EOD rebuild), eliminating the synchronous
+// disk-read on every calendar request.
+let _eodLogsCache = null;
+let _eodLogsMtimeMs = 0;
+
+export function getEodLogs() {
+  const eodPath = path.join(__dirname, '../../data/portfolio_eod_logs.json');
+  try {
+    if (!fs.existsSync(eodPath)) return [];
+    const stat = fs.statSync(eodPath);
+    if (_eodLogsCache && stat.mtimeMs === _eodLogsMtimeMs) return _eodLogsCache;
+    const raw = fs.readFileSync(eodPath, 'utf8');
+    _eodLogsCache = JSON.parse(raw).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    _eodLogsMtimeMs = stat.mtimeMs;
+    console.log(`[EOD Cache] Reloaded portfolio_eod_logs.json (${_eodLogsCache.length} entries)`);
+    return _eodLogsCache;
+  } catch (e) {
+    console.warn('[EOD Cache] Failed to read portfolio_eod_logs.json:', e.message);
+    return _eodLogsCache || [];
+  }
+}
+
+/** Flush the EOD log cache — call after any EOD rebuild writes the file. */
+export function invalidateEodLogsCache() {
+  _eodLogsCache = null;
+  _eodLogsMtimeMs = 0;
+}
+
+// ─── Today Portfolio Valuation Cache (60-second TTL) ─────────────────────────
+// computePortfolioValuation over 400+ holdings with liveQuoteCache resolution is
+// the single most expensive operation in this route. Cache it for 60 seconds so
+// rapid calendar clicks / polling don't re-run the full engine each time.
+let _todayValCache = null;
+let _todayValCacheExpiry = 0;
+const TODAY_VAL_TTL_MS = 60_000;
+
+// ─── Transaction Dates Cache (5-minute TTL) ────────────────────────────────────
+// Building txDatesWithActivity requires iterating 11 000+ transactions.
+// This derived Set changes only when transactions are mutated — cache for 5 min.
+let _txDatesCache = null;
+let _txDatesCacheExpiry = 0;
+const TX_DATES_TTL_MS = 5 * 60_000;
+
+export function invalidateTxDatesCache() {
+  _txDatesCache = null;
+  _txDatesCacheExpiry = 0;
+  _todayValCache = null;
+  _todayValCacheExpiry = 0;
+}
+
+export function invalidateCalendarValuationCache() {
+  _todayValCache = null;
+  _todayValCacheExpiry = 0;
+}
+
 router.get('/daily-pnl', authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate, range } = req.query;
 
-    let eodLogs = [];
-    const eodPath = path.join(__dirname, '../../data/portfolio_eod_logs.json');
-    if (fs.existsSync(eodPath)) {
-      const raw = fs.readFileSync(eodPath, 'utf8');
-      eodLogs = JSON.parse(raw);
-    }
+    // ── 1. Load EOD logs from RAM cache (mtime-validated) ────────────────────
+    let eodLogs = getEodLogs().slice();
 
+    // ── 2. Merge any pnl_history rows beyond the local file's latest date ─────
     const latestLocalDate = eodLogs.reduce((latest, log) => (
       log.date > latest ? log.date : latest
     ), '0000-00-00');
@@ -73,50 +127,57 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       loan: l.loan,
       credits: l.credits
     }]));
-    // The local portfolio_eod_logs.json is the live canonical source.
-    // pnl_history (Supabase) only backfills dates where the local file has no entry.
-    // This guarantees /api/summary and /api/daily-pnl use the exact same wealth baseline.
+
+    // Merge Supabase rows that are not in local file (avoid duplicating local data)
     const localDates = new Set(eodLogs.map(l => l.date));
+    // Create a working copy to avoid mutating the cached array
     eodLogs = [
       ...eodLogs,
-      ...dbLogsByDate.values().filter ? [...dbLogsByDate.values()].filter(l => !localDates.has(l.date)) : [...dbLogsByDate.values()].filter(l => !localDates.has(l.date))
+      ...[...dbLogsByDate.values()].filter(l => !localDates.has(l.date))
     ];
 
-    // Universal Live Snapshot for Today (Single Source of Truth)
-    const fxRate = await fetchFxRate();
-    const holdings = await db.select('holdings');
-    const liabilities = await db.select('liabilities');
-    const livePriceMap = {};
-    holdings.forEach(h => {
-      const liveQuote = liveQuoteCache.get(h.symbol);
-      livePriceMap[h.symbol] = resolveHoldingPrice(h, liveQuote);
-    });
-
-    const liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
+    // ── 3. Today Valuation (from 60-second TTL cache) ─────────────────────────
     const todayStr = getTodayIST();
+    const now = Date.now();
 
-    // Load transactions strictly by trade/transaction date (Rule 5 & Rule 9)
-    const allTxs = await db.select('transactions');
-    const txDatesWithActivity = new Set((allTxs || []).map(t => t.date));
-    const todayTxs = (allTxs || []).filter(t => t.date === todayStr);
+    let liveTodayValuation;
+    let fxRate;
+    let todayTxs = [];
 
-    // Identify which asset categories had user transactions today
-    const categoriesWithTodayTxs = new Set();
-    const holdingMapById = new Map((holdings || []).map(h => [h.id, h]));
-    const liabilityMapById = new Map((liabilities || []).map(l => [l.id, l]));
-    todayTxs.forEach(t => {
-      if (t.holding_id) {
-        const h = holdingMapById.get(t.holding_id);
-        if (h && h.category_id) categoriesWithTodayTxs.add(h.category_id);
-      }
-      if (t.liability_id) {
-        const l = liabilityMapById.get(t.liability_id);
-        if (l && l.category_id) categoriesWithTodayTxs.add(l.category_id);
-        else categoriesWithTodayTxs.add('loans');
-      }
-    });
+    if (_todayValCache && now < _todayValCacheExpiry) {
+      // Serve today's metrics from cache
+      ({ liveTodayValuation, fxRate, todayTxs } = _todayValCache);
+    } else {
+      fxRate = await fetchFxRate();
+      const holdings = await db.select('holdings');
+      const liabilities = await db.select('liabilities');
+      const livePriceMap = {};
+      holdings.forEach(h => {
+        const liveQuote = liveQuoteCache.get(h.symbol);
+        livePriceMap[h.symbol] = resolveHoldingPrice(h, liveQuote);
+      });
+      liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
 
-    // Identify last trading day log before today (e.g. previous finalized session)
+      // Load transactions from cache (already in RAM — no I/O)
+      const allTxs = await db.select('transactions');
+      todayTxs = (allTxs || []).filter(t => t.date === todayStr);
+
+      _todayValCache = { liveTodayValuation, fxRate, todayTxs };
+      _todayValCacheExpiry = now + TODAY_VAL_TTL_MS;
+    }
+
+    // ── 4. tx-date activity Set (5-minute TTL cache) ───────────────────────────
+    let txDatesWithActivity;
+    if (_txDatesCache && now < _txDatesCacheExpiry) {
+      txDatesWithActivity = _txDatesCache;
+    } else {
+      const allTxs = await db.select('transactions');
+      _txDatesCache = new Set((allTxs || []).map(t => t.date));
+      _txDatesCacheExpiry = now + TX_DATES_TTL_MS;
+      txDatesWithActivity = _txDatesCache;
+    }
+
+    // ── 5. US market intraday correction (carry-forward for open US session) ───
     const nyDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     if (isUsMarketOpen() && nyDate < todayStr) {
       const nyLogIdx = eodLogs.findIndex(l => l.date === nyDate);
@@ -141,21 +202,24 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       }
     }
 
-    // Automatic Gap-Healing: if latest past EOD log is behind yesterday (e.g. user was offline for multiple days),
-    // trigger background catch-up rebuild and bridge intermediate days with carry-forward valuations.
+    // ── 6. Gap-healing: bridge missing past sessions with carry-forward ────────
     const yesterdayStr = getYesterdayIST();
     if (eodLogs.length > 0) {
-      const pastLogsList = eodLogs.filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
-      if (pastLogsList.length > 0 && pastLogsList[0].date < yesterdayStr) {
+      let latestPastLog = null;
+      for (const log of eodLogs) {
+        if (log.date < todayStr && (!latestPastLog || log.date > latestPastLog.date)) latestPastLog = log;
+      }
+      if (latestPastLog && latestPastLog.date < yesterdayStr) {
         checkAndTriggerMissedEodRebuild({ waitForCompletion: false }).catch(() => {});
-        const latestRecorded = pastLogsList[0];
+        const latestRecorded = latestPastLog;
         let bridgeD = new Date(`${latestRecorded.date}T00:00:00Z`);
         const targetEndD = new Date(`${yesterdayStr}T00:00:00Z`);
+        const knownDates = new Set(eodLogs.map(l => l.date));
         while (true) {
           bridgeD.setUTCDate(bridgeD.getUTCDate() + 1);
           if (bridgeD > targetEndD) break;
           const ds = bridgeD.toISOString().slice(0, 10);
-          if (!eodLogs.some(l => l.date === ds)) {
+          if (!knownDates.has(ds)) {
             eodLogs.push({
               ...latestRecorded,
               date: ds,
@@ -167,85 +231,36 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
               asset_delta_inr: 0,
               liability_delta_inr: 0
             });
+            knownDates.add(ds);
           }
         }
       }
     }
 
-    const priorLogs = eodLogs.filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
-    const lastTradingLog = priorLogs[0];
+    // ── 7. Resolve prior trading session baseline ──────────────────────────────
+    let lastTradingLog = null;
+    for (let i = eodLogs.length - 1; i >= 0; i--) {
+      if (eodLogs[i].date < todayStr) {
+        lastTradingLog = eodLogs[i];
+        break;
+      }
+    }
 
-
-    // Multi-Asset Dynamic Valuation Engine:
-    // Decoupled from rigid weekend or fixed holiday assumptions.
-    // Each asset class is evaluated independently based on its actual market schedule:
-    // - Indian Stocks (NSE/BSE): Active on regular weekdays, special Saturday sessions (DR/Budget), and Diwali Muhurat trading.
-    // - US Stocks (NYSE/NASDAQ): Active on US trading days (trades independently on Indian holidays like Gandhi Jayanti, Diwali, Holi).
-    // - Mutual Funds (AMFI) & NPS (CRA): NAV publication schedules.
-    // - Bank, EPF, Liabilities: Continuous ledgers updated on user transactions.
-
+    // ── 8. Multi-Asset Dynamic Valuation Engine (today's entry) ───────────────
     const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
     const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
-    const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
-    const npsStatus = getAssetSessionStatus('nps', todayStr);
+    // Today's synthetic row must reflect the same current holdings and ledger
+    // balances as the Dashboard and asset pages. Historical EOD values belong
+    // only to finalized dates; carrying them into today made the calendar
+    // disagree whenever there was no transaction in a category.
+    const resolvedInStocks = Number((liveTodayValuation.indian_stocks ?? 0).toFixed(2));
+    const resolvedUsStocks = Number((liveTodayValuation.us_stocks ?? 0).toFixed(2));
+    const resolvedMf = Number((liveTodayValuation.mutual_funds ?? 0).toFixed(2));
+    const resolvedNps = Number((liveTodayValuation.nps ?? 0).toFixed(2));
+    const resolvedSavings = Number((liveTodayValuation.savings ?? 0).toFixed(2));
+    const resolvedEpf = Number((liveTodayValuation.epf ?? 0).toFixed(2));
+    const resolvedDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
 
-    const prevInStocks = Number((lastTradingLog?.indian_stocks ?? lastTradingLog?.stocks_val_inr ?? 0).toFixed(2));
-    const prevUsStocks = Number((lastTradingLog?.us_stocks ?? lastTradingLog?.us_stocks_val_inr ?? 0).toFixed(2));
-    const prevMf = Number((lastTradingLog?.mutual_funds ?? lastTradingLog?.mutual_funds_val_inr ?? 0).toFixed(2));
-    const prevNps = Number((lastTradingLog?.nps ?? lastTradingLog?.nps_val_inr ?? 0).toFixed(2));
-    const prevSavings = Number((lastTradingLog?.savings ?? lastTradingLog?.savings_val_inr ?? 0).toFixed(2));
-    const prevEpf = Number((lastTradingLog?.epf ?? lastTradingLog?.epf_val_inr ?? 0).toFixed(2));
-    const prevDebt = Number((lastTradingLog?.debt ?? lastTradingLog?.liabilities_inr ?? 0).toFixed(2));
-
-    // Resolve Indian Stocks
-    const hasInTx = categoriesWithTodayTxs.has('in_stocks');
-    let resolvedInStocks;
-    if (!hasInTx && (inStocksStatus.status === 'NON_TRADING_DAY' || inStocksStatus.status === 'PRE_MARKET')) {
-      resolvedInStocks = prevInStocks;
-    } else {
-      resolvedInStocks = Number((liveTodayValuation.indian_stocks ?? 0).toFixed(2));
-    }
-
-    // Resolve US Stocks (active on US market days even when Indian markets are closed!)
-    const hasUsTx = categoriesWithTodayTxs.has('us_stocks');
-    let resolvedUsStocks;
-    if (!hasUsTx && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
-      resolvedUsStocks = prevUsStocks;
-    } else {
-      resolvedUsStocks = Number((liveTodayValuation.us_stocks ?? 0).toFixed(2));
-    }
-
-    // Resolve Mutual Funds
-    const hasMfTx = categoriesWithTodayTxs.has('mutual_funds');
-    let resolvedMf;
-    if (!hasMfTx && (mfStatus.status === 'NON_TRADING_DAY' || mfStatus.status === 'PRE_MARKET')) {
-      resolvedMf = prevMf;
-    } else {
-      resolvedMf = Number((liveTodayValuation.mutual_funds ?? 0).toFixed(2));
-    }
-
-    // Resolve NPS
-    const hasNpsTx = categoriesWithTodayTxs.has('nps');
-    let resolvedNps;
-    if (!hasNpsTx && (npsStatus.status === 'NON_TRADING_DAY' || npsStatus.status === 'PRE_MARKET')) {
-      resolvedNps = prevNps;
-    } else {
-      resolvedNps = Number((liveTodayValuation.nps ?? 0).toFixed(2));
-    }
-
-    // Resolve Bank (Savings) & EPF
-    const hasBankTx = categoriesWithTodayTxs.has('bank');
-    const resolvedSavings = hasBankTx ? Number((liveTodayValuation.savings ?? 0).toFixed(2)) : (lastTradingLog ? prevSavings : Number((liveTodayValuation.savings ?? 0).toFixed(2)));
-
-    const hasEpfTx = categoriesWithTodayTxs.has('epf');
-    const resolvedEpf = hasEpfTx ? Number((liveTodayValuation.epf ?? 0).toFixed(2)) : (lastTradingLog ? prevEpf : Number((liveTodayValuation.epf ?? 0).toFixed(2)));
-
-    // Resolve Debt
-    const hasDebtTx = categoriesWithTodayTxs.has('loans') || categoriesWithTodayTxs.has('credit_cards');
-    const liveDebtVal = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
-    const resolvedDebt = hasDebtTx ? liveDebtVal : (lastTradingLog ? prevDebt : liveDebtVal);
-
-    // Dynamic Balance Sheet Totals
     const totalAssets = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     const totalWealth = Number((totalAssets - resolvedDebt).toFixed(2));
 
@@ -253,7 +268,6 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     const prevTotalAssets = Number((lastTradingLog?.total_assets ?? lastTradingLog?.total_assets_inr ?? totalAssets).toFixed(2));
     const prevLiabilities = Number((lastTradingLog?.debt ?? lastTradingLog?.liabilities_inr ?? resolvedDebt).toFixed(2));
 
-    // If all held market assets are non-trading or pre-market, and no transactions occurred today, P&L is strictly 0.00
     const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||
                              (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
     const hasAnyTxToday = todayTxs.length > 0;
@@ -309,13 +323,16 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       eodLogs.push(todayEntry);
     }
 
-    // Sort chronologically
-    eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    // Keep the sorted base ordering; gap bridges are appended chronologically.
+    // Sort only if a newly merged DB row was out of order.
+    if (eodLogs.some((log, i) => i > 0 && eodLogs[i - 1].date > log.date)) {
+      eodLogs.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    }
 
-    // Recompute daily_pnl and pnl_pct across all historical logs
+    // Recompute daily_pnl across all historical logs
     for (let i = 0; i < eodLogs.length; i++) {
       const cur = eodLogs[i];
-      if (cur.date === todayStr) continue; // todayEntry is already precisely computed
+      if (cur.date === todayStr) continue;
       const prev = i > 0 ? eodLogs[i - 1] : cur;
       const curWealth = cur.total_wealth !== undefined ? cur.total_wealth : (cur.wealth || 0);
       const prevWealth = prev.total_wealth !== undefined ? prev.total_wealth : (prev.wealth || 0);
@@ -326,7 +343,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       cur.wealth = curWealth;
     }
 
-    // Determine start/end date bounds based on range parameter or custom dates
+    // ── 9. Date-range filtering ────────────────────────────────────────────────
     let targetStartDate = startDate;
     let targetEndDate = endDate;
 
@@ -358,16 +375,15 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       targetStartDate = startD.toISOString().slice(0, 10);
     }
 
-    // Filter by bounds if present
     let filtered = eodLogs;
     if (targetStartDate) filtered = filtered.filter(l => l.date >= targetStartDate);
     if (targetEndDate) filtered = filtered.filter(l => l.date <= targetEndDate);
 
-    // Map all eodLogs by date for true previous-day lookups
+    // Build an index map into the full sorted eodLogs for true prev-day lookups
     const eodIndexMap = new Map();
     eodLogs.forEach((l, idx) => eodIndexMap.set(l.date, idx));
 
-    // Format output array with daily PnL changes and asset/liability deltas
+    // ── 10. Format output ──────────────────────────────────────────────────────
     const resultLogs = [];
     for (let i = 0; i < filtered.length; i++) {
       const item = filtered[i];
@@ -383,7 +399,6 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       let dailyPnl, pct, wealth, debt, assets, assetDelta, liabilityDelta;
 
       if (item.date === todayStr) {
-        // Use todayEntry's rigorously calculated multi-asset figures
         wealth = item.wealth !== undefined ? item.wealth : (item.total_wealth ?? wCurr);
         debt = item.debt !== undefined ? item.debt : ((item.loan || 0) + (item.credits || 0));
         assets = item.total_assets !== undefined ? item.total_assets : (wealth + debt);
@@ -418,7 +433,6 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
         asset_delta_inr: Number(assetDelta.toFixed(2)),
         liability_delta_inr: Number(liabilityDelta.toFixed(2)),
 
-        // Exact breakdown fields
         hdfc: Number((item.hdfc || 0).toFixed(2)),
         indusind: Number((item.indusind || 0).toFixed(2)),
         idfc: Number((item.idfc || 0).toFixed(2)),

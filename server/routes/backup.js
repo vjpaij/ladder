@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import { fork } from 'child_process';
-import db from '../db.js';
 import { createCloudBackup, listCloudBackups, deleteCloudBackup, deleteAllCloudBackups } from '../../scripts/backup_manager.mjs';
 import { restoreCloudBackup } from '../../scripts/restore_backup.mjs';
 import { authenticateToken } from '../middleware/auth.js';
@@ -99,8 +98,7 @@ router.post('/cloud-backups/restore', authenticateToken, async (req, res) => {
 
     const result = await restoreCloudBackup(filename || null, onProgress);
 
-    // Invalidate RAM cache — warmCache(forceRefresh) is called inside restoreCloudBackup
-    db.invalidateCache();
+    // restoreCloudBackup seeds RAM and disk cache from the exact restored snapshot.
 
     job.status = 'running';
     job.message = 'Database restored. Rebuilding historical EOD valuation records in background...';

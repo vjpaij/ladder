@@ -253,8 +253,10 @@ export async function checkAndTriggerMissedEodRebuild(options = {}) {
     try {
       const logs = JSON.parse(fs.readFileSync(eodPath, 'utf-8'));
       if (Array.isArray(logs) && logs.length > 0) {
-        const lastLog = logs[logs.length - 1];
-        latestLogDate = lastLog.date;
+        latestLogDate = logs.reduce((latest, log) => {
+          const date = String(log?.date || '');
+          return date && (!latest || date > latest) ? date : latest;
+        }, null);
       }
     } catch (err) {
       console.warn('[EOD Check] Failed to parse portfolio_eod_logs.json:', err.message);
@@ -294,7 +296,7 @@ export async function checkAndTriggerMissedEodRebuild(options = {}) {
   try {
     const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
     if (waitForCompletion) {
-      const child = fork(scriptPath, [], { stdio: 'inherit' });
+      const child = fork(scriptPath, ['--incremental'], { stdio: 'inherit' });
       await new Promise((resolve, reject) => {
         child.on('exit', (code) => {
           if (code === 0) {
@@ -307,7 +309,7 @@ export async function checkAndTriggerMissedEodRebuild(options = {}) {
         child.on('error', reject);
       });
     } else {
-      const child = fork(scriptPath, [], { detached: true, stdio: 'ignore' });
+      const child = fork(scriptPath, ['--incremental'], { detached: true, stdio: 'ignore' });
       child.unref();
       result.triggeredAsync = true;
     }

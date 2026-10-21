@@ -1,10 +1,12 @@
 import express from 'express';
+import { getEodLogs as _getCalendarEodLogs } from './calendar.js';
 import fs from 'fs';
 import path from 'path';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
+import { getHistoricalPricesMap } from '../services/historicalPriceStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
 import { getTodayIST, getYesterdayIST, isAnyMarketOpen, isUsMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
@@ -25,11 +27,30 @@ const DISPLAY_NAMES = {
   'credit_cards': 'Credit Card'
 };
 
+// --- Summary API Cache (60-second TTL during market hours) --------------------
+// The /api/summary endpoint iterates 400 holdings x 11K transactions for XIRR
+// and P&L calculations. Caching the result for 60 seconds prevents the dashboard
+// 30-second polling from re-running full computation on every tick.
+let _summaryCache = null;
+let _summaryCacheExpiry = 0;
+const SUMMARY_CACHE_TTL_MS = 60_000; // 60 seconds
+
+export function invalidateSummaryCache() {
+  _summaryCache = null;
+  _summaryCacheExpiry = 0;
+}
 // -------------------------------------------------------------
 // Portfolio Summary & Metrics API
 // -------------------------------------------------------------
 router.get('/summary', async (req, res) => {
   try {
+    // -- Fast-path: return cached summary if still fresh ----------------------
+    const forceRefresh = req.query.forceRefresh === 'true';
+    const nowMs = Date.now();
+    if (!forceRefresh && _summaryCache && nowMs < _summaryCacheExpiry) {
+      return res.json(_summaryCache);
+    }
+
     const fxRate = await fetchFxRate();
 
     const holdings = await db.select('holdings');
@@ -38,6 +59,7 @@ router.get('/summary', async (req, res) => {
 
     const catMap = {};
     categories.forEach(c => catMap[c.id] = c);
+    const holdingById = new Map((holdings || []).map(h => [String(h.id), h]));
 
     let totalInvestedINR = 0;
     let totalInvestedUSD = 0;   // raw USD invested (for correct USD display)
@@ -61,7 +83,7 @@ router.get('/summary', async (req, res) => {
     const divMap = {}; // holding_id -> total dividends INR
     const divCashflows = [];
     dividends.forEach(d => {
-      const h = holdings.find(item => item.id === d.holding_id);
+      const h = holdingById.get(String(d.holding_id));
       const amtINR = Number(d.amount_inr) || 0;
       if (!divMap[d.holding_id]) divMap[d.holding_id] = 0;
       divMap[d.holding_id] += amtINR;
@@ -71,14 +93,30 @@ router.get('/summary', async (req, res) => {
     // Compute invariant US FX rate when US market is closed to ensure exact parity with holdings and calendar
     const todayStr = getTodayIST();
     const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
+    const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
+    const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
+    const npsStatus = getAssetSessionStatus('nps', todayStr);
     const todayUsTxs = txs.filter(t => t.currency === 'USD' && t.date === todayStr);
+    const todayTxs = txs.filter(t => t.date === todayStr);
+    const hasCategoryTransactionToday = (categoryId) => todayTxs.some(t => {
+      const holding = holdingById.get(String(t.holding_id));
+      if (holding?.category_id === categoryId) return true;
+      const liability = liabilities.find(l => String(l.id) === String(t.liability_id));
+      return liability?.category_id === categoryId;
+    });
+    const isInStocksInvariant = !hasCategoryTransactionToday('in_stocks') &&
+      ['NON_TRADING_DAY', 'PRE_MARKET'].includes(inStocksStatus.status);
+    const isMfInvariant = !hasCategoryTransactionToday('mutual_funds') &&
+      ['NON_TRADING_DAY', 'PRE_MARKET'].includes(mfStatus.status);
+    const isNpsInvariant = !hasCategoryTransactionToday('nps') &&
+      ['NON_TRADING_DAY', 'PRE_MARKET'].includes(npsStatus.status);
+    const historicalPricesCache = getHistoricalPricesMap();
     let effectiveUsFx = fxRate;
 
     if (todayUsTxs.length === 0 && !isUsMarketOpen() && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
       try {
-        const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
-        if (fs.existsSync(eodPath)) {
-          const pastLogs = JSON.parse(fs.readFileSync(eodPath, 'utf8')).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+        {
+          const pastLogs = _getCalendarEodLogs().filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
           if (pastLogs.length > 0 && pastLogs[0].us_stocks > 0) {
             let totalUsdCurrent = 0;
             holdings.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0).forEach(h => {
@@ -100,7 +138,18 @@ router.get('/summary', async (req, res) => {
     const livePriceMap = {};
     holdings.forEach(h => {
       const liveQuote = liveQuoteCache.get(h.symbol);
-      livePriceMap[h.symbol] = resolveHoldingPrice(h, liveQuote);
+      let price = resolveHoldingPrice(h, liveQuote);
+      const isHoldingInvariant = (isInStocksInvariant && h.category_id === 'in_stocks') ||
+        (isMfInvariant && h.category_id === 'mutual_funds') ||
+        (isNpsInvariant && h.category_id === 'nps');
+      if (isHoldingInvariant) {
+        const cleanSymbol = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
+        const priceHistory = historicalPricesCache[h.symbol] || historicalPricesCache[cleanSymbol] ||
+          historicalPricesCache[`${cleanSymbol}.NS`] || {};
+        const previousDates = Object.keys(priceHistory).filter(date => date < todayStr && Number(priceHistory[date]) > 0).sort();
+        if (previousDates.length > 0) price = Number(priceHistory[previousDates.at(-1)]);
+      }
+      livePriceMap[h.symbol] = price;
     });
 
     const valuation = computePortfolioValuation(holdings, liabilities, livePriceMap, effectiveUsFx);
@@ -168,11 +217,13 @@ router.get('/summary', async (req, res) => {
       const pnl = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? effectiveUsFx : 1.0);
       cat.realizedINR += pnl;
 
-      // Active holdings
-      if ((Number(h.quantity) || 0) > 0) {
+      // Unit-based portfolios include active positions only. Balance-based
+      // assets (bank and EPF) remain assets even when their synthetic unit
+      // quantity is zero.
+      const isBalanceAsset = h.category_id === 'bank' || h.category_id === 'epf';
+      if ((Number(h.quantity) || 0) > 0 || isBalanceAsset) {
         const liveRate = h.currency === 'USD' ? effectiveUsFx : 1.0;
-        const liveQuote = liveQuoteCache.get(h.symbol);
-        const currentPriceNum = resolveHoldingPrice(h, liveQuote);
+        const currentPriceNum = livePriceMap[h.symbol] ?? Number(h.current_price) ?? 0;
         const currentVal = computeHoldingValueINR(h, currentPriceNum, liveRate);
 
         let txRate = 1.0;
@@ -180,11 +231,12 @@ router.get('/summary', async (req, res) => {
           const m = usFxMap[h.id] || usFxMap[h.symbol];
           txRate = (m && m.totalUSD > 0) ? (m.totalINR / m.totalUSD) : (getHistoricalFxRate(h.created_at) || fxRate);
         }
-        const investedVal = Number(((Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * txRate).toFixed(2));
-
         cat.currentINR = Number((cat.currentINR + currentVal).toFixed(2));
-        cat.investedINR = Number((cat.investedINR + investedVal).toFixed(2));
-        cat.unrealizedINR = Number((cat.unrealizedINR + (currentVal - investedVal)).toFixed(2));
+        if (!isBalanceAsset) {
+          const investedVal = Number(((Number(h.quantity) || 0) * (Number(h.avg_buy_price) || 0) * txRate).toFixed(2));
+          cat.investedINR = Number((cat.investedINR + investedVal).toFixed(2));
+          cat.unrealizedINR = Number((cat.unrealizedINR + (currentVal - investedVal)).toFixed(2));
+        }
 
         if (validXirrCategories.has(h.category_id)) {
           xirrFinalAssetsINR += currentVal;
@@ -195,7 +247,7 @@ router.get('/summary', async (req, res) => {
     // 2. Build Category Cashflows from actual transactions
     txs.forEach(t => {
       if (t.type !== 'BUY' && t.type !== 'SELL') return;
-      const h = holdings.find(item => item.id === t.holding_id);
+      const h = holdingById.get(String(t.holding_id));
       if (!h) return;
       const rate = (h.currency === 'USD') ? (getHistoricalFxRate(t.date) || fxRate) : 1.0;
       const amt = (Number(t.total_amount) || 0) * rate;
@@ -407,10 +459,8 @@ router.get('/summary', async (req, res) => {
     let yesterdayLog = null;
 
     try {
-      const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
-      if (fs.existsSync(eodPath)) {
-        const raw = fs.readFileSync(eodPath, 'utf8');
-        const eodLogs = JSON.parse(raw);
+      {
+        const eodLogs = _getCalendarEodLogs();
         const pastLogs = (eodLogs || []).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
         if (pastLogs.length > 0) {
           yesterdayLog = pastLogs[0];
@@ -484,59 +534,20 @@ router.get('/summary', async (req, res) => {
       yesterdayWealth = netWorthINR;
     }
 
-    // Multi-Asset Dynamic Valuation Engine (Parity with Calendar & Holding Details)
-    const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
-    const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
-    const npsStatus = getAssetSessionStatus('nps', todayStr);
+    // Current dashboard values must come from the same canonical holding and
+    // liability valuation used by detail pages. EOD history is only a source
+    // for historical charts and day-over-day comparison; carrying it forward
+    // here can make the dashboard disagree with current holdings after a
+    // restore, a NAV update, or an account balance change.
+    const resolvedInStocks = Number((valuation.indian_stocks || 0).toFixed(2));
+    const resolvedUsStocks = Number((valuation.us_stocks || 0).toFixed(2));
+    const resolvedMf = Number((valuation.mutual_funds || 0).toFixed(2));
+    const resolvedNps = Number((valuation.nps || 0).toFixed(2));
+    const resolvedSavings = Number((valuation.savings || 0).toFixed(2));
+    const resolvedEpf = Number((valuation.epf || 0).toFixed(2));
+    const resolvedDebt = Number((valuation.debt || 0).toFixed(2));
 
-
-    const prevInStocks = Number((yesterdayLog?.indian_stocks ?? yesterdayLog?.stocks_val_inr ?? 0).toFixed(2));
-    const prevUsStocks = Number((yesterdayLog?.us_stocks ?? yesterdayLog?.us_stocks_val_inr ?? 0).toFixed(2));
-    const prevMf = Number((yesterdayLog?.mutual_funds ?? yesterdayLog?.mutual_funds_val_inr ?? 0).toFixed(2));
-    const prevNps = Number((yesterdayLog?.nps ?? yesterdayLog?.nps_val_inr ?? 0).toFixed(2));
-    const prevSavings = Number((yesterdayLog?.savings ?? yesterdayLog?.savings_val_inr ?? 0).toFixed(2));
-    const prevEpf = Number((yesterdayLog?.epf ?? yesterdayLog?.epf_val_inr ?? 0).toFixed(2));
-    const prevDebt = Number((yesterdayLog?.debt ?? yesterdayLog?.liabilities_inr ?? 0).toFixed(2));
-
-    // Check if any user transactions occurred today strictly by trade date (Rule 5 & Rule 9)
-    const todayTxs = (txs || []).filter(t => t.date === todayStr);
-    const categoriesWithTodayTxs = new Set();
-    const holdingMapById = new Map((holdings || []).map(h => [h.id, h]));
-    const liabilityMapById = new Map((liabilities || []).map(l => [l.id, l]));
-    todayTxs.forEach(t => {
-      if (t.holding_id) {
-        const h = holdingMapById.get(t.holding_id);
-        if (h && h.category_id) categoriesWithTodayTxs.add(h.category_id);
-      }
-      if (t.liability_id) {
-        const l = liabilityMapById.get(t.liability_id);
-        if (l && l.category_id) categoriesWithTodayTxs.add(l.category_id);
-        else categoriesWithTodayTxs.add('loans');
-      }
-    });
-
-    const hasInTx = categoriesWithTodayTxs.has('in_stocks');
-    const resolvedInStocks = (!hasInTx && (inStocksStatus.status === 'NON_TRADING_DAY' || inStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevInStocks : Number((valuation.indian_stocks || 0).toFixed(2))) : Number((valuation.indian_stocks || 0).toFixed(2));
-
-    const hasUsTx = categoriesWithTodayTxs.has('us_stocks');
-    const resolvedUsStocks = (!hasUsTx && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevUsStocks : Number((valuation.us_stocks || 0).toFixed(2))) : Number((valuation.us_stocks || 0).toFixed(2));
-
-    const hasMfTx = categoriesWithTodayTxs.has('mutual_funds');
-    const resolvedMf = (!hasMfTx && (mfStatus.status === 'NON_TRADING_DAY' || mfStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevMf : Number((valuation.mutual_funds || 0).toFixed(2))) : Number((valuation.mutual_funds || 0).toFixed(2));
-
-    const hasNpsTx = categoriesWithTodayTxs.has('nps');
-    const resolvedNps = (!hasNpsTx && (npsStatus.status === 'NON_TRADING_DAY' || npsStatus.status === 'PRE_MARKET')) ? (yesterdayLog ? prevNps : Number((valuation.nps || 0).toFixed(2))) : Number((valuation.nps || 0).toFixed(2));
-
-    const hasBankTx = categoriesWithTodayTxs.has('bank');
-    const resolvedSavings = hasBankTx ? Number((valuation.savings || 0).toFixed(2)) : (yesterdayLog ? prevSavings : Number((valuation.savings || 0).toFixed(2)));
-
-    const hasEpfTx = categoriesWithTodayTxs.has('epf');
-    const resolvedEpf = hasEpfTx ? Number((valuation.epf || 0).toFixed(2)) : (yesterdayLog ? prevEpf : Number((valuation.epf || 0).toFixed(2)));
-
-    const hasDebtTx = categoriesWithTodayTxs.has('loans') || categoriesWithTodayTxs.has('credit_cards');
-    const resolvedDebt = hasDebtTx ? Number((valuation.debt || 0).toFixed(2)) : (yesterdayLog ? prevDebt : Number((valuation.debt || 0).toFixed(2)));
-
-    const finalTotalAssetsINR = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
+    const finalTotalAssetsINR = Number((valuation.totalAssets || 0).toFixed(2));
     const finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));
 
     const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||
@@ -566,25 +577,17 @@ router.get('/summary', async (req, res) => {
       }
     });
 
-    // Asset Breakdown by Category (clean names)
-    const categoryValues = {};
-    holdings.forEach(h => {
-      if ((Number(h.quantity) || 0) <= 0) return;
-      const displayName = DISPLAY_NAMES[h.category_id] || (catMap[h.category_id] ? catMap[h.category_id].name : h.category_id);
-      const rate = h.currency === 'USD' ? fxRate : 1.0;
-      const p = livePriceMap[h.symbol] || (Number(h.current_price) || 0);
-      const val = (Number(h.quantity) || 0) * p * rate;
-      if (!categoryValues[displayName]) categoryValues[displayName] = 0;
-      categoryValues[displayName] += val;
-    });
+    // The allocation chart uses the same canonical category totals as the
+    // performance table and portfolio total, including bank and EPF balances.
+    const assetAllocation = categoryMetrics
+      .filter(category => category.currentINR > 0)
+      .map(category => ({
+        name: category.name,
+        value: Number(category.currentINR.toFixed(2)),
+        percentage: Number(((category.currentINR / (finalTotalAssetsINR || 1)) * 100).toFixed(1))
+      }));
 
-    const assetAllocation = Object.keys(categoryValues).map(cat => ({
-      name: cat,
-      value: Number(categoryValues[cat].toFixed(2)),
-      percentage: Number(((categoryValues[cat] / (finalTotalAssetsINR || 1)) * 100).toFixed(1))
-    }));
-
-    res.json({
+    const summaryPayload = {
       totalAssetsINR: Number(finalTotalAssetsINR.toFixed(2)),
       totalLiabilitiesINR: Number(totalLiabilitiesINR.toFixed(2)),
       netWorthINR: Number(finalNetWorthINR.toFixed(2)),
@@ -600,7 +603,11 @@ router.get('/summary', async (req, res) => {
       fxRate,
       assetAllocation,
       categoryMetrics
-    });
+    };
+    // Cache for 60 seconds to protect against 30-second dashboard polling overhead
+    _summaryCache = summaryPayload;
+    _summaryCacheExpiry = Date.now() + SUMMARY_CACHE_TTL_MS;
+    res.json(summaryPayload);
   } catch (err) {
     console.error('[API Error - /api/summary]:', err);
     res.status(500).json({ error: err.message });

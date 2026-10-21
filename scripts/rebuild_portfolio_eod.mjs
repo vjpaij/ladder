@@ -60,15 +60,44 @@ function parseExcelDate(excelDate) {
 }
 
 async function rebuildEod() {
+  const incrementalMode = process.argv.includes('--incremental');
   initDatabase();
   // Force fresh NPS NAV data by clearing stale Protean/historical caches.
   // This prevents T+1 publication lag from persisting stale carry-forward NAVs.
   clearProteanCache();
-  console.log('Rebuilding portfolio EOD logs from portfolio.xlsx and Supabase holdings...');
+  console.log(incrementalMode
+    ? 'Extending verified portfolio EOD history with missing finalized dates...'
+    : 'Rebuilding portfolio EOD logs from portfolio.xlsx and Supabase holdings...');
 
-  // 1. Read base historical rows from Excel up to 2026-08-07, or fallback to JSON / Supabase for prior history
+  // In incremental mode, preserve the last verified EOD history and only append
+  // dates after its latest record. Full mode remains available for explicit
+  // backfills and past-dated transaction cascades.
   let baseLogs = [];
-  if (fs.existsSync(EXCEL_FILE)) {
+  if (incrementalMode && fs.existsSync(EOD_FILE)) {
+    const existingLogs = JSON.parse(fs.readFileSync(EOD_FILE, 'utf-8'));
+    if (!Array.isArray(existingLogs) || existingLogs.length === 0) {
+      throw new Error('Incremental EOD rebuild refused: existing history is empty or invalid.');
+    }
+    const seenDates = new Set();
+    for (const log of existingLogs) {
+      const date = String(log?.date || '');
+      const assets = Number(log?.total_assets ?? log?.total_assets_inr);
+      const wealth = Number(log?.wealth ?? log?.total_wealth ?? log?.net_worth_inr);
+      const debt = Number(log?.debt ?? log?.total_liabilities_inr ?? ((Number(log?.loan) || 0) + (Number(log?.credits) || 0)));
+      const assetParts = ['savings', 'epf', 'mutual_funds', 'indian_stocks', 'us_stocks', 'nps']
+        .reduce((sum, key) => sum + (Number(log?.[key]) || 0), 0);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || seenDates.has(date) ||
+          !Number.isFinite(assets) || !Number.isFinite(wealth) ||
+          Math.abs(assets - assetParts) > 0.05 || Math.abs(wealth - (assets - debt)) > 0.05) {
+        throw new Error(`Incremental EOD rebuild refused: existing history failed integrity validation at ${date || '(unknown date)'}.`);
+      }
+      seenDates.add(date);
+    }
+    baseLogs = existingLogs.slice().sort((a, b) => a.date.localeCompare(b.date));
+    console.log(`[EOD Rebuild] Incremental mode preserving ${baseLogs.length} verified history rows through ${baseLogs.at(-1).date}.`);
+  }
+
+  if (baseLogs.length === 0 && fs.existsSync(EXCEL_FILE)) {
     const wb = xlsx.readFile(EXCEL_FILE);
     const rawRows = xlsx.utils.sheet_to_json(wb.Sheets['Portfolio']);
     
@@ -122,12 +151,12 @@ async function rebuildEod() {
         total_wealth: Number(wealth.toFixed(2))
       });
     }
-  } else if (fs.existsSync(EOD_FILE)) {
+  } else if (baseLogs.length === 0 && fs.existsSync(EOD_FILE)) {
     const raw = fs.readFileSync(EOD_FILE, 'utf-8');
     const all = JSON.parse(raw);
     baseLogs = all.filter(l => l.date <= '2026-08-07');
     console.log(`Loaded ${baseLogs.length} existing base records up to 2026-08-07 from ${EOD_FILE}.`);
-  } else {
+  } else if (baseLogs.length === 0) {
     const { data: persistedLogs } = await supabase
       .from('pnl_history')
       .select('*')
@@ -258,6 +287,11 @@ async function rebuildEod() {
   // Today's current day is actively trading and MUST compute dynamically in real-time.
   // Target end date for batch historical EOD logs is strictly yesterday in IST.
   const targetEndDate = getYesterdayIST();
+
+  if (incrementalMode && baseLogs.length > 0 && baseLogs.at(-1).date >= targetEndDate) {
+    console.log(`[EOD Rebuild] Incremental history already reaches ${baseLogs.at(-1).date}; no rows need appending.`);
+    return;
+  }
 
   // 3. Ensure active Indian and US stocks have prices up to targetEndDate
   const lastNseTradingDay = getLastTradingDay(targetEndDate, 'NSE');

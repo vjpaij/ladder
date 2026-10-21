@@ -26,7 +26,7 @@ import { getLoanAmortizationData, settleAmortizationForMonth } from '../services
 import { authenticateToken } from '../middleware/auth.js';
 import { recordDividend, getHoldingDividends } from '../services/dividendService.js';
 import { applyStockSplit } from '../services/corporateActionService.js';
-import { getAssetSessionStatus, getTodayIST, isUsMarketOpen } from '../services/marketCalendar.js';
+import { getAssetSessionStatus, getLastTradingDay, getTodayIST, isUsMarketOpen } from '../services/marketCalendar.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -316,6 +316,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
       const liveQuote = liveQuoteCache.get(h.symbol);
       let currentPriceNum = resolveHoldingPrice(h, liveQuote);
+      let carriedPriceDate = null;
 
       const isHoldingInvariant = (isInStocksInvariant && h.category_id === 'in_stocks') ||
                                  (isMfInvariant && h.category_id === 'mutual_funds') ||
@@ -325,8 +326,22 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
         const pMap = historicalPricesCache[h.symbol] || historicalPricesCache[cleanSym] || historicalPricesCache[`${cleanSym}.NS`] || {};
         const dates = Object.keys(pMap).filter(k => k < todayStr && pMap[k] > 0).sort();
-        if (dates.length > 0) {
-          currentPriceNum = pMap[dates[dates.length - 1]];
+        const isIndianEquity = h.category_id === 'in_stocks';
+        const lastSession = isIndianEquity ? getLastTradingDay(todayStr, 'NSE') : null;
+        const quoteDate = liveQuote?.quoteDate || h.quote_date;
+        const quoteIsDatedToday = quoteDate && formatCleanQuoteDate(quoteDate) === formatCleanQuoteDate(todayStr);
+        const hasExchangeQuote = isIndianEquity && Math.max(Number(liveQuote?.nse_price || h.nse_price) || 0, Number(liveQuote?.bse_price || h.bse_price) || 0) > 0;
+
+        // Quote providers can stamp a non-trading-day response with today's
+        // date even though the values are the latest completed session (for
+        // example, the NSE Muhurat session immediately before a holiday).
+        // Preserve a fresh NSE/BSE MAX quote and label it with the calendar's
+        // last actual trading session instead of falling back to an older EOD.
+        if (isIndianEquity && quoteIsDatedToday && hasExchangeQuote) {
+          carriedPriceDate = lastSession;
+        } else if (dates.length > 0) {
+          carriedPriceDate = dates[dates.length - 1];
+          currentPriceNum = Number(pMap[carriedPriceDate]);
         }
       }
 
@@ -420,7 +435,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         day_change: isFundOrNps ? Number(Number(dayChange || 0).toFixed(4)) : Number(Number(dayChange || 0).toFixed(2)),
         day_change_pct: Number(Number(dayChangePct || 0).toFixed(2)),
         prev_price: isFundOrNps ? Number(prevPrice.toFixed(4)) : Number(prevPrice.toFixed(2)),
-        quote_date: liveQuote?.quoteDate || (h.quote_date ? formatCleanQuoteDate(h.quote_date) : null),
+        quote_date: carriedPriceDate ? formatCleanQuoteDate(carriedPriceDate) : (liveQuote?.quoteDate || (h.quote_date ? formatCleanQuoteDate(h.quote_date) : null)),
         currentValueOriginal: Number(currentValueOriginal.toFixed(2)),
         currentValueINR: Number(currentValueINR.toFixed(2)),
         investedValueINR: Number(investedValueINR.toFixed(2)),

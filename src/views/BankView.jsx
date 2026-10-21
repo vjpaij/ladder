@@ -28,7 +28,10 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
   // Filter bank holdings
   const allBankHoldings = holdings.filter(h => h.category_id === 'bank');
   const bankHoldings = allBankHoldings.filter(h => {
-    const isClosed = h.status === 'closed' || h.status === 'REDEEMED' || Number(h.current_price) <= 0;
+    // Bank account balances are represented by current_price. Imported and
+    // recalculated holdings can carry a stale market-position status even when
+    // the account still has money, so balance is the source of truth here.
+    const isClosed = (Number(h.current_price) || 0) <= 0;
     return accountFilter === 'closed' ? isClosed : !isClosed;
   });
   
@@ -165,7 +168,7 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {bankHoldings.map((h, i) => {
           const val = Number(h.current_price) || 0;
-          const isClosed = h.status === 'closed' || val <= 0;
+          const isClosed = val <= 0;
           const sharePct = totalSavings > 0 ? (val / totalSavings) * 100 : 0;
           const key = Object.keys(BANK_LOGOS).find(k => h.name.toUpperCase().includes(k)) || 'HDFC';
           const style = BANK_LOGOS[key] || BANK_LOGOS['HDFC'];

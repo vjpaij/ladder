@@ -7,8 +7,8 @@
  *  - Uses supabaseAdmin (Service Role key) to bypass RLS on all tables.
  *  - Performs a pre-restore safety backup before wiping ANY table.
  *  - `users` table is NEVER wiped — credentials live in data/users.json.
- *  - Post-restore: rebuilds RAM cache via warmCache({ forceRefresh: true })
- *    and overwrites db_cache_snapshot.json with fresh Supabase data.
+ *  - Post-restore: seeds RAM and the checksummed disk cache from the exact
+ *    snapshot that was restored, avoiding stale-cache fallback in offline mode.
  *  - Clears pending_writes.json (WAL) after successful restore.
  * ---------------------------------------------------------------------------
  */
@@ -18,7 +18,7 @@ import zlib from 'zlib';
 import { supabaseAdmin } from '../server/supabaseAdminClient.js';
 import { listCloudBackups, CORE_TABLES, createCloudBackup } from './backup_manager.mjs';
 import { clearWal } from '../server/services/walFlusherService.js';
-import { warmCache, saveCacheSnapshotToDisk } from '../server/db.js';
+import { setCacheEntry, saveCacheSnapshotToDisk } from '../server/db.js';
 
 const BUCKET_NAME = 'ladder_backups';
 const LOCAL_BACKUP_DIR = path.join(process.cwd(), 'data', 'backups');
@@ -148,7 +148,45 @@ export async function restoreCloudBackup(specificFilename = null, onProgress = n
     throw new Error('Invalid snapshot structure: missing tables object.');
   }
 
+  // Older snapshots may contain aliases accepted by the application but rejected
+  // by the current database constraint. Normalize and validate before any table
+  // is cleared so a stale type can never leave the live database half-restored.
+  const transactionTypeAliases = {
+    DEPOSIT: 'CREDIT',
+    WITHDRAWAL: 'DEBIT'
+  };
+  const allowedTransactionTypes = new Set([
+    'BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT',
+    'CREDIT', 'DEBIT', 'CONTRIBUTION', 'BORROW', 'EMI_PAYMENT', 'CHARGE', 'PAYMENT'
+  ]);
+  const transactionTypeConversions = {};
+  const transactions = snapshot.tables.transactions;
+  if (Array.isArray(transactions)) {
+    const unsupportedTypes = new Set();
+    for (const transaction of transactions) {
+      if (!transaction || typeof transaction !== 'object') {
+        throw new Error('Invalid transactions data in backup: expected each row to be an object.');
+      }
+      const originalType = typeof transaction.type === 'string' ? transaction.type.trim().toUpperCase() : '';
+      const normalizedType = transactionTypeAliases[originalType] || originalType;
+      if (!allowedTransactionTypes.has(normalizedType)) {
+        unsupportedTypes.add(originalType || '(missing)');
+        continue;
+      }
+      if (normalizedType !== transaction.type) {
+        transactionTypeConversions[originalType] = (transactionTypeConversions[originalType] || 0) + 1;
+        transaction.type = normalizedType;
+      }
+    }
+    if (unsupportedTypes.size > 0) {
+      throw new Error(`Backup contains unsupported transaction types: ${[...unsupportedTypes].join(', ')}. No live data was changed.`);
+    }
+  }
+
   console.log(`[Restore Manager] Snapshot timestamp: ${snapshot.timestamp}, total rows recorded: ${snapshot.totalRows || 'unknown'}`);
+  if (Object.keys(transactionTypeConversions).length > 0) {
+    console.log(`[Restore Manager] Normalized legacy transaction types: ${JSON.stringify(transactionTypeConversions)}`);
+  }
 
   // ── Step 4: Two-Phase Foreign-Key Safe Table Restoration ─────────────────
   // Phase 4A: Wipe all tables in REVERSE dependency order (Children -> Parents)
@@ -274,11 +312,14 @@ function sanitizeRowForTable(table, row) {
     console.log(`  Restored ${table}: ${rows.length} rows`);
   }
 
-  // ── Step 5: Post-restore — rebuild RAM cache from fresh Supabase data ─────
-  console.log('[Restore Manager] Rebuilding in-memory cache from restored Supabase data...');
+  // ── Step 5: Post-restore — seed RAM and disk cache from the snapshot ──────
+  console.log('[Restore Manager] Seeding cache from the restored snapshot...');
   try {
-    await warmCache({ forceRefresh: true });
-    saveCacheSnapshotToDisk();
+    for (const table of CORE_TABLES) {
+      const rows = Array.isArray(snapshot.tables[table]) ? snapshot.tables[table] : [];
+      setCacheEntry(table, rows.map(row => sanitizeRowForTable(table, row)));
+    }
+    saveCacheSnapshotToDisk({ allowEmptyReplacement: true });
 
     // Immediately synchronize local portfolio_eod_logs.json from restored pnl_history
     const restoredPnl = snapshot.tables?.pnl_history;
