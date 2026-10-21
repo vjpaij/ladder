@@ -22,6 +22,7 @@ function latestQuarterIsFresh(label) {
 }
 
 function cagr(start, end, years) {
+  if (start <= 0 && end > 0 && years > 0) return 60; // Turnaround inflection (loss to profit)
   if (!(start > 0) || !(end > 0) || !(years > 0)) return null;
   return (Math.pow(end / start, 1 / years) - 1) * 100;
 }
@@ -35,6 +36,7 @@ function growthPoints(value) {
 }
 
 function doublingPoints(current, prior) {
+  if (prior <= 0 && current > 0) return 10; // Loss-to-profit turnaround receives full doubling points
   if (!(current > 0) || !(prior > 0)) return null;
   const ratio = current / prior;
   return ratio >= 1.75 ? 10 : ratio >= 1.5 ? 5 : 0;
@@ -64,7 +66,8 @@ function ratioPoints(value, max = 7) {
 
 function debtPoints(value) {
   if (!isFiniteNumber(value)) return null;
-  const ratio = Number(value);
+  let ratio = Number(value);
+  if (ratio > 5) ratio = ratio / 100; // normalize percentage (e.g. 86.6% -> 0.866)
   return ratio <= 0.3 ? 10 : ratio <= 0.7 ? 7 : ratio <= 1 ? 4 : ratio <= 1.5 ? 2 : 0;
 }
 
@@ -87,6 +90,15 @@ function deriveTags(fundamentals) {
   }
   if (isFiniteNumber(fundamentals.debtToEquity) && Number(fundamentals.debtToEquity) > 2) {
     tags.push({ tag: 'HIGH_DEBT', label: `D/E: ${fundamentals.debtToEquity}`, color: 'red', informational: false });
+  }
+  // Turnaround Catalyst tag
+  const annualPat = parseSeries(fundamentals.annualPat);
+  if (annualPat.length >= 3) {
+    const currPat = annualPat.at(-1);
+    const prevLoss = annualPat.slice(-4, -1).some(p => p <= 0);
+    if (currPat > 50 && prevLoss) {
+      tags.push({ tag: 'TURNAROUND_CATALYST', label: 'Loss-to-Profit Turnaround Catalyst', color: 'emerald', informational: true });
+    }
   }
   return tags;
 }
@@ -205,7 +217,8 @@ export function computeFundamentalScore(fundamentals = {}) {
     add('roce', ratioPoints(fundamentals.rocePct, 12), 12, isFiniteNumber(fundamentals.rocePct) ? `${fundamentals.rocePct}%` : 'Unknown');
     add('roe', ratioPoints(fundamentals.roePct, 12), 12, isFiniteNumber(fundamentals.roePct) ? `${fundamentals.roePct}% (BFSI Target >=14%)` : 'Unknown');
   } else if (isFiniteNumber(fundamentals.debtToEquity)) {
-    add('debtEquity', debtPoints(fundamentals.debtToEquity), 10, `D/E ${fundamentals.debtToEquity}`);
+    const normDe = Number(fundamentals.debtToEquity) > 5 ? Number(fundamentals.debtToEquity) / 100 : Number(fundamentals.debtToEquity);
+    add('debtEquity', debtPoints(normDe), 10, `D/E ${normDe.toFixed(2)}`);
     add('roce', ratioPoints(fundamentals.rocePct, 7), 7, isFiniteNumber(fundamentals.rocePct) ? `${fundamentals.rocePct}%` : 'Unknown');
     add('roe', ratioPoints(fundamentals.roePct, 7), 7, isFiniteNumber(fundamentals.roePct) ? `${fundamentals.roePct}%` : 'Unknown');
   } else {
