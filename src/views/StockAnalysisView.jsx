@@ -32,6 +32,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from '../components/HoldingLogo';
 import BuyAnalysisView, { getClientBuyAnalysisCache } from './BuyAnalysisView';
+import ActionPlanModal from '../components/ActionPlanModal';
 
 const STATE_META = {
   NORMAL: {
@@ -313,6 +314,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
 
   const [downloadingPlan, setDownloadingPlan] = useState(false);
+  const [isActionPlanModalOpen, setIsActionPlanModalOpen] = useState(false);
 
   const handleDownloadActionPlan = async () => {
     if (downloadingPlan) return;
@@ -378,12 +380,11 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
             {/* Download Next Market Day Action Plan */}
             <button
               type="button"
-              onClick={handleDownloadActionPlan}
-              disabled={downloadingPlan}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-cyan-500/15 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-600 dark:text-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow active:scale-95 disabled:opacity-50"
-              title="Download Next Market Day Action Plan (Buys, Sells, Trims & Sizing CSV)"
+              onClick={() => setIsActionPlanModalOpen(true)}
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-cyan-500/15 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-600 dark:text-emerald-300 transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
+              title="Open Next Market Day Action Plan (Capital Budgeting, Buys & Sells)"
             >
-              <Download className={`w-4 h-4 ${downloadingPlan ? 'animate-bounce' : ''}`} />
+              <Sparkles className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
               <span className="hidden sm:inline">Next Day Action Plan</span>
               <span className="sm:hidden">Action Plan</span>
             </button>
@@ -1434,6 +1435,11 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ActionPlanModal
+        isOpen={isActionPlanModalOpen}
+        onClose={() => setIsActionPlanModalOpen(false)}
+      />
     </div>
   );
 }

@@ -331,10 +331,35 @@ router.post('/stock-intelligence/config', authenticateToken, (req, res) => {
 });
 
 
+router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res) => {
+  try {
+    const userConfig = getIntelligenceConfig(getUserKey(req.user));
+    const externalCash = req.query.externalCash !== undefined ? Number(req.query.externalCash) : userConfig.externalCashBudget;
+    const recyclingMode = req.query.recyclingMode || userConfig.recyclingMode;
+
+    const plan = await generateActionPlan({
+      userId: getUserKey(req.user),
+      externalCashBudget: externalCash,
+      recyclingMode
+    });
+    res.json(plan);
+  } catch (error) {
+    console.error('[Stock Intelligence] Action plan fetch failed:', error.message);
+    res.status(500).json({ error: 'Failed to generate action plan.' });
+  }
+});
+
 router.get('/stock-intelligence/action-plan-csv', authenticateToken, async (req, res) => {
   try {
-    const budget = req.query.budget ? Number(req.query.budget) : 10000;
-    const plan = await generateActionPlan({ userId: getUserKey(req.user), budgetPerBuy: budget });
+    const userConfig = getIntelligenceConfig(getUserKey(req.user));
+    const externalCash = req.query.externalCash !== undefined ? Number(req.query.externalCash) : userConfig.externalCashBudget;
+    const recyclingMode = req.query.recyclingMode || userConfig.recyclingMode;
+
+    const plan = await generateActionPlan({
+      userId: getUserKey(req.user),
+      externalCashBudget: externalCash,
+      recyclingMode
+    });
 
     if (req.query.format === 'json') {
       return res.json(plan);

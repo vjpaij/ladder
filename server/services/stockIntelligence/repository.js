@@ -5,7 +5,13 @@ import { randomUUID } from 'node:crypto';
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STATE_FILE = path.join(DATA_DIR, 'stock_intelligence_state.json');
 const CONFIG_FILE = path.join(DATA_DIR, 'stock_intelligence_config.json');
-const DEFAULT_CONFIG = { maxPositionWeightPct: null, updatedAt: null };
+const DEFAULT_CONFIG = {
+  maxPositionWeightPct: null,
+  externalCashBudget: 200000,
+  periodicIncrement: 200000,
+  recyclingMode: 'FULL_AND_TRIMS',
+  updatedAt: null
+};
 
 function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
@@ -24,12 +30,45 @@ export function getIntelligenceConfig(userId) {
 }
 
 export function saveIntelligenceConfig(userId, input) {
-  const value = input?.maxPositionWeightPct;
-  const target = value === null || value === '' ? null : Number(value);
-  if (target !== null && (!Number.isFinite(target) || target <= 0 || target > 100)) {
-    throw new Error('Maximum position weight must be between 0 and 100, or blank to disable.');
+  const current = getIntelligenceConfig(userId);
+
+  let targetWeight = current.maxPositionWeightPct;
+  if (input?.maxPositionWeightPct !== undefined) {
+    const val = input.maxPositionWeightPct;
+    targetWeight = val === null || val === '' ? null : Number(val);
+    if (targetWeight !== null && (!Number.isFinite(targetWeight) || targetWeight <= 0 || targetWeight > 100)) {
+      throw new Error('Maximum position weight must be between 0 and 100, or blank to disable.');
+    }
   }
-  const config = { maxPositionWeightPct: target, updatedAt: new Date().toISOString() };
+
+  let externalBudget = current.externalCashBudget ?? 200000;
+  if (input?.externalCashBudget !== undefined) {
+    const val = Number(input.externalCashBudget);
+    if (Number.isFinite(val) && val >= 0) {
+      externalBudget = Math.round(val);
+    }
+  }
+
+  let periodicIncr = current.periodicIncrement ?? 200000;
+  if (input?.periodicIncrement !== undefined) {
+    const val = Number(input.periodicIncrement);
+    if (Number.isFinite(val) && val >= 0) {
+      periodicIncr = Math.round(val);
+    }
+  }
+
+  let recMode = current.recyclingMode || 'FULL_AND_TRIMS';
+  if (input?.recyclingMode && ['FULL_AND_TRIMS', 'FULL_ONLY', 'EXTERNAL_ONLY'].includes(input.recyclingMode)) {
+    recMode = input.recyclingMode;
+  }
+
+  const config = {
+    maxPositionWeightPct: targetWeight,
+    externalCashBudget: externalBudget,
+    periodicIncrement: periodicIncr,
+    recyclingMode: recMode,
+    updatedAt: new Date().toISOString()
+  };
   const document = readJson(CONFIG_FILE, { byUser: {} });
   document.byUser = { ...(document.byUser || {}), [userId]: config };
   atomicWrite(CONFIG_FILE, document);
