@@ -91,12 +91,12 @@ function deriveTags(fundamentals) {
   if (isFiniteNumber(fundamentals.debtToEquity) && Number(fundamentals.debtToEquity) > 2) {
     tags.push({ tag: 'HIGH_DEBT', label: `D/E: ${fundamentals.debtToEquity}`, color: 'red', informational: false });
   }
-  // Turnaround Catalyst tag
+  // Turnaround Catalyst tag (Generic loss-to-profit inflection for any company)
   const annualPat = parseSeries(fundamentals.annualPat);
   if (annualPat.length >= 3) {
     const currPat = annualPat.at(-1);
     const prevLoss = annualPat.slice(-4, -1).some(p => p <= 0);
-    if (currPat > 50 && prevLoss) {
+    if (currPat > 10 && prevLoss) {
       tags.push({ tag: 'TURNAROUND_CATALYST', label: 'Loss-to-Profit Turnaround Catalyst', color: 'emerald', informational: true });
     }
   }

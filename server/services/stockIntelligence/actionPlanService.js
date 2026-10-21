@@ -123,7 +123,7 @@ export async function generateActionPlan({ userId = '1' } = {}) {
     const sl = item.executiveStrategy?.riskAndExit?.stopLoss || item.stopLoss || 0;
     const composite = item.compositeScore || 50;
     const tags = Array.isArray(item.qualitativeTags) ? item.qualitativeTags : [];
-    const isTurnaround = tags.some(t => t.tag === 'TURNAROUND_CATALYST') || ['FORCEMOT', 'JAIBALAJI'].includes(item.symbol);
+    const isTurnaround = tags.some(t => t.tag === 'TURNAROUND_CATALYST');
 
     if (stance === 'PRE_EARNINGS') {
       return {
