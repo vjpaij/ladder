@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { aggregateWeeklyCloses, analyzeTechnicalTrend, normalizePriceSeries, calculateWeeklyATR, analyzeDaily21EmaPattern } from './technicalIndicators.js';
 import { runTrendStrategy } from './backtestEngine.js';
-import { buildStockAnalyses, openCostBasisINR } from './analysisService.js';
+import { buildStockAnalyses, calculateTriggeredStagedSell, openCostBasisINR } from './analysisService.js';
+import { buildCandidateUniverse } from './buyUniverseProvider.js';
+import { buildBuyAnalyses } from './buyAnalysisService.js';
 
 function weeklyPrices(values, first = '2024-01-05') {
   const start = new Date(`${first}T00:00:00Z`);
@@ -66,6 +68,109 @@ test('rising price history activates Stage 2 Bull and Compounding Protection', (
   assert.ok(result.bufferToTrailingFloorPct > 0);
 });
 
+test('live Chandelier stop breach overrides the hold shield and stages a manual trim review', () => {
+  const prices = weeklyPrices(Array.from({ length: 60 }, (_, index) => 100 + index * 2));
+  const trend = analyzeTechnicalTrend(prices, { today: '2025-03-02' });
+  const currentPrice = Number((Math.min(trend.chandelierStopPrice, trend.sma30Week) * 0.99).toFixed(2));
+  const holdings = [{ id: 'h1', symbol: 'RUNNER', category_id: 'in_stocks', quantity: 1500, current_price: currentPrice }];
+  const [result] = buildStockAnalyses(holdings, { RUNNER: prices }, { today: '2025-03-02' });
+
+  assert.equal(result.stopFloorBreached, true);
+  assert.equal(result.state, 'TECHNICAL_TRIM_CANDIDATE');
+  assert.equal(result.suggestedSellQuantity, 827);
+  assert.equal(result.stagedExitPlan.tranche1.status, 'READY');
+  assert.equal(result.stagedExitPlan.tranche2.status, 'READY');
+  assert.deepEqual(
+    [result.stagedExitPlan.tranche1.targetShares, result.stagedExitPlan.tranche2.targetShares, result.stagedExitPlan.tranche3.targetShares],
+    [495, 332, 673]
+  );
+  assert.equal(
+    result.stagedExitPlan.tranche1.targetShares + result.stagedExitPlan.tranche2.targetShares + result.stagedExitPlan.tranche3.targetShares,
+    result.quantity
+  );
+  assert.equal(calculateTriggeredStagedSell(result).quantity, 827);
+  assert.equal(calculateTriggeredStagedSell(result).triggeredTranches.length, 2);
+  assert.ok(result.stagedExitPlan.tranche1.triggerPrice > result.stagedExitPlan.tranche2.triggerPrice);
+  assert.equal(result.stagedExitPlan.tranche3.status, 'CONTINGENT');
+  assert.match(result.explanation, /no order is placed automatically|not an automatically placed order/i);
+  assert.ok(result.liveBufferToTrailingFloorPct < 0);
+
+  const [anantRajSized] = buildStockAnalyses(
+    [{ ...holdings[0], quantity: 1495 }],
+    { RUNNER: prices },
+    { today: '2025-03-02' }
+  );
+  assert.deepEqual(
+    [anantRajSized.stagedExitPlan.tranche1.targetShares, anantRajSized.stagedExitPlan.tranche2.targetShares],
+    [493, 331]
+  );
+  assert.equal(calculateTriggeredStagedSell(anantRajSized).quantity, 824);
+
+  const deepAnantRajPrice = Number((anantRajSized.stagedExitPlan.tranche3.triggerPrice * 0.99).toFixed(2));
+  const [deepAnantRaj] = buildStockAnalyses(
+    [{ ...holdings[0], quantity: 1495, current_price: deepAnantRajPrice }],
+    { RUNNER: prices },
+    { today: '2025-03-02' }
+  );
+  assert.equal(deepAnantRaj.stagedExitPlan.tranche3.status, 'READY');
+  assert.equal(calculateTriggeredStagedSell(deepAnantRaj).triggeredTranches.length, 3);
+  assert.equal(calculateTriggeredStagedSell(deepAnantRaj).quantity, 1495);
+
+  const firstSale = buildStockAnalyses(
+    [{ ...holdings[0], quantity: 1005 }],
+    { RUNNER: prices },
+    {
+      today: '2025-03-02',
+      transactions: [{ holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: currentPrice }]
+    }
+  )[0];
+  assert.equal(firstSale.stagedExitPlan.tranche1.status, 'COMPLETED');
+  assert.equal(firstSale.stagedExitPlan.tranche2.targetShares, 332);
+  assert.equal(firstSale.stagedExitPlan.tranche2.status, 'READY');
+  assert.equal(calculateTriggeredStagedSell(firstSale).quantity, 332);
+
+  const firstSalePlusBuy = buildStockAnalyses(
+    [{ ...holdings[0], quantity: 1018 }],
+    { RUNNER: prices },
+    {
+      today: '2025-03-02',
+      transactions: [
+        { holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: currentPrice },
+        { holding_id: 'h1', type: 'BUY', date: '2025-03-02', quantity: 13, price: currentPrice }
+      ]
+    }
+  )[0];
+  assert.equal(firstSalePlusBuy.stagedExitPlan.tranche1.targetShares, 495);
+  assert.equal(firstSalePlusBuy.stagedExitPlan.tranche2.targetShares, 336);
+  assert.equal(calculateTriggeredStagedSell(firstSalePlusBuy).quantity, 336);
+
+  const fullExitFloorPrice = Number((Math.min(trend.trailingFloorPrice, trend.sma30Week) * 0.85 * 0.99).toFixed(2));
+  const secondSale = buildStockAnalyses(
+    [{ ...holdings[0], quantity: 673, current_price: fullExitFloorPrice }],
+    { RUNNER: prices },
+    {
+      today: '2025-03-02',
+      transactions: [
+        { holding_id: 'h1', type: 'SELL', date: '2025-02-28', quantity: 495, price: currentPrice },
+        { holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 332, price: fullExitFloorPrice }
+      ]
+    }
+  )[0];
+  assert.equal(secondSale.stagedExitPlan.tranche2.status, 'COMPLETED');
+  assert.equal(secondSale.stagedExitPlan.tranche3.targetShares, 673);
+  assert.equal(secondSale.stagedExitPlan.tranche3.status, 'READY');
+
+  const [deepBreach] = buildStockAnalyses(
+    [{ ...holdings[0], current_price: fullExitFloorPrice }],
+    { RUNNER: prices },
+    { today: '2025-03-02' }
+  );
+  assert.equal(deepBreach.stagedExitPlan.tranche3.status, 'READY');
+  assert.match(deepBreach.stagedExitPlan.tranche3.executionNote, /catch up across every breached/i);
+  assert.equal(calculateTriggeredStagedSell(deepBreach).quantity, deepBreach.quantity);
+  assert.equal(calculateTriggeredStagedSell(deepBreach).triggeredTranches.length, 3);
+});
+
 test('backtest uses next observation and avoids selling in a persistent uptrend', () => {
   const prices = weekdays(400);
   const result = runTrendStrategy(prices, { startDate: '2022-01-03', endDate: '2024-01-01', trimFraction: 0.25 });
@@ -114,19 +219,19 @@ test('open cost basis replays buys and FIFO sells without changing source ledger
 
 test('staged exit plan detects intermediate sales and buys dynamically from ledger', () => {
   const holdings = [{ id: 'h1', symbol: 'AAA', category_id: 'in_stocks', quantity: 80, current_price: 50 }];
-  // 100 shares bought, then 30 shares sold recently, then 10 shares bought recently = 80 current held
+  // 100 shares bought, then the planned 33-share first tranche sold, then 13 shares bought = 80 current held
   const transactions = [
     { holding_id: 'h1', type: 'BUY', date: '2025-01-01', quantity: 100, price: 100, charges: 0 },
-    { holding_id: 'h1', type: 'SELL', date: '2025-09-15', quantity: 30, price: 70, charges: 0 },
-    { holding_id: 'h1', type: 'BUY', date: '2025-09-20', quantity: 10, price: 60, charges: 0 }
+    { holding_id: 'h1', type: 'SELL', date: '2025-09-15', quantity: 33, price: 70, charges: 0 },
+    { holding_id: 'h1', type: 'BUY', date: '2025-09-20', quantity: 13, price: 60, charges: 0 }
   ];
   const prices = weeklyPrices([...Array(35).fill(100), ...Array(15).fill(50)]);
   const [result] = buildStockAnalyses(holdings, { AAA: prices }, { today: '2025-10-01', transactions });
   
   assert.ok(result.stagedExitPlan);
   assert.equal(result.stagedExitPlan.tranche1.status, 'COMPLETED');
-  assert.equal(result.stagedExitPlan.ledgerAudit.recentSharesSold, 30);
-  assert.equal(result.stagedExitPlan.ledgerAudit.recentSharesBought, 10);
+  assert.equal(result.stagedExitPlan.ledgerAudit.recentSharesSold, 33);
+  assert.equal(result.stagedExitPlan.ledgerAudit.recentSharesBought, 13);
   assert.equal(result.quantity, 80);
 });
 
@@ -180,5 +285,62 @@ test('analyzeDaily21EmaPattern correctly detects 4 red candles below 21 EMA with
   const resultGreen = analyzeDaily21EmaPattern(dailySeries);
   assert.equal(resultGreen.has4RedCandlesBelow21Ema, false);
   assert.equal(resultGreen.dailyCandlePatternDetails.all4Red, false);
+});
+
+test('Task 8: Trailing stop floor breach is non-negotiable; mutual exclusivity excludes sell-flagged stocks from buy analysis', () => {
+  // Rising price history creates Stage 2 structure
+  const prices = weeklyPrices(Array.from({ length: 60 }, (_, index) => 100 + index * 2));
+  const trend = analyzeTechnicalTrend(prices, { today: '2025-03-02' });
+
+  // Price is ABOVE 30w-SMA (189), but below chandelier trailing stop (212) -> Stop floor is breached
+  const cmpAboveSmaBelowChandelier = 195;
+  const holding = { id: 'h1', symbol: 'BULLSTOCK', category_id: 'in_stocks', quantity: 100, current_price: cmpAboveSmaBelowChandelier };
+
+  // Case A: Trailing stop floor breach is NEVER suppressed by an active buy thesis or Stage 2 status
+  const [resultBull] = buildStockAnalyses([holding], { BULLSTOCK: prices }, {
+    today: '2025-03-02',
+    activeBuyTheses: ['BULLSTOCK']
+  });
+  assert.equal(resultBull.weinsteinStage, 2);
+  assert.equal(resultBull.stopFloorBreached, true);
+  assert.equal(resultBull.state, 'TECHNICAL_TRIM_CANDIDATE');
+  assert.equal(resultBull.action, 'REVIEW_PARTIAL_SALE');
+  assert.ok(resultBull.suggestedSellQuantity > 0);
+
+  // Case B: Safe holding trading above trailing stop floor retains NORMAL state
+  const safeHolding = { id: 'h2', symbol: 'SAFEBUY', category_id: 'in_stocks', quantity: 50, current_price: 220 };
+  const [resultSafe] = buildStockAnalyses([safeHolding], { SAFEBUY: prices }, {
+    today: '2025-03-02'
+  });
+  assert.equal(resultSafe.stopFloorBreached, false);
+  assert.equal(resultSafe.state, 'NORMAL');
+  assert.equal(resultSafe.action, 'HOLD_AND_COMPOUND');
+
+  // Case C: 100% mutual exclusivity in buyAnalysisService: excludes sell-flagged stocks
+  const buyCandidates = [{ symbol: 'EXITSTOCK', name: 'Exit Stock', source: 'NSE500', inPortfolio: true, portfolioQuantity: 10 }];
+  const sellAnalyses = [{ symbol: 'EXITSTOCK', action: 'FULL_EXIT', state: 'FULL_EXIT_CANDIDATE' }];
+  const buyResults = buildBuyAnalyses(buyCandidates, {}, {}, {}, {}, { sellAnalyses });
+  assert.equal(buyResults.some(b => b.symbol === 'EXITSTOCK'), false);
+});
+
+test('Task 9: Recently sold stocks from crash/past 90 days are added to candidate universe', () => {
+  const holdings = [{ id: 'h1', symbol: 'HELD1', category_id: 'in_stocks', quantity: 100 }];
+  const transactions = [
+    { symbol: 'CRASH_SOLD', type: 'SELL', date: '2026-10-23', quantity: 50, price: 500 },
+    { symbol: 'OCT21_SOLD', type: 'SELL', date: '2026-10-21', quantity: 20, price: 200 }
+  ];
+
+  const universe = buildCandidateUniverse(holdings, [], transactions, { asOfDate: '2026-10-24' });
+  const crashSold = universe.find(c => c.symbol === 'CRASH_SOLD');
+  const oct21Sold = universe.find(c => c.symbol === 'OCT21_SOLD');
+
+  assert.ok(crashSold, 'CRASH_SOLD should be in candidate universe');
+  assert.equal(crashSold.source, 'Recently Sold / Crash Exit Candidate');
+  assert.equal(crashSold.inPortfolio, false);
+  assert.equal(crashSold.lastSoldDate, '2026-10-23');
+
+  assert.ok(oct21Sold, 'OCT21_SOLD should be in candidate universe');
+  assert.equal(oct21Sold.source, 'Recently Sold / Crash Exit Candidate');
+  assert.equal(oct21Sold.inPortfolio, false);
 });
 

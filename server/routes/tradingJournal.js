@@ -351,9 +351,11 @@ router.get('/trading-journal/technical-chart/:symbol', async (req, res) => {
       volume: null
     }));
 
-    // 3. Extract recent 120-250 trading sessions (default 200)
-    const windowSize = Math.min(Math.max(parseInt(req.query.limit) || 200, 120), 250);
-    const data = fullData.length > windowSize ? fullData.slice(-windowSize) : fullData;
+    // 3. Return full multi-year historical candles and indicators (or respect explicit limit if specified)
+    const limit = req.query.limit && req.query.limit !== 'all' ? parseInt(req.query.limit) : null;
+    const data = (limit && Number.isFinite(limit) && limit > 0 && fullData.length > limit)
+      ? fullData.slice(-limit)
+      : fullData;
 
     const latest = data.at(-1) || {};
     const indicators = {
@@ -376,6 +378,138 @@ router.get('/trading-journal/technical-chart/:symbol', async (req, res) => {
   } catch (err) {
     console.error('[TradingJournal] Error computing technical chart for', req.params.symbol, err);
     res.status(500).json({ error: 'Failed to generate technical chart data.' });
+  }
+});
+
+/**
+ * GET /api/trading-journal/entry-snapshot/:symbol
+ * Captures and returns the technical and Screener fundamentals snapshot at the transaction entry date
+ */
+router.get('/trading-journal/entry-snapshot/:symbol', async (req, res) => {
+  try {
+    const rawSym = req.params.symbol;
+    const cleanSym = String(rawSym || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const entryDate = req.query.date ? String(req.query.date).split('T')[0] : null;
+    const entryPrice = req.query.price ? Number(req.query.price) : null;
+    const isUs = req.query.market === 'US' || ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'].includes(cleanSym);
+
+    // 1. Get historical prices & technical indicators at trade date
+    const histMap = await loadHistoricalPricesAsync();
+    let symbolPrices = histMap[rawSym.toUpperCase()] ||
+                       histMap[cleanSym] || 
+                       histMap[`${cleanSym}.NS`] || 
+                       histMap[`${cleanSym}.BO`] || {};
+
+    if (Object.keys(symbolPrices).length < 20) {
+      try {
+        await ensureHistoricalPricesForSymbol(cleanSym, isUs ? 'us_stocks' : 'in_stocks');
+        const reloaded = await loadHistoricalPricesAsync(true);
+        symbolPrices = reloaded[rawSym.toUpperCase()] ||
+                       reloaded[cleanSym] || 
+                       reloaded[`${cleanSym}.NS`] || 
+                       reloaded[`${cleanSym}.BO`] || symbolPrices;
+      } catch (_) {}
+    }
+
+    const sortedEntries = Object.entries(symbolPrices)
+      .map(([dStr, val]) => ({
+        date: dStr,
+        close: typeof val === 'number' ? Number(val.toFixed(2)) : Number(Number(val?.close || val).toFixed(2))
+      }))
+      .filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item.date) && Number.isFinite(item.close) && item.close > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const closes = sortedEntries.map(e => e.close);
+    const ema21 = computeSeriesEMA(closes, 21);
+    const ema50 = computeSeriesEMA(closes, 50);
+    const ema200 = computeSeriesEMA(closes, 200);
+    const rsi10 = computeSeriesRSI(closes, 10);
+
+    // Find candle on or closest preceding entryDate
+    let candleIdx = -1;
+    if (entryDate && sortedEntries.length > 0) {
+      for (let i = sortedEntries.length - 1; i >= 0; i--) {
+        if (sortedEntries[i].date <= entryDate) {
+          candleIdx = i;
+          break;
+        }
+      }
+    }
+    if (candleIdx === -1 && sortedEntries.length > 0) {
+      candleIdx = sortedEntries.length - 1;
+    }
+
+    const candle = candleIdx >= 0 ? sortedEntries[candleIdx] : null;
+    const technicals = candle ? {
+      date: candle.date,
+      close: candle.close,
+      entryPrice: entryPrice || candle.close,
+      ema21: ema21[candleIdx],
+      ema50: ema50[candleIdx],
+      ema200: ema200[candleIdx],
+      rsi10: rsi10[candleIdx],
+      aboveEma21: ema21[candleIdx] ? candle.close >= ema21[candleIdx] : null,
+      aboveEma50: ema50[candleIdx] ? candle.close >= ema50[candleIdx] : null,
+      aboveEma200: ema200[candleIdx] ? candle.close >= ema200[candleIdx] : null,
+      distEma200Pct: ema200[candleIdx] ? Number((((candle.close - ema200[candleIdx]) / ema200[candleIdx]) * 100).toFixed(2)) : null
+    } : null;
+
+    // 2. Load cached Screener / Finviz fundamentals
+    const cacheDir = path.join(process.cwd(), 'data', 'screener_cache');
+    const cachePath = path.join(cacheDir, `${cleanSym}.json`);
+    let rawFund = null;
+    if (fs.existsSync(cachePath)) {
+      try {
+        rawFund = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+      } catch (_) {}
+    }
+
+    if (!rawFund && isUs) {
+      const usData = loadAllCachedUsFundamentals([cleanSym]);
+      rawFund = usData[cleanSym] || null;
+    }
+
+    let fundamentals = null;
+    if (rawFund) {
+      const peRatio = Number(rawFund.peRatio ?? rawFund.stockPe ?? rawFund.pe);
+      const marketCapCr = Number(rawFund.marketCapCr ?? rawFund.marketCap);
+      const latestSalesCr = Number(rawFund.latestSalesCr ?? (Array.isArray(rawFund.quarterlySales) ? rawFund.quarterlySales.at(-1) : null));
+      const latestPatCr = Number(rawFund.latestPatCr ?? (Array.isArray(rawFund.quarterlyPat) ? rawFund.quarterlyPat.at(-1) : null));
+      const latestOpmPct = Number(rawFund.latestOpmPct ?? rawFund.opm);
+      const rocePct = Number(rawFund.rocePct ?? rawFund.roce);
+      const roePct = Number(rawFund.roePct ?? rawFund.roe);
+
+      // Estimate P/E at entry price if CMP is available
+      let entryPe = peRatio;
+      if (entryPrice && candle?.close && Number.isFinite(peRatio) && peRatio > 0) {
+        entryPe = Number(((entryPrice / candle.close) * peRatio).toFixed(2));
+      }
+
+      fundamentals = {
+        symbol: cleanSym,
+        peRatio: Number.isFinite(peRatio) ? peRatio : null,
+        entryPe: Number.isFinite(entryPe) ? entryPe : null,
+        marketCapCr: Number.isFinite(marketCapCr) ? marketCapCr : null,
+        salesCr: Number.isFinite(latestSalesCr) ? latestSalesCr : null,
+        patCr: Number.isFinite(latestPatCr) ? latestPatCr : null,
+        opmPct: Number.isFinite(latestOpmPct) ? latestOpmPct : null,
+        rocePct: Number.isFinite(rocePct) ? rocePct : null,
+        roePct: Number.isFinite(roePct) ? roePct : null,
+        sector: rawFund.sector || null,
+        industry: rawFund.industry || null
+      };
+    }
+
+    res.json({
+      success: true,
+      symbol: cleanSym,
+      entryDate: entryDate || candle?.date,
+      technicals,
+      fundamentals
+    });
+  } catch (err) {
+    console.error('[TradingJournal] Error getting entry snapshot:', err);
+    res.status(500).json({ error: 'Failed to get entry snapshot' });
   }
 });
 

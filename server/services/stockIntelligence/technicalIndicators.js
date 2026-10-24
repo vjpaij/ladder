@@ -14,7 +14,7 @@ function weekStart(date) {
   return utc.toISOString().slice(0, 10);
 }
 
-export function aggregateWeeklyCloses(series, { today = new Date().toISOString().slice(0, 10) } = {}) {
+export function aggregateWeeklyCloses(series, { today = new Date().toISOString().slice(0, 10), includeCurrentWeek = false } = {}) {
   const weeks = new Map();
   for (const row of series) {
     const key = weekStart(row.date);
@@ -23,7 +23,8 @@ export function aggregateWeeklyCloses(series, { today = new Date().toISOString()
   }
   const currentWeek = weekStart(today);
   const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
-  const excludeCurrentWeek = weekday >= 1 && weekday <= 5;
+  // An active incomplete week is excluded during Mon-Fri trading unless includeCurrentWeek is explicitly true or it is the weekend (Sat=6, Sun=0)
+  const excludeCurrentWeek = !includeCurrentWeek && (weekday >= 1 && weekday <= 5);
   return [...weeks.entries()]
     .filter(([key]) => !excludeCurrentWeek || key < currentWeek)
     .map(([, value]) => value)
@@ -52,9 +53,9 @@ export function calculateWeeklyATR(weeklyCloses = [], period = 14) {
   return recent.reduce((sum, v) => sum + v, 0) / period;
 }
 
-export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOString().slice(0, 10), candleMapList = null } = {}) {
+export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOString().slice(0, 10), candleMapList = null, includeCurrentWeek = false } = {}) {
   const daily = normalizePriceSeries(rawPrices);
-  const weekly = aggregateWeeklyCloses(daily, { today });
+  const weekly = aggregateWeeklyCloses(daily, { today, includeCurrentWeek });
   const latest = weekly.at(-1);
   const latestSma = simpleMovingAverage(weekly.map(row => row.close), 30);
   const isUsable = weekly.length >= 40 && latestSma !== null;

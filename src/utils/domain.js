@@ -16,11 +16,13 @@ const KNOWN_STOCK_DOMAINS = {
   'SEQUENT': 'sequent.in',
   'DHOOTTRANS': 'dhoottransmission.com',
   'SHANKESH': 'shankeshjewellers.com',
+  'ARTEMISMED': 'artemishospitals.com',
   ...stockDomainsMap
 };
 
 const KNOWN_STOCK_LOGOS = {
-  'SHANKESH': 'https://shankeshjewellers.com/web_assets/assets/images/logos/Shankesh-logo.png'
+  'SHANKESH': 'https://shankeshjewellers.com/web_assets/assets/images/logos/Shankesh-logo.png',
+  'ARTEMISMED': '/logos/artemis.png'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {

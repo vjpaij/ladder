@@ -13,6 +13,8 @@
  * ---------------------------------------------------------------------------
  */
 import fs from 'fs';
+import { pipeline } from 'stream/promises';
+import { Readable } from 'stream';
 import path from 'path';
 import zlib from 'zlib';
 import http from 'http';
@@ -39,6 +41,7 @@ const BUCKET_NAME = 'ladder_backups';
 const LOCAL_BACKUP_DIR = path.join(process.cwd(), 'data', 'backups');
 const RETENTION_DAYS = 10;
 const TEN_DAYS_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+let backupInProgress = false;
 
 if (!fs.existsSync(LOCAL_BACKUP_DIR)) {
   fs.mkdirSync(LOCAL_BACKUP_DIR, { recursive: true });
@@ -106,6 +109,12 @@ export async function fetchAllRows(tableName) {
  * @param {string} [options.tagSuffix]  - Optional suffix appended to filename (e.g. '_prerestore')
  */
 export async function createCloudBackup({ tagSuffix = '' } = {}) {
+  if (backupInProgress) {
+    throw new Error('A database backup is already in progress. Please try again shortly.');
+  }
+  backupInProgress = true;
+
+  try {
   // ── Step 1: Flush WAL before backup so Supabase is as up-to-date as possible
   console.log('[Backup Manager] Flushing WAL before backup...');
   let walStatus;
@@ -189,21 +198,23 @@ export async function createCloudBackup({ tagSuffix = '' } = {}) {
   // ── Step 4: Compress and save
   const rawJson = JSON.stringify(snapshotData, null, 2);
   const uncompressedBytes = Buffer.byteLength(rawJson);
-  const compressedBuffer = zlib.gzipSync(Buffer.from(rawJson, 'utf-8'), { level: 9 });
-  const compressedBytes = compressedBuffer.length;
+  const localFilePath = path.join(LOCAL_BACKUP_DIR, filename);
+  await pipeline(
+    Readable.from([rawJson]),
+    zlib.createGzip({ level: 6 }),
+    fs.createWriteStream(localFilePath)
+  );
+  const compressedBytes = fs.statSync(localFilePath).size;
 
   console.log(
     `[Backup Manager] Compressed: ${(uncompressedBytes / (1024 * 1024)).toFixed(2)} MB -> ` +
     `${(compressedBytes / (1024 * 1024)).toFixed(2)} MB ` +
     `(${((1 - compressedBytes / uncompressedBytes) * 100).toFixed(1)}% savings)`
   );
-
-  // Save local compressed safety copy
-  const localFilePath = path.join(LOCAL_BACKUP_DIR, filename);
-  fs.writeFileSync(localFilePath, compressedBuffer);
   console.log(`[Backup Manager] Saved local compressed snapshot to ${localFilePath}`);
 
   // Upload to Supabase Storage
+  const compressedBuffer = fs.readFileSync(localFilePath);
   const { error: uploadError } = await supabase.storage
     .from(BUCKET_NAME)
     .upload(filename, compressedBuffer, { contentType: 'application/gzip', upsert: true });
@@ -227,6 +238,9 @@ export async function createCloudBackup({ tagSuffix = '' } = {}) {
     integrity: snapshotData.integrity,
     isPartial
   };
+  } finally {
+    backupInProgress = false;
+  }
 }
 
 // ─── List Cloud Backups ───────────────────────────────────────────────────────

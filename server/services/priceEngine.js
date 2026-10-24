@@ -4,6 +4,7 @@ import AdmZip from 'adm-zip';
 import { db, updateCacheRow, getCacheEntry } from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { storeRate, getPersistedRate, scheduleRetry, registerFetchFunction, recordDailyFxRate } from './fxRateStore.js';
+import { getHistoricalPricesMap } from './historicalPriceStore.js';
 
 export const liveQuoteCache = new Map();
 
@@ -29,6 +30,88 @@ export function resolveHoldingPrice(h, liveQuote = null) {
     if (maxEx > 0) price = maxEx;
   }
   return price;
+}
+
+/**
+ * Single Canonical Source of Truth for building Live Price Map and Effective US FX Rate.
+ * Enforces Weekend & Non-Trading Session Invariance (Rules 2, 5, and 27) with 100% mathematical
+ * parity across Dashboard (/api/summary), Calendar (/api/daily-pnl), Category pages, and verification tests.
+ */
+export function buildCanonicalLivePriceMap({
+  holdings = [],
+  transactions = [],
+  liabilities = [],
+  todayStr = null,
+  fxRate = null,
+  historicalPricesCache = null,
+  pastEodLogs = []
+} = {}) {
+  const currentTodayStr = todayStr || getTodayIST();
+  const usStocksStatus = getAssetSessionStatus('us_stocks', currentTodayStr);
+  const inStocksStatus = getAssetSessionStatus('in_stocks', currentTodayStr);
+  const mfStatus = getAssetSessionStatus('mutual_funds', currentTodayStr);
+  const npsStatus = getAssetSessionStatus('nps', currentTodayStr);
+
+  const holdingById = new Map((holdings || []).map(h => [String(h.id), h]));
+  const todayUsTxs = (transactions || []).filter(t => t.currency === 'USD' && t.date === currentTodayStr);
+  const todayTxs = (transactions || []).filter(t => t.date === currentTodayStr);
+
+  const hasCategoryTransactionToday = (categoryId) => todayTxs.some(t => {
+    const holding = holdingById.get(String(t.holding_id));
+    if (holding?.category_id === categoryId) return true;
+    const liability = (liabilities || []).find(l => String(l.id) === String(t.liability_id));
+    return liability?.category_id === categoryId;
+  });
+
+  const isInStocksInvariant = !hasCategoryTransactionToday('in_stocks') &&
+    ['NON_TRADING_DAY', 'PRE_MARKET'].includes(inStocksStatus.status);
+  const isMfInvariant = !hasCategoryTransactionToday('mutual_funds') &&
+    ['NON_TRADING_DAY', 'PRE_MARKET'].includes(mfStatus.status);
+  const isNpsInvariant = !hasCategoryTransactionToday('nps') &&
+    ['NON_TRADING_DAY', 'PRE_MARKET'].includes(npsStatus.status);
+
+  const histCache = historicalPricesCache || getHistoricalPricesMap();
+  let effectiveUsFx = fxRate || (getPersistedRate('USD_INR') || 1.0);
+
+  if (todayUsTxs.length === 0 && !isUsMarketOpen() && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
+    try {
+      const pastLogs = (pastEodLogs || []).filter(l => l.date < currentTodayStr).sort((a, b) => b.date.localeCompare(a.date));
+      if (pastLogs.length > 0 && pastLogs[0].us_stocks > 0) {
+        let totalUsdCurrent = 0;
+        holdings.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0).forEach(h => {
+          const liveQuote = liveQuoteCache.get(h.symbol);
+          const p = resolveHoldingPrice(h, liveQuote);
+          totalUsdCurrent += Number(h.quantity) * p;
+        });
+        if (totalUsdCurrent > 0) {
+          effectiveUsFx = pastLogs[0].us_stocks / totalUsdCurrent;
+        }
+      }
+    } catch (_) {}
+  }
+
+  const livePriceMap = {};
+  holdings.forEach(h => {
+    const liveQuote = liveQuoteCache.get(h.symbol);
+    let price = resolveHoldingPrice(h, liveQuote);
+    const isHoldingInvariant = (isInStocksInvariant && h.category_id === 'in_stocks') ||
+      (isMfInvariant && h.category_id === 'mutual_funds') ||
+      (isNpsInvariant && h.category_id === 'nps');
+    if (isHoldingInvariant) {
+      if (h.category_id === 'mutual_funds' || h.category_id === 'nps') {
+        price = Number(h.current_price) || 0;
+      } else {
+        const cleanSymbol = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
+        const priceHistory = histCache[h.symbol] || histCache[cleanSymbol] ||
+          histCache[`${cleanSymbol}.NS`] || {};
+        const previousDates = Object.keys(priceHistory).filter(date => date < currentTodayStr && Number(priceHistory[date]) > 0).sort();
+        if (previousDates.length > 0) price = Number(priceHistory[previousDates.at(-1)]);
+      }
+    }
+    livePriceMap[h.symbol] = price;
+  });
+
+  return { livePriceMap, effectiveUsFx, isInStocksInvariant, isMfInvariant, isNpsInvariant };
 }
 
 /**
@@ -495,7 +578,8 @@ import {
   getHolidaysForYear,
   isIndianMarketOpen,
   isUsMarketOpen,
-  isAnyMarketOpen
+  isAnyMarketOpen,
+  getAssetSessionStatus
 } from './marketCalendar.js';
 
 export { 
@@ -507,7 +591,8 @@ export {
   getHolidaysForYear,
   isIndianMarketOpen,
   isUsMarketOpen,
-  isAnyMarketOpen
+  isAnyMarketOpen,
+  getAssetSessionStatus
 };
 
 // In-memory cache for the Protean NAV batch: { navMap, navDate, cachedAt }
@@ -1059,23 +1144,25 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
   const cleanLastTradingDayNse = formatCleanQuoteDate(lastTradingDayNse);
 
   // Check if any active Indian equity, MF, or NPS has a stale or missing quote in liveQuoteCache
-  let hasStaleIndian = forceAll;
+  // During active trading sessions, Indian equities fluctuate continuously and must NEVER be skipped as "not stale"
+  const indianMarketActive = isIndianMarketOpen();
+  let hasStaleIndian = forceAll || indianMarketActive;
   let hasStaleMf = forceAll;
   let hasStaleNps = forceAll;
 
   if (!forceAll) {
     for (const h of holdings) {
-      if (h.category_id === 'in_stocks') {
+      if (h.category_id === 'in_stocks' && !hasStaleIndian) {
         const q = liveQuoteCache.get(h.symbol);
         if (!q || !q.quoteDate || q.quoteDate < cleanLastTradingDayNse) {
           hasStaleIndian = true;
         }
-      } else if (h.category_id === 'mutual_funds') {
+      } else if (h.category_id === 'mutual_funds' && !hasStaleMf) {
         const q = liveQuoteCache.get(h.symbol);
         if (!q || !q.quoteDate || q.quoteDate < cleanLastTradingDayNse) {
           hasStaleMf = true;
         }
-      } else if (h.category_id === 'nps') {
+      } else if (h.category_id === 'nps' && !hasStaleNps) {
         const q = liveQuoteCache.get(h.symbol);
         if (!q || !q.quoteDate || q.quoteDate < cleanLastTradingDayNse) {
           hasStaleNps = true;

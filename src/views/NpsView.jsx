@@ -508,7 +508,7 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                         <>
                           <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
                             {qty > 0 ? (
-                              <span className="text-slate-200 font-bold">{qty.toLocaleString()}</span>
+                              <span className="text-slate-200 font-bold">{qty.toLocaleString('en-IN', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</span>
                             ) : (
                               <span className="text-slate-600 font-medium">0</span>
                             )}

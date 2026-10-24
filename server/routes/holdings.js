@@ -8,6 +8,7 @@ import {
   fetchFxRate, 
   liveQuoteCache, 
   resolveHoldingPrice,
+  buildCanonicalLivePriceMap,
   fetchStockQuote, 
   fetchMutualFundNav, 
   fetchNpsNavFallback, 
@@ -126,47 +127,28 @@ router.get('/holdings', authenticateToken, async (req, res) => {
     const todayStr = getTodayIST();
     const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
     const todayUsTxs = allTxs.filter(t => t.currency === 'USD' && t.date === todayStr);
-    let effectiveUsFx = fxRate;
-
-    if (todayUsTxs.length === 0 && !isUsMarketOpen() && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
-      try {
-        const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
-        if (fs.existsSync(eodPath)) {
-          const pastLogs = JSON.parse(fs.readFileSync(eodPath, 'utf8')).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
-          if (pastLogs.length > 0 && pastLogs[0].us_stocks > 0) {
-            let totalUsdCurrent = 0;
-            holdings.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0).forEach(h => {
-              const liveQuote = liveQuoteCache.get(h.symbol);
-              const p = resolveHoldingPrice(h, liveQuote);
-              totalUsdCurrent += Number(h.quantity) * p;
-            });
-            if (totalUsdCurrent > 0) {
-              effectiveUsFx = pastLogs[0].us_stocks / totalUsdCurrent;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('[Holdings Route] Error computing invariant US FX rate:', e.message);
+    let pastLogsForHoldings = [];
+    try {
+      const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+      if (fs.existsSync(eodPath)) {
+        pastLogsForHoldings = JSON.parse(fs.readFileSync(eodPath, 'utf8'));
       }
-    }
+    } catch (_) {}
 
-    const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
-    const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
-    const npsStatus = getAssetSessionStatus('nps', todayStr);
-
-    const inHoldingIds = new Set(holdings.filter(h => h.category_id === 'in_stocks').map(h => h.id));
-    const mfHoldingIds = new Set(holdings.filter(h => h.category_id === 'mutual_funds').map(h => h.id));
-    const npsHoldingIds = new Set(holdings.filter(h => h.category_id === 'nps').map(h => h.id));
-
-    const hasInTxToday = allTxs.some(t => t.date === todayStr && inHoldingIds.has(t.holding_id));
-    const hasMfTxToday = allTxs.some(t => t.date === todayStr && mfHoldingIds.has(t.holding_id));
-    const hasNpsTxToday = allTxs.some(t => t.date === todayStr && npsHoldingIds.has(t.holding_id));
-
-    const isInStocksInvariant = !hasInTxToday && (inStocksStatus.status === 'NON_TRADING_DAY' || inStocksStatus.status === 'PRE_MARKET');
-    const isMfInvariant = !hasMfTxToday && (mfStatus.status === 'NON_TRADING_DAY' || mfStatus.status === 'PRE_MARKET');
-    const isNpsInvariant = !hasNpsTxToday && (npsStatus.status === 'NON_TRADING_DAY' || npsStatus.status === 'PRE_MARKET');
+    const { livePriceMap: canonicalPriceMap, effectiveUsFx, isInStocksInvariant, isMfInvariant, isNpsInvariant } = buildCanonicalLivePriceMap({
+      holdings,
+      transactions: allTxs,
+      liabilities: [],
+      todayStr,
+      fxRate,
+      historicalPricesCache,
+      pastEodLogs: pastLogsForHoldings
+    });
 
     const formatted = holdings.map(h => {
+      const isHoldingInvariant = (isInStocksInvariant && h.category_id === 'in_stocks') ||
+        (isMfInvariant && h.category_id === 'mutual_funds') ||
+        (isNpsInvariant && h.category_id === 'nps');
       const isUSD = h.currency === 'USD';
       const liveRate = isUSD ? effectiveUsFx : 1.0;
       let txRate = 1.0;
@@ -315,35 +297,12 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       }
 
       const liveQuote = liveQuoteCache.get(h.symbol);
-      let currentPriceNum = resolveHoldingPrice(h, liveQuote);
+      let currentPriceNum = (canonicalPriceMap && canonicalPriceMap[h.symbol] !== undefined)
+        ? canonicalPriceMap[h.symbol]
+        : resolveHoldingPrice(h, liveQuote);
       let carriedPriceDate = null;
 
-      const isHoldingInvariant = (isInStocksInvariant && h.category_id === 'in_stocks') ||
-                                 (isMfInvariant && h.category_id === 'mutual_funds') ||
-                                 (isNpsInvariant && h.category_id === 'nps');
 
-      if (isHoldingInvariant) {
-        const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
-        const pMap = historicalPricesCache[h.symbol] || historicalPricesCache[cleanSym] || historicalPricesCache[`${cleanSym}.NS`] || {};
-        const dates = Object.keys(pMap).filter(k => k < todayStr && pMap[k] > 0).sort();
-        const isIndianEquity = h.category_id === 'in_stocks';
-        const lastSession = isIndianEquity ? getLastTradingDay(todayStr, 'NSE') : null;
-        const quoteDate = liveQuote?.quoteDate || h.quote_date;
-        const quoteIsDatedToday = quoteDate && formatCleanQuoteDate(quoteDate) === formatCleanQuoteDate(todayStr);
-        const hasExchangeQuote = isIndianEquity && Math.max(Number(liveQuote?.nse_price || h.nse_price) || 0, Number(liveQuote?.bse_price || h.bse_price) || 0) > 0;
-
-        // Quote providers can stamp a non-trading-day response with today's
-        // date even though the values are the latest completed session (for
-        // example, the NSE Muhurat session immediately before a holiday).
-        // Preserve a fresh NSE/BSE MAX quote and label it with the calendar's
-        // last actual trading session instead of falling back to an older EOD.
-        if (isIndianEquity && quoteIsDatedToday && hasExchangeQuote) {
-          carriedPriceDate = lastSession;
-        } else if (dates.length > 0) {
-          carriedPriceDate = dates[dates.length - 1];
-          currentPriceNum = Number(pMap[carriedPriceDate]);
-        }
-      }
 
       const currentValueOriginal = qty * currentPriceNum;
       const currentValueINR = computeHoldingValueINR(h, currentPriceNum, liveRate);
@@ -473,6 +432,27 @@ router.get('/holdings', authenticateToken, async (req, res) => {
               activeUs[0].currentValueINR = Number((activeUs[0].currentValueINR + diff).toFixed(2));
               activeUs[0].unrealized_pnl_inr = Number((activeUs[0].currentValueINR - activeUs[0].investedValueINR).toFixed(2));
               activeUs[0].gainINR = activeUs[0].unrealized_pnl_inr;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Invariant parity alignment: ensure Mutual Funds sum matches pastLogs[0].mutual_funds down to the exact cent
+    if (isMfInvariant) {
+      const activeMf = formatted.filter(h => h.category_id === 'mutual_funds' && Number(h.quantity) > 0);
+      try {
+        const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+        if (fs.existsSync(eodPath) && activeMf.length > 0) {
+          const pastLogs = JSON.parse(fs.readFileSync(eodPath, 'utf8')).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+          if (pastLogs.length > 0 && pastLogs[0].mutual_funds > 0) {
+            const target = Number(Number(pastLogs[0].mutual_funds).toFixed(2));
+            const currentSum = Number(activeMf.reduce((sum, h) => sum + (h.currentValueINR || 0), 0).toFixed(2));
+            const diff = Number((target - currentSum).toFixed(2));
+            if (Math.abs(diff) > 0 && Math.abs(diff) <= 0.50) {
+              activeMf[0].currentValueINR = Number((activeMf[0].currentValueINR + diff).toFixed(2));
+              activeMf[0].unrealized_pnl_inr = Number((activeMf[0].currentValueINR - activeMf[0].investedValueINR).toFixed(2));
+              activeMf[0].gainINR = activeMf[0].unrealized_pnl_inr;
             }
           }
         }
@@ -1905,7 +1885,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       // Automatically populate historical daily prices for new or existing holdings
       if (['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(portfolio)) {
         try {
-          await ensureHistoricalPricesForSymbol(symbolKey, portfolio, txDate);
+          ensureHistoricalPricesForSymbol(symbolKey, portfolio, txDate).catch(() => {});
         } catch (e) {
           console.warn(`[Auto-Price Sync] Failed to ensure historical prices for ${symbolKey}:`, e.message);
         }

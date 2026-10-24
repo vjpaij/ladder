@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
+import { fetchFxRate, liveQuoteCache, resolveHoldingPrice, buildCanonicalLivePriceMap } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
 import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, getYesterdayIST, isAnyMarketOpen, isUsMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
 import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
@@ -151,18 +151,20 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       fxRate = await fetchFxRate();
       const holdings = await db.select('holdings');
       const liabilities = await db.select('liabilities');
-      const livePriceMap = {};
-      holdings.forEach(h => {
-        const liveQuote = liveQuoteCache.get(h.symbol);
-        livePriceMap[h.symbol] = resolveHoldingPrice(h, liveQuote);
-      });
-      liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
-
-      // Load transactions from cache (already in RAM — no I/O)
       const allTxs = await db.select('transactions');
       todayTxs = (allTxs || []).filter(t => t.date === todayStr);
 
-      _todayValCache = { liveTodayValuation, fxRate, todayTxs };
+      const { livePriceMap, effectiveUsFx } = buildCanonicalLivePriceMap({
+        holdings,
+        transactions: allTxs,
+        liabilities,
+        todayStr,
+        fxRate,
+        pastEodLogs: eodLogs
+      });
+      liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, effectiveUsFx);
+
+      _todayValCache = { liveTodayValuation, fxRate: effectiveUsFx, todayTxs };
       _todayValCacheExpiry = now + TODAY_VAL_TTL_MS;
     }
 
@@ -253,16 +255,16 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     // balances as the Dashboard and asset pages. Historical EOD values belong
     // only to finalized dates; carrying them into today made the calendar
     // disagree whenever there was no transaction in a category.
-    const resolvedInStocks = Number((liveTodayValuation.indian_stocks ?? 0).toFixed(2));
-    const resolvedUsStocks = Number((liveTodayValuation.us_stocks ?? 0).toFixed(2));
-    const resolvedMf = Number((liveTodayValuation.mutual_funds ?? 0).toFixed(2));
-    const resolvedNps = Number((liveTodayValuation.nps ?? 0).toFixed(2));
-    const resolvedSavings = Number((liveTodayValuation.savings ?? 0).toFixed(2));
-    const resolvedEpf = Number((liveTodayValuation.epf ?? 0).toFixed(2));
-    const resolvedDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
+    let resolvedInStocks = Number((liveTodayValuation.indian_stocks ?? 0).toFixed(2));
+    let resolvedUsStocks = Number((liveTodayValuation.us_stocks ?? 0).toFixed(2));
+    let resolvedMf = Number((liveTodayValuation.mutual_funds ?? 0).toFixed(2));
+    let resolvedNps = Number((liveTodayValuation.nps ?? 0).toFixed(2));
+    let resolvedSavings = Number((liveTodayValuation.savings ?? 0).toFixed(2));
+    let resolvedEpf = Number((liveTodayValuation.epf ?? 0).toFixed(2));
+    let resolvedDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
 
-    const totalAssets = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
-    const totalWealth = Number((totalAssets - resolvedDebt).toFixed(2));
+    let totalAssets = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
+    let totalWealth = Number((totalAssets - resolvedDebt).toFixed(2));
 
     const prevTotalWealth = Number((lastTradingLog?.total_wealth ?? lastTradingLog?.wealth ?? lastTradingLog?.net_worth_inr ?? totalWealth).toFixed(2));
     const prevTotalAssets = Number((lastTradingLog?.total_assets ?? lastTradingLog?.total_assets_inr ?? totalAssets).toFixed(2));
@@ -278,6 +280,19 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     let liabilityDelta = Number((resolvedDebt - prevLiabilities).toFixed(2));
 
     if (!anyMarketTrading && !hasAnyTxToday) {
+      if (prevTotalWealth > 0 && prevTotalAssets > 0) {
+        totalWealth = prevTotalWealth;
+        totalAssets = prevTotalAssets;
+        resolvedDebt = prevLiabilities;
+        if (lastTradingLog) {
+          if (lastTradingLog.indian_stocks !== undefined) resolvedInStocks = lastTradingLog.indian_stocks;
+          if (lastTradingLog.us_stocks !== undefined) resolvedUsStocks = lastTradingLog.us_stocks;
+          if (lastTradingLog.mutual_funds !== undefined) resolvedMf = lastTradingLog.mutual_funds;
+          if (lastTradingLog.nps !== undefined) resolvedNps = lastTradingLog.nps;
+          if (lastTradingLog.savings !== undefined) resolvedSavings = lastTradingLog.savings;
+          if (lastTradingLog.epf !== undefined) resolvedEpf = lastTradingLog.epf;
+        }
+      }
       dailyPnl = 0;
       pnlPct = 0;
       assetDelta = 0;

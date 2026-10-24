@@ -31,6 +31,27 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedCategory, sortField, sortOrder]);
+
+  const totalRecords = filteredHoldings.length;
+  const numericPageSize = pageSize === 'ALL' ? totalRecords : Number(pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalRecords / (numericPageSize || 1)));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedHoldings = React.useMemo(() => {
+    if (pageSize === 'ALL') return filteredHoldings;
+    const start = (safePage - 1) * numericPageSize;
+    return filteredHoldings.slice(start, start + numericPageSize);
+  }, [filteredHoldings, safePage, numericPageSize, pageSize]);
+
+  const startRecord = totalRecords === 0 ? 0 : (safePage - 1) * (pageSize === 'ALL' ? totalRecords : numericPageSize) + 1;
+  const endRecord = pageSize === 'ALL' ? totalRecords : Math.min(totalRecords, safePage * numericPageSize);
+
 
   const categories = [
     { id: 'ALL', label: 'All Instruments' },
@@ -161,7 +182,7 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
           <tbody className="[&>tr]:border-b [&>tr]:border-slate-800/40 text-xs">
             
             {/* Holdings Rows */}
-            {filteredHoldings.map(h => {
+            {paginatedHoldings.map(h => {
               const isGainPositive = h.gainINR >= 0;
               const isUS = h.currency === 'USD';
               const isFundOrNps = h.category_id === 'mutual_funds' || h.category_id === 'nps';
@@ -325,6 +346,80 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {totalRecords > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-slate-800/80 bg-slate-900/40 text-xs text-slate-400">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <span className="font-bold text-slate-200">{startRecord}</span> to{' '}
+              <span className="font-bold text-slate-200">{endRecord}</span> of{' '}
+              <span className="font-bold text-slate-200">{totalRecords}</span> instruments
+            </span>
+            <div className="h-3 w-px bg-slate-800 mx-1" />
+            <div className="flex items-center gap-1.5">
+              <span>Show:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-0.5 text-xs text-slate-200 focus:outline-none cursor-pointer"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value="ALL">All ({totalRecords})</option>
+              </select>
+            </div>
+          </div>
+
+          {pageSize !== 'ALL' && totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage(1)}
+                className="p-1 rounded-lg border border-slate-800 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 cursor-pointer"
+                title="First Page"
+              >
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="p-1 rounded-lg border border-slate-800 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 cursor-pointer"
+                title="Previous Page"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="px-2 font-mono font-medium text-xs text-slate-300">
+                Page <span className="font-bold text-emerald-400">{safePage}</span> of {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="p-1 rounded-lg border border-slate-800 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 cursor-pointer"
+                title="Next Page"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="p-1 rounded-lg border border-slate-800 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 cursor-pointer"
+                title="Last Page"
+              >
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );

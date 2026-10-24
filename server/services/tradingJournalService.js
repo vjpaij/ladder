@@ -195,10 +195,37 @@ function enrichTrade(trade) {
   const isCorporateAction = trade.tradeType === 'BONUS' || trade.tradeType === 'SPLIT' || trade.status === 'CORPORATE_ACTION';
 
   // Base values in native currency (USD for US, INR for IN)
-  const totalCharges = isCorporateAction ? 0 : (trade.totalCharges ?? charges.totalCharges);
-  const grossPnl = isCorporateAction ? 0 : (isClosed ? (trade.grossPnl ?? charges.grossPnl) : 0);
-  const netPnl = isCorporateAction ? 0 : (isClosed ? (trade.netPnl ?? charges.netPnl) : 0);
-  const roiPct = isCorporateAction ? 0 : (isClosed ? (trade.roiPct ?? charges.roiPct) : 0);
+  // Strictly respect authentic charges from transaction entries when provided
+  const totalCharges = isCorporateAction ? 0 : ((trade.totalCharges !== undefined && trade.totalCharges !== null) ? Number(trade.totalCharges) : charges.totalCharges);
+  const grossPnl = isCorporateAction ? 0 : (isClosed ? ((trade.grossPnl !== undefined && trade.grossPnl !== null) ? Number(trade.grossPnl) : charges.grossPnl) : 0);
+  const netPnl = isCorporateAction ? 0 : (isClosed ? ((trade.netPnl !== undefined && trade.netPnl !== null) ? Number(trade.netPnl) : Number((grossPnl - totalCharges).toFixed(2))) : 0);
+  const costBasis = (trade.entryPrice || 0) * (trade.quantity || 0);
+  const roiPct = isCorporateAction ? 0 : (isClosed ? ((trade.roiPct !== undefined && trade.roiPct !== null) ? Number(trade.roiPct) : (costBasis > 0 ? Number(((netPnl / costBasis) * 100).toFixed(2)) : 0)) : 0);
+
+  // Proportional breakdown scaling for authentic transaction charges
+  const hasCustomCharges = (trade.totalCharges !== undefined && trade.totalCharges !== null);
+  let brokerage = charges.brokerage;
+  let stt = charges.stt;
+  let exchangeCharges = charges.exchangeCharges;
+  let sebiCharges = charges.sebiCharges;
+  let stampDuty = charges.stampDuty;
+  let dpCharges = charges.dpCharges;
+  let gst = charges.gst;
+
+  if (hasCustomCharges) {
+    if (totalCharges === 0) {
+      brokerage = 0; stt = 0; exchangeCharges = 0; sebiCharges = 0; stampDuty = 0; dpCharges = 0; gst = 0;
+    } else if (charges.totalCharges > 0) {
+      const scale = totalCharges / charges.totalCharges;
+      brokerage = Math.round(charges.brokerage * scale * 100) / 100;
+      stt = Math.round(charges.stt * scale * 100) / 100;
+      exchangeCharges = Math.round(charges.exchangeCharges * scale * 100) / 100;
+      sebiCharges = Math.round(charges.sebiCharges * scale * 100) / 100;
+      stampDuty = Math.round(charges.stampDuty * scale * 100) / 100;
+      dpCharges = Math.round(charges.dpCharges * scale * 100) / 100;
+      gst = Math.round((totalCharges - (brokerage + stt + exchangeCharges + sebiCharges + stampDuty + dpCharges)) * 100) / 100;
+    }
+  }
 
   // FX Rate handling
   let entryFxRate = Number(trade.entryFxRate || trade.fxRate) || null;
@@ -272,13 +299,13 @@ function enrichTrade(trade) {
     buyTurnover: charges.buyTurnover,
     sellTurnover: charges.sellTurnover,
     totalTurnover: charges.totalTurnover,
-    brokerage: charges.brokerage,
-    stt: charges.stt,
-    exchangeCharges: charges.exchangeCharges,
-    sebiCharges: charges.sebiCharges,
-    stampDuty: charges.stampDuty,
-    dpCharges: charges.dpCharges,
-    gst: charges.gst,
+    brokerage,
+    stt,
+    exchangeCharges,
+    sebiCharges,
+    stampDuty,
+    dpCharges,
+    gst,
     totalCharges: Math.round(totalCharges * 100) / 100,
     grossPnl: Math.round(grossPnl * 100) / 100,
     netPnl: Math.round(netPnl * 100) / 100,
@@ -615,14 +642,45 @@ export function computeJournalStats(filters = {}) {
  */
 export async function syncFromPortfolioTransactions() {
   const existingTrades = loadJournalFromDisk();
-  // Preserve custom manually created trades (e.g. ones without linkedTransactionId or starting with custom_)
-  const manualTrades = existingTrades.filter(t => !t.linkedTransactionId || String(t.linkedTransactionId).startsWith('manual_'));
+  // Preserve custom manually created trades (pruning any legacy synthetic tj_open_ positions)
+  const manualTrades = existingTrades.filter(t => !String(t.id).startsWith('tj_open_') && (!t.linkedTransactionId || String(t.linkedTransactionId).startsWith('manual_')));
 
   const allTransactions = await db.select('transactions');
   const allHoldings = await db.select('holdings');
 
   const holdingsMap = new Map();
   allHoldings.forEach(h => holdingsMap.set(String(h.id), h));
+
+  // Pre-calculate total charges and total traded quantity per (date, symbol) to distribute authentic charges
+  const dateSymbolChargesMap = new Map();
+  for (const tx of allTransactions) {
+    const h = holdingsMap.get(String(tx.holding_id));
+    const sym = (tx.symbol || h?.symbol || h?.name || '').toUpperCase().trim();
+    const txDate = tx.date ? String(tx.date).split('T')[0] : '';
+    if (!sym || !txDate) continue;
+
+    const key = `${txDate}__${sym}`;
+    if (!dateSymbolChargesMap.has(key)) {
+      dateSymbolChargesMap.set(key, { totalCharges: 0, totalQty: 0 });
+    }
+    const entry = dateSymbolChargesMap.get(key);
+    entry.totalCharges += Number(tx.charges) || 0;
+    entry.totalQty += Number(tx.quantity) || 0;
+  }
+
+  function getAllocatedCharges(tx, sym) {
+    const txDate = tx.date ? String(tx.date).split('T')[0] : '';
+    const cleanSym = String(sym || '').toUpperCase().trim();
+    const key = `${txDate}__${cleanSym}`;
+    const entry = dateSymbolChargesMap.get(key);
+    const qty = Number(tx.quantity) || 0;
+
+    if (entry && entry.totalQty > 0 && entry.totalCharges > 0) {
+      const proportional = (qty / entry.totalQty) * entry.totalCharges;
+      return Math.round(proportional * 100) / 100;
+    }
+    return Math.round((Number(tx.charges) || 0) * 100) / 100;
+  }
 
   // Filter for stock transactions (equity)
   const stockHoldings = allHoldings.filter(h => {
@@ -654,7 +712,7 @@ export async function syncFromPortfolioTransactions() {
       const type = String(tx.type || '').toUpperCase();
       const qty = Number(tx.quantity) || 0;
       const price = Number(tx.price) || 0;
-      const charges = Number(tx.charges) || 0;
+      const allocatedCharges = getAllocatedCharges(tx, h.symbol || h.name);
 
       if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)', 'DEMERGER', 'MERGER', 'SWAP', 'RIGHTS', 'ALLOTMENT'].includes(type)) {
         if (qty > 0) {
@@ -665,7 +723,7 @@ export async function syncFromPortfolioTransactions() {
             price,
             fxRate: txFx,
             date: tx.date,
-            charges,
+            charges: allocatedCharges,
             txId: tx.id
           });
 
@@ -685,7 +743,8 @@ export async function syncFromPortfolioTransactions() {
             quantity: qty,
             entryPriceInr: isUs ? Math.round(price * txFx * 100) / 100 : price,
             costBasisInr: isUs ? Math.round(price * qty * txFx * 100) / 100 : Math.round(price * qty * 100) / 100,
-            totalChargesInr: isUs ? Math.round(charges * txFx * 100) / 100 : charges,
+            totalCharges: allocatedCharges,
+            totalChargesInr: isUs ? Math.round(allocatedCharges * txFx * 100) / 100 : allocatedCharges,
             fxRate: txFx,
             entryFxRate: txFx,
             exitFxRate: txFx,
@@ -818,24 +877,16 @@ export async function syncFromPortfolioTransactions() {
         const saleProceedsUsd = qty * exitPriceUsd;
         const saleProceedsInr = isUs ? Math.round(saleProceedsUsd * exitFx * 100) / 100 : saleProceedsUsd;
 
-        const exitCharges = calculateTradingCharges({
-          market,
-          segment,
-          tradeType: 'SELL',
-          entryPrice: weightedEntryPriceUsd,
-          exitPrice: exitPriceUsd,
-          quantity: qty,
-          brokeragePerOrder: isUs ? 0 : 20
-        });
-
-        const totalChargesUsd = exitCharges.totalCharges;
-        const totalChargesInr = isUs ? Math.round(totalChargesUsd * exitFx * 100) / 100 : totalChargesUsd;
+        // Use authentic statutory charges from transactions table distributed proportionally by trade quantity
+        const totalChargesUsd = isUs ? allocatedCharges : 0;
+        const totalChargesInr = isUs ? Math.round(allocatedCharges * exitFx * 100) / 100 : allocatedCharges;
+        const totalChargesNative = isUs ? totalChargesUsd : totalChargesInr;
 
         const grossPnlUsd = saleProceedsUsd - costSoldUsd;
         const grossPnlInr = isUs ? Math.round((saleProceedsInr - costSoldInr) * 100) / 100 : grossPnlUsd;
 
-        const netPnlUsd = grossPnlUsd - totalChargesUsd;
-        const netPnlInr = isUs ? Math.round((grossPnlInr - totalChargesInr) * 100) / 100 : netPnlUsd;
+        const netPnlUsd = Math.round((grossPnlUsd - totalChargesUsd) * 100) / 100;
+        const netPnlInr = Math.round((grossPnlInr - totalChargesInr) * 100) / 100;
 
         const roiPctUsd = costSoldUsd > 0 ? (netPnlUsd / costSoldUsd) * 100 : 0;
         const roiPctInr = costSoldInr > 0 ? (netPnlInr / costSoldInr) * 100 : 0;
@@ -864,11 +915,11 @@ export async function syncFromPortfolioTransactions() {
           exitPriceInr: Math.round(exitPriceInr * 100) / 100,
           costBasisInr: Math.round(costSoldInr * 100) / 100,
           saleProceedsInr: Math.round(saleProceedsInr * 100) / 100,
-          totalCharges: Math.round(totalChargesUsd * 100) / 100,
-          totalChargesInr: Math.round(totalChargesInr * 100) / 100,
-          grossPnl: Math.round(grossPnlUsd * 100) / 100,
+          totalCharges: totalChargesNative,
+          totalChargesInr: totalChargesInr,
+          grossPnl: isUs ? Math.round(grossPnlUsd * 100) / 100 : Math.round(grossPnlInr * 100) / 100,
           grossPnlInr: Math.round(grossPnlInr * 100) / 100,
-          netPnl: Math.round(netPnlUsd * 100) / 100,
+          netPnl: isUs ? Math.round(netPnlUsd * 100) / 100 : Math.round(netPnlInr * 100) / 100,
           netPnlInr: Math.round(netPnlInr * 100) / 100,
           roiPct: Math.round(roiPctUsd * 100) / 100,
           roiPctInr: Math.round(roiPctInr * 100) / 100,
@@ -891,79 +942,6 @@ export async function syncFromPortfolioTransactions() {
 
         syncedTrades.push(enrichTrade(trade));
       }
-    }
-
-    // Now, check remaining open position for this holding
-    const activeRemQty = openLots.reduce((sum, l) => sum + l.rem, 0);
-    const holdingQty = Number(h.quantity) || 0;
-    const finalOpenQty = holdingQty > 0 ? holdingQty : activeRemQty;
-
-    if (finalOpenQty > 0) {
-      const liveFx = getBestFxRate() || 94.92;
-      let activeCostBasisUsd = 0;
-      let activeCostBasisInr = 0;
-      let activeShares = 0;
-      let earliestOpenDate = null;
-
-      for (const lot of openLots) {
-        if (lot.rem > 0) {
-          const lotFx = lot.fxRate || liveFx;
-          activeCostBasisUsd += (lot.rem * lot.price);
-          activeCostBasisInr += (lot.rem * lot.price * lotFx);
-          activeShares += lot.rem;
-          if (!earliestOpenDate || lot.date < earliestOpenDate) {
-            earliestOpenDate = lot.date;
-          }
-        }
-      }
-
-      const weightedOpenPriceUsd = activeShares > 0 
-        ? (activeCostBasisUsd / activeShares) 
-        : (Number(h.avg_buy_price) || Number(h.current_price) || 0);
-      const weightedOpenPriceInr = activeShares > 0
-        ? (activeCostBasisInr / activeShares)
-        : (weightedOpenPriceUsd * liveFx);
-      const avgOpenFx = activeCostBasisUsd > 0 ? (activeCostBasisInr / activeCostBasisUsd) : liveFx;
-
-      const daysHeld = earliestOpenDate ? Math.max(0, Math.round((new Date() - new Date(earliestOpenDate)) / (1000 * 60 * 60 * 24))) : 0;
-      const taxTerm = daysHeld > 365 ? 'LTCG' : 'STCG';
-
-      const openTrade = {
-        id: `tj_open_${h.id}`,
-        date: earliestOpenDate || h.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-        entryDate: earliestOpenDate || h.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-        exitDate: null,
-        holdingDays: daysHeld,
-        taxTerm,
-        symbol: h.symbol || h.name,
-        name: h.name || h.symbol,
-        market,
-        segment,
-        tradeType: 'ACTIVE',
-        entryPrice: Math.round(weightedOpenPriceUsd * 100) / 100,
-        exitPrice: null,
-        quantity: finalOpenQty,
-        entryPriceInr: Math.round(weightedOpenPriceInr * 100) / 100,
-        exitPriceInr: null,
-        costBasisInr: Math.round(activeCostBasisInr * 100) / 100,
-        fxRate: liveFx,
-        entryFxRate: Math.round(avgOpenFx * 100) / 100,
-        exitFxRate: liveFx,
-        setup: 'Active Position',
-        timeframe: 'Investment',
-        emotions: 'Disciplined',
-        discipline: true,
-        tags: ['Active Portfolio', 'Holding', taxTerm],
-        notes: `Active Portfolio Position: ${finalOpenQty} shares currently held @ avg cost ${isUs ? '$' : '₹'}${weightedOpenPriceUsd.toFixed(2)}${isUs ? ` [₹${weightedOpenPriceInr.toFixed(2)} / share @ avg FX ₹${avgOpenFx.toFixed(2)}/$]` : ''} (held ${daysHeld}d [${taxTerm}])`,
-        rating: 5,
-        linkedHoldingId: h.id,
-        linkedTransactionId: `active_${h.id}`,
-        createdAt: h.created_at || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'OPEN'
-      };
-
-      syncedTrades.push(enrichTrade(openTrade));
     }
   }
 
@@ -1145,9 +1123,6 @@ export async function getSymbolAggregatedTrades(filters = {}) {
       group.buyTradesQty = (group.buyTradesQty || 0) + (trade.quantity || 0);
       group.totalCharges += (trade.totalCharges || 0);
       group.totalChargesInr += (trade.totalChargesInr ?? trade.totalCharges ?? 0);
-    } else if (trade.tradeType === 'ACTIVE') {
-      group.openTrades++;
-      group.openTradesQty = (group.openTradesQty || 0) + (trade.quantity || 0);
     }
   }
 
@@ -1187,7 +1162,7 @@ export async function getSymbolAggregatedTrades(filters = {}) {
     }
 
     const closedQty = group.closedTradesQty || 0;
-    const openQty = group.openTradesQty || (holding ? Number(holding.quantity) : 0);
+    const openQty = holding ? (Number(holding.quantity) || 0) : 0;
     const totalVolume = closedQty + openQty;
 
     return {
@@ -1197,7 +1172,7 @@ export async function getSymbolAggregatedTrades(filters = {}) {
       segment: group.segment,
       totalTrades: group.totalTrades,
       closedTrades: group.closedTrades,
-      openTrades: group.openTrades,
+      openTrades: inPortfolio ? 1 : 0,
       closedTradesQty: closedQty,
       openTradesQty: openQty,
       totalVolumeQty: totalVolume,
@@ -1230,8 +1205,8 @@ export async function getSymbolAggregatedTrades(filters = {}) {
       pnlTimeline,
       analysisBadges,
       inPortfolio,
-      isOpen: inPortfolio || group.openTrades > 0,
-      isFullyExited: (!inPortfolio && (group.openTradesQty || 0) === 0) && group.closedTrades > 0,
+      isOpen: inPortfolio || openQty > 0,
+      isFullyExited: (!inPortfolio && openQty === 0) && group.closedTrades > 0,
       portfolioHolding: holding ? {
         quantity: holding.quantity,
         avgBuyPrice: holding.avg_buy_price,

@@ -9,7 +9,8 @@ import {
   YAxis,
   Tooltip,
   ReferenceLine,
-  CartesianGrid
+  CartesianGrid,
+  Brush
 } from 'recharts';
 import {
   ExternalLink,
@@ -43,7 +44,7 @@ export default function GoChartingView({
   const [indicators, setIndicators] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedRange, setSelectedRange] = useState('6M'); // '1M' | '3M' | '6M' | '1Y' | 'ALL'
+  const [selectedRange, setSelectedRange] = useState('1Y'); // '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y' | 'ALL'
 
   const cleanSymbol = useMemo(() => {
     return String(symbol || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
@@ -86,7 +87,7 @@ export default function GoChartingView({
     fetchChartData();
   }, [cleanSymbol, isUs]);
 
-  // Filter series according to selected time range
+  // Filter series according to selected time range (supports 1M, 3M, 6M, 1Y, 3Y, 5Y, ALL)
   const filteredData = useMemo(() => {
     if (!seriesData || seriesData.length === 0) return [];
     if (selectedRange === 'ALL') return seriesData;
@@ -95,13 +96,32 @@ export default function GoChartingView({
       '1M': 30,
       '3M': 90,
       '6M': 180,
-      '1Y': 365
+      '1Y': 365,
+      '3Y': 1095,
+      '5Y': 1825
     };
-    const days = daysMap[selectedRange] || 180;
+    const days = daysMap[selectedRange] || 365;
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const filtered = seriesData.filter(d => d.date >= cutoff);
-    return filtered.length > 5 ? filtered : seriesData.slice(-60);
+    return filtered.length > 5 ? filtered : seriesData;
   }, [seriesData, selectedRange]);
+
+  // Match closest trading session to execution date
+  const matchedExecutionDate = useMemo(() => {
+    if (!executionDate || !seriesData || seriesData.length === 0) return null;
+    const cleanDate = String(executionDate).split('T')[0];
+    const exact = seriesData.find(d => d.date === cleanDate);
+    if (exact) return exact.date;
+    const prior = seriesData.filter(d => d.date <= cleanDate);
+    if (prior.length > 0) return prior[prior.length - 1].date;
+    return seriesData[0]?.date || null;
+  }, [executionDate, seriesData]);
+
+  // Candle at execution date
+  const executionCandle = useMemo(() => {
+    if (!matchedExecutionDate || !seriesData) return null;
+    return seriesData.find(d => d.date === matchedExecutionDate) || null;
+  }, [matchedExecutionDate, seriesData]);
 
   // Current quote and price change
   const currentQuote = useMemo(() => {
@@ -138,6 +158,43 @@ export default function GoChartingView({
   const ema50Color = '#EAB308'; // Yellow
   const ema200Color = isLight ? '#1E293B' : '#E2E8F0'; // High contrast Dark/Light
   const rsiColor = '#EF4444'; // Red/Coral
+
+  // Intersecting Crosshair Guide Component
+  const CustomCrosshair = ({ coordinate, viewBox }) => {
+    if (!coordinate || !viewBox) return null;
+    const { x, y } = coordinate;
+    const { x: vx, y: vy, width, height } = viewBox;
+    if (x === undefined || y === undefined || Number.isNaN(x) || Number.isNaN(y)) return null;
+
+    return (
+      <g className="recharts-crosshair-overlay" pointerEvents="none">
+        {/* Vertical guideline */}
+        <line
+          x1={x}
+          y1={vy}
+          x2={x}
+          y2={vy + height}
+          stroke={isLight ? '#0284c7' : '#38bdf8'}
+          strokeWidth={1.2}
+          strokeDasharray="3 3"
+          opacity={0.8}
+        />
+        {/* Horizontal guideline */}
+        <line
+          x1={vx}
+          y1={y}
+          x2={vx + width}
+          y2={y}
+          stroke={isLight ? '#0284c7' : '#38bdf8'}
+          strokeWidth={1.2}
+          strokeDasharray="3 3"
+          opacity={0.8}
+        />
+        {/* Intersecting center point */}
+        <circle cx={x} cy={y} r={3} fill={isLight ? '#0284c7' : '#38bdf8'} stroke="#ffffff" strokeWidth={1} />
+      </g>
+    );
+  };
 
   // Custom Chart Tooltip
   const CustomTooltip = ({ active, payload, label }) => {
@@ -275,7 +332,7 @@ export default function GoChartingView({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Timeframe Range Selector */}
           <div className="flex items-center p-1 rounded-2xl reports-subcard border border-[var(--border-color)]">
-            {['1M', '3M', '6M', '1Y', 'ALL'].map((r) => (
+            {['1M', '3M', '6M', '1Y', '3Y', '5Y', 'ALL'].map((r) => (
               <button
                 key={r}
                 type="button"
@@ -342,6 +399,33 @@ export default function GoChartingView({
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Entry Milestone Technical Snapshot Banner */}
+          {executionCandle && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-pink-500/10 border border-pink-500/30 flex-wrap text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-pulse" />
+                <span className="font-bold text-pink-600 dark:text-pink-400">Transaction Entry Snapshot ({matchedExecutionDate}):</span>
+                <span className="font-mono font-bold text-[var(--text-primary)]">
+                  {formatPrice(executionPrice || executionCandle.close)}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 font-mono text-[11px] flex-wrap">
+                {executionCandle.ema21 && (
+                  <span className="text-[#3B82F6] font-semibold">21 EMA: {formatPrice(executionCandle.ema21)}</span>
+                )}
+                {executionCandle.ema50 && (
+                  <span className="text-[#EAB308] font-semibold">50 EMA: {formatPrice(executionCandle.ema50)}</span>
+                )}
+                {executionCandle.ema200 && (
+                  <span className="text-purple-600 dark:text-purple-300 font-semibold">200 EMA: {formatPrice(executionCandle.ema200)}</span>
+                )}
+                {executionCandle.rsi10 && (
+                  <span className="text-[#EF4444] font-semibold">RSI(10): {executionCandle.rsi10}</span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Main Price Chart with Overlaid 21/50/200 EMA Lines & Execution Price Target */}
           <div className="relative">
             <div className="flex items-center justify-between text-[11px] font-bold text-[var(--text-muted)] px-1 mb-1">
@@ -366,7 +450,7 @@ export default function GoChartingView({
               </div>
             </div>
 
-            <div className="h-72 sm:h-80 w-full">
+            <div className="h-72 sm:h-84 w-full" style={{ cursor: 'crosshair' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={filteredData} margin={{ top: 10, right: 15, left: 10, bottom: 5 }}>
                   <defs>
@@ -403,7 +487,7 @@ export default function GoChartingView({
                     orientation="right"
                   />
 
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<CustomTooltip />} cursor={<CustomCrosshair />} />
 
                   {/* Daily Price Area */}
                   <Area
@@ -451,15 +535,32 @@ export default function GoChartingView({
                     isAnimationActive={false}
                   />
 
-                  {/* Execution Price Highlight (Transaction Milestone) */}
+                  {/* Vertical Execution Date Milestone */}
+                  {matchedExecutionDate && (
+                    <ReferenceLine
+                      x={matchedExecutionDate}
+                      stroke="#EC4899"
+                      strokeDasharray="3 3"
+                      strokeWidth={1.8}
+                      label={{
+                        value: `📅 Entry: ${matchedExecutionDate}`,
+                        fill: '#EC4899',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        position: 'insideTopLeft'
+                      }}
+                    />
+                  )}
+
+                  {/* Horizontal Execution Price Target */}
                   {executionPrice && Number(executionPrice) > 0 && (
                     <ReferenceLine
                       y={Number(executionPrice)}
                       stroke="#EC4899"
                       strokeDasharray="4 4"
-                      strokeWidth={2}
+                      strokeWidth={1.8}
                       label={{
-                        value: `🎯 Executed @ ${formatPrice(executionPrice)}${executionDate ? ` (${executionDate})` : ''}`,
+                        value: `🎯 Executed @ ${formatPrice(executionPrice)}`,
                         fill: '#EC4899',
                         fontSize: 11,
                         fontWeight: 'bold',
@@ -467,6 +568,21 @@ export default function GoChartingView({
                       }}
                     />
                   )}
+
+                  {/* Smooth horizontal scroll & multi-year zoom brush slider */}
+                  <Brush
+                    dataKey="date"
+                    height={26}
+                    stroke="#06b6d4"
+                    fill={isLight ? '#f1f5f9' : '#0b1120'}
+                    travellerWidth={8}
+                    tickFormatter={(str) => {
+                      if (!str) return '';
+                      const parts = str.split('-');
+                      if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
+                      return str;
+                    }}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -497,7 +613,7 @@ export default function GoChartingView({
               </div>
             </div>
 
-            <div className="h-24 w-full">
+            <div className="h-24 w-full" style={{ cursor: 'crosshair' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={filteredData} margin={{ top: 5, right: 15, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" stroke={isLight ? '#E2E8F0' : 'rgba(255,255,255,0.05)'} vertical={false} />
@@ -512,6 +628,20 @@ export default function GoChartingView({
                     tickLine={false}
                     axisLine={false}
                     orientation="right"
+                  />
+
+                  <Tooltip
+                    cursor={<CustomCrosshair />}
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const pt = payload[0]?.payload || {};
+                      return (
+                        <div className="reports-card p-2 rounded-xl border border-[var(--border-color)] shadow-xl text-[11px] font-mono">
+                          <span className="text-[var(--text-muted)] font-sans mr-2">{pt.date}:</span>
+                          <span className="font-bold text-[#EF4444]">RSI (10): {pt.rsi10 ?? '—'}</span>
+                        </div>
+                      );
+                    }}
                   />
 
                   {/* Overbought corridor line (80) */}

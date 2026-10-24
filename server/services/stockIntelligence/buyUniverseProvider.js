@@ -320,7 +320,7 @@ export function applyChartinkFilter(priceSeriesMap, symbol, fundamentals = {}, {
  * @param {Object[]} portfolioHoldings - user's active holdings
  * @returns {Array<{symbol: string, name: string, source: string, inPortfolio: boolean}>}
  */
-export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidates = []) {
+export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidates = [], transactions = [], { asOfDate = new Date().toISOString().slice(0, 10) } = {}) {
   const portfolioSymbols = new Set(
     portfolioHoldings
       .filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0 && isIndianStockSymbol(h.symbol))
@@ -333,12 +333,52 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
       .map(h => [String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, ''), h])
   );
 
+  // 1. Inspect transactions & exited holdings for any stock sold in the past 90 days
+  // (including the 21st Oct / 23rd Oct 2026 crash session)
+  const cutoffMs = Date.parse(`${asOfDate}T00:00:00Z`) - 90 * 86400000;
+  const recentlySoldMap = new Map();
+
+  for (const tx of (transactions || [])) {
+    const type = String(tx.type || '').toUpperCase();
+    if (['SELL', 'REDEEM', 'REDEMPTION'].includes(type) && tx.symbol) {
+      const clean = String(tx.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+      const txMs = Date.parse(`${tx.date || ''}T00:00:00Z`);
+      const isRecent = (!isNaN(txMs) && txMs >= cutoffMs) || (tx.date && tx.date >= '2026-10-21');
+      if (isRecent && isIndianStockSymbol(clean) && !portfolioSymbols.has(clean)) {
+        if (!recentlySoldMap.has(clean) || (tx.date && tx.date > (recentlySoldMap.get(clean).lastSoldDate || ''))) {
+          recentlySoldMap.set(clean, {
+            symbol: clean,
+            name: tx.name || clean,
+            lastSoldDate: tx.date || null
+          });
+        }
+      }
+    }
+  }
+
+  // Also inspect portfolioHoldings for exited positions (quantity === 0 or status === 'exited')
+  for (const h of (portfolioHoldings || [])) {
+    if (h.category_id === 'in_stocks' && isIndianStockSymbol(h.symbol)) {
+      const clean = String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+      const isExited = Number(h.quantity) === 0 || h.status === 'exited' || h.is_exited;
+      if (isExited && !portfolioSymbols.has(clean)) {
+        if (!recentlySoldMap.has(clean)) {
+          recentlySoldMap.set(clean, {
+            symbol: clean,
+            name: h.name || clean,
+            lastSoldDate: h.updated_at ? h.updated_at.slice(0, 10) : null
+          });
+        }
+      }
+    }
+  }
+
   const nse500 = loadNse500Universe();
   const watchlist = loadWatchlist().filter(isIndianStockSymbol);
 
   const allSymbols = new Map();
 
-  // Portfolio stocks (always evaluated regardless of filter)
+  // Active Portfolio stocks (always evaluated regardless of filter)
   for (const sym of portfolioSymbols) {
     const h = portfolioMap.get(sym);
     allSymbols.set(sym, {
@@ -349,6 +389,21 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
       portfolioQuantity: Number(h?.quantity) || 0,
       portfolioAvgPrice: Number(h?.avg_buy_price) || 0
     });
+  }
+
+  // Recently Sold / Crash Exit Candidates (sold in past 90 days, explicitly screened for prime re-entry)
+  for (const [sym, info] of recentlySoldMap.entries()) {
+    if (!allSymbols.has(sym)) {
+      allSymbols.set(sym, {
+        symbol: sym,
+        name: info.name || sym,
+        source: 'Recently Sold / Crash Exit Candidate',
+        inPortfolio: false,
+        portfolioQuantity: 0,
+        portfolioAvgPrice: 0,
+        lastSoldDate: info.lastSoldDate
+      });
+    }
   }
 
   // Chartink Breakout candidates (meeting active breakout scan)
@@ -386,10 +441,12 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
         portfolioAvgPrice: 0
       });
     } else {
-      // Already exists as portfolio — update source to show both
+      // Already exists as portfolio or recently sold — update source to show confluence
       const existing = allSymbols.get(clean);
       if (existing.source === 'Portfolio') {
         existing.source = 'Portfolio + NSE500';
+      } else if (!existing.source.includes('NSE500')) {
+        existing.source += ' + NSE500';
       }
     }
   }

@@ -314,12 +314,25 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
-              <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
-                Recycled Exit Capital
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
+                  Recycled Capital
+                </span>
+                {summary.realizedRecycledCapital > 0 && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                    Realized Exits
+                  </span>
+                )}
+              </div>
               <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
                 +{formatInr(summary.recycledCapital)}
               </span>
+              <div className="mt-1 text-[10px] text-[var(--text-muted)] leading-tight space-y-0.5">
+                <div>Realized (21-Oct+): <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{formatInr(summary.realizedRecycledCapital)}</span></div>
+                {summary.projectedRecycledCapital > 0 && (
+                  <div>Projected Trims: <span className="font-mono font-semibold text-[var(--text-primary)]">+{formatInr(summary.projectedRecycledCapital)}</span></div>
+                )}
+              </div>
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
@@ -537,24 +550,37 @@ export default function ActionPlanModal({ isOpen, onClose }) {
           ) : (
             /* Tab 3: Algorithmic Sells */
             <div className="space-y-3">
+              {sells.length > 0 && (
+                <div className="p-3 rounded-2xl border border-rose-500/40 bg-rose-500/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-rose-500 dark:text-rose-300 font-bold">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span>{sells.length} positions triggered for exit / trim based on live market price triggers.</span>
+                  </div>
+                  <div className="text-[11px] font-mono font-bold text-rose-400 dark:text-rose-200">
+                    Total Liquidation / Recycled Pool: {formatInr(sells.reduce((acc, x) => acc + (x.actionValue || 0), 0))}
+                  </div>
+                </div>
+              )}
+
               <div className="overflow-x-auto rounded-2xl border border-[var(--border-color)]">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-[var(--border-color)] reports-subcard text-[var(--text-muted)] font-bold">
                       <th className="py-2.5 px-3">Action</th>
                       <th className="py-2.5 px-3">Symbol</th>
-                      <th className="py-2.5 px-3">Company Name</th>
                       <th className="py-2.5 px-3 text-right">CMP</th>
-                      <th className="py-2.5 px-3 text-right">Shares to Sell</th>
+                      <th className="py-2.5 px-3 text-right font-black text-rose-500 dark:text-rose-400">Sell Now</th>
+                      <th className="py-2.5 px-3">Tranche 1 (Floor)</th>
+                      <th className="py-2.5 px-3">Tranche 2 (30w SMA)</th>
+                      <th className="py-2.5 px-3">Tranche 3 (Structural)</th>
                       <th className="py-2.5 px-3 text-right">Proceeds (INR)</th>
-                      <th className="py-2.5 px-3 text-right">Trigger Price</th>
-                      <th className="py-2.5 px-3">Algorithmic Breakdown & Decay Reason</th>
+                      <th className="py-2.5 px-3">Trigger Rationale & Strategy</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-color)]">
                     {sells.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-[var(--text-muted)]">
+                        <td colSpan={9} className="py-8 text-center text-[var(--text-muted)]">
                           Zero performance-decayed sells triggered. All active holdings are performing cleanly!
                         </td>
                       </tr>
@@ -562,7 +588,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                       sells.map((s, idx) => (
                         <tr key={idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                           <td className="py-2.5 px-3">
-                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md whitespace-nowrap ${
                               s.isFullExit
                                 ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
                                 : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
@@ -571,24 +597,56 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                             </span>
                           </td>
                           <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)]">
-                            {s.symbol}
-                          </td>
-                          <td className="py-2.5 px-3 text-[var(--text-muted)] truncate max-w-[160px]" title={s.name}>
-                            {s.name}
+                            <div>{s.symbol}</div>
+                            <div className="text-[10px] text-[var(--text-muted)] font-normal truncate max-w-[120px]">{s.name}</div>
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
                             {formatInr2(s.cmp)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
-                            {s.quantity}
+                          <td className="py-2.5 px-3 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm">
+                            {s.quantity} shs
+                            <div className="text-[9px] text-[var(--text-muted)] font-normal">of {s.heldShares} held</div>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[11px]">
+                            {s.tranche1Shares > 0 ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold">{s.tranche1Shares} shs</span>
+                                <span className="text-[10px] text-[var(--text-muted)]">@ ₹{s.tranche1Trigger}</span>
+                                <span className={`text-[8.5px] px-1 py-0.2 rounded font-bold uppercase ${
+                                  s.tranche1Status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-500' :
+                                  s.tranche1Status === 'READY' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 font-black' : 'bg-amber-500/15 text-amber-500'
+                                }`}>{s.tranche1Status}</span>
+                              </div>
+                            ) : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[11px]">
+                            {s.tranche2Shares > 0 ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold">{s.tranche2Shares} shs</span>
+                                <span className="text-[10px] text-[var(--text-muted)]">@ ₹{s.tranche2Trigger}</span>
+                                <span className={`text-[8.5px] px-1 py-0.2 rounded font-bold uppercase ${
+                                  s.tranche2Status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-500' :
+                                  s.tranche2Status === 'READY' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 font-black' : 'bg-slate-500/15 text-[var(--text-muted)]'
+                                }`}>{s.tranche2Status}</span>
+                              </div>
+                            ) : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[11px]">
+                            {s.tranche3Shares > 0 ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold">{s.tranche3Shares} shs</span>
+                                <span className="text-[10px] text-[var(--text-muted)]">@ ₹{s.tranche3Trigger}</span>
+                                <span className={`text-[8.5px] px-1 py-0.2 rounded font-bold uppercase ${
+                                  s.tranche3Status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-500' :
+                                  s.tranche3Status === 'READY' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 font-black' : 'bg-slate-500/15 text-[var(--text-muted)]'
+                                }`}>{s.tranche3Status}</span>
+                              </div>
+                            ) : '—'}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
                             {formatInr2(s.actionValue)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-amber-500 dark:text-amber-400">
-                            {s.triggerPrice > 0 ? formatInr2(s.triggerPrice) : '—'}
-                          </td>
-                          <td className="py-2.5 px-3 text-[11px] text-[var(--text-muted)] max-w-sm">
+                          <td className="py-2.5 px-3 text-[11px] text-[var(--text-muted)] max-w-xs leading-relaxed">
                             {s.reason}
                           </td>
                         </tr>

@@ -1,0 +1,1730 @@
+{
+  "ADANIPORTS": {
+    "symbol": "ADANIPORTS",
+    "companyName": "Adani Ports & Special Economic Zone Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.5136086256598404,
+    "patGrowth": 1.619076999012833,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "AFFLE": {
+    "symbol": "AFFLE",
+    "companyName": "Affle 3i Ltd",
+    "sector": "Telecommunication & Media",
+    "revGrowth": 1.538795442213782,
+    "patGrowth": 1.6094276094276094,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "ANANTRAJ": {
+    "symbol": "ANANTRAJ",
+    "companyName": "Anant Raj Ltd",
+    "sector": "Infrastructure & Real Estate",
+    "revGrowth": 1.7201618341200269,
+    "patGrowth": 2.140221402214022,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "ASHIANA": {
+    "symbol": "ASHIANA",
+    "companyName": "ASHIANA",
+    "sector": "Diversified",
+    "revGrowth": 3.454586534116584,
+    "patGrowth": 3.328911253430924,
+    "de": 0.35119,
+    "source": "scratch_fundamentals"
+  },
+  "ARROWGREEN": {
+    "symbol": "ARROWGREEN",
+    "companyName": "ARROWGREEN",
+    "sector": "Diversified",
+    "revGrowth": 2.644984010780153,
+    "patGrowth": 5.064987405541562,
+    "de": 0.957,
+    "source": "scratch_fundamentals"
+  },
+  "ARVSMART": {
+    "symbol": "ARVSMART",
+    "companyName": "ARVSMART",
+    "sector": "Diversified",
+    "revGrowth": 2.204045611698802,
+    "patGrowth": 3.7662208337401153,
+    "de": 0.65077,
+    "source": "scratch_fundamentals"
+  },
+  "AUBANK": {
+    "symbol": "AUBANK",
+    "companyName": "AU Small Finance Bank Ltd",
+    "sector": "Financial Services",
+    "revGrowth": 1.8532449076267172,
+    "patGrowth": 1.860586319218241,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "AJAXENGG": {
+    "symbol": "AJAXENGG",
+    "companyName": "AJAXENGG",
+    "sector": "Diversified",
+    "revGrowth": 1.8267433082152225,
+    "patGrowth": 1.6566473392983283,
+    "de": 0.132,
+    "source": "scratch_fundamentals"
+  },
+  "AVL": {
+    "symbol": "AVL",
+    "companyName": "AVL",
+    "sector": "Diversified",
+    "revGrowth": 2.0205381661751995,
+    "patGrowth": 1.8228692140997458,
+    "de": 0.83205,
+    "source": "scratch_fundamentals"
+  },
+  "AVALON": {
+    "symbol": "AVALON",
+    "companyName": "Avalon Technologies Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.0346020761245676,
+    "patGrowth": 4.785714285714286,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "BAJAJHLDNG": {
+    "symbol": "BAJAJHLDNG",
+    "companyName": "BAJAJHLDNG",
+    "sector": "Diversified",
+    "revGrowth": 1.684324470343071,
+    "patGrowth": 1.98674575097103,
+    "de": 0.012,
+    "source": "scratch_fundamentals"
+  },
+  "BANCOINDIA": {
+    "symbol": "BANCOINDIA",
+    "companyName": "BANCOINDIA",
+    "sector": "Diversified",
+    "revGrowth": 1.6810934440804821,
+    "patGrowth": 2.044687420674034,
+    "de": 0.3644,
+    "source": "scratch_fundamentals"
+  },
+  "BECTORFOOD": {
+    "symbol": "BECTORFOOD",
+    "companyName": "BECTORFOOD",
+    "sector": "Diversified",
+    "revGrowth": 1.5002602524411972,
+    "patGrowth": 1.5640584408375335,
+    "de": 0.15011,
+    "source": "scratch_fundamentals"
+  },
+  "BHARATSE": {
+    "symbol": "BHARATSE",
+    "companyName": "Bharat Seats Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.9700093720712277,
+    "patGrowth": 1.84,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "BHAGERIA": {
+    "symbol": "BHAGERIA",
+    "companyName": "BHAGERIA",
+    "sector": "Diversified",
+    "revGrowth": 1.7335108235869603,
+    "patGrowth": 3.125116985636198,
+    "de": 0.18402000000000002,
+    "source": "scratch_fundamentals"
+  },
+  "BHARTIARTL": {
+    "symbol": "BHARTIARTL",
+    "companyName": "BHARTIARTL",
+    "sector": "Diversified",
+    "revGrowth": 1.5162104512709063,
+    "patGrowth": 3.1986005104302713,
+    "de": 1.00415,
+    "source": "scratch_fundamentals"
+  },
+  "BLS": {
+    "symbol": "BLS",
+    "companyName": "BLS",
+    "sector": "Diversified",
+    "revGrowth": 1.9774681754673296,
+    "patGrowth": 3.4205835164304212,
+    "de": 0.15468,
+    "source": "scratch_fundamentals"
+  },
+  "BORORENEW": {
+    "symbol": "BORORENEW",
+    "companyName": "BORORENEW",
+    "sector": "Diversified",
+    "revGrowth": 1.7387532820200369,
+    "patGrowth": 1.8537751429662883,
+    "de": 0.1074,
+    "source": "scratch_fundamentals"
+  },
+  "BRIGADE": {
+    "symbol": "BRIGADE",
+    "companyName": "BRIGADE",
+    "sector": "Diversified",
+    "revGrowth": 1.653952116495046,
+    "patGrowth": 2.211283071960468,
+    "de": 0.84316,
+    "source": "scratch_fundamentals"
+  },
+  "CDSL": {
+    "symbol": "CDSL",
+    "companyName": "CDSL",
+    "sector": "Diversified",
+    "revGrowth": 2.0625939943086378,
+    "patGrowth": 1.6530167899427046,
+    "de": 0.11,
+    "source": "scratch_fundamentals"
+  },
+  "CAPITALSFB": {
+    "symbol": "CAPITALSFB",
+    "companyName": "CAPITALSFB",
+    "sector": "Diversified",
+    "revGrowth": 1.5067273157529595,
+    "patGrowth": 1.510662826054904,
+    "de": 0.5,
+    "source": "scratch_fundamentals"
+  },
+  "CARYSIL": {
+    "symbol": "CARYSIL",
+    "companyName": "CARYSIL",
+    "sector": "Diversified",
+    "revGrowth": 1.5557631515405415,
+    "patGrowth": 1.8731829038436592,
+    "de": 0.45990000000000003,
+    "source": "scratch_fundamentals"
+  },
+  "BLSE": {
+    "symbol": "BLSE",
+    "companyName": "BLSE",
+    "sector": "Diversified",
+    "revGrowth": 4.5988154399292025,
+    "patGrowth": 3.045327909661974,
+    "de": 1.076,
+    "source": "scratch_fundamentals"
+  },
+  "CEIGALL": {
+    "symbol": "CEIGALL",
+    "companyName": "CEIGALL",
+    "sector": "Diversified",
+    "revGrowth": 1.7485156207749086,
+    "patGrowth": 1.86454995456502,
+    "de": 0.61085,
+    "source": "scratch_fundamentals"
+  },
+  "CARTRADE": {
+    "symbol": "CARTRADE",
+    "companyName": "CARTRADE",
+    "sector": "Diversified",
+    "revGrowth": 2.131825573598662,
+    "patGrowth": 6.559271830952773,
+    "de": 0.053630000000000004,
+    "source": "scratch_fundamentals"
+  },
+  "CEMPRO": {
+    "symbol": "CEMPRO",
+    "companyName": "CEMPRO",
+    "sector": "Diversified",
+    "revGrowth": 1.976184538437834,
+    "patGrowth": 4.8109210555968716,
+    "de": 0.37711,
+    "source": "scratch_fundamentals"
+  },
+  "CHALET": {
+    "symbol": "CHALET",
+    "companyName": "Chalet Hotels Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.6845448129851799,
+    "patGrowth": 1.8992805755395683,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "CCAVENUE": {
+    "symbol": "CCAVENUE",
+    "companyName": "AvenuesAI Ltd",
+    "sector": "Diversified",
+    "revGrowth": 3.020952380952381,
+    "patGrowth": 2.0576923076923075,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "COFORGE": {
+    "symbol": "COFORGE",
+    "companyName": "Coforge Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.0196470196470195,
+    "patGrowth": 2.2966507177033493,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "DCBBANK": {
+    "symbol": "DCBBANK",
+    "companyName": "DCBBANK",
+    "sector": "Diversified",
+    "revGrowth": 1.5566949069078075,
+    "patGrowth": 1.57135369982187,
+    "de": 0.5,
+    "source": "scratch_fundamentals"
+  },
+  "DHOOTTRANS": {
+    "symbol": "DHOOTTRANS",
+    "companyName": "Dhoot Transmission Ltd",
+    "sector": "Consumer Discretionary",
+    "revGrowth": 2.930699481865285,
+    "patGrowth": 9.452380952380953,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "DYCL": {
+    "symbol": "DYCL",
+    "companyName": "Dynamic Cables Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.6731770833333333,
+    "patGrowth": 2.3947368421052633,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "DIXON": {
+    "symbol": "DIXON",
+    "companyName": "Dixon Technologies (India) Ltd",
+    "sector": "Diversified",
+    "revGrowth": 2.915889435306088,
+    "patGrowth": 5.552,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "ENDURANCE": {
+    "symbol": "ENDURANCE",
+    "companyName": "ENDURANCE",
+    "sector": "Diversified",
+    "revGrowth": 2.156758759170844,
+    "patGrowth": 1.9844862638794767,
+    "de": 0.19393000000000002,
+    "source": "scratch_fundamentals"
+  },
+  "EPACKPEB": {
+    "symbol": "EPACKPEB",
+    "companyName": "EPACKPEB",
+    "sector": "Diversified",
+    "revGrowth": 2.3350637427207386,
+    "patGrowth": 3.864420991156349,
+    "de": 0.15606,
+    "source": "scratch_fundamentals"
+  },
+  "ETHOSLTD": {
+    "symbol": "ETHOSLTD",
+    "companyName": "ETHOSLTD",
+    "sector": "Diversified",
+    "revGrowth": 2.0446050688765744,
+    "patGrowth": 1.5716091027592864,
+    "de": 0.19366,
+    "source": "scratch_fundamentals"
+  },
+  "FIEMIND": {
+    "symbol": "FIEMIND",
+    "companyName": "FIEMIND",
+    "sector": "Diversified",
+    "revGrowth": 1.5227994779822391,
+    "patGrowth": 1.8182531770314094,
+    "de": 0.05395,
+    "source": "scratch_fundamentals"
+  },
+  "GABRIEL": {
+    "symbol": "GABRIEL",
+    "companyName": "Gabriel India Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.5177784307963562,
+    "patGrowth": 1.9608938547486034,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GENUSPOWER": {
+    "symbol": "GENUSPOWER",
+    "companyName": "Genus Power Infrastructures Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 4.307243963363863,
+    "patGrowth": 7.494252873563219,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GOODLUCK": {
+    "symbol": "GOODLUCK",
+    "companyName": "GOODLUCK",
+    "sector": "Diversified",
+    "revGrowth": 3.6978440136084414,
+    "patGrowth": 6.000920319689998,
+    "de": 0.73233,
+    "source": "scratch_fundamentals"
+  },
+  "GRAVITA": {
+    "symbol": "GRAVITA",
+    "companyName": "GRAVITA",
+    "sector": "Diversified",
+    "revGrowth": 1.5167337595706054,
+    "patGrowth": 1.8836399801093984,
+    "de": 0.29934,
+    "source": "scratch_fundamentals"
+  },
+  "GREAVESCOT": {
+    "symbol": "GREAVESCOT",
+    "companyName": "GREAVESCOT",
+    "sector": "Diversified",
+    "revGrowth": 2.9183501897944106,
+    "patGrowth": 3.9564254062038406,
+    "de": 0.26050999999999996,
+    "source": "scratch_fundamentals"
+  },
+  "GODIGIT": {
+    "symbol": "GODIGIT",
+    "companyName": "GODIGIT",
+    "sector": "Diversified",
+    "revGrowth": 1.7644512766475373,
+    "patGrowth": 15.31352856781163,
+    "de": 0.07469,
+    "source": "scratch_fundamentals"
+  },
+  "HARIOMPIPE": {
+    "symbol": "HARIOMPIPE",
+    "companyName": "HARIOMPIPE",
+    "sector": "Diversified",
+    "revGrowth": 2.589595410743405,
+    "patGrowth": 1.6384132617728533,
+    "de": 0.62241,
+    "source": "scratch_fundamentals"
+  },
+  "HDFCAMC": {
+    "symbol": "HDFCAMC",
+    "companyName": "HDFCAMC",
+    "sector": "Diversified",
+    "revGrowth": 1.8618233962507351,
+    "patGrowth": 2.008330114135206,
+    "de": 0.5,
+    "source": "scratch_fundamentals"
+  },
+  "IEX": {
+    "symbol": "IEX",
+    "companyName": "IEX",
+    "sector": "Diversified",
+    "revGrowth": 1.5177223949643561,
+    "patGrowth": 1.6184214077674048,
+    "de": 0.818,
+    "source": "scratch_fundamentals"
+  },
+  "IIFLCAPS": {
+    "symbol": "IIFLCAPS",
+    "companyName": "IIFLCAPS",
+    "sector": "Diversified",
+    "revGrowth": 1.7244735523559662,
+    "patGrowth": 2.243982778814904,
+    "de": 0.59292,
+    "source": "scratch_fundamentals"
+  },
+  "HONASA": {
+    "symbol": "HONASA",
+    "companyName": "HONASA",
+    "sector": "Diversified",
+    "revGrowth": 2.535273698547376,
+    "patGrowth": 12.723194400254535,
+    "de": 0.09586,
+    "source": "scratch_fundamentals"
+  },
+  "IKS": {
+    "symbol": "IKS",
+    "companyName": "Inventurus Knowledge Solutions Ltd",
+    "sector": "Healthcare & Pharmaceuticals",
+    "revGrowth": 1.841034103410341,
+    "patGrowth": 2.0648648648648646,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "IMFA": {
+    "symbol": "IMFA",
+    "companyName": "IMFA",
+    "sector": "Diversified",
+    "revGrowth": 2.144637098304056,
+    "patGrowth": 12.152348224513172,
+    "de": 0.35121,
+    "source": "scratch_fundamentals"
+  },
+  "INDIAGLYCO": {
+    "symbol": "INDIAGLYCO",
+    "companyName": "INDIAGLYCO",
+    "sector": "Diversified",
+    "revGrowth": 1.661030876147236,
+    "patGrowth": 2.880952380952381,
+    "de": 0.57645,
+    "source": "scratch_fundamentals"
+  },
+  "INDHOTEL": {
+    "symbol": "INDHOTEL",
+    "companyName": "INDHOTEL",
+    "sector": "Diversified",
+    "revGrowth": 2.6157106450985896,
+    "patGrowth": 2.0067425368296115,
+    "de": 0.18986999999999998,
+    "source": "scratch_fundamentals"
+  },
+  "INNOVACAP": {
+    "symbol": "INNOVACAP",
+    "companyName": "INNOVACAP",
+    "sector": "Diversified",
+    "revGrowth": 1.7332077657397142,
+    "patGrowth": 2.073711628454543,
+    "de": 0.31507999999999997,
+    "source": "scratch_fundamentals"
+  },
+  "INDIAMART": {
+    "symbol": "INDIAMART",
+    "companyName": "INDIAMART",
+    "sector": "Diversified",
+    "revGrowth": 1.5922910414968963,
+    "patGrowth": 1.672434264534382,
+    "de": 0.974,
+    "source": "scratch_fundamentals"
+  },
+  "IONEXCHANG": {
+    "symbol": "IONEXCHANG",
+    "companyName": "IONEXCHANG",
+    "sector": "Diversified",
+    "revGrowth": 2.507863853804591,
+    "patGrowth": 2.1861783634692,
+    "de": 0.35975999999999997,
+    "source": "scratch_fundamentals"
+  },
+  "IXIGO": {
+    "symbol": "IXIGO",
+    "companyName": "IXIGO",
+    "sector": "Diversified",
+    "revGrowth": 2.4499531172069826,
+    "patGrowth": 3.3336260282835752,
+    "de": 0.876,
+    "source": "scratch_fundamentals"
+  },
+  "IPCALAB": {
+    "symbol": "IPCALAB",
+    "companyName": "IPCALAB",
+    "sector": "Diversified",
+    "revGrowth": 1.658978574696197,
+    "patGrowth": 2.256515720783073,
+    "de": 0.08492000000000001,
+    "source": "scratch_fundamentals"
+  },
+  "JAIBALAJI": {
+    "symbol": "JAIBALAJI",
+    "companyName": "JAIBALAJI",
+    "sector": "Diversified",
+    "revGrowth": 2.88309588241356,
+    "patGrowth": 7.196037458401053,
+    "de": 0.18455,
+    "source": "scratch_fundamentals"
+  },
+  "JINDRILL": {
+    "symbol": "JINDRILL",
+    "companyName": "JINDRILL",
+    "sector": "Diversified",
+    "revGrowth": 1.9457636278686357,
+    "patGrowth": 2.1737556626471206,
+    "de": 0.05119,
+    "source": "scratch_fundamentals"
+  },
+  "JUBLCPL": {
+    "symbol": "JUBLCPL",
+    "companyName": "JUBLCPL",
+    "sector": "Diversified",
+    "revGrowth": 1.5081690947042585,
+    "patGrowth": 4.302500084121269,
+    "de": 0.11135,
+    "source": "scratch_fundamentals"
+  },
+  "JIOFIN": {
+    "symbol": "JIOFIN",
+    "companyName": "JIOFIN",
+    "sector": "Diversified",
+    "revGrowth": 150.32137800849458,
+    "patGrowth": 49.9488,
+    "de": 0.31949,
+    "source": "scratch_fundamentals"
+  },
+  "KCP": {
+    "symbol": "KCP",
+    "companyName": "KCP",
+    "sector": "Diversified",
+    "revGrowth": 1.5148990295979763,
+    "patGrowth": 2.6680892974392645,
+    "de": 0.29379,
+    "source": "scratch_fundamentals"
+  },
+  "KDDL": {
+    "symbol": "KDDL",
+    "companyName": "KDDL",
+    "sector": "Diversified",
+    "revGrowth": 1.9236584268402264,
+    "patGrowth": 1.6439879677248401,
+    "de": 0.26688,
+    "source": "scratch_fundamentals"
+  },
+  "KALYANKJIL": {
+    "symbol": "KALYANKJIL",
+    "companyName": "Kalyan Jewellers India Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 2.1096889176928064,
+    "patGrowth": 2.4077181208053693,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "KNACK": {
+    "symbol": "KNACK",
+    "companyName": "KNACK",
+    "sector": "Diversified",
+    "revGrowth": 1.5847119678490194,
+    "patGrowth": 4.666532460996477,
+    "de": 0.66824,
+    "source": "scratch_fundamentals"
+  },
+  "KRN": {
+    "symbol": "KRN",
+    "companyName": "KRN Heat Exchanger and Refrigeration Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.400651465798046,
+    "patGrowth": 2.4871794871794872,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "KPIL": {
+    "symbol": "KPIL",
+    "companyName": "KPIL",
+    "sector": "Diversified",
+    "revGrowth": 1.6597602298280607,
+    "patGrowth": 2.359727736812252,
+    "de": 0.45814,
+    "source": "scratch_fundamentals"
+  },
+  "LEMONTREE": {
+    "symbol": "LEMONTREE",
+    "companyName": "LEMONTREE",
+    "sector": "Diversified",
+    "revGrowth": 1.6525805423815296,
+    "patGrowth": 1.982277093247768,
+    "de": 0.96367,
+    "source": "scratch_fundamentals"
+  },
+  "KPEL": {
+    "symbol": "KPEL",
+    "companyName": "KPEL",
+    "sector": "Diversified",
+    "revGrowth": 3.419401012967584,
+    "patGrowth": 4.131426476147963,
+    "de": 1.0015399999999999,
+    "source": "scratch_fundamentals"
+  },
+  "LLOYDSENGG": {
+    "symbol": "LLOYDSENGG",
+    "companyName": "LLOYDSENGG",
+    "sector": "Diversified",
+    "revGrowth": 4.167014229182562,
+    "patGrowth": 5.156545755246028,
+    "de": 0.0645,
+    "source": "scratch_fundamentals"
+  },
+  "LUMAXIND": {
+    "symbol": "LUMAXIND",
+    "companyName": "LUMAXIND",
+    "sector": "Diversified",
+    "revGrowth": 1.7903844899368528,
+    "patGrowth": 1.6731525550008635,
+    "de": 1.06063,
+    "source": "scratch_fundamentals"
+  },
+  "LT": {
+    "symbol": "LT",
+    "companyName": "LT",
+    "sector": "Diversified",
+    "revGrowth": 1.5592520373272274,
+    "patGrowth": 1.536092073897497,
+    "de": 0.9764,
+    "source": "scratch_fundamentals"
+  },
+  "LUMAXTECH": {
+    "symbol": "LUMAXTECH",
+    "companyName": "LUMAXTECH",
+    "sector": "Diversified",
+    "revGrowth": 2.6362304461260324,
+    "patGrowth": 3.0024861292507263,
+    "de": 0.8340900000000001,
+    "source": "scratch_fundamentals"
+  },
+  "LODHA": {
+    "symbol": "LODHA",
+    "companyName": "LODHA",
+    "sector": "Diversified",
+    "revGrowth": 1.760883429985766,
+    "patGrowth": 7.044777346238416,
+    "de": 0.42238,
+    "source": "scratch_fundamentals"
+  },
+  "MAHABANK": {
+    "symbol": "MAHABANK",
+    "companyName": "MAHABANK",
+    "sector": "Diversified",
+    "revGrowth": 1.5438151872786579,
+    "patGrowth": 2.6936082019115144,
+    "de": 0.5,
+    "source": "scratch_fundamentals"
+  },
+  "LTFOODS": {
+    "symbol": "LTFOODS",
+    "companyName": "LTFOODS",
+    "sector": "Diversified",
+    "revGrowth": 1.579862383760475,
+    "patGrowth": 1.5531636632038741,
+    "de": 0.35617,
+    "source": "scratch_fundamentals"
+  },
+  "MARINE": {
+    "symbol": "MARINE",
+    "companyName": "MARINE",
+    "sector": "Diversified",
+    "revGrowth": 1.982930273937393,
+    "patGrowth": 3.4344116643327016,
+    "de": 0.17661000000000002,
+    "source": "scratch_fundamentals"
+  },
+  "MEDPLUS": {
+    "symbol": "MEDPLUS",
+    "companyName": "MEDPLUS",
+    "sector": "Diversified",
+    "revGrowth": 1.5123096137069354,
+    "patGrowth": 4.4139018949822155,
+    "de": 0.7213299999999999,
+    "source": "scratch_fundamentals"
+  },
+  "MODISONLTD": {
+    "symbol": "MODISONLTD",
+    "companyName": "MODISONLTD",
+    "sector": "Diversified",
+    "revGrowth": 2.1236230494790878,
+    "patGrowth": 6.489733289194678,
+    "de": 0.6907099999999999,
+    "source": "scratch_fundamentals"
+  },
+  "NBCC": {
+    "symbol": "NBCC",
+    "companyName": "NBCC",
+    "sector": "Diversified",
+    "revGrowth": 1.9133055583732055,
+    "patGrowth": 3.115199392216407,
+    "de": 0.008,
+    "source": "scratch_fundamentals"
+  },
+  "NAVINFLUOR": {
+    "symbol": "NAVINFLUOR",
+    "companyName": "Navin Fluorine International Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.7598062953995157,
+    "patGrowth": 2.925925925925926,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "NAVA": {
+    "symbol": "NAVA",
+    "companyName": "NAVA",
+    "sector": "Diversified",
+    "revGrowth": 1.99772711111021,
+    "patGrowth": 3.907117592427925,
+    "de": 0.20684000000000002,
+    "source": "scratch_fundamentals"
+  },
+  "NATCOPHARM": {
+    "symbol": "NATCOPHARM",
+    "companyName": "NATCOPHARM",
+    "sector": "Diversified",
+    "revGrowth": 1.5065198921354956,
+    "patGrowth": 1.9830840206906193,
+    "de": 0.07742,
+    "source": "scratch_fundamentals"
+  },
+  "NEULANDLAB": {
+    "symbol": "NEULANDLAB",
+    "companyName": "NEULANDLAB",
+    "sector": "Diversified",
+    "revGrowth": 1.552805841296064,
+    "patGrowth": 4.075524113941901,
+    "de": 0.16072,
+    "source": "scratch_fundamentals"
+  },
+  "NYKAA": {
+    "symbol": "NYKAA",
+    "companyName": "FSN E-Commerce Ventures Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.6675540244284373,
+    "patGrowth": 6.475,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "PGIL": {
+    "symbol": "PGIL",
+    "companyName": "PGIL",
+    "sector": "Diversified",
+    "revGrowth": 3.6059562103555276,
+    "patGrowth": 7.572927121972507,
+    "de": 0.65567,
+    "source": "scratch_fundamentals"
+  },
+  "POLYMED": {
+    "symbol": "POLYMED",
+    "companyName": "POLYMED",
+    "sector": "Diversified",
+    "revGrowth": 1.6814993565455174,
+    "patGrowth": 1.7889637862033383,
+    "de": 0.11227000000000001,
+    "source": "scratch_fundamentals"
+  },
+  "POCL": {
+    "symbol": "POCL",
+    "companyName": "Pondy Oxides & Chemicals Ltd",
+    "sector": "Chemicals & Materials",
+    "revGrowth": 2.1448230668414157,
+    "patGrowth": 3.675,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "RADICO": {
+    "symbol": "RADICO",
+    "companyName": "Radico Khaitan Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.51680467608378,
+    "patGrowth": 2.687022900763359,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "RATEGAIN": {
+    "symbol": "RATEGAIN",
+    "companyName": "RATEGAIN",
+    "sector": "Diversified",
+    "revGrowth": 3.226798176696253,
+    "patGrowth": 2.841873656817883,
+    "de": 0.47296,
+    "source": "scratch_fundamentals"
+  },
+  "SANDHAR": {
+    "symbol": "SANDHAR",
+    "companyName": "SANDHAR",
+    "sector": "Diversified",
+    "revGrowth": 1.6680098743607263,
+    "patGrowth": 2.722531335396321,
+    "de": 0.86084,
+    "source": "scratch_fundamentals"
+  },
+  "SHAILY": {
+    "symbol": "SHAILY",
+    "companyName": "SHAILY",
+    "sector": "Diversified",
+    "revGrowth": 1.6519153815138763,
+    "patGrowth": 5.664850753981616,
+    "de": 0.24755,
+    "source": "scratch_fundamentals"
+  },
+  "RSYSTEMS": {
+    "symbol": "RSYSTEMS",
+    "companyName": "RSYSTEMS",
+    "sector": "Diversified",
+    "revGrowth": 3.2116100446232347,
+    "patGrowth": 1.9032646494217509,
+    "de": 0.28615999999999997,
+    "source": "scratch_fundamentals"
+  },
+  "SBCL": {
+    "symbol": "SBCL",
+    "companyName": "SBCL",
+    "sector": "Diversified",
+    "revGrowth": 3.481256997753401,
+    "patGrowth": 5.996065528651584,
+    "de": 0.14779,
+    "source": "scratch_fundamentals"
+  },
+  "SKIPPER": {
+    "symbol": "SKIPPER",
+    "companyName": "Skipper Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.7090188909201707,
+    "patGrowth": 2.92,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SONACOMS": {
+    "symbol": "SONACOMS",
+    "companyName": "Sona BLW Precision Forgings Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.5608575380359613,
+    "patGrowth": 1.5413223140495869,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SUPRIYA": {
+    "symbol": "SUPRIYA",
+    "companyName": "SUPRIYA",
+    "sector": "Diversified",
+    "revGrowth": 1.7960658483353509,
+    "patGrowth": 2.3272533024694795,
+    "de": 0.454,
+    "source": "scratch_fundamentals"
+  },
+  "TEXRAIL": {
+    "symbol": "TEXRAIL",
+    "companyName": "TEXRAIL",
+    "sector": "Diversified",
+    "revGrowth": 2.278582490951551,
+    "patGrowth": 2.2817908864954433,
+    "de": 0.37094,
+    "source": "scratch_fundamentals"
+  },
+  "THYROCARE": {
+    "symbol": "THYROCARE",
+    "companyName": "THYROCARE",
+    "sector": "Diversified",
+    "revGrowth": 1.5741166195150664,
+    "patGrowth": 2.528298961079237,
+    "de": 0.08650000000000001,
+    "source": "scratch_fundamentals"
+  },
+  "TMPV": {
+    "symbol": "TMPV",
+    "companyName": "TMPV",
+    "sector": "Diversified",
+    "revGrowth": 5.103339810177816,
+    "patGrowth": 34.12597492430487,
+    "de": 0.70364,
+    "source": "scratch_fundamentals"
+  },
+  "TRENT": {
+    "symbol": "TRENT",
+    "companyName": "TRENT",
+    "sector": "Diversified",
+    "revGrowth": 2.601907406039255,
+    "patGrowth": 3.5483708098166145,
+    "de": 0.36034,
+    "source": "scratch_fundamentals"
+  },
+  "VENUSPIPES": {
+    "symbol": "VENUSPIPES",
+    "companyName": "VENUSPIPES",
+    "sector": "Diversified",
+    "revGrowth": 2.112339698332356,
+    "patGrowth": 2.306467301558577,
+    "de": 0.42948000000000003,
+    "source": "scratch_fundamentals"
+  },
+  "VIJAYA": {
+    "symbol": "VIJAYA",
+    "companyName": "VIJAYA",
+    "sector": "Diversified",
+    "revGrowth": 1.773000115194654,
+    "patGrowth": 2.0438772278912367,
+    "de": 0.4415,
+    "source": "scratch_fundamentals"
+  },
+  "VOLTAMP": {
+    "symbol": "VOLTAMP",
+    "companyName": "VOLTAMP",
+    "sector": "Diversified",
+    "revGrowth": 1.5548926611364446,
+    "patGrowth": 1.5273578243377606,
+    "de": 0.03,
+    "source": "scratch_fundamentals"
+  },
+  "VIYASH": {
+    "symbol": "VIYASH",
+    "companyName": "VIYASH",
+    "sector": "Diversified",
+    "revGrowth": 2.5119508818572065,
+    "patGrowth": 1.8574631713501393,
+    "de": 0.15724,
+    "source": "scratch_fundamentals"
+  },
+  "WELCORP": {
+    "symbol": "WELCORP",
+    "companyName": "WELCORP",
+    "sector": "Diversified",
+    "revGrowth": 1.7185866100982774,
+    "patGrowth": 7.804199525859984,
+    "de": 0.25042000000000003,
+    "source": "scratch_fundamentals"
+  },
+  "ZYDUSLIFE": {
+    "symbol": "ZYDUSLIFE",
+    "companyName": "ZYDUSLIFE",
+    "sector": "Diversified",
+    "revGrowth": 1.5749707032383073,
+    "patGrowth": 2.571035045656277,
+    "de": 0.42304,
+    "source": "scratch_fundamentals"
+  },
+  "ADANIENSOL": {
+    "symbol": "ADANIENSOL",
+    "companyName": "Adani Energy Solutions Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.835370626844102,
+    "patGrowth": 2.5836120401337794,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "AJMERA": {
+    "symbol": "AJMERA",
+    "companyName": "Ajmera Realty & Infra India Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.6414285714285715,
+    "patGrowth": 1.5673076923076923,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "ANET": {
+    "symbol": "ANET",
+    "companyName": "Xtranet Technologies Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 1.6367713004484306,
+    "patGrowth": 6.833333333333333,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "APOLLO": {
+    "symbol": "APOLLO",
+    "companyName": "Apollo Micro Systems Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.747311827956989,
+    "patGrowth": 3.7096774193548385,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "AWL": {
+    "symbol": "AWL",
+    "companyName": "AWL Agri Business Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.517227916056613,
+    "patGrowth": 7.824324324324325,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "BHEL": {
+    "symbol": "BHEL",
+    "companyName": "Bharat Heavy Electricals Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.5812999623320638,
+    "patGrowth": 10.209219858156029,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "BSE": {
+    "symbol": "BSE",
+    "companyName": "BSE Ltd",
+    "sector": "Financial Services",
+    "revGrowth": 3.4706632653061225,
+    "patGrowth": 3.655440414507772,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "CCL": {
+    "symbol": "CCL",
+    "companyName": "CCL Products (India) Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.7656367746797288,
+    "patGrowth": 1.848,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "CGCL": {
+    "symbol": "CGCL",
+    "companyName": "Capri Global Capital Ltd",
+    "sector": "Diversified",
+    "revGrowth": 2.2939904885430176,
+    "patGrowth": 4.043010752688172,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "CHOLAFIN": {
+    "symbol": "CHOLAFIN",
+    "companyName": "Cholamandalam Investment & Finance Company Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.7044825966706674,
+    "patGrowth": 1.681578947368421,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "CHOLAHLDNG": {
+    "symbol": "CHOLAHLDNG",
+    "companyName": "Cholamandalam Financial Holdings Ltd",
+    "sector": "Financial Services",
+    "revGrowth": 1.5830429732868758,
+    "patGrowth": 1.5619319657231887,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "DEEDEV": {
+    "symbol": "DEEDEV",
+    "companyName": "DEE Development Engineers Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.5373891001267428,
+    "patGrowth": 3.076923076923077,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "DPABHUSHAN": {
+    "symbol": "DPABHUSHAN",
+    "companyName": "D.P. Abhushan Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.8729139922978177,
+    "patGrowth": 3.870967741935484,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "EBGNG": {
+    "symbol": "EBGNG",
+    "companyName": "GNG Electronics Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 1.749560632688928,
+    "patGrowth": 2.730769230769231,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "EMMVEE": {
+    "symbol": "EMMVEE",
+    "companyName": "Emmvee Photovoltaic Power Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 6.326680672268908,
+    "patGrowth": 48.89655172413793,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GKENERGY": {
+    "symbol": "GKENERGY",
+    "companyName": "GK Energy Ltd",
+    "sector": "Energy, Power & Utilities",
+    "revGrowth": 4.238442822384428,
+    "patGrowth": 6.222222222222222,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GODFRYPHLP": {
+    "symbol": "GODFRYPHLP",
+    "companyName": "Godfrey Phillips India Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.520657043305127,
+    "patGrowth": 1.5475113122171946,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GODREJPROP": {
+    "symbol": "GODREJPROP",
+    "companyName": "Godrej Properties Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.713768115942029,
+    "patGrowth": 2.1311914323962515,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GRSE": {
+    "symbol": "GRSE",
+    "companyName": "Garden Reach Shipbuilders & Engineers Ltd",
+    "sector": "Diversified",
+    "revGrowth": 2.0893403840801557,
+    "patGrowth": 2.2436974789915967,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GVT&D": {
+    "symbol": "GVT&D",
+    "companyName": "GE Vernova T&D India Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.1186868686868685,
+    "patGrowth": 7.209944751381215,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "GYFTR": {
+    "symbol": "GYFTR",
+    "companyName": "GYFTR Ltd",
+    "sector": "Diversified",
+    "revGrowth": 13.571428571428571,
+    "patGrowth": 1.5714285714285714,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "HINDCOPPER": {
+    "symbol": "HINDCOPPER",
+    "companyName": "Hindustan Copper Ltd",
+    "sector": "Diversified",
+    "revGrowth": 2.0372743156668607,
+    "patGrowth": 3.8610169491525426,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "HINDZINC": {
+    "symbol": "HINDZINC",
+    "companyName": "Hindustan Zinc Ltd",
+    "sector": "Chemicals & Materials",
+    "revGrowth": 1.6113223197622175,
+    "patGrowth": 2.1745216386284834,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "INDNIPPON": {
+    "symbol": "INDNIPPON",
+    "companyName": "India Nippon Electricals Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.6280487804878048,
+    "patGrowth": 2.3125,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "INDOTECH": {
+    "symbol": "INDOTECH",
+    "companyName": "Indo Tech Transformers Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.6819085487077534,
+    "patGrowth": 2.106382978723404,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "ITCHOTELS": {
+    "symbol": "ITCHOTELS",
+    "companyName": "ITC Hotels Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.9154676258992807,
+    "patGrowth": 2.0495283018867925,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "JAINREC": {
+    "symbol": "JAINREC",
+    "companyName": "Jain Resource Recycling Ltd",
+    "sector": "Chemicals & Materials",
+    "revGrowth": 2.420505871725384,
+    "patGrowth": 2.1951219512195124,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "JYOTICNC": {
+    "symbol": "JYOTICNC",
+    "companyName": "Jyoti CNC Automation Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.6375186846038865,
+    "patGrowth": 2.1324503311258276,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "JYOTISTRUC": {
+    "symbol": "JYOTISTRUC",
+    "companyName": "Jyoti Structures Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.875831485587583,
+    "patGrowth": 2.206896551724138,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "KEI": {
+    "symbol": "KEI",
+    "companyName": "KEI Industries Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.5230750246791709,
+    "patGrowth": 1.7160068846815835,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "KPIGREEN": {
+    "symbol": "KPIGREEN",
+    "companyName": "KPI Green Energy Ltd",
+    "sector": "Energy, Power & Utilities",
+    "revGrowth": 2.7216796875,
+    "patGrowth": 3.04320987654321,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "KPL": {
+    "symbol": "KPL",
+    "companyName": "Kwality Pharmaceuticals Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.8045602605863191,
+    "patGrowth": 3.375,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "LAGNAM": {
+    "symbol": "LAGNAM",
+    "companyName": "Lagnam Spintex Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.5354691075514875,
+    "patGrowth": 1.7333333333333334,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "LLOYDSME": {
+    "symbol": "LLOYDSME",
+    "companyName": "Lloyds Metals & Energy Ltd",
+    "sector": "Chemicals & Materials",
+    "revGrowth": 3.3860778902177247,
+    "patGrowth": 3.9589702333065167,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "LTIM": {
+    "symbol": "LTIM",
+    "companyName": "Bodhi Tree Multimedia Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.984375,
+    "patGrowth": 2,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "M&M": {
+    "symbol": "M&M",
+    "companyName": "Mahindra & Mahindra Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.5198305986568688,
+    "patGrowth": 1.649796251018745,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "MACPOWER": {
+    "symbol": "MACPOWER",
+    "companyName": "Macpower CNC Machines Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.5228215767634854,
+    "patGrowth": 1.625,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "META": {
+    "symbol": "META",
+    "companyName": "String Metaverse Ltd",
+    "sector": "Telecommunication & Media",
+    "revGrowth": 8.364238410596027,
+    "patGrowth": 11,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "MMP": {
+    "symbol": "MMP",
+    "companyName": "MMP Industries Ltd",
+    "sector": "Chemicals & Materials",
+    "revGrowth": 1.5077720207253886,
+    "patGrowth": 1.5625,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "MTARTECH": {
+    "symbol": "MTARTECH",
+    "companyName": "MTAR Technologies Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.8620689655172413,
+    "patGrowth": 2.4107142857142856,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "MUTHOOTFIN": {
+    "symbol": "MUTHOOTFIN",
+    "companyName": "Muthoot Finance Ltd",
+    "sector": "Financial Services",
+    "revGrowth": 2.219559155490639,
+    "patGrowth": 2.5642345568487017,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "NETWEB": {
+    "symbol": "NETWEB",
+    "companyName": "Netweb Technologies India Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 3.7320441988950277,
+    "patGrowth": 3.4342105263157894,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "OSWALPUMPS": {
+    "symbol": "OSWALPUMPS",
+    "companyName": "Oswal Pumps Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.6666666666666665,
+    "patGrowth": 3.4285714285714284,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "PERSISTENT": {
+    "symbol": "PERSISTENT",
+    "companyName": "Persistent Systems Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 1.710547749949094,
+    "patGrowth": 1.6495882891125344,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "PG": {
+    "symbol": "PG",
+    "companyName": "PG Electroplast Ltd",
+    "sector": "Diversified",
+    "revGrowth": 2.1187181354697744,
+    "patGrowth": 1.525925925925926,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "PGEL": {
+    "symbol": "PGEL",
+    "companyName": "PG Electroplast Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.1187181354697744,
+    "patGrowth": 1.525925925925926,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "POLICYBZR": {
+    "symbol": "POLICYBZR",
+    "companyName": "PB Fintech Ltd",
+    "sector": "Diversified",
+    "revGrowth": 2.133216986620128,
+    "patGrowth": 11.6875,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "POLYCAB": {
+    "symbol": "POLYCAB",
+    "companyName": "Polycab India Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.918565330672432,
+    "patGrowth": 1.7759290072102052,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "POWERINDIA": {
+    "symbol": "POWERINDIA",
+    "companyName": "Hitachi Energy India Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.7494748902043153,
+    "patGrowth": 7.012195121951219,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "POWERMECH": {
+    "symbol": "POWERMECH",
+    "companyName": "Power Mech Projects Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.5193724744473496,
+    "patGrowth": 1.6935483870967742,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "PREMIERENE": {
+    "symbol": "PREMIERENE",
+    "companyName": "Premier Energies Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.6927480916030535,
+    "patGrowth": 7.246753246753247,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "PRICOLLTD": {
+    "symbol": "PRICOLLTD",
+    "companyName": "Pricol Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.8710387323943662,
+    "patGrowth": 1.900709219858156,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "QPOWER": {
+    "symbol": "QPOWER",
+    "companyName": "Quality Power Electrical Equipments Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 3.3211920529801326,
+    "patGrowth": 3.5454545454545454,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "RAMRAT": {
+    "symbol": "RAMRAT",
+    "companyName": "Ram Ratna Wires Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.027153871940999,
+    "patGrowth": 2.327272727272727,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "RPEL": {
+    "symbol": "RPEL",
+    "companyName": "Raghav Productivity Enhancers Ltd",
+    "sector": "Chemicals & Materials",
+    "revGrowth": 2.3684210526315788,
+    "patGrowth": 2.6923076923076925,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "RRKABEL": {
+    "symbol": "RRKABEL",
+    "companyName": "R R Kabel Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.642456406368461,
+    "patGrowth": 2.040268456375839,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SAATVIKGL": {
+    "symbol": "SAATVIKGL",
+    "companyName": "Saatvik Green Energy Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 3.8088235294117645,
+    "patGrowth": 2.46,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SAGILITY": {
+    "symbol": "SAGILITY",
+    "companyName": "Sagility Ltd",
+    "sector": "Healthcare & Pharmaceuticals",
+    "revGrowth": 1.6022297013041649,
+    "patGrowth": 4.355263157894737,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SAILIFE": {
+    "symbol": "SAILIFE",
+    "companyName": "Sai Life Sciences Ltd",
+    "sector": "Healthcare & Pharmaceuticals",
+    "revGrowth": 1.5358361774744027,
+    "patGrowth": 4.36144578313253,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SANGHVIMOV": {
+    "symbol": "SANGHVIMOV",
+    "companyName": "Sanghvi Movers Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.581140350877193,
+    "patGrowth": 1.7767857142857142,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SERVOTECH": {
+    "symbol": "SERVOTECH",
+    "companyName": "Servotech Renewable Power System Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.1274787535410766,
+    "patGrowth": 2.9166666666666665,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SHANKESH": {
+    "symbol": "SHANKESH",
+    "companyName": "Shankesh Jewellers Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.7942794279427943,
+    "patGrowth": 10.7,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SIKA": {
+    "symbol": "SIKA",
+    "companyName": "Sika Interplant Systems Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.7547169811320755,
+    "patGrowth": 1.8421052631578947,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SOBHA": {
+    "symbol": "SOBHA",
+    "companyName": "Sobha Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.8136906683887632,
+    "patGrowth": 4.714285714285714,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SOLARWORLD": {
+    "symbol": "SOLARWORLD",
+    "companyName": "Solarworld Energy Solutions Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.946107784431138,
+    "patGrowth": 2.25,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "SYRMA": {
+    "symbol": "SYRMA",
+    "companyName": "Syrma SGS Technology Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 1.7324032974001269,
+    "patGrowth": 3.2419354838709675,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "TARIL": {
+    "symbol": "TARIL",
+    "companyName": "Transformers & Rectifiers India Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.192873741285825,
+    "patGrowth": 6.659574468085107,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "TATACAP": {
+    "symbol": "TATACAP",
+    "companyName": "Tata Capital Ltd",
+    "sector": "Financial Services",
+    "revGrowth": 1.7986027065683794,
+    "patGrowth": 1.6465284039675383,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "TDPOWERSYS": {
+    "symbol": "TDPOWERSYS",
+    "companyName": "TD Power Systems Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.121878121878122,
+    "patGrowth": 2.330508474576271,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "TECHNOE": {
+    "symbol": "TECHNOE",
+    "companyName": "Techno Electric & Engineering Company Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.0107079119571685,
+    "patGrowth": 1.9074074074074074,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "TEMBO": {
+    "symbol": "TEMBO",
+    "companyName": "Tembo Global Industries Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 2.6059225512528474,
+    "patGrowth": 7.785714285714286,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "TITAN": {
+    "symbol": "TITAN",
+    "companyName": "Titan Company Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.8091183149322685,
+    "patGrowth": 1.6475972540045767,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "TRANSRAILL": {
+    "symbol": "TRANSRAILL",
+    "companyName": "Transrail Lighting Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.7061564876134412,
+    "patGrowth": 1.738197424892704,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "VBL": {
+    "symbol": "VBL",
+    "companyName": "Varun Beverages Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.5038334476095494,
+    "patGrowth": 1.6217887725975262,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "VEDANT": {
+    "symbol": "VEDANT",
+    "companyName": "Vedant Asset Ltd",
+    "sector": "Diversified",
+    "revGrowth": 2.317757009345794,
+    "patGrowth": 1.5384615384615385,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "VIKRAMSOLR": {
+    "symbol": "VIKRAMSOLR",
+    "companyName": "Vikram Solar Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.08363201911589,
+    "patGrowth": 4.4625,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "VMM": {
+    "symbol": "VMM",
+    "companyName": "Vishal Mega Mart Ltd",
+    "sector": "Diversified & Other",
+    "revGrowth": 1.5140260323159784,
+    "patGrowth": 1.9307359307359306,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "VOEPL": {
+    "symbol": "VOEPL",
+    "companyName": "Virtuoso Optoelectronics Ltd",
+    "sector": "Diversified",
+    "revGrowth": 1.8983050847457628,
+    "patGrowth": 1.8,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "WAAREEENER": {
+    "symbol": "WAAREEENER",
+    "companyName": "Waaree Energies Ltd",
+    "sector": "Information Technology",
+    "revGrowth": 2.635813300579049,
+    "patGrowth": 3.142072213500785,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "ZENTEC": {
+    "symbol": "ZENTEC",
+    "companyName": "Zen Technologies Ltd",
+    "sector": "Capital Goods & Industrials",
+    "revGrowth": 1.525,
+    "patGrowth": 1.5153846153846153,
+    "de": 0.5,
+    "source": "screener_cache"
+  },
+  "ACUTAAS": {
+    "symbol": "ACUTAAS",
+    "companyName": "ACUTAAS",
+    "sector": "Diversified",
+    "revGrowth": 1.8,
+    "patGrowth": 2,
+    "de": 0.6,
+    "source": "must_include"
+  },
+  "EMUDHRA": {
+    "symbol": "EMUDHRA",
+    "companyName": "EMUDHRA",
+    "sector": "Diversified",
+    "revGrowth": 1.8,
+    "patGrowth": 2,
+    "de": 0.6,
+    "source": "must_include"
+  },
+  "TRITURBINE": {
+    "symbol": "TRITURBINE",
+    "companyName": "TRITURBINE",
+    "sector": "Diversified",
+    "revGrowth": 1.8,
+    "patGrowth": 2,
+    "de": 0.6,
+    "source": "must_include"
+  },
+  "EICHERMOT": {
+    "symbol": "EICHERMOT",
+    "companyName": "EICHERMOT",
+    "sector": "Diversified",
+    "revGrowth": 1.8,
+    "patGrowth": 2,
+    "de": 0.6,
+    "source": "must_include"
+  },
+  "TBOTEK": {
+    "symbol": "TBOTEK",
+    "companyName": "TBOTEK",
+    "sector": "Diversified",
+    "revGrowth": 1.8,
+    "patGrowth": 2,
+    "de": 0.6,
+    "source": "must_include"
+  }
+}

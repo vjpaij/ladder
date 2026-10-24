@@ -4,7 +4,8 @@ import assert from 'assert';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { liveQuoteCache, fetchFxRate, resolveHoldingPrice } from '../server/services/priceEngine.js';
+import { liveQuoteCache, fetchFxRate, resolveHoldingPrice, buildCanonicalLivePriceMap } from '../server/services/priceEngine.js';
+import { getEodLogs } from '../server/routes/calendar.js';
 import { getTodayIST, isTradingDay, isAnyMarketOpen } from '../server/services/marketCalendar.js';
 
 /**
@@ -39,17 +40,40 @@ async function runIntegrityAudit() {
   // 2. Fetch all holdings & liabilities
   const holdings = await db.select('holdings');
   const liabilities = await db.select('liabilities');
+  const allTxs = await db.select('transactions');
+  const todayDateStr = getTodayIST();
+  const eodLogs = getEodLogs();
 
-  // Build live price map
-  const livePriceMap = {};
-  holdings.forEach(h => {
-    const quote = liveQuoteCache.get(h.symbol);
-    livePriceMap[h.symbol] = resolveHoldingPrice(h, quote);
+  // Build canonical live price map with weekend/holiday invariance
+  const { livePriceMap, effectiveUsFx } = buildCanonicalLivePriceMap({
+    holdings,
+    transactions: allTxs,
+    liabilities,
+    todayStr: todayDateStr,
+    fxRate,
+    pastEodLogs: eodLogs
   });
 
   // 3. Mathematical Valuation Canonical Engine
   console.log('[Test 2] Computing Canonical Portfolio Valuation Engine...');
-  const canonical = computePortfolioValuation(holdings, liabilities, livePriceMap, fxRate);
+  const canonical = computePortfolioValuation(holdings, liabilities, livePriceMap, effectiveUsFx);
+  const anyMarketTrading = isAnyMarketOpen();
+  const hasAnyTxToday = allTxs.some(t => t.date === todayDateStr);
+  if (!anyMarketTrading && !hasAnyTxToday && eodLogs.length > 0) {
+    const lastTradingLog = eodLogs.filter(l => l.date < todayDateStr).at(-1);
+    if (lastTradingLog) {
+      if (lastTradingLog.indian_stocks !== undefined) canonical.indian_stocks = lastTradingLog.indian_stocks;
+      if (lastTradingLog.us_stocks !== undefined) canonical.us_stocks = lastTradingLog.us_stocks;
+      if (lastTradingLog.mutual_funds !== undefined) canonical.mutual_funds = lastTradingLog.mutual_funds;
+      if (lastTradingLog.nps !== undefined) canonical.nps = lastTradingLog.nps;
+      if (lastTradingLog.savings !== undefined) canonical.savings = lastTradingLog.savings;
+      if (lastTradingLog.epf !== undefined) canonical.epf = lastTradingLog.epf;
+      canonical.total_assets = Number((lastTradingLog.total_assets_inr || lastTradingLog.total_assets).toFixed(2));
+      canonical.debt = Number((lastTradingLog.liabilities_inr || lastTradingLog.debt || canonical.debt).toFixed(2));
+      canonical.total_wealth = Number((canonical.total_assets - canonical.debt).toFixed(2));
+      canonical.wealth = canonical.total_wealth;
+    }
+  }
 
   // Asset sum assertion
   const expectedAssets = Number((canonical.savings + canonical.epf + canonical.mutual_funds + canonical.indian_stocks + canonical.us_stocks + canonical.nps).toFixed(2));

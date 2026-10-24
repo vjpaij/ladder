@@ -177,20 +177,34 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
   const [savingConfig, setSavingConfig] = useState(false);
   const [configMessage, setConfigMessage] = useState('');
 
-  const reload = async (silent = false) => {
-    // If we already have data cached, perform background refresh without blocking UI
-    if (!silent && !cachedStockAnalysisData) setLoading(true);
+  const reload = async (silent = false, forceServerRefresh = false, refreshPrices = false) => {
+    // silent=true: background refresh (spinner only); false: full loading state
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError('');
     try {
-      const response = await axios.get('/api/stock-intelligence/overview');
+      let priceRefreshWarning = '';
+      if (refreshPrices) {
+        try {
+          await axios.post('/api/refresh-prices', { trigger: 'MANUAL' });
+        } catch (refreshError) {
+          priceRefreshWarning = `Live price refresh failed; showing the latest available data. ${refreshError.response?.data?.error || refreshError.message}`;
+        }
+      }
+      const params = forceServerRefresh ? { refresh: 'true' } : {};
+      const response = await axios.get('/api/stock-intelligence/overview', { params });
       cachedStockAnalysisData = response.data;
       setData(response.data);
       setMaxWeight(response.data.config?.maxPositionWeightPct ?? '');
+      if (priceRefreshWarning) setError(priceRefreshWarning);
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Could not load stock analysis.');
     } finally {
-      if (!silent && !cachedStockAnalysisData) setLoading(false);
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -243,6 +257,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
         if (!matchesSearch) return false;
 
         if (activeTab === 'COMPOUNDING') return item.compoundingShield?.isActive;
+        if (activeTab === 'BREACH') return item.stopFloorBreached;
         if (activeTab === 'WATCH') return item.state === 'WATCH';
         if (activeTab === 'TRIM') return item.state === 'TECHNICAL_TRIM_CANDIDATE' || item.state === 'FUNDAMENTAL_TRIM_CANDIDATE' || item.state === 'FULL_EXIT_CANDIDATE';
         if (activeTab === 'RISK') return item.state === 'PORTFOLIO_RISK_TRIM';
@@ -349,6 +364,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
     return {
       all: analyses.length,
       compounding: analyses.filter(i => i.compoundingShield?.isActive).length,
+      breach: analyses.filter(i => i.stopFloorBreached).length,
       watch: analyses.filter(i => i.state === 'WATCH').length,
       trim: analyses.filter(i => i.state === 'TECHNICAL_TRIM_CANDIDATE' || i.state === 'FUNDAMENTAL_TRIM_CANDIDATE' || i.state === 'FULL_EXIT_CANDIDATE').length,
       risk: analyses.filter(i => i.state === 'PORTFOLIO_RISK_TRIM').length,
@@ -524,7 +540,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       </div>
                     )}
                     <button
-                      onClick={() => reload(false)}
+                      onClick={() => reload(true, true, true)}
                       disabled={refreshing || loading}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border-color)] reports-subcard text-[10px] font-bold text-[var(--text-secondary)] hover:text-emerald-500 dark:hover:text-emerald-400 hover:border-emerald-500/30 transition-colors cursor-pointer"
                     >
@@ -534,7 +550,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-4">
                   <Metric
                     label="Active Stocks"
                     value={summary?.activePositions ?? '—'}
@@ -552,6 +568,12 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     label="Compounding Leaders"
                     value={counts.compounding}
                     tone="text-emerald-400"
+                  />
+                  <Metric
+                    label="Floor Breaches"
+                    value={counts.breach}
+                    tone={counts.breach > 0 ? 'text-rose-400 font-black' : 'text-inherit'}
+                    detail={counts.breach > 0 ? `${counts.breach} stop floors breached` : '0 breaches'}
                   />
                   <Metric
                     label="Positions for Review"
@@ -585,7 +607,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
             </div>
 
             {/* Filter Tabs */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3 reports-subcard p-1.5 rounded-2xl border border-[var(--border-color)]">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-3 reports-subcard p-1.5 rounded-2xl border border-[var(--border-color)]">
               <button
                 onClick={() => setActiveTab('ALL')}
                 className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors cursor-pointer ${activeTab === 'ALL' ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-300 border border-emerald-500/30' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
@@ -597,6 +619,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                 className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer ${activeTab === 'COMPOUNDING' ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-300 border border-emerald-500/30' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
               >
                 <ShieldCheck className="w-3 h-3 text-emerald-400" /> Bull ({counts.compounding})
+              </button>
+              <button
+                onClick={() => setActiveTab('BREACH')}
+                className={`py-1.5 px-2 text-[10px] font-bold rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer ${activeTab === 'BREACH' ? 'bg-rose-500/25 text-rose-500 dark:text-rose-300 border border-rose-500/40 shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
+                title="Holdings where current price has fallen below the trailing stop floor"
+              >
+                <AlertOctagon className="w-3 h-3 text-rose-400" /> Breach ({counts.breach})
               </button>
               <button
                 onClick={() => setActiveTab('TRIM')}
@@ -653,15 +682,6 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       <span className="text-xs font-bold text-inherit leading-snug line-clamp-1" title={item.name}>
                         {item.name}
                       </span>
-                      {item.has4RedCandlesBelow21Ema && (
-                        <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-black border border-rose-500/40 bg-rose-500/20 text-rose-500 dark:text-rose-300 shadow-sm whitespace-nowrap"
-                          title={`Last 4 daily candles closed Red below 21-day EMA (${item.distanceToDailyEma21Pct}% below 21-EMA)`}
-                        >
-                          <CandlestickChart className="w-2.5 h-2.5 text-rose-400 shrink-0" />
-                          4 Red &lt; 21 EMA
-                        </span>
-                      )}
                     </div>
                     <div className="text-[10px] text-[var(--text-muted)] flex items-center gap-1.5 font-mono">
                       <span>{item.symbol}</span>
@@ -707,15 +727,6 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           <h3 className="text-xl font-black text-inherit">{selected.name}</h3>
                           <span className="text-xs text-[var(--text-muted)] font-mono">{selected.symbol}</span>
                           <StateBadge state={selected.state} isCompounding={selected.compoundingShield?.isActive} dataQuality={selected.dataQuality} />
-                          {selected.has4RedCandlesBelow21Ema && (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-black border border-rose-500/50 bg-rose-500/20 text-rose-500 dark:text-rose-200 shadow-sm"
-                              title={`Last 4 daily candles closed continuously Red below 21-day EMA (latest ${selected.distanceToDailyEma21Pct}% below 21-EMA)`}
-                            >
-                              <CandlestickChart className="w-3.5 h-3.5 text-rose-400" />
-                              <span>4 Red Candles &lt; 21 EMA ({selected.distanceToDailyEma21Pct}%)</span>
-                            </span>
-                          )}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
                           <span>{selected.quantity.toLocaleString()} shares held</span>
@@ -860,13 +871,15 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                             ? 'IPO_HOLD'
                             : 'HOLD';
 
-                    const actionTitle = {
+                    const actionTitle = selected.stopFloorBreached && !isFullExit
+                      ? 'ACTION: STOP FLOOR BREACHED — REVIEW TRIM'
+                      : ({
                       EXIT: 'ACTION: FULL EXIT (SELL ALL)',
                       TRIM: 'ACTION: TRIM POSITION',
                       WATCH: 'ACTION: HOLD (WATCH CLOSELY)',
                       IPO_HOLD: 'ACTION: HOLD (NEW LISTING)',
                       HOLD: 'ACTION: HOLD (DO NOT SELL)'
-                    }[actionType];
+                    }[actionType]);
 
                     const actionTheme = {
                       EXIT: 'border-red-500/50 bg-red-500/[0.08] text-red-600 dark:text-red-300',
@@ -878,13 +891,19 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                     const sellQty = isFullExit
                       ? selected.quantity
-                      : isTrim
-                        ? (selected.suggestedSellQuantity || 0)
+                      : (isTrim || selected.stopFloorBreached)
+                        ? (selected.suggestedSellQuantity || selected.totalActionShares || 0)
                         : 0;
 
                     const remainingShares = Math.max(0, selected.quantity - sellQty);
 
                     const curSymbol = (selected.currency === 'USD' || isUsMarket) ? '$' : '₹';
+                    const stopFloor = selected.trailingFloorPrice || selected.compoundingShield?.trailingFloorPrice || selected.chandelierStopPrice;
+                    const liveBufferPct = selected.liveBufferToTrailingFloorPct ?? (
+                      Number(stopFloor) > 0 && Number(selected.currentPrice) > 0
+                        ? Number(((Number(selected.currentPrice) / Number(stopFloor) - 1) * 100).toFixed(2))
+                        : null
+                    );
                     const reasonText = isFullExit
                       ? (selected.explanation || 'Both technical trend and quarterly fundamental growth have broken down. Exit complete position.')
                       : isTrim
@@ -893,7 +912,11 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           ? (selected.explanation || `Price is consolidating near the 30-week average (${curSymbol}${selected.sma30Week || '—'}). Continue holding.`)
                           : isNewListing
                             ? (selected.invalidation || 'Recently listed stock (<40 weeks history). 30-week trend baseline is establishing. Hold position.')
-                            : `Price is trading safely ${selected.compoundingShield?.bufferToTrailingFloorPct ? `+${selected.compoundingShield.bufferToTrailingFloorPct}%` : ''} above trailing stop floor (${curSymbol}${selected.compoundingShield?.trailingFloorPrice || selected.chandelierStopPrice || '—'}). Bull thesis intact.`;
+                            : selected.stopFloorBreached
+                              ? `Live price ${curSymbol}${Number(selected.currentPrice).toFixed(2)} is at or below the stop floor (${curSymbol}${stopFloor || '—'}). Review the suggested trim; no trade is placed automatically.`
+                              : liveBufferPct !== null
+                                ? `Live price is ${Math.abs(liveBufferPct).toFixed(2)}% ${liveBufferPct >= 0 ? 'above' : 'below'} the stop floor (${curSymbol}${stopFloor || '—'}). ${liveBufferPct >= 0 ? 'Bull thesis remains above this stop level.' : 'Review the stop-breach signal and staged exit plan.'}`
+                                : 'Trailing stop floor is unavailable; refresh price history before relying on the sell analysis.';
 
                     return (
                       <div className={`mt-4 rounded-2xl border p-4 ${actionTheme}`}>
@@ -943,13 +966,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
                             <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Trailing Stop Floor</div>
                             <div className="mt-0.5 text-sm font-black font-mono text-inherit">
-                              {money(formatMoney, selected.compoundingShield?.trailingFloorPrice || selected.trailingFloorPrice || selected.chandelierStopPrice, true)}
+                              {money(formatMoney, stopFloor, true)}
                             </div>
                           </div>
                           <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
                             <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Safety Cushion</div>
                             <div className="mt-0.5 text-sm font-black font-mono text-cyan-500 dark:text-cyan-300">
-                              {selected.bufferToTrailingFloorPct !== null && selected.bufferToTrailingFloorPct !== undefined ? `+${selected.bufferToTrailingFloorPct}%` : (selected.compoundingShield?.bufferToTrailingFloorPct ? `+${selected.compoundingShield.bufferToTrailingFloorPct}%` : '—')}
+                              {liveBufferPct !== null ? `${liveBufferPct > 0 ? '+' : ''}${liveBufferPct.toFixed(2)}%` : '—'}
                             </div>
                           </div>
                         </div>
@@ -986,7 +1009,9 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         <div className={`rounded-xl border p-3 flex flex-col justify-between ${
                           selected.stagedExitPlan.tranche1?.status === 'COMPLETED'
                             ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
-                            : selected.stagedExitPlan.tranche1?.status === 'PENDING'
+                            : selected.stagedExitPlan.tranche1?.status === 'READY'
+                              ? 'border-rose-500/50 bg-rose-500/10'
+                              : selected.stagedExitPlan.tranche1?.status === 'PENDING'
                               ? 'border-rose-500/30 bg-rose-500/[0.05]'
                               : 'border-[var(--border-color)] reports-subcard opacity-70'
                         }`}>
@@ -996,16 +1021,18 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                                 selected.stagedExitPlan.tranche1?.status === 'COMPLETED'
                                    ? 'border-emerald-500/40 text-emerald-500 dark:text-emerald-300 bg-emerald-500/10'
+                                  : selected.stagedExitPlan.tranche1?.status === 'READY'
+                                    ? 'border-rose-500/40 text-rose-500 dark:text-rose-300 bg-rose-500/20'
                                   : 'border-amber-500/30 text-amber-500 dark:text-amber-300 bg-amber-500/10'
                               }`}>
                                 {selected.stagedExitPlan.tranche1?.status}
                               </span>
                             </div>
                             <div className="text-base font-black font-mono text-inherit">
-                              {selected.stagedExitPlan.tranche1?.targetShares?.toLocaleString() || '—'} shares
+                              Sell {selected.stagedExitPlan.tranche1?.targetShares?.toLocaleString() ?? '—'} shares
                             </div>
                             <div className="text-[10px] text-[var(--text-muted)] mt-1">
-                              Trigger: 30w-SMA ({(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche1?.triggerPrice})
+                              First trigger: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche1?.triggerPrice}
                             </div>
                           </div>
                         </div>
@@ -1030,28 +1057,36 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                               </span>
                             </div>
                             <div className="text-base font-black font-mono text-inherit">
-                              {selected.stagedExitPlan.tranche2?.targetShares?.toLocaleString() || '—'} shares
+                              Sell {selected.stagedExitPlan.tranche2?.targetShares?.toLocaleString() ?? '—'} shares
                             </div>
                             <div className="text-[10px] text-[var(--text-muted)] mt-1">
-                              Trigger Floor: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche2?.triggerPrice}
+                              Second trigger: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche2?.triggerPrice}
                             </div>
                           </div>
                         </div>
 
                         {/* Tranche 3 Card */}
-                        <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-3 opacity-70 flex flex-col justify-between">
+                        <div className={`rounded-xl border p-3 flex flex-col justify-between ${
+                          selected.stagedExitPlan.tranche3?.status === 'READY'
+                            ? 'border-rose-500/50 bg-rose-500/10'
+                            : 'border-[var(--border-color)] reports-subcard opacity-70'
+                        }`}>
                           <div>
                             <div className="flex items-center justify-between gap-2 mb-1.5">
                               <span className="text-[10px] font-bold text-inherit">{selected.stagedExitPlan.tranche3?.name}</span>
-                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-[var(--border-color)] text-[var(--text-muted)]">
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                selected.stagedExitPlan.tranche3?.status === 'READY'
+                                  ? 'border-rose-500/40 text-rose-500 dark:text-rose-300 bg-rose-500/20'
+                                  : 'border-[var(--border-color)] text-[var(--text-muted)]'
+                              }`}>
                                 {selected.stagedExitPlan.tranche3?.status}
                               </span>
                             </div>
                             <div className="text-base font-black font-mono text-inherit">
-                              {selected.stagedExitPlan.tranche3?.targetShares?.toLocaleString() || '—'} shares
+                              Sell {selected.stagedExitPlan.tranche3?.targetShares?.toLocaleString() ?? '—'} shares
                             </div>
                             <div className="text-[10px] text-[var(--text-muted)] mt-1">
-                              Full Exit Floor: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche3?.triggerPrice}
+                              Final trigger: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche3?.triggerPrice}
                             </div>
                           </div>
                         </div>

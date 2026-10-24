@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
+import { fetchFxRate, liveQuoteCache, resolveHoldingPrice, buildCanonicalLivePriceMap } from '../services/priceEngine.js';
 import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.js';
 import { getHistoricalPricesMap } from '../services/historicalPriceStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
@@ -90,66 +90,18 @@ router.get('/summary', async (req, res) => {
       divCashflows.push({ date: d.ex_date || d.payment_date, amount: amtINR, category_id: h ? h.category_id : null });
     });
 
-    // Compute invariant US FX rate when US market is closed to ensure exact parity with holdings and calendar
+    // Canonical valuation calculation using the single source of truth engine with Weekend/Holiday Invariance
     const todayStr = getTodayIST();
     const usStocksStatus = getAssetSessionStatus('us_stocks', todayStr);
     const inStocksStatus = getAssetSessionStatus('in_stocks', todayStr);
-    const mfStatus = getAssetSessionStatus('mutual_funds', todayStr);
-    const npsStatus = getAssetSessionStatus('nps', todayStr);
-    const todayUsTxs = txs.filter(t => t.currency === 'USD' && t.date === todayStr);
     const todayTxs = txs.filter(t => t.date === todayStr);
-    const hasCategoryTransactionToday = (categoryId) => todayTxs.some(t => {
-      const holding = holdingById.get(String(t.holding_id));
-      if (holding?.category_id === categoryId) return true;
-      const liability = liabilities.find(l => String(l.id) === String(t.liability_id));
-      return liability?.category_id === categoryId;
-    });
-    const isInStocksInvariant = !hasCategoryTransactionToday('in_stocks') &&
-      ['NON_TRADING_DAY', 'PRE_MARKET'].includes(inStocksStatus.status);
-    const isMfInvariant = !hasCategoryTransactionToday('mutual_funds') &&
-      ['NON_TRADING_DAY', 'PRE_MARKET'].includes(mfStatus.status);
-    const isNpsInvariant = !hasCategoryTransactionToday('nps') &&
-      ['NON_TRADING_DAY', 'PRE_MARKET'].includes(npsStatus.status);
-    const historicalPricesCache = getHistoricalPricesMap();
-    let effectiveUsFx = fxRate;
-
-    if (todayUsTxs.length === 0 && !isUsMarketOpen() && (usStocksStatus.status === 'NON_TRADING_DAY' || usStocksStatus.status === 'PRE_MARKET')) {
-      try {
-        {
-          const pastLogs = _getCalendarEodLogs().filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
-          if (pastLogs.length > 0 && pastLogs[0].us_stocks > 0) {
-            let totalUsdCurrent = 0;
-            holdings.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0).forEach(h => {
-              const liveQuote = liveQuoteCache.get(h.symbol);
-              const p = resolveHoldingPrice(h, liveQuote);
-              totalUsdCurrent += Number(h.quantity) * p;
-            });
-            if (totalUsdCurrent > 0) {
-              effectiveUsFx = pastLogs[0].us_stocks / totalUsdCurrent;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('[Summary Route] Error computing invariant US FX rate:', e.message);
-      }
-    }
-
-    // Canonical valuation calculation using the single source of truth engine
-    const livePriceMap = {};
-    holdings.forEach(h => {
-      const liveQuote = liveQuoteCache.get(h.symbol);
-      let price = resolveHoldingPrice(h, liveQuote);
-      const isHoldingInvariant = (isInStocksInvariant && h.category_id === 'in_stocks') ||
-        (isMfInvariant && h.category_id === 'mutual_funds') ||
-        (isNpsInvariant && h.category_id === 'nps');
-      if (isHoldingInvariant) {
-        const cleanSymbol = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
-        const priceHistory = historicalPricesCache[h.symbol] || historicalPricesCache[cleanSymbol] ||
-          historicalPricesCache[`${cleanSymbol}.NS`] || {};
-        const previousDates = Object.keys(priceHistory).filter(date => date < todayStr && Number(priceHistory[date]) > 0).sort();
-        if (previousDates.length > 0) price = Number(priceHistory[previousDates.at(-1)]);
-      }
-      livePriceMap[h.symbol] = price;
+    const { livePriceMap, effectiveUsFx } = buildCanonicalLivePriceMap({
+      holdings,
+      transactions: txs,
+      liabilities,
+      todayStr,
+      fxRate,
+      pastEodLogs: _getCalendarEodLogs()
     });
 
     const valuation = computePortfolioValuation(holdings, liabilities, livePriceMap, effectiveUsFx);
@@ -513,12 +465,14 @@ router.get('/summary', async (req, res) => {
       }
     }
 
+    const yesterdayDebt = yesterdayLog ? Number((yesterdayLog.debt !== undefined ? yesterdayLog.debt : ((yesterdayLog.loan || 0) + (yesterdayLog.credits || 0))).toFixed(2)) : null;
+
     const nyDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     if (isUsMarketOpen() && nyDate < todayStr && yesterdayLog && yesterdayLog.date === nyDate) {
       const updatedUsVal = Number((valuation.us_stocks || 0).toFixed(2));
       yesterdayLog.us_stocks = updatedUsVal;
       yesterdayLog.us_stocks_val_inr = updatedUsVal;
-      const debtVal = Number((yesterdayLog.debt !== undefined ? yesterdayLog.debt : ((yesterdayLog.loan || 0) + (yesterdayLog.credits || 0))).toFixed(2));
+      const debtVal = yesterdayDebt !== null ? yesterdayDebt : Number((valuation.debt || 0).toFixed(2));
       yesterdayAssets = Number((
         (yesterdayLog.savings || 0) +
         (yesterdayLog.epf || 0) +
@@ -539,16 +493,16 @@ router.get('/summary', async (req, res) => {
     // for historical charts and day-over-day comparison; carrying it forward
     // here can make the dashboard disagree with current holdings after a
     // restore, a NAV update, or an account balance change.
-    const resolvedInStocks = Number((valuation.indian_stocks || 0).toFixed(2));
-    const resolvedUsStocks = Number((valuation.us_stocks || 0).toFixed(2));
-    const resolvedMf = Number((valuation.mutual_funds || 0).toFixed(2));
-    const resolvedNps = Number((valuation.nps || 0).toFixed(2));
-    const resolvedSavings = Number((valuation.savings || 0).toFixed(2));
-    const resolvedEpf = Number((valuation.epf || 0).toFixed(2));
-    const resolvedDebt = Number((valuation.debt || 0).toFixed(2));
+    let resolvedInStocks = Number((valuation.indian_stocks || 0).toFixed(2));
+    let resolvedUsStocks = Number((valuation.us_stocks || 0).toFixed(2));
+    let resolvedMf = Number((valuation.mutual_funds || 0).toFixed(2));
+    let resolvedNps = Number((valuation.nps || 0).toFixed(2));
+    let resolvedSavings = Number((valuation.savings || 0).toFixed(2));
+    let resolvedEpf = Number((valuation.epf || 0).toFixed(2));
+    let resolvedDebt = Number((valuation.debt || 0).toFixed(2));
 
-    const finalTotalAssetsINR = Number((valuation.totalAssets || 0).toFixed(2));
-    const finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));
+    let finalTotalAssetsINR = Number((valuation.totalAssets || 0).toFixed(2));
+    let finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));
 
     const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||
                              (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
@@ -558,6 +512,19 @@ router.get('/summary', async (req, res) => {
     let dayPnlPct = yesterdayWealth > 0 ? Number(((dayPnlINR / yesterdayWealth) * 100).toFixed(2)) : 0;
 
     if (!anyMarketTrading && !hasAnyTxToday) {
+      if (yesterdayWealth > 0 && yesterdayAssets > 0) {
+        finalNetWorthINR = yesterdayWealth;
+        finalTotalAssetsINR = yesterdayAssets;
+        if (yesterdayDebt !== null) resolvedDebt = yesterdayDebt;
+        if (yesterdayLog) {
+          if (yesterdayLog.indian_stocks !== undefined) resolvedInStocks = yesterdayLog.indian_stocks;
+          if (yesterdayLog.us_stocks !== undefined) resolvedUsStocks = yesterdayLog.us_stocks;
+          if (yesterdayLog.mutual_funds !== undefined) resolvedMf = yesterdayLog.mutual_funds;
+          if (yesterdayLog.nps !== undefined) resolvedNps = yesterdayLog.nps;
+          if (yesterdayLog.savings !== undefined) resolvedSavings = yesterdayLog.savings;
+          if (yesterdayLog.epf !== undefined) resolvedEpf = yesterdayLog.epf;
+        }
+      }
       dayPnlINR = 0;
       dayPnlPct = 0;
     }
@@ -589,7 +556,7 @@ router.get('/summary', async (req, res) => {
 
     const summaryPayload = {
       totalAssetsINR: Number(finalTotalAssetsINR.toFixed(2)),
-      totalLiabilitiesINR: Number(totalLiabilitiesINR.toFixed(2)),
+      totalLiabilitiesINR: Number(resolvedDebt.toFixed(2)),
       netWorthINR: Number(finalNetWorthINR.toFixed(2)),
       totalInvestedINR: Number(totalInvestedINR.toFixed(2)),
       totalInvestedUSD: Number(totalInvestedUSD.toFixed(2)),

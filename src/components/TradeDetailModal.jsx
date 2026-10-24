@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -56,10 +56,37 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
+  const [entrySnapshot, setEntrySnapshot] = useState(null);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(false);
+
+  const isUs = trade?.market === 'US';
+
+  useEffect(() => {
+    if (!trade?.symbol) return;
+    const fetchSnapshot = async () => {
+      setLoadingSnapshot(true);
+      try {
+        const res = await axios.get(`/api/trading-journal/entry-snapshot/${trade.symbol}`, {
+          params: {
+            date: trade.entryDate || trade.date,
+            price: trade.entryPrice,
+            market: trade.market || (isUs ? 'US' : 'IN')
+          }
+        });
+        if (res.data?.success) {
+          setEntrySnapshot(res.data);
+        }
+      } catch (err) {
+        console.warn('[TradeDetailModal] Could not load entry snapshot:', err.message);
+      } finally {
+        setLoadingSnapshot(false);
+      }
+    };
+    fetchSnapshot();
+  }, [trade?.symbol, trade?.entryDate, trade?.date, trade?.entryPrice, isUs]);
 
   if (!trade) return null;
 
-  const isUs = trade.market === 'US';
   const isUsdMode = isUs && currency === 'USD';
   const formatVal = (val, forceUsd = false) => {
     if (val === undefined || val === null || isNaN(Number(val))) return (isUsdMode || forceUsd) ? '$0.00' : '₹0.00';
@@ -365,6 +392,146 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
                 <span className="text-rose-500 dark:text-rose-400">{trade.stopLossPrice ? formatVal(trade.stopLossPrice) : '—'}</span>
               </div>
             </div>
+          </div>
+
+          {/* Transaction Entry Snapshot: Technicals & Screener Fundamentals */}
+          <div className="p-4 rounded-2xl reports-subcard border border-cyan-500/30 bg-cyan-500/[0.03] space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Entry Snapshot ({entrySnapshot?.entryDate || trade.entryDate || trade.date})
+              </span>
+              <span className="text-[10px] font-mono text-[var(--text-muted)]">
+                Technicals & Screener Fundamentals at Transaction Date
+              </span>
+            </div>
+
+            {loadingSnapshot ? (
+              <div className="py-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+                Loading transaction entry snapshot...
+              </div>
+            ) : entrySnapshot ? (
+              <div className="space-y-3">
+                {/* 1. Screener Fundamentals Grid */}
+                {entrySnapshot.fundamentals && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-secondary)] block">
+                      Screener Fundamentals
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center text-xs font-mono">
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">P/E Ratio</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {entrySnapshot.fundamentals.entryPe ? `${entrySnapshot.fundamentals.entryPe.toFixed(1)}x` : (entrySnapshot.fundamentals.peRatio ? `${entrySnapshot.fundamentals.peRatio.toFixed(1)}x` : '—')}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">Sales</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {entrySnapshot.fundamentals.salesCr ? `${isUs ? '$' : '₹'}${entrySnapshot.fundamentals.salesCr.toLocaleString()}${isUs ? 'M' : ' Cr'}` : '—'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">PAT (Net Profit)</span>
+                        <span className={`font-bold ${entrySnapshot.fundamentals.patCr >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                          {entrySnapshot.fundamentals.patCr ? `${isUs ? '$' : '₹'}${entrySnapshot.fundamentals.patCr.toLocaleString()}${isUs ? 'M' : ' Cr'}` : '—'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">Market Cap</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {entrySnapshot.fundamentals.marketCapCr ? `${isUs ? '$' : '₹'}${entrySnapshot.fundamentals.marketCapCr.toLocaleString()}${isUs ? 'M' : ' Cr'}` : '—'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">OPM %</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {entrySnapshot.fundamentals.opmPct !== null && entrySnapshot.fundamentals.opmPct !== undefined ? `${entrySnapshot.fundamentals.opmPct.toFixed(1)}%` : '—'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">ROCE %</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {entrySnapshot.fundamentals.rocePct !== null && entrySnapshot.fundamentals.rocePct !== undefined ? `${entrySnapshot.fundamentals.rocePct.toFixed(1)}%` : '—'}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">ROE %</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {entrySnapshot.fundamentals.roePct !== null && entrySnapshot.fundamentals.roePct !== undefined ? `${entrySnapshot.fundamentals.roePct.toFixed(1)}%` : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Technicals Grid at Trade Date */}
+                {entrySnapshot.technicals && (
+                  <div className="space-y-1.5 pt-2 border-t border-[var(--border-color)]">
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-secondary)] block">
+                      Technicals at Entry Date
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs font-mono">
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">Day Close</span>
+                        <span className="font-bold text-[var(--text-primary)]">
+                          {formatVal(entrySnapshot.technicals.close)}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">21 EMA</span>
+                        <span className="font-bold text-[#3B82F6]">
+                          {formatVal(entrySnapshot.technicals.ema21)}
+                        </span>
+                        {entrySnapshot.technicals.aboveEma21 !== null && (
+                          <span className={`text-[8px] block font-sans font-bold ${entrySnapshot.technicals.aboveEma21 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {entrySnapshot.technicals.aboveEma21 ? '▲ Above' : '▼ Below'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">50 EMA</span>
+                        <span className="font-bold text-[#EAB308]">
+                          {formatVal(entrySnapshot.technicals.ema50)}
+                        </span>
+                        {entrySnapshot.technicals.aboveEma50 !== null && (
+                          <span className={`text-[8px] block font-sans font-bold ${entrySnapshot.technicals.aboveEma50 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {entrySnapshot.technicals.aboveEma50 ? '▲ Above' : '▼ Below'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">200 EMA</span>
+                        <span className="font-bold text-purple-600 dark:text-purple-300">
+                          {formatVal(entrySnapshot.technicals.ema200)}
+                        </span>
+                        {entrySnapshot.technicals.distEma200Pct !== null && (
+                          <span className={`text-[8px] block font-sans font-bold ${entrySnapshot.technicals.distEma200Pct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {entrySnapshot.technicals.distEma200Pct >= 0 ? `+${entrySnapshot.technicals.distEma200Pct}%` : `${entrySnapshot.technicals.distEma200Pct}%`}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
+                        <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">RSI (10)</span>
+                        <span className="font-bold text-[#EF4444]">
+                          {entrySnapshot.technicals.rsi10 ?? '—'}
+                        </span>
+                        {entrySnapshot.technicals.rsi10 !== null && entrySnapshot.technicals.rsi10 !== undefined && (
+                          <span className={`text-[8px] block font-sans font-bold ${
+                            entrySnapshot.technicals.rsi10 >= 70 ? 'text-rose-500' : entrySnapshot.technicals.rsi10 <= 30 ? 'text-emerald-500' : 'text-cyan-500'
+                          }`}>
+                            {entrySnapshot.technicals.rsi10 >= 70 ? 'Overbought' : entrySnapshot.technicals.rsi10 <= 30 ? 'Oversold' : 'Neutral'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--text-muted)] italic">
+                Snapshot not available for this ticker on {trade.entryDate || trade.date}.
+              </p>
+            )}
           </div>
 
           {/* Detailed Statutory Charges Breakdown */}

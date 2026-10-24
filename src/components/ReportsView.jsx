@@ -66,6 +66,8 @@ import ExtCleanBarChartView from './reports/CleanBarChartView';
 import HoldingLogo from './HoldingLogo';
 import CompanyMfBreakdownModal from './reports/CompanyMfBreakdownModal';
 import DividendReportView from './reports/DividendReportView';
+import SectorCapPerformanceSection from './reports/SectorCapPerformanceSection';
+import HoldingDetailModal from './HoldingDetailModal';
 
 export default function ReportsView({ summary, holdings, registerBackHandler }) {
   const { formatMoney, isUSD } = useThemeAuth();
@@ -94,6 +96,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
 
   // Interactive Market Cap Drill-down
   const [selectedMarketCap, setSelectedMarketCap] = useState(null);
+  const [selectedHoldingDetail, setSelectedHoldingDetail] = useState(null);
 
   // Mutual Fund Explorer: selected scheme code
   const [selectedMfScheme, setSelectedMfScheme] = useState('ALL');
@@ -1184,7 +1187,20 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
           </div>
         )}
 
-        {/* ─── VIEW 0: CONSOLIDATED ASSET PERFORMANCE ────────────────── */}
+                {/* ─── VIEW: DYNAMIC SECTOR & MARKET CAP PERFORMANCE ───────────── */}
+        {reportType === 'SECTOR_CAP_PERF' && activeTab === 'EQUITY' && (
+          <SectorCapPerformanceSection
+            onSelectHolding={(h) => {
+              const match = (holdings || []).find(item => item.id === h.id || item.symbol === h.symbol);
+              setSelectedHoldingDetail(match || h);
+            }}
+            formatMoney={formatMoney}
+            isUSD={isUSD}
+            isLight={isLight}
+          />
+        )}
+
+{/* ─── VIEW 0: CONSOLIDATED ASSET PERFORMANCE ────────────────── */}
         {reportType === 'PERFORMANCE' && activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && (
           <div className="space-y-6">
             
@@ -2283,6 +2299,15 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         formatMoney={formatMoney}
       />
 
+
+      {/* Holding Detail Drill-Down Modal */}
+      {selectedHoldingDetail && (
+        <HoldingDetailModal
+          holding={selectedHoldingDetail}
+          onClose={() => setSelectedHoldingDetail(null)}
+          onRefresh={() => {}}
+        />
+      )}
     </AnimatedPage>
   );
 }

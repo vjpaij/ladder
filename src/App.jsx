@@ -182,9 +182,15 @@ function AuthenticatedApp() {
     } catch (err) {
       if (!isSilent) {
         console.error('[App] Failed to fetch dashboard data:', err);
+        const responseData = err.response?.data;
+        const isUnreachableApi = !err.response || (
+          err.response.status === 500 && typeof responseData === 'string'
+        );
         setToast({
           type: 'error',
-          message: 'Database connection failed: ' + (err.response?.data?.error || err.message)
+          message: isUnreachableApi
+            ? 'API server unavailable. Start the app with npm run dev to run the API and web app together.'
+            : 'Dashboard request failed: ' + (responseData?.error || err.message)
         });
       }
     }

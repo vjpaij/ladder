@@ -68,13 +68,11 @@ export default function SymbolTradeLogsModal({
     if (!symbolData?.trades || !Array.isArray(symbolData.trades)) return [];
     let list = [...symbolData.trades];
 
-    // Filter by tradeStatusFilter: 'ALL' | 'CLOSED' | 'BUY' | 'OPEN'
+    // Filter by tradeStatusFilter: 'ALL' | 'CLOSED' | 'BUY'
     if (tradeStatusFilter === 'CLOSED') {
       list = list.filter(t => t.status === 'CLOSED');
-    } else if (tradeStatusFilter === 'BUY') {
-      list = list.filter(t => t.tradeType === 'BUY');
-    } else if (tradeStatusFilter === 'OPEN') {
-      list = list.filter(t => t.status === 'OPEN' || t.tradeType === 'ACTIVE');
+    } else if (tradeStatusFilter === 'BUY' || tradeStatusFilter === 'OPEN') {
+      list = list.filter(t => t.tradeType === 'BUY' || t.status === 'OPEN');
     }
 
     list.sort((a, b) => {
@@ -427,19 +425,6 @@ export default function SymbolTradeLogsModal({
               >
                 Buy Entries ({buyTradesCount})
               </button>
-              {holding && Number(holding.quantity) > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setTradeStatusFilter('OPEN')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                    tradeStatusFilter === 'OPEN'
-                      ? 'bg-cyan-500/20 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  Open Position ({symbolData.openTrades || 1})
-                </button>
-              )}
             </div>
           </div>
 
@@ -546,7 +531,7 @@ export default function SymbolTradeLogsModal({
                             <span className="px-1.5 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] font-bold font-mono">
                               STOCK SPLIT
                             </span>
-                          ) : isBuy ? (
+                          ) : isBuy || trade.status === 'OPEN' ? (
                             <span className="px-1.5 py-0.5 rounded-md border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-bold font-mono">
                               BUY ENTRY
                             </span>
@@ -555,8 +540,8 @@ export default function SymbolTradeLogsModal({
                               CLOSED EXIT
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 text-[10px] font-bold font-mono">
-                              ACTIVE POSITION
+                            <span className="px-1.5 py-0.5 rounded-md border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-bold font-mono">
+                              BUY ENTRY
                             </span>
                           )}
                         </td>

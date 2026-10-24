@@ -3458,5 +3458,75 @@
     "sector": "Metals & Mining",
     "industry": "Specialty Chemicals",
     "last_updated": "2026-09-14T11:25:20.092Z"
+  },
+  {
+    "symbol": "BHEL",
+    "name": "Bharat Heavy Electricals Limited",
+    "category_id": "in_stocks",
+    "market_cap": 98500,
+    "mcap_category": "Large Cap",
+    "sector": "Capital Goods & Industrials",
+    "industry": "Heavy Electrical Equipment",
+    "last_updated": "2026-10-24T10:02:05.583Z"
+  },
+  {
+    "symbol": "IPCALAB",
+    "name": "Ipca Laboratories Limited",
+    "category_id": "in_stocks",
+    "market_cap": 46200,
+    "mcap_category": "Mid Cap",
+    "sector": "Healthcare & Pharmaceuticals",
+    "industry": "Pharmaceuticals",
+    "last_updated": "2026-10-24T10:02:05.584Z"
+  },
+  {
+    "symbol": "MODINATUR",
+    "name": "Modi Naturals Limited",
+    "category_id": "in_stocks",
+    "market_cap": 450,
+    "mcap_category": "Micro Cap",
+    "sector": "Consumer Staples & FMCG",
+    "industry": "Edible Oils & Foods",
+    "last_updated": "2026-10-24T10:02:05.584Z"
+  },
+  {
+    "symbol": "SHANKESH",
+    "name": "Shankesh Jewellers Limited",
+    "category_id": "in_stocks",
+    "market_cap": 220,
+    "mcap_category": "Micro Cap",
+    "sector": "Consumer Discretionary",
+    "industry": "Gems, Jewellery & Watches",
+    "last_updated": "2026-10-24T10:02:05.584Z"
+  },
+  {
+    "symbol": "VRLLOG",
+    "name": "VRL Logistics Limited",
+    "category_id": "in_stocks",
+    "market_cap": 4900,
+    "mcap_category": "Small Cap",
+    "sector": "Infrastructure & Real Estate",
+    "industry": "Logistics & Transportation",
+    "last_updated": "2026-10-24T10:02:05.584Z"
+  },
+  {
+    "symbol": "GOOGL",
+    "name": "Alphabet Inc.",
+    "category_id": "us_stocks",
+    "market_cap": 2100000,
+    "mcap_category": "Mega Cap",
+    "sector": "Information Technology",
+    "industry": "Internet Content & Information",
+    "last_updated": "2026-10-24T10:02:05.584Z"
+  },
+  {
+    "symbol": "TSLA",
+    "name": "Tesla, Inc.",
+    "category_id": "us_stocks",
+    "market_cap": 750000,
+    "mcap_category": "Mega Cap",
+    "sector": "Consumer Discretionary",
+    "industry": "Auto Manufacturers",
+    "last_updated": "2026-10-24T10:02:05.584Z"
   }
 ]

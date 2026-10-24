@@ -306,7 +306,6 @@ export default function TopNavbar({
 
       {/* ─── Controls & Quick Actions ───────────────────────────── */}
       <div className="flex items-center gap-2.5">
-
         {/* Live Real-time USD/INR Forex Ticker Pill */}
         <div 
           onClick={() => setIsFxModalOpen(true)}

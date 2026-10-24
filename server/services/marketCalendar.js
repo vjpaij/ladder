@@ -277,6 +277,7 @@ const SPECIAL_TRADING_SESSIONS = [
   // Annual Diwali Muhurat Trading Sessions (Evening 1-hour festive trading)
   { date: '2024-11-01', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:00', endTime: '19:00' },
   { date: '2025-10-21', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
+  { date: '2026-10-20', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
   { date: '2026-11-08', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
   { date: '2027-10-29', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
   { date: '2028-10-18', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' }

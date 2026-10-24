@@ -218,22 +218,34 @@ export async function fastCascadeEodLogs(txDate) {
 /**
  * Automatic background EOD rebuild trigger when any past-dated transaction is added, updated, or removed
  */
-export async function triggerEodRebuildIfPastDate(txDate) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-  if (txDate && String(txDate).slice(0, 10) < todayStr) {
-    console.log(`[EOD Auto-Sync] Past-dated transaction detected (${txDate} < ${todayStr}). Triggering sync...`);
-    // Run synchronous in-process cascade first for instant disk & in-memory parity
-    await fastCascadeEodLogs(txDate);
+let _eodRebuildTimer = null;
+let _earliestTxDate = null;
 
-    // Launch background script to ensure any deep market asset sync is also handled
+export function triggerEodRebuildIfPastDate(txDate) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const d = txDate ? String(txDate).slice(0, 10) : '';
+  if (!d || d >= todayStr) return;
+
+  if (!_earliestTxDate || d < _earliestTxDate) {
+    _earliestTxDate = d;
+  }
+
+  if (_eodRebuildTimer) clearTimeout(_eodRebuildTimer);
+  _eodRebuildTimer = setTimeout(async () => {
+    const targetDate = _earliestTxDate;
+    _earliestTxDate = null;
+    _eodRebuildTimer = null;
     try {
+      console.log(`[EOD Auto-Sync] Running debounced background cascade for ${targetDate}...`);
+      await fastCascadeEodLogs(targetDate);
+
       const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
       const child = fork(scriptPath, [], { detached: true, stdio: 'ignore' });
       child.unref();
     } catch (e) {
       console.warn('[EOD Auto-Sync Warning]:', e.message);
     }
-  }
+  }, 150);
 }
 
 /**

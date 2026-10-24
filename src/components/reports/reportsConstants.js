@@ -30,12 +30,31 @@ export const BENCHMARK_LABELS = {
   'NASDAQ': 'NASDAQ'
 };
 
+export const CANONICAL_SECTORS = [
+  'Capital Goods & Industrials',
+  'Chemicals & Materials',
+  'Consumer Discretionary',
+  'Consumer Staples & FMCG',
+  'Energy, Power & Utilities',
+  'Financial Services',
+  'Healthcare & Pharmaceuticals',
+  'Information Technology',
+  'Infrastructure & Real Estate',
+  'Metals & Mining',
+  'Telecommunication & Media',
+  'Diversified & Other'
+];
+
 /**
  * Standard Unified Sector Normalization
+ * Preserves exact canonical sectors from Stock Analysis & asset_metadata.json
  */
 export function normalizeSector(raw) {
   if (!raw) return 'Diversified & Other';
-  const s = raw.trim().toLowerCase();
+  const trimmed = String(raw).trim();
+  if (CANONICAL_SECTORS.includes(trimmed)) return trimmed;
+
+  const s = trimmed.toLowerCase();
   
   if (s.includes('tech') || s.includes('information') || s.includes('software') || s.includes('semiconductor') || s.includes('cloud') || s.includes('it ') || s === 'it') {
     return 'Information Technology';
@@ -46,19 +65,16 @@ export function normalizeSector(raw) {
   if (s.includes('health') || s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('hospital') || s.includes('diagnostic')) {
     return 'Healthcare & Pharmaceuticals';
   }
-  if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('ancillar') || s.includes('motor')) {
-    return 'Automobiles & Auto Components';
-  }
-  if (s.includes('fmcg') || s.includes('consumer good') || s.includes('food') || s.includes('beverage') || s.includes('tobacco') || s.includes('personal care') || s.includes('household') || s.includes('staple')) {
-    return 'Consumer Staples & FMCG';
-  }
-  if (s.includes('consumer disc') || s.includes('retail') || s.includes('apparel') || s.includes('footwear') || s.includes('hotel') || s.includes('restaurant') || s.includes('travel') || s.includes('leisure') || s.includes('luxury')) {
+  if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('ancillar') || s.includes('motor') || s.includes('consumer disc') || s.includes('retail') || s.includes('apparel') || s.includes('footwear') || s.includes('hotel') || s.includes('restaurant') || s.includes('travel') || s.includes('leisure') || s.includes('luxury') || s.includes('jewel')) {
     return 'Consumer Discretionary';
+  }
+  if (s.includes('fmcg') || s.includes('consumer good') || s.includes('food') || s.includes('beverage') || s.includes('tobacco') || s.includes('personal care') || s.includes('household') || s.includes('staple') || s.includes('edible oil')) {
+    return 'Consumer Staples & FMCG';
   }
   if (s.includes('industrial') || s.includes('capital good') || s.includes('engineering') || s.includes('machiner') || s.includes('defence') || s.includes('equipment') || s.includes('electrical')) {
     return 'Capital Goods & Industrials';
   }
-  if (s.includes('infra') || s.includes('construction') || s.includes('cement') || s.includes('building') || s.includes('realty') || s.includes('real estate') || s.includes('road') || s.includes('port') || s.includes('transport')) {
+  if (s.includes('infra') || s.includes('construction') || s.includes('cement') || s.includes('building') || s.includes('realty') || s.includes('real estate') || s.includes('road') || s.includes('port') || s.includes('transport') || s.includes('logistics')) {
     return 'Infrastructure & Real Estate';
   }
   if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('petroleum') || s.includes('refin') || s.includes('power') || s.includes('renewable') || s.includes('solar') || s.includes('green energy') || s.includes('utilit')) {

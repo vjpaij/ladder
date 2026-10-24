@@ -20,6 +20,7 @@ import { getTodayIST } from '../services/marketCalendar.js';
 import { loadHistoricalPricesAsync, ensureHistoricalPricesForSymbol } from '../services/historicalPriceStore.js';
 import { fetchChartinkBreakouts } from '../services/stockIntelligence/chartinkScanner.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
+import { buildStockAnalyses } from '../services/stockIntelligence/analysisService.js';
 import { buildBuyAnalyses, buildBuyPortfolioSummary } from '../services/stockIntelligence/buyAnalysisService.js';
 import { buildCandidateUniverse, addToWatchlist, removeFromWatchlist, loadWatchlist, loadUniverseCache, saveUniverseCache } from '../services/stockIntelligence/buyUniverseProvider.js';
 import { batchComputeEarningsCatalysts, getFullEarningsCalendar } from '../services/stockIntelligence/earningsCatalystService.js';
@@ -160,11 +161,12 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
 
   const startTime = Date.now();
 
-  // Load holdings, price history, and live Chartink breakouts
-  const [holdings, history, chartinkCandidates] = await Promise.all([
+  // Load holdings, price history, live Chartink breakouts, and transactions
+  const [holdings, history, chartinkCandidates, transactions] = await Promise.all([
     db.select('holdings'),
     loadHistoricalPricesAsync(),
-    fetchChartinkBreakouts({ forceRefresh })
+    fetchChartinkBreakouts({ forceRefresh }),
+    db.select('transactions')
   ]);
 
   // Enrich holdings with live prices
@@ -182,8 +184,10 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
     };
   });
 
-  // Build candidate universe (portfolio + NSE500 + watchlist)
-  const candidates = buildCandidateUniverse(enrichedHoldings, chartinkCandidates);
+  const today = getTodayIST();
+
+  // Build candidate universe (active portfolio + recently sold in past 90d / crash exits + NSE500 + watchlist)
+  const candidates = buildCandidateUniverse(enrichedHoldings, chartinkCandidates, transactions, { asOfDate: today });
 
   // For portfolio stocks, use live prices from enriched holdings
   const enrichedCandidates = candidates.map(c => {
@@ -223,20 +227,38 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
   }
 
   // Compute earnings catalysts for all symbols
-  const today = getTodayIST();
   const earningsCatalystsMap = batchComputeEarningsCatalysts(symbols, fundamentalsMap, today);
 
   // Compute live filtered news intelligence dynamically across all candidates
   const newsMap = await buildUniverseNewsMap(enrichedCandidates);
 
-  // Build buy analyses across candidate universe
+  // Evaluate portfolio Sell Analysis to enforce 100% mutual exclusivity
+  let sellAnalyses = [];
+  try {
+    const [divs, meta] = await Promise.all([
+      db.select('dividends'),
+      db.select('asset_metadata')
+    ]);
+    sellAnalyses = buildStockAnalyses(enrichedHoldings, history, {
+      today,
+      transactions,
+      dividends: divs,
+      metadata: meta,
+      fundamentalsMap,
+      categoryId: 'in_stocks'
+    });
+  } catch (err) {
+    console.warn('[Buy Analysis] Could not pre-evaluate sell analyses for mutual exclusivity:', err.message);
+  }
+
+  // Build buy analyses across candidate universe, strictly excluding any sell/trim flagged stocks
   const analyses = buildBuyAnalyses(
     enrichedCandidates,
     history,
     fundamentalsMap,
     earningsCatalystsMap,
     newsMap,
-    { today, maxResults: 500, includeSipPlans: true }
+    { today, maxResults: 500, includeSipPlans: true, sellAnalyses }
   );
 
   const summary = buildBuyPortfolioSummary(analyses);
@@ -346,8 +368,11 @@ router.post('/buy-analysis/refresh-fundamentals', authenticateToken, async (req,
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/buy-universe', authenticateToken, async (req, res) => {
   try {
-    const holdings = await db.select('holdings');
-    const candidates = buildCandidateUniverse(holdings);
+    const [holdings, transactions] = await Promise.all([
+      db.select('holdings'),
+      db.select('transactions')
+    ]);
+    const candidates = buildCandidateUniverse(holdings, [], transactions, { asOfDate: getTodayIST() });
     const watchlist = loadWatchlist();
     res.json({
       totalCandidates: candidates.length,

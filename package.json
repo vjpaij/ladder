@@ -4,9 +4,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
-    "start": "concurrently \"npm run server\" \"npm run dev\"",
+    "dev": "npm run dev:all",
+    "dev:all": "concurrently --restart-tries -1 --restart-after 3000 --names API,WEB \"npm run server\" \"npm run dev:frontend\"",
+    "dev:frontend": "vite",
+    "start": "npm run dev:all",
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
