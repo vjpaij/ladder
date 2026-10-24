@@ -368,16 +368,45 @@ export function buildBuyAnalyses(
     fundMap = o.fundamentalsCache || o.fundamentalsMap || {};
     catalystsMap = o.earningsCatalystsMap || {};
     newsMap = o.newsSignalsMap || {};
-    opts = { today: o.today, maxResults: o.maxResults, includeSipPlans: o.includeSipPlans };
+    opts = {
+      today: o.today,
+      maxResults: o.maxResults,
+      includeSipPlans: o.includeSipPlans,
+      sellAnalyses: o.sellAnalyses,
+      excludedSymbols: o.excludedSymbols
+    };
   }
 
   const todayStr = opts.today || new Date().toISOString().slice(0, 10);
   const results = [];
 
+  // Index stocks flagged for exit or trim in Sell Analysis to guarantee 100% mutual exclusivity
+  const sellFlaggedSymbols = new Set();
+  if (Array.isArray(opts.sellAnalyses)) {
+    for (const s of opts.sellAnalyses) {
+      if (['FULL_EXIT', 'REVIEW_PARTIAL_SALE', 'REVIEW_FUNDAMENTAL_TRIM', 'REVIEW_RISK_TRIM'].includes(s.action) ||
+          ['FULL_EXIT_CANDIDATE', 'TECHNICAL_TRIM_CANDIDATE', 'FUNDAMENTAL_TRIM_CANDIDATE', 'PORTFOLIO_RISK_TRIM'].includes(s.state) ||
+          Boolean(s.stopFloorBreached) || Boolean(s.has4RedBreakdown)) {
+        sellFlaggedSymbols.add(String(s.symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, ''));
+      }
+    }
+  }
+  if (Array.isArray(opts.excludedSymbols)) {
+    for (const sym of opts.excludedSymbols) {
+      sellFlaggedSymbols.add(String(sym || '').toUpperCase().replace(/\.(NS|BO)$/i, ''));
+    }
+  }
+
   for (const candidate of (candidates || [])) {
     try {
       const { symbol, name, source, inPortfolio, portfolioQuantity, portfolioAvgPrice } = candidate;
       const clean = String(symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+
+      // Strictly exclude any stock currently flagged for FULL_EXIT or REVIEW_PARTIAL_SALE in Sell Analysis.
+      // 100% mutual exclusivity: No stock may EVER appear in both Buy Analysis and Sell Analysis at the same time.
+      if (sellFlaggedSymbols.has(clean)) {
+        continue;
+      }
       const fundObj = fundMap[clean] || fundMap[symbol] || {};
       const resolvedName = (name && name !== clean) ? name : (fundObj.name || name || clean);
 

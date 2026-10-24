@@ -17,9 +17,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import db from '../../db.js';
 import { loadHistoricalPricesAsync } from '../historicalPriceStore.js';
-import { buildStockAnalyses } from './analysisService.js';
+import { buildStockAnalyses, calculateTriggeredStagedSell } from './analysisService.js';
 import { validateAndHealStockData } from './dataIntegrityValidator.js';
 import { getTodayIST } from '../marketCalendar.js';
+import { liveQuoteCache, resolveHoldingPrice } from '../priceEngine.js';
 import { getIntelligenceConfig } from './repository.js';
 
 function escapeCsvCell(val) {
@@ -33,12 +34,13 @@ function escapeCsvCell(val) {
 export async function generateActionPlan({
   userId = '1',
   externalCashBudget: paramExternalCash,
-  recyclingMode: paramRecyclingMode
+  recyclingMode: paramRecyclingMode,
+  userConfig: paramUserConfig
 } = {}) {
   const projectRoot = process.cwd();
 
   // Load User Configuration
-  const userConfig = getIntelligenceConfig(userId);
+  const userConfig = paramUserConfig || getIntelligenceConfig(userId);
   const externalCashBudget = paramExternalCash !== undefined && paramExternalCash !== null
     ? Math.max(0, Math.round(Number(paramExternalCash)))
     : (userConfig.externalCashBudget ?? 200000);
@@ -86,12 +88,15 @@ export async function generateActionPlan({
     loadHistoricalPricesAsync()
   ]);
 
-  const enrichedHoldings = holdings.map(h => ({
-    ...h,
-    current_price: Number(h.current_price) || 0,
-    nse_price: Number(h.nse_price) || 0,
-    bse_price: Number(h.bse_price) || 0
-  }));
+  const enrichedHoldings = holdings.map(h => {
+    const quote = liveQuoteCache.get(h.symbol);
+    return {
+      ...h,
+      current_price: resolveHoldingPrice(h, quote),
+      nse_price: Number(quote?.nse_price) || Number(h.nse_price) || 0,
+      bse_price: Number(quote?.bse_price) || Number(h.bse_price) || 0
+    };
+  });
 
   const { healedPriceMap } = validateAndHealStockData(enrichedHoldings, history, transactions);
 
@@ -118,7 +123,7 @@ export async function generateActionPlan({
   const heldAnalyses = buildStockAnalyses(enrichedHoldings, healedPriceMap, {
     today: getTodayIST(),
     backtest: { version: '30w-confirmed-breakdown-v1' },
-    config: {},
+    config: userConfig,
     transactions,
     dividends,
     metadata,
@@ -130,19 +135,55 @@ export async function generateActionPlan({
   const fullExits = heldAnalyses.filter(a => a.state === 'FULL_EXIT_CANDIDATE');
   const trims = heldAnalyses.filter(a => a.state === 'TECHNICAL_TRIM_CANDIDATE' || a.state === 'FUNDAMENTAL_TRIM_CANDIDATE');
 
-  const fullExitProceeds = fullExits.reduce((acc, a) => acc + (Number(a.quantity || 0) * (Number(a.currentPrice) || 0)), 0);
-  const trimProceeds = trims.reduce((acc, a) => acc + (Number(a.suggestedSellQuantity || 0) * (Number(a.currentPrice) || 0)), 0);
+  // Chandelier-breach sells: stocks where live CMP has broken below their chandelier stop floor.
+  // Only positions that are genuinely marked for trim/exit (not compounding-protected winners) are included.
+  const chandelierBreachSells = heldAnalyses.filter(a =>
+    a.stopFloorBreached &&
+    (a.action === 'REVIEW_PARTIAL_SALE' || a.state === 'TECHNICAL_TRIM_CANDIDATE') &&
+    a.state !== 'DATA_UNAVAILABLE' &&
+    !fullExits.some(f => f.holdingId === a.holdingId)
+  );
+  const regularTrims = trims.filter(a => !a.stopFloorBreached);
 
-  let recycledCapital = 0;
-  if (recyclingMode === 'FULL_AND_TRIMS') {
-    recycledCapital = fullExitProceeds + trimProceeds;
-  } else if (recyclingMode === 'FULL_ONLY') {
-    recycledCapital = fullExitProceeds;
-  } else {
-    // 'EXTERNAL_ONLY': zero selling, pure portfolio expansion
-    recycledCapital = 0;
+  const fullExitProceeds = fullExits.reduce((acc, a) => acc + (Number(a.quantity || 0) * (Number(a.currentPrice) || 0)), 0);
+  const trimProceeds = regularTrims.reduce((acc, a) => acc + (Number(a.suggestedSellQuantity || 0) * (Number(a.currentPrice) || 0)), 0);
+  const chandelierBreachProceeds = chandelierBreachSells.reduce((acc, a) => {
+    const triggered = calculateTriggeredStagedSell(a);
+    const trimQty = triggered.quantity || Number(a.suggestedSellQuantity) || Math.max(1, Math.round((Number(a.quantity) || 0) * 0.33));
+    return acc + (trimQty * (Number(a.currentPrice) || 0));
+  }, 0);
+
+  // 2b. Calculate Realized Recycled Capital from ACTUAL sell/exit transactions executed from 21st Oct 2026 onwards
+  let totalRealizedExitProceeds = 0;
+  let totalDeployedBuys = 0;
+
+  for (const tx of (transactions || [])) {
+    if (tx.date && tx.date >= '2026-10-21') {
+      const type = String(tx.type || '').toUpperCase();
+      const amt = Number(tx.total_amount) || (Number(tx.quantity || 0) * Number(tx.price || 0)) || 0;
+      if (['SELL', 'REDEEM', 'REDEMPTION'].includes(type)) {
+        totalRealizedExitProceeds += amt;
+      } else if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)'].includes(type)) {
+        totalDeployedBuys += amt;
+      }
+    }
   }
 
+  const realizedRecycledCapital = Math.max(0, totalRealizedExitProceeds - totalDeployedBuys);
+
+  let projectedRecycledCapital = 0;
+  if (recyclingMode === 'FULL_AND_TRIMS') {
+    projectedRecycledCapital = fullExitProceeds + trimProceeds + chandelierBreachProceeds;
+  } else if (recyclingMode === 'FULL_ONLY') {
+    projectedRecycledCapital = fullExitProceeds + chandelierBreachProceeds;
+  } else {
+    // 'EXTERNAL_ONLY': zero selling, pure portfolio expansion
+    projectedRecycledCapital = 0;
+  }
+
+  // Recycled capital combines net realized recycled capital from actual transactions since 21st Oct 2026
+  // plus projected proceeds from algorithmic sell recommendations according to recyclingMode
+  const recycledCapital = Math.round(realizedRecycledCapital + projectedRecycledCapital);
   const totalPurchasingPower = Math.round(externalCashBudget + recycledCapital);
 
   // Dynamic Conviction-Weighted Allocation Calculator
@@ -224,19 +265,32 @@ export async function generateActionPlan({
     };
   }
 
-  // Deduplicate and pool candidate buys
+  // Build set of all symbols flagged for sell, trim, or floor breach in Sell Analysis
+  // Enforces 100% mutual exclusivity: zero stock can ever appear in both Buys and Sells
+  const sellSymbolSet = new Set();
+  heldAnalyses.forEach(a => {
+    if (['FULL_EXIT', 'REVIEW_PARTIAL_SALE', 'REVIEW_FUNDAMENTAL_TRIM', 'REVIEW_RISK_TRIM'].includes(a.action) ||
+        ['FULL_EXIT_CANDIDATE', 'TECHNICAL_TRIM_CANDIDATE', 'FUNDAMENTAL_TRIM_CANDIDATE', 'PORTFOLIO_RISK_TRIM'].includes(a.state) ||
+        Boolean(a.stopFloorBreached) || Boolean(a.has4RedBreakdown)) {
+      sellSymbolSet.add(String(a.symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, ''));
+    }
+  });
+
+  // Deduplicate and pool candidate buys (strictly excluding any sell/trim flagged symbols)
   const seenSymbols = new Set();
   const allCandidatePool = [];
 
   strongBuys.forEach(x => {
-    if (!seenSymbols.has(x.symbol)) {
+    const sym = String(x.symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
+    if (!seenSymbols.has(x.symbol) && !sellSymbolSet.has(sym)) {
       seenSymbols.add(x.symbol);
       allCandidatePool.push({ ...x, sourceSignal: 'STRONG_BUY' });
     }
   });
 
   primeBuys.forEach(x => {
-    if (!seenSymbols.has(x.symbol)) {
+    const sym = String(x.symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
+    if (!seenSymbols.has(x.symbol) && !sellSymbolSet.has(sym)) {
       seenSymbols.add(x.symbol);
       allCandidatePool.push({ ...x, sourceSignal: 'BUY' });
     }
@@ -384,16 +438,26 @@ export async function generateActionPlan({
       triggerPrice: trigger,
       targetPrice: 0,
       heldShares: qty,
+      tranche1Shares: a.tranche1Shares || a.stagedExitPlan?.tranche1?.targetShares || Math.round(qty * 0.33),
+      tranche1Trigger: a.tranche1Trigger || a.stagedExitPlan?.tranche1?.triggerPrice || trigger,
+      tranche1Status: a.stagedExitPlan?.tranche1?.status || 'READY',
+      tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || Math.round(qty * 0.33),
+      tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || Number((trigger * 0.90).toFixed(2)),
+      tranche2Status: a.stagedExitPlan?.tranche2?.status || 'READY',
+      tranche3Shares: a.tranche3Shares || a.stagedExitPlan?.tranche3?.targetShares || (qty - Math.round(qty * 0.66)),
+      tranche3Trigger: a.tranche3Trigger || a.stagedExitPlan?.tranche3?.triggerPrice || Number((trigger * 0.765).toFixed(2)),
+      tranche3Status: a.stagedExitPlan?.tranche3?.status || 'READY',
+      breachedTranchesSummary: 'All Stages Triggered (Full Thesis Liquidation)',
       reason: a.sizingMethod || `Full thesis liquidation: 100% of remaining position (${qty} shares) to protect capital against structural breakdown below 30W-SMA.`,
       isFullExit: true
     });
   });
 
   if (recyclingMode === 'FULL_AND_TRIMS') {
-    trims.forEach(a => {
+    regularTrims.forEach(a => {
       const cmp = Number(a.currentPrice) || 0;
       const held = Number(a.quantity) || 0;
-      const trimQty = Number(a.suggestedSellQuantity) || 0;
+      const trimQty = Number(a.suggestedSellQuantity) || Math.max(1, Math.round(held * 0.33));
       const amt = trimQty * cmp;
       const trigger = a.stagedExitPlan?.tranche1?.triggerPrice || a.sma30Week || 0;
       const cat = a.state === 'TECHNICAL_TRIM_CANDIDATE' ? 'Technical Trim Candidate' : 'Fundamental Trim Candidate';
@@ -412,13 +476,72 @@ export async function generateActionPlan({
         triggerPrice: trigger,
         targetPrice: 0,
         heldShares: held,
+        tranche1Shares: a.tranche1Shares || a.stagedExitPlan?.tranche1?.targetShares || trimQty,
+        tranche1Trigger: a.tranche1Trigger || a.stagedExitPlan?.tranche1?.triggerPrice || trigger,
+        tranche1Status: a.stagedExitPlan?.tranche1?.status || 'READY',
+        tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || 0,
+        tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || 0,
+        tranche2Status: a.stagedExitPlan?.tranche2?.status || 'PENDING',
+        tranche3Shares: a.tranche3Shares || a.stagedExitPlan?.tranche3?.targetShares || 0,
+        tranche3Trigger: a.tranche3Trigger || a.stagedExitPlan?.tranche3?.triggerPrice || 0,
+        tranche3Status: a.stagedExitPlan?.tranche3?.status || 'CONTINGENT',
+        breachedTranchesSummary: a.stagedExitPlan?.tranche1?.name || 'Tranche 1 Trim',
         reason: a.sizingMethod || `Tranche 1 defensive de-risk trim: Sell ${trimQty} shares; keep core ${held - trimQty} shares riding.`,
         isFullExit: false
       });
     });
   }
 
-  // 4. Construct Unified CSV Rows
+  // Trailing-stop breach sells: live CMP has already broken below the displayed trailing floor.
+  // Add them with exact multi-tranche staged share numbers.
+  chandelierBreachSells.forEach(a => {
+    const cmp = Number(a.currentPrice) || 0;
+    const held = Number(a.quantity) || 0;
+    const stopFloor = Number(a.trailingFloorPrice || a.chandelierStopPrice) || 0;
+    const breachPct = stopFloor > 0
+      ? ((stopFloor - cmp) / stopFloor * 100).toFixed(1)
+      : '—';
+    const triggered = calculateTriggeredStagedSell(a);
+    const trimQty = triggered.quantity || Number(a.suggestedSellQuantity) || Math.max(1, Math.round(held * 0.33));
+    const amt = trimQty * cmp;
+    const triggeredNames = triggered.triggeredTranches.map(tranche => tranche.name);
+    const stageDescription = triggeredNames.length > 1
+      ? `Missed price levels crossed (${triggeredNames.join(' + ')}); aggregate catch-up quantity is ${trimQty} shares.`
+      : `Trigger calls for ${trimQty} shares in ${triggeredNames[0] || 'Tranche 1'}.`;
+    const actionType = triggeredNames.length > 1
+      ? `SELL - STAGED CATCH-UP (${triggeredNames.length} TRANCHES)`
+      : 'SELL - STOP FLOOR BREACH';
+
+    activeSells.push({
+      executionGroup: '3. ALGORITHMIC SELL (PERFORMANCE DECAY)',
+      actionType,
+      category: 'Trailing Stop Floor Breach',
+      symbol: a.symbol,
+      name: a.name,
+      cmp,
+      state: a.state,
+      quantity: trimQty,
+      actionValue: amt,
+      triggerPrice: stopFloor,
+      targetPrice: 0,
+      heldShares: held,
+      tranche1Shares: a.tranche1Shares || a.stagedExitPlan?.tranche1?.targetShares || 0,
+      tranche1Trigger: a.tranche1Trigger || a.stagedExitPlan?.tranche1?.triggerPrice || 0,
+      tranche1Status: a.stagedExitPlan?.tranche1?.status || 'PENDING',
+      tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || 0,
+      tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || 0,
+      tranche2Status: a.stagedExitPlan?.tranche2?.status || 'PENDING',
+      tranche3Shares: a.tranche3Shares || a.stagedExitPlan?.tranche3?.targetShares || 0,
+      tranche3Trigger: a.tranche3Trigger || a.stagedExitPlan?.tranche3?.triggerPrice || 0,
+      tranche3Status: a.stagedExitPlan?.tranche3?.status || 'CONTINGENT',
+      breachedTranchesSummary: triggeredNames.length > 0 ? triggeredNames.join(' + ') : 'Tranche 1 (Stop Floor)',
+      reason: `Live CMP ₹${cmp.toFixed(2)} has breached trailing stop floor ₹${stopFloor.toFixed(2)} (${breachPct}% below stop). ${stageDescription} Review sale; no order placed automatically.`,
+      isFullExit: false,
+      isChandelierBreach: true
+    });
+  });
+
+  // 4. Construct Unified CSV Rows with Multi-Tranche Breakdown Columns
   const rows = [];
   const header = [
     'Execution Group',
@@ -429,8 +552,13 @@ export async function generateActionPlan({
     'Current Price (INR)',
     'Action Quantity (Shares)',
     'Action Value (INR)',
-    'Stop-Loss / Trigger (INR)',
-    'Target Price (INR)',
+    'Primary Trigger (INR)',
+    'Tranche 1 Shares',
+    'Tranche 1 Trigger (INR)',
+    'Tranche 2 Shares',
+    'Tranche 2 Trigger (INR)',
+    'Tranche 3 Shares',
+    'Tranche 3 Trigger (INR)',
     'Current Held Shares',
     'Capital Source & Execution Rationale'
   ];
@@ -448,7 +576,12 @@ export async function generateActionPlan({
       b.actionShares,
       b.actionValue.toFixed(2),
       b.sl > 0 ? b.sl.toFixed(2) : '—',
-      b.tgt > 0 ? b.tgt.toFixed(2) : '—',
+      '—', // Tranche 1 shares (N/A for buy)
+      '—',
+      '—',
+      '—',
+      '—',
+      '—',
       b.heldQty,
       b.note
     ]);
@@ -466,7 +599,12 @@ export async function generateActionPlan({
       s.quantity,
       s.actionValue.toFixed(2),
       s.triggerPrice > 0 ? s.triggerPrice.toFixed(2) : '—',
-      '—',
+      s.tranche1Shares || '—',
+      s.tranche1Trigger > 0 ? s.tranche1Trigger.toFixed(2) : '—',
+      s.tranche2Shares || '—',
+      s.tranche2Trigger > 0 ? s.tranche2Trigger.toFixed(2) : '—',
+      s.tranche3Shares || '—',
+      s.tranche3Trigger > 0 ? s.tranche3Trigger.toFixed(2) : '—',
       s.heldShares,
       s.reason
     ]);
@@ -500,15 +638,21 @@ export async function generateActionPlan({
     externalCashBudget,
     periodicIncrement,
     recyclingMode,
+    totalRealizedExitProceeds: Math.round(totalRealizedExitProceeds),
+    totalDeployedBuys: Math.round(totalDeployedBuys),
+    realizedRecycledCapital: Math.round(realizedRecycledCapital),
+    projectedRecycledCapital: Math.round(projectedRecycledCapital),
     fullExitProceeds: Math.round(fullExitProceeds),
     trimProceeds: Math.round(trimProceeds),
+    chandelierBreachProceeds: Math.round(chandelierBreachProceeds),
     recycledCapital: Math.round(recycledCapital),
     totalPurchasingPower,
     totalImmediateBuyValue: Math.round(totalImmediateBuyValue),
     unallocatedCashBuffer: Math.round(unallocatedCashBuffer),
     immediateBuysCount: immediateBuys.length,
     queuedBuysCount: queuedBuys.length,
-    sellsCount: activeSells.length
+    sellsCount: activeSells.length,
+    chandelierBreachCount: chandelierBreachSells.length
   };
 
   return {
