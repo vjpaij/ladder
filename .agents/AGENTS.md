@@ -1,5 +1,13 @@
 # Workspace Rules for Ladder Project
 
+## Core Operating Philosophy & Critical Thinking Mandates
+
+- **NEVER BE A "YES MAN" — CHALLENGE DIVERGENT PREMISES CONSTRUCTIVELY**:
+  The agent MUST NEVER act as a passive "yes man" who reflexively agrees with, rubber-stamps, or flatters every assumption, question, or proposal made by the user. If the user's premise or suggestion differs from empirical financial data, backtested results, sound mathematics, or established risk-management principles, the agent MUST respectfully challenge the user, articulate the counter-perspective, and lay out downstream risks and trade-offs. The ultimate objective is never argument for its own sake, but ensuring that every final decision is **practical, logical, robust, and demonstrably right**.
+
+- **DATA-DRIVEN & EMPIRICALLY PROVEN DECISIONS — SUBSTANTIAL EVIDENCE MANDATE**:
+  All decisions, architectural changes, algorithm adjustments, threshold tunings, and code refactors MUST be strictly data-driven and empirically proven wherever applicable and necessary. Intuitive speculation, unverified heuristics, and superficial patches are prohibited. Before altering core logic (such as risk corridors, buy/sell rules, valuation formulas, or ingestion pipelines), the agent MUST substantiate the change with solid evidence (multi-year backtests, trade ledgers, win rates, P&L deltas, or mathematical proofs) and present the evidence transparently.
+
 ## Agent Delegation & Model Rules
 
 1. **FORCE OPENROUTER (TIER 2) DELEGATION**:
@@ -191,39 +199,49 @@ When asked to commit, release, or push code to Git:
 
 ## Data Integrity, Cache Safety & Persistence Guardrails
 
-28. **MANDATORY DUAL-WRITE VERIFICATION & WAL PERSISTENCE PROTOCOL**:
+29. **MANDATORY DUAL-WRITE VERIFICATION & WAL PERSISTENCE PROTOCOL**:
    - Every `db.insert()`, `db.update()`, and `db.delete()` call in `server/db.js` MUST record the operation in `data/pending_writes.json` (Write-Ahead Log / WAL) BEFORE attempting the Supabase remote write. This guarantees that no user data entry is ever silently lost due to transient network failures or Supabase RLS errors.
    - The WAL flusher background service (`server/services/walFlusherService.js`) MUST run at server startup and retry all WAL entries on a 30-second interval. Entries are removed from the WAL ONLY after Supabase confirms the write.
    - Supabase write failures MUST NEVER be silently caught and discarded with only a `console.warn`. They MUST result in WAL recording AND surface a non-blocking amber warning to the UI via the `/api/sync-status` endpoint.
    - Agents MUST NEVER modify `db.insert()`, `db.update()`, or `db.delete()` without preserving the WAL recording code path. Any agent removing or bypassing the WAL without explicit user consent is in direct violation of this rule.
 
-29. **MANDATORY DUAL-SNAPSHOT CACHE PROTECTION & ATOMIC WRITE PROTOCOL**:
+30. **MANDATORY DUAL-SNAPSHOT CACHE PROTECTION & ATOMIC WRITE PROTOCOL**:
    - `saveCacheSnapshotToDisk()` MUST ALWAYS perform an atomic two-phase write: (1) write to `data/db_cache_snapshot.tmp.json`, (2) `fs.renameSync()` to `data/db_cache_snapshot.json`, (3) copy to `data/db_cache_snapshot.bak.json`. Every snapshot MUST include a `"checksum"` (SHA-256 of the `tables` payload) verified on every read before the file is trusted.
    - If both `db_cache_snapshot.json` and `db_cache_snapshot.bak.json` fail checksum validation, the system MUST fall back to the Supabase cold-fetch path and log a critical error. It MUST NEVER silently serve corrupted or empty data.
    - `data/db_cache_snapshot.json`, `data/db_cache_snapshot.bak.json`, and `data/pending_writes.json` are SACRED FILES. No agent script, ingestion script, cleanup routine, or refactor may delete, truncate, or overwrite these files outside of `server/db.js` internal methods. Any agent that does so is in direct violation of this rule.
    - `vite.config.js` `server.watch.ignored` must permanently exclude all `data/**` files. Any agent modifying `vite.config.js` MUST preserve these exclusions.
 
-30. **MANDATORY LIVE-CACHE-FIRST BACKUP SOURCE OF TRUTH PROTOCOL**:
+31. **MANDATORY LIVE-CACHE-FIRST BACKUP SOURCE OF TRUTH PROTOCOL**:
    - The backup system MUST NEVER read directly from Supabase to produce a backup. Backups MUST read from the server's live in-memory `dbCache` via the internal `GET /api/internal/full-snapshot` endpoint, which is the canonical source of truth including all uncommitted WAL entries.
    - Before any backup executes, the WAL flusher MUST be invoked to completion (with a 30-second per-table timeout). If WAL entries remain after the flush attempt, the backup MUST still include them from local cache and MUST mark the backup filename and metadata as `PARTIAL` to signal incomplete cloud sync.
    - Every backup JSON MUST include an `"integrity"` section with per-table row counts from both cache and Supabase, and a `"synced": true/false` flag per table.
    - The UI backup trigger MUST call `/api/sync-status` first and display a divergence warning confirmation dialog before proceeding if any sync gaps are detected.
 
-31. **MANDATORY SUPABASE RESTORE SERVICE-ROLE KEY & RLS BYPASS PROTOCOL**:
+32. **MANDATORY SUPABASE RESTORE SERVICE-ROLE KEY & RLS BYPASS PROTOCOL**:
    - The restore operation (`scripts/restore_backup.mjs` and `POST /api/cloud-backups/restore`) MUST use the **Supabase Service Role key** (`SUPABASE_SERVICE_ROLE_KEY` from `.env`), never the anonymous `anon` key. The anon key is subject to Row-Level Security `WITH CHECK` policies that will reject bulk inserts on protected tables such as `categories`.
    - The restore route MUST perform a pre-restore safety backup BEFORE wiping any table. If the safety backup fails, the restore MUST abort.
    - The `users` table MUST NEVER be wiped and restored via the backup/restore system. User credentials are managed exclusively via `data/users.json` and the local auth system.
    - After a restore completes, the system MUST: (1) rebuild the in-memory cache from the freshly restored Supabase data, (2) overwrite `data/db_cache_snapshot.json` with the fresh data, (3) clear `data/pending_writes.json`.
    - Agents modifying the restore path MUST preserve service-role client usage and MUST NOT downgrade to the anon key.
 
-32. **MANDATORY FINANCIAL DATA ANTI-HALLUCINATION, LIVE QUOTE RECONCILIATION & CORPORATE ACTION CONTINUITY PROTOCOL**:
+33. **MANDATORY FINANCIAL DATA ANTI-HALLUCINATION, LIVE QUOTE RECONCILIATION & CORPORATE ACTION CONTINUITY PROTOCOL**:
    - **ZERO UNVALIDATED UPSTREAM FEED INGESTION**: Upstream pricing feeds (e.g. Yahoo Finance, third-party aggregators) are inherently susceptible to unadjusted corporate actions, bad ticks, ticker mapping anomalies, and synthetic distortions. The system MUST NEVER blindly consume raw historical price series without automated validation (`dataIntegrityValidator.js`).
    - **LIVE QUOTE PARITY & BAD-TICK SELF-HEALING**: Every active holding's latest historical close in `history` MUST be cross-verified against `holding.current_price` (the authoritative live NSE/BSE MAX quote). Any divergence $>5\%$ must automatically be flagged, reconciled to the verified holding quote, and audited in the data integrity report (`dataIntegrity.reconciliationsApplied`), preventing bad ticks from falsifying 30-week moving averages or resetting breakdown weeks (e.g. MSUMI bad tick 40.22 vs verified 33.63).
    - **CORPORATE ACTION CONTINUITY & EX-DEMERGER NORMALIZATION**: Single-day price step drops $>20\%$ in Indian cash equities must strictly be cross-verified against confirmed corporate actions (splits, bonuses, demergers in `transactions` or `KNOWN_CORPORATE_ACTIONS`). For confirmed actions (such as the April 2026 Vedanta demerger factor 0.3508 or bonus issues), pre-action historical prices MUST strictly be scaled to the post-action capital base before computing technical indicators (30-week SMA, Weinstein stage, ATR trailing stops). Exit recommendations (e.g. Trim or Full Exit) MUST NEVER be generated from raw, unadjusted spin-off drops.
    - **IN-MEMORY CACHE MTIME HOT-RELOAD & STALENESS BAN**: `historicalPriceStore.js` MUST track file modification timestamps (`mtimeMs`). Whenever `data/historical_prices.json` is modified on disk, the in-memory cache MUST automatically detect and reload the fresh dataset on the very next read. Serving stale in-memory arrays after disk changes is strictly prohibited.
    - **MANDATORY PRE-HANDOFF ACCURACY TEST**: Before completing any task affecting equity analysis, quotes, or transactions, agents MUST execute `node scripts/verify_stock_data_accuracy.mjs` and obtain a 100% PASS with 0 unverified anomalies and 100% data health score.
 
-33. **MANDATORY COMPLETE ASSET & COMPANY NAME VISIBILITY & ZERO UNHANDLED TRUNCATION PROTOCOL**:
+34. **MANDATORY COMPLETE ASSET & COMPANY NAME VISIBILITY & ZERO UNHANDLED TRUNCATION PROTOCOL**:
    - **ZERO BLUNT CLIPPING WITHOUT HOVER VISIBILITY**: Company names, stock tickers, fund titles, and financial instrument descriptions must NEVER be bluntly truncated or clipped with ellipsis (`...`) without accessible full-text hover visibility.
    - **MANDATORY NATIVE HOVER TOOLTIPS (`title={fullName}`)**: Wherever spatial constraints in dense fintech tables, cards, side drawers, or mobile viewports require CSS truncation (`truncate`, `overflow-hidden`, `text-ellipsis`) to preserve layout alignment, the element MUST ALWAYS provide native `title={fullName}` (or `title={item.name || item.symbol}`) so that hovering immediately reveals the complete unclipped name.
    - **ELIMINATION OF ARTIFICIAL RESTRICTIVE FIXED WIDTHS**: Never impose overly narrow, arbitrary fixed widths (such as `max-w-[120px]` or `max-w-[130px]`) where horizontal space permits. Use flexible fluid containers (`min-w-0 flex-1 max-w-[240px]`) allowing full company titles to display cleanly without premature truncation.
+
+35. **MANDATORY CRITICAL CHALLENGE & ANTI-YES-MAN PROTOCOL**:
+   - **ZERO PASSIVE ACQUIESCENCE**: The agent is explicitly forbidden from acting as a passive "yes man" who reflexively nods, flatters, or rubber-stamps user assumptions, requests, or questions without rigorous critical evaluation.
+   - **MANDATORY CONSTRUCTIVE CHALLENGE**: Whenever the user's suggestion, question, or design premise differs from verified empirical data, sound financial mathematics, established risk-management tenets, or architectural logic, the agent MUST respectfully challenge the user, lay out counter-perspectives, and explain downstream risks.
+   - **PRACTICAL, LOGICAL & CORRECT DECISIONS**: The overarching objective is never argumentative friction, but ensuring that the final architectural, algorithmic, and financial decision is practical, robust, logical, and demonstrably right for long-term portfolio success.
+
+36. **MANDATORY EMPIRICAL SUBSTANTIATION & DATA-DRIVEN VALIDATION PROTOCOL**:
+   - **ZERO UNFOUNDED SPECULATION**: All decisions, rule adjustments, algorithm modifications, parameter tunings, and code refactors MUST be strictly data-driven and empirically proven wherever applicable and necessary.
+   - **SUBSTANTIAL EVIDENCE MANDATE**: Before altering trading rules, indicator formulas, entry/exit criteria, or calculation engines, the agent MUST gather and analyze substantial evidence (e.g. multi-year historical backtests, trade counts, win-loss ratios, drawdown profiles, transaction ledger replays, or mathematical proofs).
+   - **TRANSPARENT EVIDENCE AUDITING**: Any proposed modification or technical advice presented to the user must cite concrete empirical metrics and data points rather than subjective impressions or unverified heuristics.

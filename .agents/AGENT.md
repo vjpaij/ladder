@@ -1,0 +1,247 @@
+# Workspace Rules for Ladder Project
+
+## Core Operating Philosophy & Critical Thinking Mandates
+
+- **NEVER BE A "YES MAN" — CHALLENGE DIVERGENT PREMISES CONSTRUCTIVELY**:
+  The agent MUST NEVER act as a passive "yes man" who reflexively agrees with, rubber-stamps, or flatters every assumption, question, or proposal made by the user. If the user's premise or suggestion differs from empirical financial data, backtested results, sound mathematics, or established risk-management principles, the agent MUST respectfully challenge the user, articulate the counter-perspective, and lay out downstream risks and trade-offs. The ultimate objective is never argument for its own sake, but ensuring that every final decision is **practical, logical, robust, and demonstrably right**.
+
+- **DATA-DRIVEN & EMPIRICALLY PROVEN DECISIONS — SUBSTANTIAL EVIDENCE MANDATE**:
+  All decisions, architectural changes, algorithm adjustments, threshold tunings, and code refactors MUST be strictly data-driven and empirically proven wherever applicable and necessary. Intuitive speculation, unverified heuristics, and superficial patches are prohibited. Before altering core logic (such as risk corridors, buy/sell rules, valuation formulas, or ingestion pipelines), the agent MUST substantiate the change with solid evidence (multi-year backtests, trade ledgers, win rates, P&L deltas, or mathematical proofs) and present the evidence transparently.
+
+## Agent Delegation & Model Rules
+
+1. **FORCE OPENROUTER (TIER 2) DELEGATION**:
+   - For all future tasks in this project, you **MUST** use the OpenRouter free models (via the `openrouter-delegation` skill) by default, regardless of task complexity.
+   - Do NOT use Antigravity models (TIER 1) directly unless the user explicitly specifies "use Antigravity", "use premium", or "do this yourself" in the prompt.
+
+## Mandatory Pre-Execution & Post-Execution Rules
+
+1. **FIRST STEP - READ MASTER CONTEXT (`LADDER.md`)**:
+   - Before planning, designing, or implementing any code changes, refactors, bug fixes, or integrations, you **MUST** read [LADDER.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/LADDER.md).
+   - Fully understand the architectural layout, UI/UX guidelines, existing data models, API endpoints, and component hierarchy.
+
+2. **MANDATORY END-TO-END DEPENDENCY MAPPING & UNIVERSAL VIEW SYNCHRONIZATION**:
+   **ZERO TOLERANCE FOR OUT-OF-SYNC PAGES OR DISPARATE CALCULATION ENGINES**:
+   - **UNIFIED REAL-TIME SOURCE OF TRUTH**: All pages (Dashboard, Calendar, Portfolios, Detail Modals, Reports) MUST update dynamically in real time and share the exact same underlying calculation engine (`computePortfolioValuation` and `liveQuoteCache`). Never create separate, ad-hoc, or divergent calculation formulas or scripts for individual pages.
+   - **DYNAMIC ZERO-SCRIPT SYNCHRONIZATION**: Today's current day metrics (Net Worth, Total Assets, Total Liabilities, Day P&L, and Category Breakdowns) across all views (including Calendar Heatmap and Holding Detail timelines) MUST compute dynamically on-the-fly from live database holdings and price feeds. No manual or background batch scripts should ever be required for the current day to be in sync.
+   - **MANDATORY CROSS-PAGE AUDIT BEFORE COMPLETION**: Before completing any task, delivering a response, or presenting data to the user, you **MUST autonomously verify every single affected view and section** (Dashboard, Calendar, Indian Equity, US Equity, Mutual Funds, NPS, Bank, EPF, Liabilities, Dividends, Reports, and Holding Detail Modals) to confirm that all records, totals, and breakdowns match with exact 1-to-1 parity down to the cent.
+   - Whenever modifying calculations, transaction handling, price feeds, or corporate actions, you **MUST** autonomously audit, update, and verify all 6 interconnected pipelines across the application:
+   - **Pipeline 1 (Database & Ingestion Layer)**: Supabase tables (`holdings`, `transactions`, `dividends`, `liabilities`), ingestion scripts, and validation engines.
+   - **Pipeline 2 (Real-Time Price & Forex Engine)**: `liveQuoteCache`, `priceEngine.js`, `/api/fx-rate`, and `ThemeAuthContext.jsx`.
+   - **Pipeline 3 (Holding Detail & Dense Timeline)**: `/api/holding/:id/detail`, FIFO lot engine, Tracker Chart, Actual Chart, and transaction ledger.
+   - **Pipeline 4 (Portfolio Summaries & Hero Metrics)**: `/api/summary`, `/api/holdings`, `OverviewView.jsx`, and TopNavbar.
+   - **Pipeline 5 (Time-Series & Calendar Heatmap)**: `data/portfolio_eod_logs.json`, `pnl_history`, and `/api/daily-pnl`. Historical past sessions are stored in EOD logs while today's snapshot is computed dynamically in real time. Historical script `rebuild_portfolio_eod.mjs` is only for backfilling past multi-year histories.
+   - **Pipeline 6 (UI/UX, Themes & Precision)**: High-contrast light/dark themes, exact 2-decimal floating precision, `DD-MM-YYYY` dates, and non-repetitive text.
+
+3. **FINAL STEP - UPDATE MASTER CONTEXT & DOCUMENTATION (`LADDER.md` & `README.md`)**:
+   - Whenever any file, feature, or architecture in the codebase is modified, added, or deleted, you **MUST** update both [LADDER.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/LADDER.md) and [README.md](file:///c:/Users/Vijay%20Pai/MyData/Projects/ladder/README.md).
+   - Record all changes in the **Change Log & Maintenance History** table in `LADDER.md` with:
+     - Version increment (e.g. `v1.1.0`)
+     - Date
+     - Clear description of architectural, feature, or database changes
+     - Author/Agent identifier
+   - Ensure `README.md` accurately describes current features, architecture, scripts, and workflows.
+
+4. **MANDATORY CONFIRMATION ON ALL DELETE ACTIONS**:
+   - Any user action that deletes or removes data (holdings, transactions, recurring SIPs, profile media) MUST always prompt for explicit user confirmation (`window.confirm`) displaying the asset or schedule name before executing. Never perform unconfirmed deletions.
+
+5. **MANDATORY FINANCIAL DATA INTEGRITY & ANTI-HALLUCINATION PROTOCOL**:
+   - **ZERO ASSUMPTIONS & ZERO HARDCODED HEURISTICS**: Financial figures must NEVER be guessed, simulated with arbitrary noise, or approximated with heuristic percentages. If an NAV or price feed is unavailable, the system must retain the verified last-known closing quote with zero synthetic fluctuation.
+   - **DATABASE QUERY PAGINATION GUARD**: All database queries on `transactions`, `holdings`, `dividends`, `liabilities`, and `pnl_history` MUST implement explicit pagination loops (`range(from, from + batchSize - 1)`) or exact row count checks. Never execute unpaginated `.select('*')` on tables that can exceed Supabase's default 1,000-row limit.
+   - **WEEKEND & NON-TRADING MARKET INVARIANCE**: On Saturdays, Sundays, and exchange holidays, all equity, MF, and NPS asset valuations MUST strictly carry forward Friday's finalized closing valuations. Daily P&L for non-trading sessions MUST strictly equal `₹0.00 (0.00%)` with `0 changes` unless a manual user deposit/withdrawal occurred.
+   - **MANDATORY PRE-HANDOFF AUTOMATED INTEGRITY TEST**: Before marking any task complete or delivering numbers to the user, you **MUST execute `node scripts/verify_financial_integrity.mjs`** and obtain a 100% PASS across all 5 financial invariance assertions (Balance Sheet equation, Cross-Endpoint Parity, Pagination Safety, and Weekend Invariance).
+
+6. **ZERO UNNECESSARY TEXT & MINIMALIST FINTECH AESTHETICS**:
+   - **NO DESCRIPTIVE PARAGRAPHS OR SUBTITLES**: Never add explanatory subtitles, filler paragraphs, or descriptive blurbs under headers, cards, or metrics (e.g. 'Institutional-grade asset allocation...', 'Categorized via internet data...', 'Track date-by-date performance...').
+   - Keep headers, cards, tables, and views ultra-clean, minimal, and elegant. Let data, metrics, charts, and clean titles speak for themselves without verbose statements or clutter.
+
+7. **MANDATORY THEME-MATCHED POPUP, MODAL & DIALOG ARCHITECTURE**:
+   - **UNIFIED DESIGN SYSTEM PARITY**: Every modal, dialog, and popup in the project MUST use the exact project theme tokens: `modal-surface reports-card` for the outer container, `border border-inherit`, `reports-subcard` for internal cards/forms, `text-inherit` or `--text-primary` for typography, and React `createPortal(..., document.body)` for true viewport centering and scroll isolation.
+   - **ZERO HARDCODED GREY OVERLAYS & SILLY BUTTON CLUTTER**: Never use hardcoded dark grey slabs (`bg-slate-900`, `bg-slate-800`), saturated solid blocks, or redundant cancel buttons (e.g. displaying "+ Cancel" in headers beside "X"). Keep header controls minimal (clean title icon, primary action trigger if applicable, and standard "X" close button). Form actions (Save/Cancel) must live strictly within the form action footer.
+
+8. **NPS DAILY SCRAPING & RESILIENT FALLBACK PROTOCOL**:
+   - The system uses the official Protean CRA scraper (`https://www.npscra.proteantech.in`) and the `nps_daily_navs` table in Supabase as the primary source of truth for daily NPS NAVs.
+   - Scheduled workflows and server routines MUST run automatically to scrape and persist daily NAV files into Supabase to prevent data gaps.
+   - For missing past dates or when official Protean archives are temporarily unavailable, secondary aggregators like `npsnav.in` are permitted and documented fallbacks/backfills to ensure historical valuations remain complete and uninterrupted.
+
+9. **STRICT TRADE/TRANSACTION DATE PARITY (NEVER ENTRY TIMESTAMP)**:
+   - All financial valuations, EOD snapshots, P&L calculations, and ledger balances MUST strictly compute based on the **actual trade/transaction date** (`transaction.date` or `log_date`), NEVER the system entry timestamp (`created_at`).
+   - **PREMATURE SNAPSHOT BAN**: No EOD snapshot may EVER be recorded in `pnl_history` for date $D$ before date $D$'s market session has completed and official prices/NAVs have been published and verified. Current day metrics must strictly remain dynamic in real-time.
+
+10. **MANDATORY PAST-DATE TRANSACTION CASCADE & CONTINUOUS VIEW SYNCHRONIZATION**:
+   - When any transaction, balance adjustment, corporate action, or holding entry is added, modified, or deleted for a past date ($T < \text{Today}$):
+     - **Holdings & Current State**: The holding's entire chronological history from inception to present MUST be re-simulated via `recalculateHoldingState` (FIFO lots, buy quantity, sell quantity, average cost, net bank balance).
+     - **Calendar & Historical EOD Logs**: All intermediate historical EOD logs in `pnl_history` and `data/portfolio_eod_logs.json` between date $T$ and yesterday MUST be synchronized (via `rebuild_portfolio_eod.mjs`), ensuring that EVERY historical day on the Calendar heatmap and every subsequent date correctly reflects the change.
+     - **Universal View Synchronization**: All views (Dashboard, Calendar, Indian Equity, US Equity, Mutual Funds, NPS, Fixed Income, Liabilities, Reports, and Holding Detail Modals) MUST maintain 100% mathematical parity down to the cent with zero discrepancy.
+
+11. **MANDATORY IN-MEMORY REACTIVE CACHING & EGRESS PROTECTION PROTOCOL**:
+    - **ZERO REDUNDANT CLOUD NETWORK SWEEPS**: To strictly protect free cloud database tier limits (5 GB monthly egress), all read-heavy repetitive operations (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`) MUST read from the server-side in-memory cache (`db.select` with `dbCache`).
+    - **IMMEDIATE MUTATION INVALIDATION**: Whenever any transaction, holding, dividend, or liability record is inserted, updated, or deleted, the in-memory cache MUST immediately be invalidated via `db.invalidateCache()`, ensuring real-time UI responsiveness without wasteful network egress.
+    - **ZERO RUNAWAY AUDIT TRIGGERS**: Never introduce database triggers that serialize full JSON row snapshots on high-frequency tables (such as holdings or transactions), preventing database disk bloat.
+
+12. **CLOUD COMPRESSED BACKUP & 10-DAY RETENTION PROTOCOL**:
+    - Complete database snapshots MUST be compressed losslessly with gzip (`.json.gz`, shrinking storage by ~93%) and stored in Supabase Cloud Storage (`ladder_backups` bucket).
+    - Retention policy: **Unlimited backups within 10 days**. Any backup snapshots older than 10 days MUST automatically be pruned.
+    - Automated daily execution: Daily backup runs automatically at 08:25 AM IST (just before 08:30 AM IST) via Express server scheduler and GitHub Actions (`daily_backup.yml`).
+    - Manual backup & restoration: Supported directly via the user Profile dropdown menu ("Backup Database Now", "Restore Database" modal), `ExcelToolsView.jsx`, and CLI scripts (`scripts/backup_manager.mjs`, `scripts/restore_backup.mjs`), with explicit safety confirmations before executing any database overwrite.
+
+13. **STRICT ANTI-HARDCODING & DYNAMIC ENGINE ARCHITECTURE PROTOCOL**:
+    - **ZERO HARDCODED DATES, YEARS, OR HEURISTICS**: Never hardcode static calendar years, time-locked dates, single-year arrays/sets, or static assumptions in application code or backend services.
+    - **DYNAMIC ALGORITHMIC IMPLEMENTATION**: Any functionality that is dynamic in nature (market trading schedules, exchange holidays, calendar dates, tax brackets, date arithmetic, recurring intervals) MUST be implemented algorithmically or through extensible multi-year dynamic registries (such as `server/services/marketCalendar.js`) capable of seamlessly evaluating across arbitrary future years (e.g. 2026, 2027, 2028, and beyond) without code modifications.
+
+14. **MANDATORY CLIENT-SIDE AUTH SYNCHRONIZATION & INTERCEPTOR ARCHITECTURE**:
+    - Axios and native `fetch` MUST implement synchronous token propagation and global request interceptors to guarantee that zero HTTP requests are dispatched without `Authorization: Bearer <token>` when a token exists in `localStorage`.
+    - `login()` and `logout()` handlers in `ThemeAuthContext.jsx` MUST immediately and synchronously update `axios.defaults.headers.common.Authorization` prior to triggering component state changes, preventing child component `useEffect` race conditions on initial login and eliminating transient 401 "Authentication required" connection errors.
+
+15. **VITE DEV SERVER WATCHER & PERSISTENCE ISOLATION PROTOCOL**:
+    - All server-side data, cache, and script persistence files (`data/**`, `scripts/**`, `scratch/**`, `server/**`, `.json`, `.csv`, `.log`) MUST strictly be ignored by the Vite file watcher in `vite.config.js` via `server.watch.ignored`.
+    - Prevents unwanted Vite full-page reloads, input focus resets, and UI flickering during automated background data syncing, price polling, and self-healing execution.
+
+16. **AUTOMATED BACKGROUND SELF-HEALING & MISSING DATA RECOVERY PROTOCOL**:
+    - The backend Express server MUST run background self-healing routines (`server/services/selfHealingService.js`) to continuously detect and heal missing historical FX rates, equity quotes, and mutual fund/NPS NAVs across past transactions and holdings.
+    - If a market rate or NAV is temporarily unavailable, the system must persist the last-known quote and automatically correct it once upstream data becomes available, ensuring permanent financial ledger integrity without manual script execution.
+
+17. **STRICT PROHIBITION ON AD-HOC STANDALONE SYNC SCRIPTS & MANDATORY ATOMIC CANONICAL DOMAIN ARCHITECTURE**:
+    - **ZERO AD-HOC STANDALONE SYNC SCRIPTS**: Never create external or standalone reconciliation scripts (`*Sync.js`, ad-hoc batch repairers) to stitch together diverging database tables after the fact. Patching symptoms with disconnected background scripts creates technical debt, hidden race conditions, and maintenance sprawl.
+    - **SINGLE CANONICAL DOMAIN SERVICE CONTRACT**: Any business entity represented across multiple database tables (such as dividends in `dividends` and `transactions`, or corporate actions across holdings and lots) MUST be managed strictly and exclusively through a single canonical domain service (e.g. `server/services/dividendService.js` and `server/services/corporateActionService.js`).
+    - **ATOMIC MUTATIONS & UNIVERSAL VIEW PARITY ON WRITE**: All operations (insert, update, delete) MUST execute atomically across all underlying tables in a single write path, immediately trigger `recalculateHoldingState`, trigger past-date EOD rebuilds when applicable, and invalidate in-memory caches. All reading endpoints and views (Dashboard, KPI cards, Detail Modals, Ledgers, and Domain Hubs) MUST query the exact same canonical service to guarantee 100% real-time mathematical parity down to the cent without requiring background synchronization scripts.
+
+18. **ZERO-CASCADE WRITE-THROUGH CACHING & INTRADAY EGRESS PROTECTION PROTOCOL**:
+    - **WRITE-THROUGH IN-MEMORY CACHE (24-HOUR RESIDENCY)**: High-frequency relational tables (`transactions`, `holdings`, `categories`, `liabilities`, `dividends`) MUST remain resident in Node.js RAM (`dbCache`) with a 24-hour TTL. Mutations (`insert`, `update`, `delete`) MUST perform in-place write-through updates on the in-memory array (`dbCache`) rather than dropping the table and triggering a full 11,400-row cloud re-query.
+    - **ZERO-CASCADE CROSS-INVALIDATION BAN**: Stock quote fluctuations, NAV updates, and holding adjustments MUST NEVER delete or invalidate the `transactions` cache. Historical transactions (dates, quantities, amounts) are invariant to market ticks and must remain cached indefinitely.
+    - **INTRADAY QUOTES STRICTLY IN-MEMORY**: Live price ticks fetched during market trading hours must reside strictly in `liveQuoteCache` memory and in-memory holding objects. The server MUST NEVER issue continuous database `PATCH` calls to Supabase for intraday quote changes. Official holding closing prices are persisted strictly once at EOD (after market close at 06:30 PM IST or during scheduled EOD rebuild).
+    - **SCOPED NPS & SUB-TABLE QUERIES ONLY**: Scrapers, rebuild scripts, and cron workers MUST query `nps_daily_navs` strictly scoped by `.in('scheme_code', heldNpsCodes)` and `.gte('nav_date', baselineDate)`. Unconstrained full-table scans across all 53,000+ historical rows across all schemes in India are strictly forbidden.
+    - **STRIP REPRESENTATION ON DATABASE WRITES**: All database updates and deletes MUST omit `.select()` when the response body is not strictly required, enforcing empty `204 No Content` headers with 0 response bytes to protect cloud egress limits.
+
+19. **ZERO-UNCACHED READS & CLIENT-SERVER POLLING GUARDRAILS PROTOCOL**:
+    - **UNIVERSAL IN-MEMORY READ PATH**: Every API endpoint and data controller (`/api/summary`, `/api/holdings`, `/api/liabilities`, `/api/dividends`, `/api/sips`, `/api/holding/:id/detail`, `/api/daily-pnl`, `/api/reports`) MUST read exclusively from resident in-memory caches (`db.select()`, `liveQuoteCache`). Never issue direct, ad-hoc `supabase.from(...).select('*')` calls from route controllers or detail modals.
+    - **CLIENT POLLING INTERVAL MINIMUMS**: Polling loops inside React components (`setInterval` in `App.jsx`, `HoldingDetailModal.jsx`, `CalendarView.jsx`) MUST never be set below 30 seconds. Sub-second and aggressive single-digit polling intervals are strictly prohibited. Modals and pages must refresh dynamically on explicit user mutations (`mutate`, `save`, `delete`) rather than aggressive polling loops.
+
+20. **CLOUD CI/CD RUNNER EGRESS QUARANTINE & DUAL-EXECUTION BAN**:
+    - **ZERO UNCONTROLLED CLOUD CRON OVERHEAD**: Cloud CI/CD workflows (`.github/workflows/`) run in ephemeral virtual machines with zero resident cache and zero disk snapshots; any batch script executed in cloud CI/CD downloads 100% of data cold over the public internet.
+    - **DUAL-EXECUTION BAN**: Never run duplicate scheduled jobs simultaneously on both local Express daemons and cloud GitHub Actions. When the application is operated via local daemon, cloud CI/CD crons must be paused or disabled to prevent redundant 30+ MB/day bandwidth drains.
+    - **EMERGENCY QUOTA QUARANTINE**: When cloud database free-tier allowance falls below 20% (< 1.0 GB remaining), cloud CI/CD scheduled workflows MUST be quarantined (disabled or commented out) in favor of the local zero-egress Express server.
+
+21. **ZERO-EGRESS LOCAL DISK SNAPSHOT PERSISTENCE & COLD-BOOT IMMUNITY**:
+    - **DEBOUNCED WRITE-THROUGH SNAPSHOTS**: Node.js RAM cache (`dbCache`) MUST continuously persist state to a local disk snapshot (`data/db_cache_snapshot.json`) with debounced write-through saves on any insert, update, or delete.
+    - **ZERO-EGRESS SERVER BOOT**: On server startup, development restart, machine reboot, or crash recovery, `warmCache()` MUST restore table collections from the local disk snapshot first. Re-fetching tables from the cloud on server boot is strictly prohibited unless the local snapshot is absent or older than 24 hours.
+
+22. **MARKET-HOURS GATING & NON-TRADING DAY RUNNER INVARIANCE PROTOCOL**:
+    - **DYNAMIC TRADING SESSION GATING**: Live tickers, price engines, NAV pollers, and background calculation loops MUST strictly gate execution against active exchange hours via `isAnyMarketOpen()` and `isTradingDay()`.
+    - **OFF-MARKET ZERO-ACTIVITY INVARIANCE**: Outside official trading hours (nights, weekends, and national exchange holidays), all active live price polling MUST automatically pause with zero database queries. Scrapers and background sync routines must never probe cloud tables for non-existent weekend price changes.
+
+23. **BACKUP PROJECTION SCOPING & UNBOUNDED TABLE SCAN BAN**:
+    - **SCOPED BACKUP PROJECTIONS**: Backup routines (`scripts/backup_manager.mjs`) MUST NEVER perform unbounded full-table scans across broad national aggregators (such as `nps_daily_navs` containing 53,000+ unheld schemes). Public market datasets in backups must strictly be scoped to user-held portfolio assets (`heldNpsCodes`) or active scheme subsets.
+    - **MANDATORY LOSSLESS GZIP COMPRESSION**: All cloud backups MUST be compressed losslessly with gzip (`.json.gz`) before cloud transmission, guaranteeing >90% reduction in storage and bandwidth.
+
+24. **AUTONOMOUS ARCHITECTURAL INTEGRITY & CONTINUOUS RULE GOVERNANCE PROTOCOL**:
+    - **MANDATORY PROACTIVE RULE CODIFICATION**: Whenever an agent identifies an architectural bug, design flaw, resource leak, or divergence from real-world fintech standards, the agent MUST NOT merely apply a superficial local patch. The agent is explicitly authorized and mandated to autonomously formulate, codify, and append a permanent, binding numbered rule in `.agents/AGENTS.md` and log the architectural evolution in `LADDER.md`.
+    - **PERMANENT GUARDRAIL IMMUNITY**: Rules once codified in `AGENTS.md` represent non-negotiable workspace law and cannot be bypassed, watered down, or reverted by subsequent agents or automated refactors.
+
+25. **MANDATORY ZERO-STATIC-SNAPSHOT MODAL REACTIVITY & 6-TIER PROPAGATION PROTOCOL**:
+    - **ZERO STATIC DATA OBJECT STATE IN MODALS/POPUPS**: Modals, popups, side drawers, and detail dialogs MUST NEVER store raw data objects (e.g. `holding`, `log`, `scheme`) directly in component state (`const [modalLog, setModalLog] = useState(null)` is strictly prohibited).
+    - **MANDATORY IDENTIFIER KEY & DYNAMIC DERIVATION**: All modals MUST store strictly an identifier key (`const [selectedModalKey, setSelectedModalKey] = useState(null)`) and dynamically derive the active record via `useMemo` from the parent polling collection (`const modalLog = useMemo(() => displayLogs.find(...), [displayLogs, selectedModalKey])`), guaranteeing that background polling updates immediately update on-screen modal metrics reactively without requiring closing and reopening.
+    - **MANDATORY 6-TIER PROPAGATION AUDIT BEFORE HANDOFF**: Any modification to quotes, transactions, corporate actions, balance adjustments, or calculations MUST autonomously verify full 6-tier propagation across Database -> Calculation Engine -> API Controllers -> Global Client Polling -> Primary Views -> Open Modal Popups with 100% mathematical parity and zero human intervention.
+
+26. **MANDATORY AUTOMATED SERVER RESTART & STALE SESSION PURGE PROTOCOL**:
+    - **AUTOMATIC STALE PROCESS PURGE & CLEAN REBOOT**: Whenever any code changes, refactors, or feature updates are applied to the codebase (frontend or backend), the agent MUST NOT leave old or frozen dev server processes running. The agent MUST proactively terminate stale Node.js sessions (`Get-Process -Name node | Stop-Process -Force`) and cleanly launch `npm start` as a daemon.
+    - **MANDATORY DUAL-PORT LIVE VERIFICATION (3000 & 5000)**: Before completing any task, the agent MUST autonomously verify that both the Vite frontend server on port 3000 and the Express backend server on port 5000 are actively listening and successfully serving fresh code (e.g. testing `GET http://localhost:3000/` and `GET http://localhost:5000/api/summary`), eliminating "Failed to fetch dynamically imported module", white screens, or frozen dev sessions without requiring manual user restarts.
+
+27. **ABSOLUTE NON-TRADING VALUATION INVARIANCE & MULTI-TIER DRIFT QUARANTINE PROTOCOL**:
+    - **UNIVERSAL INVARIANT CARRY-FORWARD**: On non-trading days and outside active market trading hours for an asset, the valuation across ALL endpoints and views (`/api/summary`, `/api/daily-pnl`, Calendar Heatmap, Dashboard Overview, Trend Chart, Category Ledgers, and Holdings Tables) MUST strictly carry forward the finalized closing valuations of the last completed trading session.
+    - **ZERO PHANTOM DELTA GUARANTEE**: Net Worth, Total Assets, Total Liabilities, Category Breakdowns (Indian Equity, US Equity, Mutual Funds, NPS, Fixed Income, Debt), Asset Deltas, and Daily P&L MUST remain strictly invariant with ₹0.00 (0.00%) change unless a verified user cash deposit or withdrawal transaction occurred on that date.
+    - **ZERO SPREAD INJECTION BAN**: Off-market route handlers must NEVER inject live price ticks, forex fluctuations, or in-memory holding prices into non-trading day valuation snapshots.
+    - **PREVENTATIVE MULTI-ASSERTION INTEGRITY TEST**: Automated pre-handoff verification (`verify_financial_integrity.mjs`) MUST strictly assert not only `Day P&L === 0` and `Day P&L % === 0`, but also that `Net Worth === previousSessionNetWorth`, `Total Assets === previousSessionTotalAssets`, and `Asset Delta === 0` across both Summary and Calendar endpoints, mathematically barring phantom holiday gains or losses from ever reaching the UI.
+
+28. **DYNAMIC MULTI-ASSET TRADING CALENDAR & NON-HARDCODED SESSION PROTOCOL**:
+    - **NO RIGID BINARY WEEKEND OR FIXED HOLIDAY ASSUMPTIONS**: Trading vs. non-trading day status MUST NEVER be hard-bound to blunt day-of-week checks (e.g. `dow === 6 || dow === 0`) or static holiday lists.
+    - **SPECIAL TRADING SESSIONS NATIVE SUPPORT**: The calendar engine (`marketCalendar.js`) MUST natively support special trading sessions:
+      1. Special Saturday live trading sessions (e.g. Disaster Recovery site failovers, Budget Day sessions) which ARE active trading days for Indian equities.
+      2. Diwali Muhurat Trading on festival holidays (evening festive trading window, e.g. 18:15 to 19:15 IST) which IS an active trading session with live price ticks.
+      3. Dynamic extensible registry (`SPECIAL_TRADING_SESSIONS`, `registerSpecialTradingSession`, `SPECIAL_NON_TRADING_DAYS`, `registerSpecialHoliday`).
+    - **MULTI-ASSET INDEPENDENT VALUATION**: Each asset class MUST evaluate independently based on its underlying exchange and market:
+      - Indian Equities (`in_stocks`): NSE/BSE calendar (including Muhurat & Saturday DR sessions).
+      - US Equities (`us_stocks`): NYSE/NASDAQ calendar (trades independently on Indian holidays like Gandhi Jayanti, Diwali, Holi).
+      - Mutual Funds (`mutual_funds`) & NPS (`nps`): AMFI and Protean CRA NAV declaration schedules.
+      - Cash (`bank`), `epf`, and Liabilities (`debt`): Continuous transaction-driven ledgers.
+    - **GRANULAR ASSET-LEVEL INVARIANCE**: An asset that is non-trading or pre-market carries forward its verified last-known closing valuation with zero artificial drift. An asset that is actively trading updates dynamically with live market quotes. Total portfolio metrics reflect the exact mathematical sum of all active and invariant assets.
+
+## Mandatory Git Push & Release Workflow Rules
+
+When asked to commit, release, or push code to Git:
+
+1. **Security & Secrets Audit**:
+   - Verify that no passwords, API keys, JWT tokens, secrets, or `.env` files are committed or published.
+   - Confirm `.gitignore` properly excludes `.env`, `.env.local`, `node_modules/`, and build artifacts.
+
+2. **Documentation & Changelog Sync**:
+   - Update `README.md` and `CHANGELOG.md` with all latest features, architecture changes, and bug fixes before committing.
+
+3. **No Emoticons / Emojis**:
+   - Ensure clean professional text only. **Do NOT use any emoticons or emojis** in commit messages, `README.md`, `CHANGELOG.md`, `LADDER.md`, or PR descriptions.
+
+4. **Branch & Merge Workflow**:
+   - Always create a feature branch (e.g., `feature/supabase-integration` or `release/v1.1.0`).
+   - Commit changes to the feature branch.
+   - Switch to `main` branch, merge the feature branch into `main`, and then push `main` to remote `origin`.
+   - **Do NOT delete the feature or release branch after merging**. Keep all feature/release branches intact in Git history.
+
+5. **Short & Precise Commit Messages**:
+   - Keep commit messages **short but precise** (e.g. `feat: dashboard charts precision and interaction upgrade`). Avoid overly long or verbose commit titles.
+
+6. **Build & Verify Before Finalizing Changes**:
+   - Before completing any task or pushing code, you **MUST** ensure the current code doesn't break by verifying it. Run `npm run build` or the corresponding test/build commands to catch syntax errors or unresolved variables (e.g. `ReferenceError` during mapping). Never leave a file with untested breaking changes.
+
+7. **Dual-Port Dev & Backend Daemon Health Check**:
+   - Before handing over any task, you **MUST** verify that both the Vite dev server (port 3000) and the Express backend server (port 5000) are active and healthy. If either is down, restart the dev environment cleanly via `npm start`.
+
+---
+
+## Data Integrity, Cache Safety & Persistence Guardrails
+
+29. **MANDATORY DUAL-WRITE VERIFICATION & WAL PERSISTENCE PROTOCOL**:
+   - Every `db.insert()`, `db.update()`, and `db.delete()` call in `server/db.js` MUST record the operation in `data/pending_writes.json` (Write-Ahead Log / WAL) BEFORE attempting the Supabase remote write. This guarantees that no user data entry is ever silently lost due to transient network failures or Supabase RLS errors.
+   - The WAL flusher background service (`server/services/walFlusherService.js`) MUST run at server startup and retry all WAL entries on a 30-second interval. Entries are removed from the WAL ONLY after Supabase confirms the write.
+   - Supabase write failures MUST NEVER be silently caught and discarded with only a `console.warn`. They MUST result in WAL recording AND surface a non-blocking amber warning to the UI via the `/api/sync-status` endpoint.
+   - Agents MUST NEVER modify `db.insert()`, `db.update()`, or `db.delete()` without preserving the WAL recording code path. Any agent removing or bypassing the WAL without explicit user consent is in direct violation of this rule.
+
+30. **MANDATORY DUAL-SNAPSHOT CACHE PROTECTION & ATOMIC WRITE PROTOCOL**:
+   - `saveCacheSnapshotToDisk()` MUST ALWAYS perform an atomic two-phase write: (1) write to `data/db_cache_snapshot.tmp.json`, (2) `fs.renameSync()` to `data/db_cache_snapshot.json`, (3) copy to `data/db_cache_snapshot.bak.json`. Every snapshot MUST include a `"checksum"` (SHA-256 of the `tables` payload) verified on every read before the file is trusted.
+   - If both `db_cache_snapshot.json` and `db_cache_snapshot.bak.json` fail checksum validation, the system MUST fall back to the Supabase cold-fetch path and log a critical error. It MUST NEVER silently serve corrupted or empty data.
+   - `data/db_cache_snapshot.json`, `data/db_cache_snapshot.bak.json`, and `data/pending_writes.json` are SACRED FILES. No agent script, ingestion script, cleanup routine, or refactor may delete, truncate, or overwrite these files outside of `server/db.js` internal methods. Any agent that does so is in direct violation of this rule.
+   - `vite.config.js` `server.watch.ignored` must permanently exclude all `data/**` files. Any agent modifying `vite.config.js` MUST preserve these exclusions.
+
+31. **MANDATORY LIVE-CACHE-FIRST BACKUP SOURCE OF TRUTH PROTOCOL**:
+   - The backup system MUST NEVER read directly from Supabase to produce a backup. Backups MUST read from the server's live in-memory `dbCache` via the internal `GET /api/internal/full-snapshot` endpoint, which is the canonical source of truth including all uncommitted WAL entries.
+   - Before any backup executes, the WAL flusher MUST be invoked to completion (with a 30-second per-table timeout). If WAL entries remain after the flush attempt, the backup MUST still include them from local cache and MUST mark the backup filename and metadata as `PARTIAL` to signal incomplete cloud sync.
+   - Every backup JSON MUST include an `"integrity"` section with per-table row counts from both cache and Supabase, and a `"synced": true/false` flag per table.
+   - The UI backup trigger MUST call `/api/sync-status` first and display a divergence warning confirmation dialog before proceeding if any sync gaps are detected.
+
+32. **MANDATORY SUPABASE RESTORE SERVICE-ROLE KEY & RLS BYPASS PROTOCOL**:
+   - The restore operation (`scripts/restore_backup.mjs` and `POST /api/cloud-backups/restore`) MUST use the **Supabase Service Role key** (`SUPABASE_SERVICE_ROLE_KEY` from `.env`), never the anonymous `anon` key. The anon key is subject to Row-Level Security `WITH CHECK` policies that will reject bulk inserts on protected tables such as `categories`.
+   - The restore route MUST perform a pre-restore safety backup BEFORE wiping any table. If the safety backup fails, the restore MUST abort.
+   - The `users` table MUST NEVER be wiped and restored via the backup/restore system. User credentials are managed exclusively via `data/users.json` and the local auth system.
+   - After a restore completes, the system MUST: (1) rebuild the in-memory cache from the freshly restored Supabase data, (2) overwrite `data/db_cache_snapshot.json` with the fresh data, (3) clear `data/pending_writes.json`.
+   - Agents modifying the restore path MUST preserve service-role client usage and MUST NOT downgrade to the anon key.
+
+33. **MANDATORY FINANCIAL DATA ANTI-HALLUCINATION, LIVE QUOTE RECONCILIATION & CORPORATE ACTION CONTINUITY PROTOCOL**:
+   - **ZERO UNVALIDATED UPSTREAM FEED INGESTION**: Upstream pricing feeds (e.g. Yahoo Finance, third-party aggregators) are inherently susceptible to unadjusted corporate actions, bad ticks, ticker mapping anomalies, and synthetic distortions. The system MUST NEVER blindly consume raw historical price series without automated validation (`dataIntegrityValidator.js`).
+   - **LIVE QUOTE PARITY & BAD-TICK SELF-HEALING**: Every active holding's latest historical close in `history` MUST be cross-verified against `holding.current_price` (the authoritative live NSE/BSE MAX quote). Any divergence $>5\%$ must automatically be flagged, reconciled to the verified holding quote, and audited in the data integrity report (`dataIntegrity.reconciliationsApplied`), preventing bad ticks from falsifying 30-week moving averages or resetting breakdown weeks (e.g. MSUMI bad tick 40.22 vs verified 33.63).
+   - **CORPORATE ACTION CONTINUITY & EX-DEMERGER NORMALIZATION**: Single-day price step drops $>20\%$ in Indian cash equities must strictly be cross-verified against confirmed corporate actions (splits, bonuses, demergers in `transactions` or `KNOWN_CORPORATE_ACTIONS`). For confirmed actions (such as the April 2026 Vedanta demerger factor 0.3508 or bonus issues), pre-action historical prices MUST strictly be scaled to the post-action capital base before computing technical indicators (30-week SMA, Weinstein stage, ATR trailing stops). Exit recommendations (e.g. Trim or Full Exit) MUST NEVER be generated from raw, unadjusted spin-off drops.
+   - **IN-MEMORY CACHE MTIME HOT-RELOAD & STALENESS BAN**: `historicalPriceStore.js` MUST track file modification timestamps (`mtimeMs`). Whenever `data/historical_prices.json` is modified on disk, the in-memory cache MUST automatically detect and reload the fresh dataset on the very next read. Serving stale in-memory arrays after disk changes is strictly prohibited.
+   - **MANDATORY PRE-HANDOFF ACCURACY TEST**: Before completing any task affecting equity analysis, quotes, or transactions, agents MUST execute `node scripts/verify_stock_data_accuracy.mjs` and obtain a 100% PASS with 0 unverified anomalies and 100% data health score.
+
+34. **MANDATORY COMPLETE ASSET & COMPANY NAME VISIBILITY & ZERO UNHANDLED TRUNCATION PROTOCOL**:
+   - **ZERO BLUNT CLIPPING WITHOUT HOVER VISIBILITY**: Company names, stock tickers, fund titles, and financial instrument descriptions must NEVER be bluntly truncated or clipped with ellipsis (`...`) without accessible full-text hover visibility.
+   - **MANDATORY NATIVE HOVER TOOLTIPS (`title={fullName}`)**: Wherever spatial constraints in dense fintech tables, cards, side drawers, or mobile viewports require CSS truncation (`truncate`, `overflow-hidden`, `text-ellipsis`) to preserve layout alignment, the element MUST ALWAYS provide native `title={fullName}` (or `title={item.name || item.symbol}`) so that hovering immediately reveals the complete unclipped name.
+   - **ELIMINATION OF ARTIFICIAL RESTRICTIVE FIXED WIDTHS**: Never impose overly narrow, arbitrary fixed widths (such as `max-w-[120px]` or `max-w-[130px]`) where horizontal space permits. Use flexible fluid containers (`min-w-0 flex-1 max-w-[240px]`) allowing full company titles to display cleanly without premature truncation.
+
+35. **MANDATORY CRITICAL CHALLENGE & ANTI-YES-MAN PROTOCOL**:
+   - **ZERO PASSIVE ACQUIESCENCE**: The agent is explicitly forbidden from acting as a passive "yes man" who reflexively nods, flatters, or rubber-stamps user assumptions, requests, or questions without rigorous critical evaluation.
+   - **MANDATORY CONSTRUCTIVE CHALLENGE**: Whenever the user's suggestion, question, or design premise differs from verified empirical data, sound financial mathematics, established risk-management tenets, or architectural logic, the agent MUST respectfully challenge the user, lay out counter-perspectives, and explain downstream risks.
+   - **PRACTICAL, LOGICAL & CORRECT DECISIONS**: The overarching objective is never argumentative friction, but ensuring that the final architectural, algorithmic, and financial decision is practical, robust, logical, and demonstrably right for long-term portfolio success.
+
+36. **MANDATORY EMPIRICAL SUBSTANTIATION & DATA-DRIVEN VALIDATION PROTOCOL**:
+   - **ZERO UNFOUNDED SPECULATION**: All decisions, rule adjustments, algorithm modifications, parameter tunings, and code refactors MUST be strictly data-driven and empirically proven wherever applicable and necessary.
+   - **SUBSTANTIAL EVIDENCE MANDATE**: Before altering trading rules, indicator formulas, entry/exit criteria, or calculation engines, the agent MUST gather and analyze substantial evidence (e.g. multi-year historical backtests, trade counts, win-loss ratios, drawdown profiles, transaction ledger replays, or mathematical proofs).
+   - **TRANSPARENT EVIDENCE AUDITING**: Any proposed modification or technical advice presented to the user must cite concrete empirical metrics and data points rather than subjective impressions or unverified heuristics.
