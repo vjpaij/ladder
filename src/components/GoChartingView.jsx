@@ -27,6 +27,7 @@ import {
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import HoldingLogo from './HoldingLogo';
+import ChartRangeSelector, { computeRangeDates } from './ChartRangeSelector';
 
 export default function GoChartingView({
   symbol,
@@ -34,6 +35,8 @@ export default function GoChartingView({
   market = 'IN',
   executionPrice,
   executionDate,
+  executionValue,
+  executionQty,
   tradeType,
   className = ''
 }) {
@@ -44,7 +47,33 @@ export default function GoChartingView({
   const [indicators, setIndicators] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedRange, setSelectedRange] = useState('1Y'); // '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y' | 'ALL'
+  const [rangeFilter, setRangeFilter] = useState({
+    type: '1Y',
+    count: 1,
+    unit: 'Y',
+    startDate: '',
+    endDate: '',
+    rangeKey: '1Y',
+    label: '1 Year'
+  });
+
+  // Automatically ensure time range covers executionDate if passed
+  useEffect(() => {
+    if (!executionDate) return;
+    const cleanDate = String(executionDate).split('T')[0];
+    const tradeTs = new Date(cleanDate).getTime();
+    if (isNaN(tradeTs)) return;
+    const diffDays = Math.ceil((Date.now() - tradeTs) / (1000 * 60 * 60 * 24));
+    if (diffDays > 365 * 3) {
+      setRangeFilter(prev => ({ ...prev, type: 'ALL', rangeKey: 'ALL', label: 'All Time', startDate: '', endDate: '' }));
+    } else if (diffDays > 365) {
+      const dates = computeRangeDates('3Y', 3, 'Y');
+      setRangeFilter({ type: '3Y', count: 3, unit: 'Y', startDate: dates.startDate, endDate: dates.endDate, rangeKey: '3Y', label: '3 Years' });
+    } else if (diffDays > 180) {
+      const dates = computeRangeDates('1Y', 1, 'Y');
+      setRangeFilter({ type: '1Y', count: 1, unit: 'Y', startDate: dates.startDate, endDate: dates.endDate, rangeKey: '1Y', label: '1 Year' });
+    }
+  }, [executionDate]);
 
   const cleanSymbol = useMemo(() => {
     return String(symbol || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
@@ -87,24 +116,22 @@ export default function GoChartingView({
     fetchChartData();
   }, [cleanSymbol, isUs]);
 
-  // Filter series according to selected time range (supports 1M, 3M, 6M, 1Y, 3Y, 5Y, ALL)
+  // Filter series according to selected time range or custom calendar dates (supports 1D, 1W, 1M, 3M, 6M, 1Y, 3Y, 5Y, ALL & custom)
   const filteredData = useMemo(() => {
     if (!seriesData || seriesData.length === 0) return [];
-    if (selectedRange === 'ALL') return seriesData;
+    if (rangeFilter.type === 'ALL') return seriesData;
 
-    const daysMap = {
-      '1M': 30,
-      '3M': 90,
-      '6M': 180,
-      '1Y': 365,
-      '3Y': 1095,
-      '5Y': 1825
-    };
-    const days = daysMap[selectedRange] || 365;
-    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const filtered = seriesData.filter(d => d.date >= cutoff);
+    let start = rangeFilter.startDate;
+    let end = rangeFilter.endDate;
+    if (!start && rangeFilter.type) {
+      const dates = computeRangeDates(rangeFilter.type, rangeFilter.count, rangeFilter.unit);
+      start = dates.startDate;
+      end = dates.endDate;
+    }
+    if (!start) return seriesData;
+    const filtered = seriesData.filter(d => (!start || d.date >= start) && (!end || d.date <= end));
     return filtered.length > 5 ? filtered : seriesData;
-  }, [seriesData, selectedRange]);
+  }, [seriesData, rangeFilter]);
 
   // Match closest trading session to execution date
   const matchedExecutionDate = useMemo(() => {
@@ -329,46 +356,39 @@ export default function GoChartingView({
         )}
 
         {/* Right: Time Range Selector & External GoCharting / TradingView Direct Links */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Timeframe Range Selector */}
-          <div className="flex items-center p-1 rounded-2xl reports-subcard border border-[var(--border-color)]">
-            {['1M', '3M', '6M', '1Y', '3Y', '5Y', 'ALL'].map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setSelectedRange(r)}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
-                  selectedRange === r
-                    ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] border border-transparent'
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Calendar Range Selector (Standard across Ladder) */}
+          <ChartRangeSelector
+            initialRange={rangeFilter.type}
+            rangeType={rangeFilter.type}
+            startDate={rangeFilter.startDate}
+            endDate={rangeFilter.endDate}
+            onChange={(newRange) => setRangeFilter(newRange)}
+          />
 
-          {/* External Links */}
-          <a
-            href={goChartingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer shadow-sm"
-            title="Open Interactive Chart in Live GoCharting Terminal"
-          >
-            <span>GoCharting</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-          <a
-            href={tradingViewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold reports-subcard hover:border-[var(--text-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)] transition-all cursor-pointer shadow-sm"
-            title="Open Live Chart in TradingView"
-          >
-            <span>TradingView</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          {/* External Links (Grouped strictly side-by-side on the same line) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <a
+              href={goChartingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer shadow-sm shrink-0 whitespace-nowrap"
+              title="Open Interactive Chart in Live GoCharting Terminal"
+            >
+              <span>GoCharting</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <a
+              href={tradingViewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold reports-subcard hover:border-[var(--text-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)] transition-all cursor-pointer shadow-sm shrink-0 whitespace-nowrap"
+              title="Open Live Chart in TradingView"
+            >
+              <span>TradingView</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       </div>
 
@@ -402,12 +422,27 @@ export default function GoChartingView({
           {/* Entry Milestone Technical Snapshot Banner */}
           {executionCandle && (
             <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-pink-500/10 border border-pink-500/30 flex-wrap text-xs">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-pulse" />
-                <span className="font-bold text-pink-600 dark:text-pink-400">Transaction Entry Snapshot ({matchedExecutionDate}):</span>
+                <span className="font-bold text-pink-600 dark:text-pink-400">Snapshot ({matchedExecutionDate}):</span>
+                {tradeType && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-pink-500/20 text-pink-600 dark:text-pink-300 border border-pink-500/30">
+                    {tradeType}
+                  </span>
+                )}
                 <span className="font-mono font-bold text-[var(--text-primary)]">
                   {formatPrice(executionPrice || executionCandle.close)}
                 </span>
+                {executionQty > 0 && (
+                  <span className="font-mono text-[11px] text-[var(--text-secondary)]">
+                    × {executionQty} shares
+                  </span>
+                )}
+                {executionValue > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-pink-500/20 text-pink-600 dark:text-pink-300 font-mono font-bold text-xs border border-pink-500/30">
+                    Value: {formatPrice(executionValue)}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 font-mono text-[11px] flex-wrap">
                 {executionCandle.ema21 && (
@@ -543,7 +578,7 @@ export default function GoChartingView({
                       strokeDasharray="3 3"
                       strokeWidth={1.8}
                       label={{
-                        value: `📅 Entry: ${matchedExecutionDate}`,
+                        value: `📅 ${tradeType || 'Trade'}: ${matchedExecutionDate}`,
                         fill: '#EC4899',
                         fontSize: 10,
                         fontWeight: 'bold',
@@ -560,7 +595,7 @@ export default function GoChartingView({
                       strokeDasharray="4 4"
                       strokeWidth={1.8}
                       label={{
-                        value: `🎯 Executed @ ${formatPrice(executionPrice)}`,
+                        value: `🎯 ${tradeType || 'Executed'} @ ${formatPrice(executionPrice)}${executionValue ? ` (${formatPrice(executionValue)})` : ''}`,
                         fill: '#EC4899',
                         fontSize: 11,
                         fontWeight: 'bold',

@@ -187,7 +187,8 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
           if (!quote.date) return;
           const offsetDate = new Date(quote.date.getTime() - (quote.date.getTimezoneOffset() * 60000));
           const dStr = offsetDate.toISOString().split('T')[0];
-          const val = quote.adjclose !== null && quote.adjclose !== undefined ? quote.adjclose : quote.close;
+          // Always prioritize actual market closing price (quote.close) matching GoCharting, TradingView, and exchange executions
+          const val = quote.close !== null && quote.close !== undefined ? quote.close : quote.adjclose;
           if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
             if (!prices[dStr]) prices[dStr] = Number(Number(val).toFixed(2));
             const qTime = quote.date.getTime();

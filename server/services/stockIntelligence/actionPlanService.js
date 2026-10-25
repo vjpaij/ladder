@@ -31,6 +31,8 @@ function escapeCsvCell(val) {
   return str;
 }
 
+const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
+
 export async function generateActionPlan({
   userId = '1',
   externalCashBudget: paramExternalCash,
@@ -153,22 +155,27 @@ export async function generateActionPlan({
     return acc + (trimQty * (Number(a.currentPrice) || 0));
   }, 0);
 
-  // 2b. Calculate Realized Recycled Capital from ACTUAL sell/exit transactions executed from 21st Oct 2026 onwards
+  // 2b. Calculate Realized Recycled Capital from ACTUAL sell and buy transactions executed on/after 21st Oct 2026
   let totalRealizedExitProceeds = 0;
   let totalDeployedBuys = 0;
 
   for (const tx of (transactions || [])) {
     if (tx.date && tx.date >= '2026-10-21') {
       const type = String(tx.type || '').toUpperCase();
+      const sym = String(tx.symbol || '');
+      // Exclude bank/debt ledger transfers
+      if (sym.includes('-SAVINGS') || sym.includes('-EPF') || sym.includes('-LOAN') || sym.includes('-CC')) continue;
+
       const amt = Number(tx.total_amount) || (Number(tx.quantity || 0) * Number(tx.price || 0)) || 0;
       if (['SELL', 'REDEEM', 'REDEMPTION'].includes(type)) {
         totalRealizedExitProceeds += amt;
-      } else if (['BUY', 'INVESTMENT', 'INVESTMENT (SIP)'].includes(type)) {
+      } else if (['BUY', 'INVESTMENT'].includes(type) && !String(tx.notes || '').includes('SIP')) {
         totalDeployedBuys += amt;
       }
     }
   }
 
+  // Net realized capital obtained in account after selling and buying on 21st Oct 2026
   const realizedRecycledCapital = Math.max(0, totalRealizedExitProceeds - totalDeployedBuys);
 
   let projectedRecycledCapital = 0;
@@ -181,10 +188,9 @@ export async function generateActionPlan({
     projectedRecycledCapital = 0;
   }
 
-  // Recycled capital combines net realized recycled capital from actual transactions since 21st Oct 2026
-  // plus projected proceeds from algorithmic sell recommendations according to recyclingMode
-  const recycledCapital = Math.round(realizedRecycledCapital + projectedRecycledCapital);
-  const totalPurchasingPower = Math.round(externalCashBudget + recycledCapital);
+  // Recycled capital represents the actual net cash obtained from rebalance transactions on 21st Oct 2026
+  const recycledCapital = recyclingMode === 'EXTERNAL_ONLY' ? 0 : round2(realizedRecycledCapital);
+  const totalPurchasingPower = round2(externalCashBudget + recycledCapital);
 
   // Dynamic Conviction-Weighted Allocation Calculator
   function calculateDynamicConvictionAllocation(item, isOwned, heldQty, holdingObj) {
@@ -630,25 +636,25 @@ export async function generateActionPlan({
 
   const csv = rows.map(r => r.map(escapeCsvCell).join(',')).join('\r\n');
   const today = getTodayIST();
-  const totalImmediateBuyValue = immediateBuys.reduce((sum, b) => sum + b.actionValue, 0);
-  const unallocatedCashBuffer = Math.max(0, totalPurchasingPower - totalImmediateBuyValue);
+  const totalImmediateBuyValue = round2(immediateBuys.reduce((sum, b) => sum + b.actionValue, 0));
+  const unallocatedCashBuffer = round2(Math.max(0, totalPurchasingPower - totalImmediateBuyValue));
 
   const summary = {
     today,
-    externalCashBudget,
-    periodicIncrement,
+    externalCashBudget: round2(externalCashBudget),
+    periodicIncrement: round2(periodicIncrement),
     recyclingMode,
-    totalRealizedExitProceeds: Math.round(totalRealizedExitProceeds),
-    totalDeployedBuys: Math.round(totalDeployedBuys),
-    realizedRecycledCapital: Math.round(realizedRecycledCapital),
-    projectedRecycledCapital: Math.round(projectedRecycledCapital),
-    fullExitProceeds: Math.round(fullExitProceeds),
-    trimProceeds: Math.round(trimProceeds),
-    chandelierBreachProceeds: Math.round(chandelierBreachProceeds),
-    recycledCapital: Math.round(recycledCapital),
-    totalPurchasingPower,
-    totalImmediateBuyValue: Math.round(totalImmediateBuyValue),
-    unallocatedCashBuffer: Math.round(unallocatedCashBuffer),
+    totalRealizedExitProceeds: round2(totalRealizedExitProceeds),
+    totalDeployedBuys: round2(totalDeployedBuys),
+    realizedRecycledCapital: round2(realizedRecycledCapital),
+    projectedRecycledCapital: round2(projectedRecycledCapital),
+    fullExitProceeds: round2(fullExitProceeds),
+    trimProceeds: round2(trimProceeds),
+    chandelierBreachProceeds: round2(chandelierBreachProceeds),
+    recycledCapital: round2(recycledCapital),
+    totalPurchasingPower: round2(totalPurchasingPower),
+    totalImmediateBuyValue: round2(totalImmediateBuyValue),
+    unallocatedCashBuffer: round2(unallocatedCashBuffer),
     immediateBuysCount: immediateBuys.length,
     queuedBuysCount: queuedBuys.length,
     sellsCount: activeSells.length,

@@ -180,7 +180,21 @@ router.post('/reports/sync-metadata', authenticateToken, async (req, res) => {
  */
 router.get('/reports/sector-cap-performance', authenticateToken, async (req, res) => {
   try {
-    const { startDate, endDate, rangeType = 'ALL' } = req.query;
+    const {
+      startDate,
+      endDate,
+      rangeType = 'ALL',
+      marketScope = 'PORTFOLIO',
+      includeIndia: qIndia,
+      includeUs: qUs,
+      includeMf: qMf
+    } = req.query;
+
+    const isMarketScope = marketScope === 'MARKET';
+    const includeIndia = qIndia !== 'false';
+    const includeUs = qUs !== 'false';
+    const includeMf = qMf === 'true';
+
     const fxRate = await fetchFxRate();
     const holdings = await db.select('holdings');
     const histMap = await loadHistoricalPricesAsync();
@@ -203,78 +217,162 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
       }
     });
 
-    const equityHoldings = (holdings || []).filter(h => 
-      (h.category_id === 'in_stocks' || h.category_id === 'us_stocks') && Number(h.quantity) > 0
-    );
+    // Map portfolio holdings for quick cross-reference
+    const portfolioSymbolSet = new Set();
+    const portfolioHoldingMap = new Map();
+    (holdings || []).forEach(h => {
+      if (Number(h.quantity) > 0) {
+        const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toUpperCase();
+        portfolioSymbolSet.add(cleanSym);
+        portfolioSymbolSet.add((h.symbol || '').toUpperCase());
+        portfolioHoldingMap.set(cleanSym, h);
+      }
+    });
 
     const stockResults = [];
     let totalCurrentValINR = 0;
     let totalStartValINR = 0;
 
-    for (const h of equityHoldings) {
-      const isUSD = h.currency === 'USD';
-      const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toUpperCase();
-      const metaRow = metaMap.get(cleanSym) || metaMap.get((h.symbol || '').toUpperCase()) || {};
+    if (isMarketScope) {
+      // ── GENERAL MARKET ANALYSIS (Broader Market Universe) ──
+      for (const m of meta) {
+        const isUS = m.category_id === 'us_stocks';
+        if (isUS && !includeUs) continue;
+        if (!isUS && !includeIndia) continue;
 
-      const sector = normalizeSector(metaRow.sector || h.sector);
-      const mcapCategory = metaRow.mcap_category || (metaRow.market_cap ? (metaRow.market_cap >= 100000 ? 'Mega Cap' : metaRow.market_cap >= 20000 ? 'Large Cap' : metaRow.market_cap >= 5000 ? 'Mid Cap' : metaRow.market_cap >= 500 ? 'Small Cap' : 'Micro Cap') : (h.market_cap || 'Small Cap'));
+        const cleanSym = (m.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toUpperCase();
+        const sector = normalizeSector(m.sector);
+        const mcapCategory = m.mcap_category || (m.market_cap ? (m.market_cap >= 500000 ? 'Mega Cap' : m.market_cap >= 85000 ? 'Large Cap' : m.market_cap >= 27500 ? 'Mid Cap' : m.market_cap >= 5000 ? 'Small Cap' : 'Micro Cap') : 'Small Cap');
 
-      const liveQuote = liveQuoteCache.get(h.symbol);
-      const endPrice = resolveHoldingPrice(h, liveQuote) || Number(h.current_price) || 0;
-
-      // Base price on startDate
-      let basePrice = null;
-      if (rangeType === 'ALL' || !startDate) {
-        basePrice = Number(h.avg_buy_price) || endPrice;
-      } else {
-        const series = histMap[h.symbol] || histMap[cleanSym] || histMap[`${cleanSym}.NS`] || histMap[`${cleanSym}.BO`] || {};
+        const series = histMap[m.symbol] || histMap[cleanSym] || histMap[`${cleanSym}.NS`] || histMap[`${cleanSym}.BO`] || {};
         const dates = Object.keys(series).sort();
-        
-        if (series[startDate] !== undefined) {
-          basePrice = Number(series[startDate]);
+        if (dates.length < 2) continue;
+
+        // End price
+        const liveQuote = liveQuoteCache.get(m.symbol) || liveQuoteCache.get(cleanSym);
+        const resolvedLive = liveQuote?.price || liveQuote?.currentPrice || liveQuote?.regularMarketPrice;
+        let endPrice = Number(resolvedLive) || Number(series[endDate] || series[dates[dates.length - 1]]);
+
+        // Start / Base price
+        let basePrice = null;
+        if (rangeType === 'ALL' || !startDate) {
+          basePrice = Number(series[dates[0]]);
         } else {
-          // Closest trading day <= startDate
-          const priorDates = dates.filter(d => d <= startDate);
-          if (priorDates.length > 0) {
-            basePrice = Number(series[priorDates[priorDates.length - 1]]);
-          } else if (dates.length > 0) {
-            basePrice = Number(series[dates[0]]);
+          if (series[startDate] !== undefined) {
+            basePrice = Number(series[startDate]);
+          } else {
+            const priorDates = dates.filter(d => d <= startDate);
+            if (priorDates.length > 0) {
+              basePrice = Number(series[priorDates[priorDates.length - 1]]);
+            } else {
+              basePrice = Number(series[dates[0]]);
+            }
           }
         }
+
+        if (!basePrice || !endPrice || basePrice <= 0 || endPrice <= 0) continue;
+
+        const returnPct = ((endPrice - basePrice) / basePrice) * 100;
+        const isHolding = portfolioSymbolSet.has(cleanSym);
+        const holdingObj = portfolioHoldingMap.get(cleanSym);
+
+        stockResults.push({
+          holdingId: holdingObj?.id || null,
+          symbol: m.symbol,
+          cleanSymbol: cleanSym,
+          name: m.name || m.symbol,
+          category_id: m.category_id || (isUS ? 'us_stocks' : 'in_stocks'),
+          currency: isUS ? 'USD' : 'INR',
+          sector,
+          mcapCategory,
+          marketCapCr: m.market_cap || null,
+          quantity: holdingObj ? Number(holdingObj.quantity) : 0,
+          startPrice: Math.round(basePrice * 100) / 100,
+          endPrice: Math.round(endPrice * 100) / 100,
+          startValINR: 0,
+          currentValINR: holdingObj ? (holdingObj.currentValueINR || (Number(holdingObj.quantity) * endPrice * (isUS ? fxRate : 1))) : 0,
+          gainINR: 0,
+          returnPct: Math.round(returnPct * 100) / 100,
+          isPortfolioHolding: isHolding
+        });
       }
-
-      if (!basePrice || isNaN(basePrice) || basePrice <= 0) {
-        basePrice = Number(h.avg_buy_price) || endPrice;
-      }
-
-      const qty = Number(h.quantity) || 0;
-      const rate = isUSD ? fxRate : 1.0;
-
-      const startValINR = qty * basePrice * rate;
-      const currentValINR = qty * endPrice * rate;
-      const gainINR = currentValINR - startValINR;
-      const returnPct = startValINR > 0 ? ((currentValINR - startValINR) / startValINR) * 100 : 0;
-
-      totalCurrentValINR += currentValINR;
-      totalStartValINR += startValINR;
-
-      stockResults.push({
-        holdingId: h.id,
-        symbol: h.symbol,
-        cleanSymbol: cleanSym,
-        name: h.name || h.symbol,
-        category_id: h.category_id,
-        currency: h.currency,
-        sector,
-        mcapCategory,
-        quantity: qty,
-        startPrice: Math.round(basePrice * 100) / 100,
-        endPrice: Math.round(endPrice * 100) / 100,
-        startValINR: Math.round(startValINR * 100) / 100,
-        currentValINR: Math.round(currentValINR * 100) / 100,
-        gainINR: Math.round(gainINR * 100) / 100,
-        returnPct: Math.round(returnPct * 100) / 100
+    } else {
+      // ── MY PORTFOLIO ANALYSIS ──
+      const equityHoldings = (holdings || []).filter(h => {
+        if (Number(h.quantity) <= 0) return false;
+        if (h.category_id === 'in_stocks') return includeIndia;
+        if (h.category_id === 'us_stocks') return includeUs;
+        if (h.category_id === 'mutual_funds') return includeMf;
+        return false;
       });
+
+      for (const h of equityHoldings) {
+        const isUSD = h.currency === 'USD';
+        const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toUpperCase();
+        const metaRow = metaMap.get(cleanSym) || metaMap.get((h.symbol || '').toUpperCase()) || {};
+
+        const sector = normalizeSector(metaRow.sector || h.sector);
+        const mcapCategory = metaRow.mcap_category || (metaRow.market_cap ? (metaRow.market_cap >= 500000 ? 'Mega Cap' : metaRow.market_cap >= 85000 ? 'Large Cap' : metaRow.market_cap >= 27500 ? 'Mid Cap' : metaRow.market_cap >= 5000 ? 'Small Cap' : 'Micro Cap') : (h.market_cap || 'Small Cap'));
+
+        const liveQuote = liveQuoteCache.get(h.symbol);
+        const endPrice = resolveHoldingPrice(h, liveQuote) || Number(h.current_price) || 0;
+
+        // Base price on startDate
+        let basePrice = null;
+        if (rangeType === 'ALL' || !startDate) {
+          basePrice = Number(h.avg_buy_price) || endPrice;
+        } else {
+          const series = histMap[h.symbol] || histMap[cleanSym] || histMap[`${cleanSym}.NS`] || histMap[`${cleanSym}.BO`] || {};
+          const dates = Object.keys(series).sort();
+          
+          if (series[startDate] !== undefined) {
+            basePrice = Number(series[startDate]);
+          } else {
+            // Closest trading day <= startDate
+            const priorDates = dates.filter(d => d <= startDate);
+            if (priorDates.length > 0) {
+              basePrice = Number(series[priorDates[priorDates.length - 1]]);
+            } else if (dates.length > 0) {
+              basePrice = Number(series[dates[0]]);
+            }
+          }
+        }
+
+        if (!basePrice || isNaN(basePrice) || basePrice <= 0) {
+          basePrice = Number(h.avg_buy_price) || endPrice;
+        }
+
+        const qty = Number(h.quantity) || 0;
+        const rate = isUSD ? fxRate : 1.0;
+
+        const startValINR = qty * basePrice * rate;
+        const currentValINR = qty * endPrice * rate;
+        const gainINR = currentValINR - startValINR;
+        const returnPct = startValINR > 0 ? ((currentValINR - startValINR) / startValINR) * 100 : 0;
+
+        totalCurrentValINR += currentValINR;
+        totalStartValINR += startValINR;
+
+        stockResults.push({
+          holdingId: h.id,
+          symbol: h.symbol,
+          cleanSymbol: cleanSym,
+          name: h.name || h.symbol,
+          category_id: h.category_id,
+          currency: h.currency,
+          sector,
+          mcapCategory,
+          marketCapCr: metaRow.market_cap || null,
+          quantity: qty,
+          startPrice: Math.round(basePrice * 100) / 100,
+          endPrice: Math.round(endPrice * 100) / 100,
+          startValINR: Math.round(startValINR * 100) / 100,
+          currentValINR: Math.round(currentValINR * 100) / 100,
+          gainINR: Math.round(gainINR * 100) / 100,
+          returnPct: Math.round(returnPct * 100) / 100,
+          isPortfolioHolding: true
+        });
+      }
     }
 
     // Aggregate by Sector
@@ -298,15 +396,27 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
       sec.stocks.push(s);
     }
 
-    const sectors = Object.values(sectorMap).map(sec => ({
-      ...sec,
-      currentValINR: Math.round(sec.currentValINR * 100) / 100,
-      startValINR: Math.round(sec.startValINR * 100) / 100,
-      gainINR: Math.round(sec.gainINR * 100) / 100,
-      returnPct: sec.startValINR > 0 ? Math.round(((sec.currentValINR - sec.startValINR) / sec.startValINR) * 10000) / 100 : 0,
-      allocationPct: totalCurrentValINR > 0 ? Math.round((sec.currentValINR / totalCurrentValINR) * 10000) / 100 : 0,
-      stocks: sec.stocks.sort((a, b) => b.currentValINR - a.currentValINR)
-    })).sort((a, b) => b.returnPct - a.returnPct);
+    const sectors = Object.values(sectorMap).map(sec => {
+      let returnPct = 0;
+      if (isMarketScope) {
+        returnPct = sec.stocks.length > 0
+          ? Math.round((sec.stocks.reduce((acc, s) => acc + s.returnPct, 0) / sec.stocks.length) * 100) / 100
+          : 0;
+      } else {
+        returnPct = sec.startValINR > 0
+          ? Math.round(((sec.currentValINR - sec.startValINR) / sec.startValINR) * 10000) / 100
+          : 0;
+      }
+      return {
+        ...sec,
+        currentValINR: Math.round(sec.currentValINR * 100) / 100,
+        startValINR: Math.round(sec.startValINR * 100) / 100,
+        gainINR: Math.round(sec.gainINR * 100) / 100,
+        returnPct,
+        allocationPct: totalCurrentValINR > 0 ? Math.round((sec.currentValINR / totalCurrentValINR) * 10000) / 100 : 0,
+        stocks: sec.stocks.sort((a, b) => isMarketScope ? (b.returnPct - a.returnPct) : (b.currentValINR - a.currentValINR))
+      };
+    }).sort((a, b) => b.returnPct - a.returnPct);
 
     // Aggregate by Cap Tier
     const capOrder = ['Mega Cap', 'Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap'];
@@ -331,29 +441,50 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
       cap.stocks.push(s);
     }
 
-    const caps = Object.values(capMap).map(cap => ({
-      ...cap,
-      currentValINR: Math.round(cap.currentValINR * 100) / 100,
-      startValINR: Math.round(cap.startValINR * 100) / 100,
-      gainINR: Math.round(cap.gainINR * 100) / 100,
-      returnPct: cap.startValINR > 0 ? Math.round(((cap.currentValINR - cap.startValINR) / cap.startValINR) * 10000) / 100 : 0,
-      allocationPct: totalCurrentValINR > 0 ? Math.round((cap.currentValINR / totalCurrentValINR) * 10000) / 100 : 0,
-      stocks: cap.stocks.sort((a, b) => b.currentValINR - a.currentValINR)
-    })).sort((a, b) => {
+    const caps = Object.values(capMap).map(cap => {
+      let returnPct = 0;
+      if (isMarketScope) {
+        returnPct = cap.stocks.length > 0
+          ? Math.round((cap.stocks.reduce((acc, s) => acc + s.returnPct, 0) / cap.stocks.length) * 100) / 100
+          : 0;
+      } else {
+        returnPct = cap.startValINR > 0
+          ? Math.round(((cap.currentValINR - cap.startValINR) / cap.startValINR) * 10000) / 100
+          : 0;
+      }
+      return {
+        ...cap,
+        currentValINR: Math.round(cap.currentValINR * 100) / 100,
+        startValINR: Math.round(cap.startValINR * 100) / 100,
+        gainINR: Math.round(cap.gainINR * 100) / 100,
+        returnPct,
+        allocationPct: totalCurrentValINR > 0 ? Math.round((cap.currentValINR / totalCurrentValINR) * 10000) / 100 : 0,
+        stocks: cap.stocks.sort((a, b) => isMarketScope ? (b.returnPct - a.returnPct) : (b.currentValINR - a.currentValINR))
+      };
+    }).sort((a, b) => {
       const ia = capOrder.indexOf(a.name);
       const ib = capOrder.indexOf(b.name);
       if (ia !== -1 && ib !== -1) return ia - ib;
       return b.returnPct - a.returnPct;
     });
 
-    const totalGainINR = totalCurrentValINR - totalStartValINR;
-    const totalReturnPct = totalStartValINR > 0 ? Math.round((totalGainINR / totalStartValINR) * 10000) / 100 : 0;
+    let totalGainINR = 0;
+    let totalReturnPct = 0;
+    if (isMarketScope) {
+      totalReturnPct = stockResults.length > 0
+        ? Math.round((stockResults.reduce((acc, s) => acc + s.returnPct, 0) / stockResults.length) * 100) / 100
+        : 0;
+    } else {
+      totalGainINR = totalCurrentValINR - totalStartValINR;
+      totalReturnPct = totalStartValINR > 0 ? Math.round((totalGainINR / totalStartValINR) * 10000) / 100 : 0;
+    }
 
     res.json({
       success: true,
       startDate: startDate || null,
       endDate: endDate || new Date().toISOString().split('T')[0],
       rangeType,
+      marketScope,
       totalCurrentValINR: Math.round(totalCurrentValINR * 100) / 100,
       totalStartValINR: Math.round(totalStartValINR * 100) / 100,
       totalGainINR: Math.round(totalGainINR * 100) / 100,

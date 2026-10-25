@@ -60,6 +60,14 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
 
   const isUs = trade?.market === 'US';
+  const isSell = trade?.tradeType === 'SELL' || trade?.status === 'CLOSED';
+  const txDate = isSell ? (trade?.exitDate || trade?.date) : (trade?.date || trade?.entryDate);
+  const txPrice = isSell ? (trade?.exitPrice || trade?.entryPrice) : (trade?.entryPrice || trade?.price);
+  const txQty = Number(trade?.quantity) || 0;
+  const txValue = isSell 
+    ? (Number(trade?.saleProceedsInr || trade?.saleProceeds || (txPrice * txQty)) || (txPrice * txQty))
+    : (Number(trade?.costBasisInr || trade?.costBasis || (txPrice * txQty)) || (txPrice * txQty));
+  const txType = isSell ? 'SELL' : (trade?.tradeType || 'BUY');
 
   useEffect(() => {
     if (!trade?.symbol) return;
@@ -68,8 +76,11 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
       try {
         const res = await axios.get(`/api/trading-journal/entry-snapshot/${trade.symbol}`, {
           params: {
-            date: trade.entryDate || trade.date,
-            price: trade.entryPrice,
+            date: txDate,
+            price: txPrice,
+            quantity: txQty,
+            value: txValue,
+            tradeType: txType,
             market: trade.market || (isUs ? 'US' : 'IN')
           }
         });
@@ -83,7 +94,7 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
       }
     };
     fetchSnapshot();
-  }, [trade?.symbol, trade?.entryDate, trade?.date, trade?.entryPrice, isUs]);
+  }, [trade?.symbol, txDate, txPrice, txQty, txValue, txType, isUs]);
 
   if (!trade) return null;
 
@@ -291,9 +302,11 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
               symbol={trade.symbol}
               name={trade.name}
               market={trade.market}
-              executionPrice={trade.entryPrice}
-              executionDate={trade.entryDate || trade.date}
-              tradeType={trade.tradeType}
+              executionPrice={txPrice}
+              executionDate={txDate}
+              executionValue={txValue}
+              executionQty={txQty}
+              tradeType={txType}
             />
           ) : activeViewTab === 'FINANCIALS' ? (
             <StockFinancialsView
@@ -397,11 +410,35 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
           {/* Transaction Entry Snapshot: Technicals & Screener Fundamentals */}
           <div className="p-4 rounded-2xl reports-subcard border border-cyan-500/30 bg-cyan-500/[0.03] space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-xs font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Entry Snapshot ({entrySnapshot?.entryDate || trade.entryDate || trade.date})
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" /> Snapshot ({txDate})
+                </span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                  txType === 'SELL' 
+                    ? 'bg-rose-500/20 text-rose-500 dark:text-rose-400 border-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {txType}
+                </span>
+                {txPrice && (
+                  <span className="font-mono text-xs font-bold text-[var(--text-primary)]">
+                    @{formatVal(txPrice)}
+                  </span>
+                )}
+                {txQty > 0 && (
+                  <span className="font-mono text-xs text-[var(--text-secondary)]">
+                    × {txQty} shares
+                  </span>
+                )}
+                {txValue > 0 && (
+                  <span className="px-2 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-mono font-bold text-xs border border-cyan-500/30">
+                    Value: {formatVal(txValue)}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                Technicals & Screener Fundamentals at Transaction Date
+                {entrySnapshot?.fundamentals?.activeQuarter ? `Active: ${entrySnapshot.fundamentals.activeQuarter}` : 'At Transaction Date'}
               </span>
             </div>
 

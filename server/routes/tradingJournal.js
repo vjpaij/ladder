@@ -391,6 +391,9 @@ router.get('/trading-journal/entry-snapshot/:symbol', async (req, res) => {
     const cleanSym = String(rawSym || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
     const entryDate = req.query.date ? String(req.query.date).split('T')[0] : null;
     const entryPrice = req.query.price ? Number(req.query.price) : null;
+    const txQty = req.query.quantity ? Number(req.query.quantity) : null;
+    const txValue = req.query.value ? Number(req.query.value) : (entryPrice && txQty ? Math.round(entryPrice * txQty * 100) / 100 : null);
+    const tradeType = req.query.tradeType ? String(req.query.tradeType).toUpperCase() : 'BUY';
     const isUs = req.query.market === 'US' || ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'].includes(cleanSym);
 
     // 1. Get historical prices & technical indicators at trade date
@@ -471,32 +474,147 @@ router.get('/trading-journal/entry-snapshot/:symbol', async (req, res) => {
 
     let fundamentals = null;
     if (rawFund) {
-      const peRatio = Number(rawFund.peRatio ?? rawFund.stockPe ?? rawFund.pe);
-      const marketCapCr = Number(rawFund.marketCapCr ?? rawFund.marketCap);
-      const latestSalesCr = Number(rawFund.latestSalesCr ?? (Array.isArray(rawFund.quarterlySales) ? rawFund.quarterlySales.at(-1) : null));
-      const latestPatCr = Number(rawFund.latestPatCr ?? (Array.isArray(rawFund.quarterlyPat) ? rawFund.quarterlyPat.at(-1) : null));
-      const latestOpmPct = Number(rawFund.latestOpmPct ?? rawFund.opm);
+      // 1. Reconstruct chronological quarters from quarterly arrays
+      const salesArr = rawFund.quarterRows?.Sales || rawFund.quarterlySales || [];
+      const salesLen = salesArr.length;
+      let matchedQIdx = -1;
+      let matchedQLabel = null;
+
+      if (Array.isArray(rawFund.quarterLabels) && rawFund.quarterLabels.length > 0) {
+        const months = ['Mar', 'Jun', 'Sep', 'Dec'];
+        const quarterList = rawFund.quarterLabels.map((lbl, idx) => {
+          const parts = String(lbl).trim().split(' ');
+          const m = months.indexOf(parts[0]);
+          const y = parseInt(parts[1], 10) || new Date().getFullYear();
+          const qEndDate = m === 0 ? `${y}-03-31` : m === 1 ? `${y}-06-30` : m === 2 ? `${y}-09-30` : `${y}-12-31`;
+          return { idx, label: lbl, endDate: qEndDate };
+        });
+        if (entryDate) {
+          const eligible = quarterList.filter(q => q.endDate <= entryDate);
+          if (eligible.length > 0) {
+            const best = eligible[eligible.length - 1];
+            matchedQIdx = best.idx;
+            matchedQLabel = best.label;
+          } else {
+            matchedQIdx = 0;
+            matchedQLabel = quarterList[0]?.label;
+          }
+        } else {
+          matchedQIdx = quarterList.length - 1;
+          matchedQLabel = quarterList[quarterList.length - 1]?.label;
+        }
+      } else if (salesLen > 0) {
+        const latestQ = rawFund.latestQuarter || 'Jun 2026';
+        const parts = latestQ.trim().split(' ');
+        const months = ['Mar', 'Jun', 'Sep', 'Dec'];
+        let mIdx = months.indexOf(parts[0]);
+        if (mIdx === -1) mIdx = 1;
+        const yr = parseInt(parts[1], 10) || new Date().getFullYear();
+
+        const quarterList = [];
+        for (let i = salesLen - 1; i >= 0; i--) {
+          let m = mIdx - i;
+          let y = yr;
+          while (m < 0) {
+            m += 4;
+            y -= 1;
+          }
+          const mName = months[m];
+          const qEndDate = m === 0 ? `${y}-03-31` : m === 1 ? `${y}-06-30` : m === 2 ? `${y}-09-30` : `${y}-12-31`;
+          quarterList.push({
+            idx: salesLen - 1 - i,
+            label: `${mName} ${y}`,
+            endDate: qEndDate
+          });
+        }
+
+        // Find quarter ending on or immediately prior to trade entryDate
+        if (entryDate) {
+          const eligible = quarterList.filter(q => q.endDate <= entryDate);
+          if (eligible.length > 0) {
+            const best = eligible[eligible.length - 1];
+            matchedQIdx = best.idx;
+            matchedQLabel = best.label;
+          } else {
+            matchedQIdx = 0;
+            matchedQLabel = quarterList[0]?.label;
+          }
+        } else {
+          matchedQIdx = salesLen - 1;
+          matchedQLabel = quarterList[quarterList.length - 1]?.label;
+        }
+      }
+
+      const quarterSales = rawFund.quarterRows?.Sales || rawFund.quarterlySales || [];
+      const quarterPat = rawFund.quarterRows?.['Net Profit'] || rawFund.quarterlyPat || [];
+      const quarterOpm = rawFund.quarterRows?.['OPM %'] || [];
+      const quarterEps = rawFund.quarterRows?.['EPS in Rs'] || [];
+
+      const salesCr = matchedQIdx >= 0 && quarterSales[matchedQIdx] !== undefined 
+        ? Number(quarterSales[matchedQIdx]) 
+        : (Number(rawFund.latestSalesCr ?? quarterSales.at(-1)) || null);
+
+      const patCr = matchedQIdx >= 0 && quarterPat[matchedQIdx] !== undefined 
+        ? Number(quarterPat[matchedQIdx]) 
+        : (Number(rawFund.latestPatCr ?? quarterPat.at(-1)) || null);
+
+      const opmPct = matchedQIdx >= 0 && quarterOpm[matchedQIdx] !== undefined 
+        ? Number(quarterOpm[matchedQIdx]) 
+        : (Number(rawFund.latestOpmPct) || null);
+
       const rocePct = Number(rawFund.rocePct ?? rawFund.roce);
       const roePct = Number(rawFund.roePct ?? rawFund.roe);
 
-      // Estimate P/E at entry price if CMP is available
-      let entryPe = peRatio;
-      if (entryPrice && candle?.close && Number.isFinite(peRatio) && peRatio > 0) {
-        entryPe = Number(((entryPrice / candle.close) * peRatio).toFixed(2));
+      // TTM EPS ending at the transaction's active quarter
+      let ttmEps = null;
+      if (quarterEps.length > 0 && matchedQIdx >= 0) {
+        const slice = quarterEps.slice(Math.max(0, matchedQIdx - 3), matchedQIdx + 1);
+        if (slice.length > 0) {
+          ttmEps = Number(slice.reduce((s, v) => s + (Number(v) || 0), 0).toFixed(2));
+        }
+      }
+
+      // Price at trade date
+      const priceAtTrade = entryPrice || candle?.close || null;
+      const latestClose = closes.length > 0 ? closes[closes.length - 1] : priceAtTrade;
+
+      // P/E at trade date
+      let entryPe = null;
+      if (priceAtTrade && ttmEps && ttmEps > 0) {
+        entryPe = Number((priceAtTrade / ttmEps).toFixed(1));
+      } else if (rawFund.peRatio && priceAtTrade && latestClose && latestClose > 0) {
+        entryPe = Number(((priceAtTrade / latestClose) * Number(rawFund.peRatio)).toFixed(1));
+      } else if (rawFund.peRatio) {
+        entryPe = Number(rawFund.peRatio);
+      }
+
+      // Market Cap at trade date
+      let marketCapCr = null;
+      const baseMcap = Number(rawFund.marketCapCr ?? rawFund.marketCap);
+      if (baseMcap && priceAtTrade && latestClose && latestClose > 0) {
+        marketCapCr = Math.round(baseMcap * (priceAtTrade / latestClose));
+      } else if (baseMcap) {
+        marketCapCr = baseMcap;
       }
 
       fundamentals = {
         symbol: cleanSym,
-        peRatio: Number.isFinite(peRatio) ? peRatio : null,
+        peRatio: Number.isFinite(entryPe) ? entryPe : (Number(rawFund.peRatio) || null),
         entryPe: Number.isFinite(entryPe) ? entryPe : null,
         marketCapCr: Number.isFinite(marketCapCr) ? marketCapCr : null,
-        salesCr: Number.isFinite(latestSalesCr) ? latestSalesCr : null,
-        patCr: Number.isFinite(latestPatCr) ? latestPatCr : null,
-        opmPct: Number.isFinite(latestOpmPct) ? latestOpmPct : null,
+        salesCr: Number.isFinite(salesCr) ? salesCr : null,
+        patCr: Number.isFinite(patCr) ? patCr : null,
+        opmPct: Number.isFinite(opmPct) ? opmPct : null,
         rocePct: Number.isFinite(rocePct) ? rocePct : null,
         roePct: Number.isFinite(roePct) ? roePct : null,
         sector: rawFund.sector || null,
-        industry: rawFund.industry || null
+        industry: rawFund.industry || null,
+        activeQuarter: matchedQLabel || rawFund.latestQuarter || null,
+        transactionDate: entryDate || candle?.date || null,
+        transactionPrice: priceAtTrade,
+        transactionQty: txQty,
+        transactionValue: txValue,
+        tradeType
       };
     }
 

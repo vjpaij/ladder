@@ -46,10 +46,10 @@ export async function fetchStockMetadata(symbol, category_id = 'in_stocks') {
         const mcapCr = Math.round(marketCapRaw / 1e7);
 
         let mcap_category = 'Small Cap';
-        if (mcapCr >= 200000) mcap_category = 'Mega Cap';
-        else if (mcapCr >= 60000) mcap_category = 'Large Cap';
-        else if (mcapCr >= 20000) mcap_category = 'Mid Cap';
-        else if (mcapCr >= 3000) mcap_category = 'Small Cap';
+        if (mcapCr >= 500000) mcap_category = 'Mega Cap';
+        else if (mcapCr >= 85000) mcap_category = 'Large Cap';
+        else if (mcapCr >= 27500) mcap_category = 'Mid Cap';
+        else if (mcapCr >= 5000) mcap_category = 'Small Cap';
         else if (mcapCr > 0) mcap_category = 'Micro Cap';
 
         return {
@@ -109,10 +109,10 @@ export async function fetchStockMetadata(symbol, category_id = 'in_stocks') {
         sector = normalizeSector(sector);
 
         let mcap_category = 'Small Cap';
-        if (mcapCr >= 200000) mcap_category = 'Mega Cap';
-        else if (mcapCr >= 60000) mcap_category = 'Large Cap';
-        else if (mcapCr >= 20000) mcap_category = 'Mid Cap';
-        else if (mcapCr >= 3000) mcap_category = 'Small Cap';
+        if (mcapCr >= 500000) mcap_category = 'Mega Cap';
+        else if (mcapCr >= 85000) mcap_category = 'Large Cap';
+        else if (mcapCr >= 27500) mcap_category = 'Mid Cap';
+        else if (mcapCr >= 5000) mcap_category = 'Small Cap';
         else if (mcapCr) mcap_category = 'Micro Cap';
 
         return {

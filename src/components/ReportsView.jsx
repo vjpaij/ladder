@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ResponsiveContainer, 
@@ -70,7 +71,8 @@ import SectorCapPerformanceSection from './reports/SectorCapPerformanceSection';
 import HoldingDetailModal from './HoldingDetailModal';
 
 export default function ReportsView({ summary, holdings, registerBackHandler }) {
-  const { formatMoney, isUSD } = useThemeAuth();
+  const { theme, formatMoney, isUSD } = useThemeAuth();
+  const isLight = theme === 'light' || theme === 'warm_light' || theme === 'nordic_light';
   
   // Master Tab states: CONSOLIDATED, EQUITY, MF_COMPOSITION, FIXED_INCOME, NPS
   const [activeTab, setActiveTab] = useState('EQUITY');
@@ -203,10 +205,9 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
     const fetchMfHoldings = async () => {
       setLoadingMf(true);
       try {
-        const res = await fetch('/api/reports/mf-holdings');
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) setMfData(data);
+        const res = await axios.get('/api/reports/mf-holdings');
+        if (res.data && isMounted) {
+          setMfData(res.data);
         }
       } catch (err) {
         console.error('Failed fetching MF holdings:', err);
@@ -247,10 +248,9 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         } else if (growthRangeFilter.rangeKey) {
           url = `/api/reports/growth-benchmarks?timeframe=${growthRangeFilter.rangeKey}&scope=${activeScopeParam}`;
         }
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) setGrowthData(data);
+        const res = await axios.get(url);
+        if (res.data && isMounted) {
+          setGrowthData(res.data);
         }
       } catch (err) {
         console.error('Failed fetching growth benchmarks:', err);
@@ -385,10 +385,6 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         const mfScheme = mfData?.schemes?.find(s => s.scheme_code === h.symbol);
         if (mfScheme && mfScheme.companies && mfScheme.companies.length > 0) {
           mfScheme.companies.forEach(c => {
-            const isUs = isUsCompany(c);
-            if (isUs && !equityOptions.us) return;
-            if (!isUs && !equityOptions.india) return;
-
             const sec = normalizeSector(c.sector);
             if (!map[sec]) map[sec] = 0;
             if (!companyMap[sec]) companyMap[sec] = {};
@@ -409,7 +405,6 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
             companyMap[sec][compKey].allocatedINR += c.allocatedINR || 0;
           });
         } else {
-          if (!equityOptions.india) return;
           const sec = 'Cash, Debt & Other';
           if (!map[sec]) map[sec] = 0;
           if (!companyMap[sec]) companyMap[sec] = {};
@@ -498,10 +493,6 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         const mfScheme = mfData?.schemes?.find(s => s.scheme_code === h.symbol);
         if (mfScheme && mfScheme.companies && mfScheme.companies.length > 0) {
           mfScheme.companies.forEach(c => {
-            const isUs = isUsCompany(c);
-            if (isUs && !equityOptions.us) return;
-            if (!isUs && !equityOptions.india) return;
-
             const capTier = c.mcap_category || 'Mid Cap';
             const targetTier = buckets[capTier] !== undefined ? capTier : 'Mid Cap';
             buckets[targetTier] += c.allocatedINR || 0;
@@ -521,7 +512,6 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
             constituentDict[targetTier][compKey].allocatedINR += c.allocatedINR || 0;
           });
         } else {
-          if (!equityOptions.india) return;
           buckets['Mid Cap'] += h.currentValueINR || 0;
           const compKey = (h.name || h.symbol).trim();
           if (!constituentDict['Mid Cap'][compKey]) {
@@ -931,6 +921,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
               { key: 'PERFORMANCE', label: 'Consolidated Performance' },
               { key: 'ALLOCATION', label: 'Allocation' },
               ...(activeTab === 'EQUITY' ? [
+                { key: 'SECTOR_CAP_PERF', label: 'Sector & Cap Performance' },
                 { key: 'MARKET_CAP', label: 'Market Cap' },
                 { key: 'SECTOR', label: 'Sectors' }
               ] : []),
@@ -1190,6 +1181,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                 {/* ─── VIEW: DYNAMIC SECTOR & MARKET CAP PERFORMANCE ───────────── */}
         {reportType === 'SECTOR_CAP_PERF' && activeTab === 'EQUITY' && (
           <SectorCapPerformanceSection
+            equityOptions={equityOptions}
             onSelectHolding={(h) => {
               const match = (holdings || []).find(item => item.id === h.id || item.symbol === h.symbol);
               setSelectedHoldingDetail(match || h);
@@ -1872,64 +1864,72 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                   </div>
                 </div>
 
-                {chartStyle === 'PIE' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                    <div className="lg:col-span-7 h-[360px] w-full flex items-center justify-center">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RePieChart>
-                          <Pie
-                            data={marketCapData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={80}
-                            outerRadius={135}
-                            paddingAngle={3}
-                            dataKey="value"
-                            isAnimationActive={false}
-                            onClick={(entry) => setSelectedMarketCap(entry)}
-                          >
-                            {marketCapData.map((entry, index) => {
-                              const isSelected = activePieIndex === index;
-                              const color = entry.color;
-                              return (
-                                <Cell 
-                                  key={`mcap-cell-${index}`} 
-                                  fill={color}
-                                  stroke={isSelected ? '#FFFFFF' : 'none'}
-                                  strokeWidth={isSelected ? 2 : 0}
-                                  style={{
-                                    cursor: 'pointer',
-                                    outline: 'none',
-                                    filter: isSelected ? `drop-shadow(0px 0px 8px ${color})` : 'none',
-                                    transform: isSelected ? 'scale(1.06)' : 'scale(1)',
-                                    transformOrigin: 'center center',
-                                    transition: 'all 0.2s ease-out'
-                                  }}
-                                />
-                              );
-                            })}
-                          </Pie>
-                          <Tooltip content={<CustomChartTooltip />} />
-                        </RePieChart>
-                      </ResponsiveContainer>
-                    </div>
+                {marketCapData.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-2 text-center text-xs text-[var(--text-muted)] reports-subcard rounded-2xl border border-[var(--border-color)]">
+                    <span>No holdings match the selected scope. Please select at least one asset class above.</span>
+                  </div>
+                ) : (
+                  <>
+                    {chartStyle === 'PIE' && (
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                        <div className="lg:col-span-7 h-[360px] w-full flex items-center justify-center">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RePieChart>
+                              <Pie
+                                data={marketCapData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={80}
+                                outerRadius={135}
+                                paddingAngle={3}
+                                dataKey="value"
+                                isAnimationActive={false}
+                                onClick={(entry) => setSelectedMarketCap(entry)}
+                              >
+                                {marketCapData.map((entry, index) => {
+                                  const isSelected = activePieIndex === index;
+                                  const color = entry.color;
+                                  return (
+                                    <Cell 
+                                      key={`mcap-cell-${index}`} 
+                                      fill={color}
+                                      stroke={isSelected ? '#FFFFFF' : 'none'}
+                                      strokeWidth={isSelected ? 2 : 0}
+                                      style={{
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                        filter: isSelected ? `drop-shadow(0px 0px 8px ${color})` : 'none',
+                                        transform: isSelected ? 'scale(1.06)' : 'scale(1)',
+                                        transformOrigin: 'center center',
+                                        transition: 'all 0.2s ease-out'
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </Pie>
+                              <Tooltip content={<CustomChartTooltip />} />
+                            </RePieChart>
+                          </ResponsiveContainer>
+                        </div>
 
-                    <div className="lg:col-span-5 max-h-[380px] overflow-y-auto p-1.5 custom-scrollbar">
-                      <RankedBarList 
+                        <div className="lg:col-span-5 max-h-[380px] overflow-y-auto p-1.5 custom-scrollbar">
+                          <RankedBarList 
+                            items={marketCapData} 
+                            onItemClick={(item) => setSelectedMarketCap(item)}
+                            activeIndex={activePieIndex}
+                            onHoverIndex={setActivePieIndex}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {chartStyle === 'BAR' && (
+                      <CleanBarChartView 
                         items={marketCapData} 
                         onItemClick={(item) => setSelectedMarketCap(item)}
-                        activeIndex={activePieIndex}
-                        onHoverIndex={setActivePieIndex}
                       />
-                    </div>
-                  </div>
-                )}
-
-                {chartStyle === 'BAR' && (
-                  <CleanBarChartView 
-                    items={marketCapData} 
-                    onItemClick={(item) => setSelectedMarketCap(item)}
-                  />
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -2081,64 +2081,72 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
               </div>
             ) : (
               <div>
-                {chartStyle === 'PIE' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                    <div className="lg:col-span-7 h-[360px] w-full flex items-center justify-center">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RePieChart>
-                          <Pie
-                            data={sectorData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={80}
-                            outerRadius={135}
-                            paddingAngle={3}
-                            dataKey="value"
-                            isAnimationActive={false}
-                            onClick={(entry) => setSelectedSector(entry)}
-                          >
-                            {sectorData.map((entry, index) => {
-                              const isSelected = activePieIndex === index;
-                              const color = entry.color;
-                              return (
-                                <Cell 
-                                  key={`sec-cell-${index}`} 
-                                  fill={color}
-                                  stroke={isSelected ? '#FFFFFF' : 'none'}
-                                  strokeWidth={isSelected ? 2 : 0}
-                                  style={{
-                                    cursor: 'pointer',
-                                    outline: 'none',
-                                    filter: isSelected ? `drop-shadow(0px 0px 8px ${color})` : 'none',
-                                    transform: isSelected ? 'scale(1.06)' : 'scale(1)',
-                                    transformOrigin: 'center center',
-                                    transition: 'all 0.2s ease-out'
-                                  }}
-                                />
-                              );
-                            })}
-                          </Pie>
-                          <Tooltip content={<CustomChartTooltip />} />
-                        </RePieChart>
-                      </ResponsiveContainer>
-                    </div>
+                {sectorData.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center gap-2 text-center text-xs text-[var(--text-muted)] reports-subcard rounded-2xl border border-[var(--border-color)]">
+                    <span>No holdings match the selected scope. Please select at least one asset class above.</span>
+                  </div>
+                ) : (
+                  <>
+                    {chartStyle === 'PIE' && (
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                        <div className="lg:col-span-7 h-[360px] w-full flex items-center justify-center">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RePieChart>
+                              <Pie
+                                data={sectorData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={80}
+                                outerRadius={135}
+                                paddingAngle={3}
+                                dataKey="value"
+                                isAnimationActive={false}
+                                onClick={(entry) => setSelectedSector(entry)}
+                              >
+                                {sectorData.map((entry, index) => {
+                                  const isSelected = activePieIndex === index;
+                                  const color = entry.color;
+                                  return (
+                                    <Cell 
+                                      key={`sec-cell-${index}`} 
+                                      fill={color}
+                                      stroke={isSelected ? '#FFFFFF' : 'none'}
+                                      strokeWidth={isSelected ? 2 : 0}
+                                      style={{
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                        filter: isSelected ? `drop-shadow(0px 0px 8px ${color})` : 'none',
+                                        transform: isSelected ? 'scale(1.06)' : 'scale(1)',
+                                        transformOrigin: 'center center',
+                                        transition: 'all 0.2s ease-out'
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </Pie>
+                              <Tooltip content={<CustomChartTooltip />} />
+                            </RePieChart>
+                          </ResponsiveContainer>
+                        </div>
 
-                    <div className="lg:col-span-5 max-h-[380px] overflow-y-auto p-1.5 custom-scrollbar">
-                      <RankedBarList 
+                        <div className="lg:col-span-5 max-h-[380px] overflow-y-auto p-1.5 custom-scrollbar">
+                          <RankedBarList 
+                            items={sectorData} 
+                            onItemClick={(item) => setSelectedSector(item)} 
+                            activeIndex={activePieIndex}
+                            onHoverIndex={setActivePieIndex}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {chartStyle === 'BAR' && (
+                      <CleanBarChartView 
                         items={sectorData} 
                         onItemClick={(item) => setSelectedSector(item)} 
-                        activeIndex={activePieIndex}
-                        onHoverIndex={setActivePieIndex}
                       />
-                    </div>
-                  </div>
-                )}
-
-                {chartStyle === 'BAR' && (
-                  <CleanBarChartView 
-                    items={sectorData} 
-                    onItemClick={(item) => setSelectedSector(item)} 
-                  />
+                    )}
+                  </>
                 )}
               </div>
             )}

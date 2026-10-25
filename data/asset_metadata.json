@@ -14,7 +14,7 @@
     "name": "OBEROI REALTY LIMITED",
     "category_id": "in_stocks",
     "market_cap": 63307,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Infrastructure & Real Estate",
     "industry": "Real Estate - Development",
     "last_updated": "2026-09-14T07:30:46.457+00:00"
@@ -24,7 +24,7 @@
     "name": "PONDY OXIDES & CHEM LTD",
     "category_id": "in_stocks",
     "market_cap": 3493,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Chemicals & Materials",
     "industry": "Specialty Chemicals",
     "last_updated": "2026-09-14T07:30:46.486+00:00"
@@ -54,7 +54,7 @@
     "name": "PITTI ENGINEERING LIMITED",
     "category_id": "in_stocks",
     "market_cap": 4297,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Metal Fabrication",
     "last_updated": "2026-09-14T07:30:46.541+00:00"
@@ -64,7 +64,7 @@
     "name": "KIOCL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 21688,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Chemicals & Materials",
     "industry": "Steel",
     "last_updated": "2026-09-14T07:30:46.543+00:00"
@@ -104,7 +104,7 @@
     "name": "HINDUSTAN PETROLEUM CORP",
     "category_id": "in_stocks",
     "market_cap": 74899,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Oil & Gas Refining & Marketing",
     "last_updated": "2026-09-14T07:30:47.894+00:00"
@@ -204,7 +204,7 @@
     "name": "SJVN LTD",
     "category_id": "in_stocks",
     "market_cap": 25996,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Utilities - Renewable",
     "last_updated": "2026-09-14T07:30:48.243+00:00"
@@ -214,7 +214,7 @@
     "name": "POWER GRID CORP. LTD.",
     "category_id": "in_stocks",
     "market_cap": 250279,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Utilities - Regulated Electric",
     "last_updated": "2026-09-14T07:30:48.29+00:00"
@@ -234,7 +234,7 @@
     "name": "SBI CARDS & PAY SER LTD",
     "category_id": "in_stocks",
     "market_cap": 62352,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Credit Services",
     "last_updated": "2026-09-14T07:30:48.291+00:00"
@@ -264,7 +264,7 @@
     "name": "TITAN COMPANY LIMITED",
     "category_id": "in_stocks",
     "market_cap": 444499,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Diversified & Other",
     "industry": "Luxury Goods",
     "last_updated": "2026-09-14T07:30:48.945+00:00"
@@ -304,7 +304,7 @@
     "name": "PRESTIGE ESTATE LTD",
     "category_id": "in_stocks",
     "market_cap": 64523,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Infrastructure & Real Estate",
     "industry": "Real Estate - Diversified",
     "last_updated": "2026-09-14T07:30:48.991+00:00"
@@ -344,7 +344,7 @@
     "name": "PTC INDIA LIMITED",
     "category_id": "in_stocks",
     "market_cap": 4530,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Utilities - Independent Power Producers",
     "last_updated": "2026-09-14T07:30:49.356+00:00"
@@ -394,7 +394,7 @@
     "name": "INFOSYS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 420300,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Information Technology",
     "industry": "Information Technology Services",
     "last_updated": "2026-09-14T07:30:49.409+00:00"
@@ -414,7 +414,7 @@
     "name": "OIL INDIA LTD",
     "category_id": "in_stocks",
     "market_cap": 79671,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Oil & Gas Integrated",
     "last_updated": "2026-09-14T07:30:49.879+00:00"
@@ -444,7 +444,7 @@
     "name": "GUFIC BIOSCIENCES LTD.",
     "category_id": "in_stocks",
     "market_cap": 4272,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Healthcare & Pharmaceuticals",
     "industry": "Drug Manufacturers - Specialty & Generic",
     "last_updated": "2026-09-14T07:30:49.88+00:00"
@@ -454,7 +454,7 @@
     "name": "Arista Networks, Inc.",
     "category_id": "us_stocks",
     "market_cap": 25173,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Large Cap",
     "sector": "Information Technology",
     "industry": "Computer Hardware",
     "last_updated": "2026-09-14T07:30:49.927+00:00"
@@ -524,7 +524,7 @@
     "name": "Salesforce, Inc.",
     "category_id": "us_stocks",
     "market_cap": 20387,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Large Cap",
     "sector": "Information Technology",
     "industry": "Software - Application",
     "last_updated": "2026-09-14T07:30:49.928+00:00"
@@ -534,7 +534,7 @@
     "name": "HINDUSTAN ZINC LIMITED",
     "category_id": "in_stocks",
     "market_cap": 243569,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Chemicals & Materials",
     "industry": "Other Industrial Metals & Mining",
     "last_updated": "2026-09-14T07:30:50.612+00:00"
@@ -564,7 +564,7 @@
     "name": "HCL TECHNOLOGIES LTD",
     "category_id": "in_stocks",
     "market_cap": 326343,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Information Technology",
     "industry": "Information Technology Services",
     "last_updated": "2026-09-14T07:30:50.64+00:00"
@@ -604,7 +604,7 @@
     "name": "NHPC LTD",
     "category_id": "in_stocks",
     "market_cap": 76724,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Utilities - Renewable",
     "last_updated": "2026-09-14T07:30:51.646+00:00"
@@ -614,7 +614,7 @@
     "name": "SHRIRAM FINANCE LIMITED",
     "category_id": "in_stocks",
     "market_cap": 242034,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Financial Services",
     "industry": "Credit Services",
     "last_updated": "2026-09-14T07:30:51.691+00:00"
@@ -624,7 +624,7 @@
     "name": "INDO TECH TRANSFORM LTD.",
     "category_id": "in_stocks",
     "market_cap": 3733,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Electrical Equipment & Parts",
     "last_updated": "2026-09-14T07:30:51.692+00:00"
@@ -654,7 +654,7 @@
     "name": "MPS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 4415,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Telecommunication & Media",
     "industry": "Publishing",
     "last_updated": "2026-09-14T07:30:52.265+00:00"
@@ -694,7 +694,7 @@
     "name": "H.G.INFRA ENGINEERING LTD",
     "category_id": "in_stocks",
     "market_cap": 3193,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Engineering & Construction",
     "last_updated": "2026-09-14T07:30:52.313+00:00"
@@ -724,7 +724,7 @@
     "name": "NIPPON L I A M LTD",
     "category_id": "in_stocks",
     "market_cap": 76108,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Asset Management",
     "last_updated": "2026-09-14T07:30:52.345+00:00"
@@ -764,7 +764,7 @@
     "name": "IIFL FINANCE LIMITED",
     "category_id": "in_stocks",
     "market_cap": 25517,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Financial Services",
     "industry": "Credit Services",
     "last_updated": "2026-09-14T07:30:52.915+00:00"
@@ -784,7 +784,7 @@
     "name": "AMBER ENTERPRISES (I) LTD",
     "category_id": "in_stocks",
     "market_cap": 25551,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Diversified & Other",
     "industry": "Furnishings, Fixtures & Appliances",
     "last_updated": "2026-09-14T07:30:52.963+00:00"
@@ -824,7 +824,7 @@
     "name": "KDDL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 4757,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Diversified & Other",
     "industry": "Luxury Goods",
     "last_updated": "2026-09-14T07:30:53.423+00:00"
@@ -854,7 +854,7 @@
     "name": "TORRENT POWER LTD",
     "category_id": "in_stocks",
     "market_cap": 65407,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Utilities - Independent Power Producers",
     "last_updated": "2026-09-14T07:30:53.473+00:00"
@@ -904,7 +904,7 @@
     "name": "ITC LTD",
     "category_id": "in_stocks",
     "market_cap": 325586,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Diversified & Other",
     "industry": "Tobacco",
     "last_updated": "2026-09-14T07:30:53.834+00:00"
@@ -944,7 +944,7 @@
     "name": "ICICI LOMBARD GIC LIMITED",
     "category_id": "in_stocks",
     "market_cap": 72931,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Insurance - Diversified",
     "last_updated": "2026-09-14T07:30:53.856+00:00"
@@ -954,7 +954,7 @@
     "name": "HINDUSTAN UNILEVER LTD.",
     "category_id": "in_stocks",
     "market_cap": 452766,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Diversified & Other",
     "industry": "Household & Personal Products",
     "last_updated": "2026-09-14T07:30:53.861+00:00"
@@ -964,7 +964,7 @@
     "name": "WEBSOL ENERGY SYSTEM LTD",
     "category_id": "in_stocks",
     "market_cap": 3279,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Information Technology",
     "industry": "Solar",
     "last_updated": "2026-09-14T07:30:53.88+00:00"
@@ -1004,7 +1004,7 @@
     "name": "JSW INFRASTRUCTURE LTD",
     "category_id": "in_stocks",
     "market_cap": 79618,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Marine Shipping",
     "last_updated": "2026-09-14T07:30:54.352+00:00"
@@ -1014,7 +1014,7 @@
     "name": "BHARTI HEXACOM LIMITED",
     "category_id": "in_stocks",
     "market_cap": 77305,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Telecommunication & Media",
     "industry": "Telecom Services",
     "last_updated": "2026-09-14T07:30:54.353+00:00"
@@ -1064,7 +1064,7 @@
     "name": "ETERNAL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 297794,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Diversified & Other",
     "industry": "Internet Retail",
     "last_updated": "2026-09-14T07:30:54.988+00:00"
@@ -1094,7 +1094,7 @@
     "name": "SCHAEFFLER INDIA LIMITED",
     "category_id": "in_stocks",
     "market_cap": 61740,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Diversified & Other",
     "industry": "Auto Parts",
     "last_updated": "2026-09-14T07:30:55.033+00:00"
@@ -1114,7 +1114,7 @@
     "name": "DEE DEVELOPMENT ENG LTD",
     "category_id": "in_stocks",
     "market_cap": 4838,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Metal Fabrication",
     "last_updated": "2026-09-14T07:30:55.042+00:00"
@@ -1164,7 +1164,7 @@
     "name": "ATHER ENERGY LIMITED",
     "category_id": "in_stocks",
     "market_cap": 65597,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Diversified & Other",
     "industry": "Auto Manufacturers",
     "last_updated": "2026-09-14T07:30:55.762+00:00"
@@ -1234,7 +1234,7 @@
     "name": "NTPC LTD",
     "category_id": "in_stocks",
     "market_cap": 323287,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Utilities - Regulated Electric",
     "last_updated": "2026-09-14T07:30:55.75+00:00"
@@ -1264,7 +1264,7 @@
     "name": "KALPATARU PROJECT INT LTD",
     "category_id": "in_stocks",
     "market_cap": 24537,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Engineering & Construction",
     "last_updated": "2026-09-14T07:30:55.829+00:00"
@@ -1284,7 +1284,7 @@
     "name": "OSWAL PUMPS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 3232,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Electrical Equipment & Parts",
     "last_updated": "2026-09-14T07:30:55.809+00:00"
@@ -1294,7 +1294,7 @@
     "name": "SAGILITY LIMITED",
     "category_id": "in_stocks",
     "market_cap": 21160,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Healthcare & Pharmaceuticals",
     "industry": "Health Information Services",
     "last_updated": "2026-09-14T07:30:56.246+00:00"
@@ -1314,7 +1314,7 @@
     "name": "ACC LIMITED",
     "category_id": "in_stocks",
     "market_cap": 23417,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Chemicals & Materials",
     "industry": "Building Materials",
     "last_updated": "2026-09-14T07:30:56.25+00:00"
@@ -1334,7 +1334,7 @@
     "name": "KALYAN JEWELLERS IND LTD",
     "category_id": "in_stocks",
     "market_cap": 62084,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Diversified & Other",
     "industry": "Luxury Goods",
     "last_updated": "2026-09-14T07:30:56.297+00:00"
@@ -1354,7 +1354,7 @@
     "name": "PSP PROJECTS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 3368,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Engineering & Construction",
     "last_updated": "2026-09-14T07:30:56.298+00:00"
@@ -1414,7 +1414,7 @@
     "name": "MTAR TECHNOLOGIES LIMITED",
     "category_id": "in_stocks",
     "market_cap": 22531,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Specialty Industrial Machinery",
     "last_updated": "2026-09-14T07:30:57.959+00:00"
@@ -1474,7 +1474,7 @@
     "name": "OIL AND NATURAL GAS CORP.",
     "category_id": "in_stocks",
     "market_cap": 292491,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Oil & Gas Integrated",
     "last_updated": "2026-09-14T07:30:58.311+00:00"
@@ -1524,7 +1524,7 @@
     "name": "INOX INDIA LIMITED",
     "category_id": "in_stocks",
     "market_cap": 20389,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Specialty Industrial Machinery",
     "last_updated": "2026-09-14T07:30:58.406+00:00"
@@ -1574,7 +1574,7 @@
     "name": "SANGHVI MOVERS LTD",
     "category_id": "in_stocks",
     "market_cap": 3669,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Rental & Leasing Services",
     "last_updated": "2026-09-14T07:30:58.72+00:00"
@@ -1584,7 +1584,7 @@
     "name": "RALLIS INDIA LTD",
     "category_id": "in_stocks",
     "market_cap": 3924,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Chemicals & Materials",
     "industry": "Agricultural Inputs",
     "last_updated": "2026-09-14T07:30:58.721+00:00"
@@ -1634,7 +1634,7 @@
     "name": "L&T FINANCE LIMITED",
     "category_id": "in_stocks",
     "market_cap": 77471,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Credit Services",
     "last_updated": "2026-09-14T07:30:59.111+00:00"
@@ -1734,7 +1734,7 @@
     "name": "TATA STEEL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 228280,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Chemicals & Materials",
     "industry": "Steel",
     "last_updated": "2026-09-14T07:30:59.643+00:00"
@@ -1744,7 +1744,7 @@
     "name": "TD POWER SYSTEMS LTD.",
     "category_id": "in_stocks",
     "market_cap": 25082,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Specialty Industrial Machinery",
     "last_updated": "2026-09-14T07:30:59.641+00:00"
@@ -1754,7 +1754,7 @@
     "name": "WAAREE ENERGIES LIMITED",
     "category_id": "in_stocks",
     "market_cap": 75508,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Information Technology",
     "industry": "Solar",
     "last_updated": "2026-09-14T07:30:59.68+00:00"
@@ -1834,7 +1834,7 @@
     "name": "AU SMALL FINANCE BANK LTD",
     "category_id": "in_stocks",
     "market_cap": 79356,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Banks - Regional",
     "last_updated": "2026-09-14T07:31:00.012+00:00"
@@ -1884,7 +1884,7 @@
     "name": "JASH ENGINEERING LIMITED",
     "category_id": "in_stocks",
     "market_cap": 3240,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Specialty Industrial Machinery",
     "last_updated": "2026-09-14T07:31:00.444+00:00"
@@ -1944,7 +1944,7 @@
     "name": "COFORGE LIMITED",
     "category_id": "in_stocks",
     "market_cap": 81796,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Information Technology",
     "industry": "Information Technology Services",
     "last_updated": "2026-09-14T07:31:01.967+00:00"
@@ -2034,7 +2034,7 @@
     "name": "CAPLIN POINT LAB LTD.",
     "category_id": "in_stocks",
     "market_cap": 20923,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Healthcare & Pharmaceuticals",
     "industry": "Drug Manufacturers - Specialty & Generic",
     "last_updated": "2026-09-14T07:31:02.837+00:00"
@@ -2074,7 +2074,7 @@
     "name": "APAR INDUSTRIES LTD.",
     "category_id": "in_stocks",
     "market_cap": 73272,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Electrical Equipment & Parts",
     "last_updated": "2026-09-14T07:31:02.884+00:00"
@@ -2144,7 +2144,7 @@
     "name": "COAL INDIA LTD",
     "category_id": "in_stocks",
     "market_cap": 262779,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Thermal Coal",
     "last_updated": "2026-09-14T07:31:04.096+00:00"
@@ -2194,7 +2194,7 @@
     "name": "D. P. ABHUSHAN LIMITED",
     "category_id": "in_stocks",
     "market_cap": 3081,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Diversified & Other",
     "industry": "Luxury Goods",
     "last_updated": "2026-09-14T07:31:04.486+00:00"
@@ -2234,7 +2234,7 @@
     "name": "DALMIA BHARAT SUG IN LTD",
     "category_id": "in_stocks",
     "market_cap": 3388,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Diversified & Other",
     "industry": "Confectioners",
     "last_updated": "2026-09-14T07:31:04.535+00:00"
@@ -2314,7 +2314,7 @@
     "name": "CARE RATINGS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 4994,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Financial Services",
     "industry": "Financial Data & Stock Exchanges",
     "last_updated": "2026-09-14T07:31:05.061+00:00"
@@ -2344,7 +2344,7 @@
     "name": "VISHNU CHEMICALS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 4812,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Chemicals & Materials",
     "industry": "Specialty Chemicals",
     "last_updated": "2026-09-14T07:31:05.455+00:00"
@@ -2354,7 +2354,7 @@
     "name": "RAM RATNA WIRES LIMITED",
     "category_id": "in_stocks",
     "market_cap": 4978,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Electrical Equipment & Parts",
     "last_updated": "2026-09-14T07:31:05.495+00:00"
@@ -2394,7 +2394,7 @@
     "name": "AWL AGRI BUSINESS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 24002,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Diversified & Other",
     "industry": "Packaged Foods",
     "last_updated": "2026-09-14T07:31:05.508+00:00"
@@ -2444,7 +2444,7 @@
     "name": "INDUSIND BANK LIMITED",
     "category_id": "in_stocks",
     "market_cap": 76216,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Banks - Regional",
     "last_updated": "2026-09-14T07:31:05.933+00:00"
@@ -2454,7 +2454,7 @@
     "name": "ASIAN PAINTS LIMITED",
     "category_id": "in_stocks",
     "market_cap": 237025,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Chemicals & Materials",
     "industry": "Specialty Chemicals",
     "last_updated": "2026-09-14T07:31:05.932+00:00"
@@ -2544,7 +2544,7 @@
     "name": "NMDC LTD.",
     "category_id": "in_stocks",
     "market_cap": 72445,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Chemicals & Materials",
     "industry": "Steel",
     "last_updated": "2026-09-14T07:31:06.529+00:00"
@@ -2574,7 +2574,7 @@
     "name": "MAHINDRA & MAHINDRA LTD",
     "category_id": "in_stocks",
     "market_cap": 373077,
-    "mcap_category": "Mega Cap",
+    "mcap_category": "Large Cap",
     "sector": "Diversified & Other",
     "industry": "Auto Manufacturers",
     "last_updated": "2026-09-14T07:31:07.29+00:00"
@@ -2624,7 +2624,7 @@
     "name": "AARTI DRUGS LTD.",
     "category_id": "in_stocks",
     "market_cap": 3909,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Healthcare & Pharmaceuticals",
     "industry": "Drug Manufacturers - Specialty & Generic",
     "last_updated": "2026-09-14T07:31:07.338+00:00"
@@ -2644,7 +2644,7 @@
     "name": "GLENMARK PHARMACEUTICALS",
     "category_id": "in_stocks",
     "market_cap": 68276,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Healthcare & Pharmaceuticals",
     "industry": "Drug Manufacturers - Specialty & Generic",
     "last_updated": "2026-09-14T07:31:07.343+00:00"
@@ -2704,7 +2704,7 @@
     "name": "STRLNG & WIL REN ENE LTD",
     "category_id": "in_stocks",
     "market_cap": 4204,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Information Technology",
     "industry": "Solar",
     "last_updated": "2026-09-14T07:31:08.068+00:00"
@@ -2734,7 +2734,7 @@
     "name": "TCPL PACKAGING LIMITED",
     "category_id": "in_stocks",
     "market_cap": 3533,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Diversified & Other",
     "industry": "Packaging & Containers",
     "last_updated": "2026-09-14T07:31:08.467+00:00"
@@ -2894,7 +2894,7 @@
     "name": "ANANT RAJ LIMITED",
     "category_id": "in_stocks",
     "market_cap": 21488,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Infrastructure & Real Estate",
     "industry": "Real Estate - Development",
     "last_updated": "2026-09-14T07:31:10.229+00:00"
@@ -2914,7 +2914,7 @@
     "name": "GENERAL INS CORP OF INDIA",
     "category_id": "in_stocks",
     "market_cap": 61404,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Insurance - Reinsurance",
     "last_updated": "2026-09-14T07:31:10.228+00:00"
@@ -2924,7 +2924,7 @@
     "name": "DATA PATTERNS INDIA LTD",
     "category_id": "in_stocks",
     "market_cap": 27035,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Aerospace & Defense",
     "last_updated": "2026-09-14T07:31:10.233+00:00"
@@ -2964,7 +2964,7 @@
     "name": "BOROSIL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 3073,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Diversified & Other",
     "industry": "Furnishings, Fixtures & Appliances",
     "last_updated": "2026-09-14T07:31:10.281+00:00"
@@ -3004,7 +3004,7 @@
     "name": "R R KABEL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 27462,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Electrical Equipment & Parts",
     "last_updated": "2026-09-14T07:31:11.032+00:00"
@@ -3014,7 +3014,7 @@
     "name": "GABRIEL INDIA LTD",
     "category_id": "in_stocks",
     "market_cap": 25756,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Diversified & Other",
     "industry": "Auto Parts",
     "last_updated": "2026-09-14T07:31:11.082+00:00"
@@ -3024,7 +3024,7 @@
     "name": "SANSERA ENGINEERING LTD",
     "category_id": "in_stocks",
     "market_cap": 25682,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Diversified & Other",
     "industry": "Auto Parts",
     "last_updated": "2026-09-14T07:31:11.082+00:00"
@@ -3044,7 +3044,7 @@
     "name": "AFFLE 3I LIMITED",
     "category_id": "in_stocks",
     "market_cap": 22124,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Telecommunication & Media",
     "industry": "Advertising Agencies",
     "last_updated": "2026-09-14T07:31:11.084+00:00"
@@ -3054,7 +3054,7 @@
     "name": "CHENNAI PETROLEUM CORP LT",
     "category_id": "in_stocks",
     "market_cap": 23379,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Energy, Power & Utilities",
     "industry": "Oil & Gas Refining & Marketing",
     "last_updated": "2026-09-14T07:31:11.552+00:00"
@@ -3064,7 +3064,7 @@
     "name": "JYOTI CNC AUTOMATION LTD",
     "category_id": "in_stocks",
     "market_cap": 22492,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Specialty Industrial Machinery",
     "last_updated": "2026-09-14T07:31:11.587+00:00"
@@ -3074,7 +3074,7 @@
     "name": "EMMVEE PHOTOVOLTAIC PWR L",
     "category_id": "in_stocks",
     "market_cap": 23872,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Information Technology",
     "industry": "Solar",
     "last_updated": "2026-09-14T07:31:11.548+00:00"
@@ -3174,7 +3174,7 @@
     "name": "MOTHERSON SUMI WRNG IND L",
     "category_id": "in_stocks",
     "market_cap": 24080,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Diversified & Other",
     "industry": "Auto Parts",
     "last_updated": "2026-09-14T07:31:12.17+00:00"
@@ -3204,7 +3204,7 @@
     "name": "Palantir Technologies Inc.",
     "category_id": "us_stocks",
     "market_cap": 40186,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Large Cap",
     "sector": "Information Technology",
     "industry": "Software - Infrastructure",
     "last_updated": "2026-09-14T07:31:12.19+00:00"
@@ -3224,7 +3224,7 @@
     "name": "ASTER DM QUALITY CARE LTD",
     "category_id": "in_stocks",
     "market_cap": 66552,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Healthcare & Pharmaceuticals",
     "industry": "Medical Care Facilities",
     "last_updated": "2026-09-14T07:31:12.565+00:00"
@@ -3314,7 +3314,7 @@
     "name": "CARYSIL LIMITED",
     "category_id": "in_stocks",
     "market_cap": 3317,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Diversified & Other",
     "industry": "Furnishings, Fixtures & Appliances",
     "last_updated": "2026-09-14T07:31:13.052+00:00"
@@ -3354,7 +3354,7 @@
     "name": "BANK OF INDIA",
     "category_id": "in_stocks",
     "market_cap": 63737,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Financial Services",
     "industry": "Banks - Regional",
     "last_updated": "2026-09-14T07:31:13.131+00:00"
@@ -3364,7 +3364,7 @@
     "name": "FINOLEX CABLES LTD",
     "category_id": "in_stocks",
     "market_cap": 21872,
-    "mcap_category": "Mid Cap",
+    "mcap_category": "Small Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Electrical Equipment & Parts",
     "last_updated": "2026-09-14T07:31:13.102+00:00"
@@ -3374,7 +3374,7 @@
     "name": "FORTIS HEALTHCARE LTD",
     "category_id": "in_stocks",
     "market_cap": 67025,
-    "mcap_category": "Large Cap",
+    "mcap_category": "Mid Cap",
     "sector": "Healthcare & Pharmaceuticals",
     "industry": "Medical Care Facilities",
     "last_updated": "2026-09-14T07:31:13.881+00:00"
@@ -3404,7 +3404,7 @@
     "name": "GREAVES COTTON LTD.",
     "category_id": "in_stocks",
     "market_cap": 4472,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Capital Goods & Industrials",
     "industry": "Specialty Industrial Machinery",
     "last_updated": "2026-09-14T07:31:13.872+00:00"
@@ -3504,7 +3504,7 @@
     "name": "VRL Logistics Limited",
     "category_id": "in_stocks",
     "market_cap": 4900,
-    "mcap_category": "Small Cap",
+    "mcap_category": "Micro Cap",
     "sector": "Infrastructure & Real Estate",
     "industry": "Logistics & Transportation",
     "last_updated": "2026-10-24T10:02:05.584Z"

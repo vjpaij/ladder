@@ -10,13 +10,21 @@ import {
 import ChartRangeSelector, { computeRangeDates } from '../ChartRangeSelector';
 import HoldingLogo from '../HoldingLogo';
 import { CAP_COLORS, PALETTE } from './reportsConstants';
+import { useThemeAuth } from '../../context/ThemeAuthContext';
 
 export default function SectorCapPerformanceSection({
+  equityOptions,
   onSelectHolding,
-  formatMoney,
-  isUSD,
-  isLight
+  formatMoney: propFormatMoney,
+  isUSD: propIsUSD,
+  isLight: propIsLight
 }) {
+  const auth = useThemeAuth();
+  const isLight = propIsLight !== undefined ? propIsLight : (auth.theme === 'light' || auth.theme === 'warm_light' || auth.theme === 'nordic_light');
+  const formatMoney = propFormatMoney || auth.formatMoney;
+  const isUSD = propIsUSD !== undefined ? propIsUSD : auth.isUSD;
+
+  const [marketScope, setMarketScope] = useState('PORTFOLIO'); // 'PORTFOLIO' | 'MARKET'
   const [activeMode, setActiveMode] = useState('SECTORS'); // 'SECTORS' | 'CAPS'
   const [rangeFilter, setRangeFilter] = useState({
     type: '1M',
@@ -50,7 +58,12 @@ export default function SectorCapPerformanceSection({
     setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const params = {
+        marketScope,
+        includeIndia: equityOptions ? equityOptions.india : true,
+        includeUs: equityOptions ? equityOptions.us : true,
+        includeMf: equityOptions ? equityOptions.mf : false
+      };
       if (rangeFilter.type !== 'ALL' && rangeFilter.startDate) {
         params.startDate = rangeFilter.startDate;
         params.endDate = rangeFilter.endDate;
@@ -62,7 +75,7 @@ export default function SectorCapPerformanceSection({
         setData(res.data);
         // Default select top group
         const groups = activeMode === 'SECTORS' ? res.data.sectors : res.data.caps;
-        if (groups && groups.length > 0 && !selectedGroup) {
+        if (groups && groups.length > 0 && (!selectedGroup || !groups.some(g => g.name === selectedGroup))) {
           setSelectedGroup(groups[0].name);
         }
       } else {
@@ -74,13 +87,32 @@ export default function SectorCapPerformanceSection({
     } finally {
       setLoading(false);
     }
-  }, [rangeFilter.type, rangeFilter.startDate, rangeFilter.endDate, activeMode, selectedGroup]);
+  }, [
+    rangeFilter.type,
+    rangeFilter.startDate,
+    rangeFilter.endDate,
+    activeMode,
+    selectedGroup,
+    marketScope,
+    equityOptions?.india,
+    equityOptions?.us,
+    equityOptions?.mf
+  ]);
 
   useEffect(() => {
     if (rangeFilter.startDate || rangeFilter.type === 'ALL') {
       fetchPerformance();
     }
-  }, [fetchPerformance, rangeFilter.type, rangeFilter.startDate, rangeFilter.endDate]);
+  }, [
+    fetchPerformance,
+    rangeFilter.type,
+    rangeFilter.startDate,
+    rangeFilter.endDate,
+    marketScope,
+    equityOptions?.india,
+    equityOptions?.us,
+    equityOptions?.mf
+  ]);
 
   // Active groups according to mode
   const activeGroups = useMemo(() => {
@@ -156,6 +188,38 @@ export default function SectorCapPerformanceSection({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Market Scope Toggle: Portfolio vs General Market */}
+            <div className="flex p-1 rounded-2xl bg-black/10 dark:bg-black/30 border border-[var(--border-color)]">
+              <button
+                type="button"
+                onClick={() => {
+                  setMarketScope('PORTFOLIO');
+                  setSelectedGroup(null);
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  marketScope === 'PORTFOLIO'
+                    ? 'bg-emerald-500 text-obsidian-950 shadow-md font-black'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                My Portfolio
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMarketScope('MARKET');
+                  setSelectedGroup(null);
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  marketScope === 'MARKET'
+                    ? 'bg-emerald-500 text-obsidian-950 shadow-md font-black'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                General Market
+              </button>
+            </div>
+
             {/* Mode Toggle: Sectors vs Market Caps */}
             <div className="flex p-1 rounded-2xl bg-black/10 dark:bg-black/30 border border-[var(--border-color)]">
               <button
@@ -204,7 +268,7 @@ export default function SectorCapPerformanceSection({
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
             <div className="p-3.5 rounded-2xl reports-subcard border border-[var(--border-color)]">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block mb-1">
-                Portfolio Equity Return
+                {marketScope === 'PORTFOLIO' ? 'Portfolio Equity Return' : 'General Market Return'}
               </span>
               <div className="flex items-center gap-2">
                 <span className={`text-base font-black ${
@@ -215,7 +279,9 @@ export default function SectorCapPerformanceSection({
                   {data.totalReturnPct >= 0 ? '+' : ''}{data.totalReturnPct.toFixed(2)}%
                 </span>
                 <span className="text-xs font-mono text-[var(--text-secondary)]">
-                  ({formatMoney(data.totalGainINR)})
+                  {marketScope === 'PORTFOLIO'
+                    ? `(${formatMoney(data.totalGainINR)})`
+                    : `(${data.totalStocksCount} Stocks Analyzed)`}
                 </span>
               </div>
             </div>
@@ -226,7 +292,7 @@ export default function SectorCapPerformanceSection({
               </span>
               {bestGroup ? (
                 <div>
-                  <span className="text-xs font-black text-[var(--text-primary)] truncate block">
+                  <span className="text-xs font-black text-[var(--text-primary)] truncate block" title={bestGroup.name}>
                     {bestGroup.name}
                   </span>
                   <span className={`text-xs font-bold ${
@@ -244,7 +310,7 @@ export default function SectorCapPerformanceSection({
               </span>
               {worstGroup ? (
                 <div>
-                  <span className="text-xs font-black text-[var(--text-primary)] truncate block">
+                  <span className="text-xs font-black text-[var(--text-primary)] truncate block" title={worstGroup.name}>
                     {worstGroup.name}
                   </span>
                   <span className={`text-xs font-bold ${
@@ -258,13 +324,13 @@ export default function SectorCapPerformanceSection({
 
             <div className="p-3.5 rounded-2xl reports-subcard border border-[var(--border-color)]">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block mb-1">
-                Total Equity Value
+                {marketScope === 'PORTFOLIO' ? 'Total Equity Value' : 'Universe Coverage'}
               </span>
               <span className="text-base font-black text-[var(--text-primary)] block">
-                {formatMoney(data.totalCurrentValINR)}
+                {marketScope === 'PORTFOLIO' ? formatMoney(data.totalCurrentValINR) : `${data.totalStocksCount} Stocks`}
               </span>
               <span className="text-[10px] text-[var(--text-muted)]">
-                {data.totalStocksCount} active stocks
+                {marketScope === 'PORTFOLIO' ? `${data.totalStocksCount} active stocks` : 'Broader Market Universe'}
               </span>
             </div>
           </div>
@@ -332,21 +398,25 @@ export default function SectorCapPerformanceSection({
                       const item = payload[0].payload;
                       return (
                         <div className="reports-card p-3 rounded-2xl border border-[var(--border-color)] shadow-2xl backdrop-blur-md text-xs space-y-1">
-                          <span className="font-bold text-[var(--text-primary)] block">{item.name}</span>
+                          <span className="font-bold text-[var(--text-primary)] block" title={item.name}>{item.name}</span>
                           <div className="flex justify-between gap-4">
                             <span className="text-[var(--text-secondary)]">Period Return:</span>
                             <span className={`font-bold ${item.returnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {item.returnPct >= 0 ? '+' : ''}{item.returnPct.toFixed(2)}%
                             </span>
                           </div>
-                          <div className="flex justify-between gap-4">
-                            <span className="text-[var(--text-secondary)]">Period Gain:</span>
-                            <span className="font-bold text-[var(--text-primary)]">{formatMoney(item.gainINR)}</span>
-                          </div>
-                          <div className="flex justify-between gap-4">
-                            <span className="text-[var(--text-secondary)]">Current Value:</span>
-                            <span className="font-bold text-[var(--text-primary)]">{formatMoney(item.currentValINR)}</span>
-                          </div>
+                          {marketScope === 'PORTFOLIO' && (
+                            <>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-[var(--text-secondary)]">Period Gain:</span>
+                                <span className="font-bold text-[var(--text-primary)]">{formatMoney(item.gainINR)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-[var(--text-secondary)]">Current Value:</span>
+                                <span className="font-bold text-[var(--text-primary)]">{formatMoney(item.currentValINR)}</span>
+                              </div>
+                            </>
+                          )}
                           <div className="flex justify-between gap-4">
                             <span className="text-[var(--text-secondary)]">Constituents:</span>
                             <span className="font-bold text-[var(--text-primary)]">{item.stocksCount} stocks</span>
@@ -384,11 +454,12 @@ export default function SectorCapPerformanceSection({
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
                 <div>
-                  <h3 className="text-sm font-black text-[var(--text-primary)]">
+                  <h3 className="text-sm font-black text-[var(--text-primary)]" title={inspectedGroup?.name}>
                     {inspectedGroup?.name || 'Selected Group'}
                   </h3>
                   <span className="text-[10px] text-[var(--text-muted)]">
-                    {inspectedGroup?.stocksCount || 0} stocks • {formatMoney(inspectedGroup?.currentValINR || 0)}
+                    {inspectedGroup?.stocksCount || 0} stocks
+                    {marketScope === 'PORTFOLIO' ? ` • ${formatMoney(inspectedGroup?.currentValINR || 0)}` : ''}
                   </span>
                 </div>
                 <span className={`text-sm font-black px-2.5 py-1 rounded-xl ${
@@ -418,10 +489,18 @@ export default function SectorCapPerformanceSection({
                   <thead className="sticky top-0 bg-[var(--card-bg)] text-[10px] uppercase font-bold text-[var(--text-muted)] border-b border-[var(--border-color)]">
                     <tr>
                       <th className="py-2 px-1">Stock</th>
-                      <th onClick={() => handleStockSort('currentValINR')} className="py-2 px-2 text-right cursor-pointer hover:text-[var(--text-primary)]">
-                        Value
+                      <th
+                        onClick={() => handleStockSort(marketScope === 'PORTFOLIO' ? 'currentValINR' : 'endPrice')}
+                        className="py-2 px-2 text-right cursor-pointer hover:text-[var(--text-primary)]"
+                        title={marketScope === 'PORTFOLIO' ? 'Sort by Portfolio Value' : 'Sort by Current Price'}
+                      >
+                        {marketScope === 'PORTFOLIO' ? 'Value' : 'Price / MCap'}
                       </th>
-                      <th onClick={() => handleStockSort('returnPct')} className="py-2 px-2 text-right cursor-pointer hover:text-[var(--text-primary)]">
+                      <th
+                        onClick={() => handleStockSort('returnPct')}
+                        className="py-2 px-2 text-right cursor-pointer hover:text-[var(--text-primary)]"
+                        title="Sort by Period Return %"
+                      >
                         Return
                       </th>
                     </tr>
@@ -443,14 +522,41 @@ export default function SectorCapPerformanceSection({
                                 category={s.category_id}
                                 className="w-6 h-6 rounded-lg shrink-0"
                               />
-                              <div className="truncate max-w-[130px]">
-                                <span className="font-bold text-[var(--text-primary)] block truncate">{s.symbol}</span>
-                                <span className="text-[10px] text-[var(--text-muted)] truncate block">{s.name}</span>
+                              <div className="min-w-0 flex-1 pr-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-[var(--text-primary)] block text-xs" title={s.symbol}>
+                                    {s.symbol}
+                                  </span>
+                                  {marketScope === 'MARKET' && s.isPortfolioHolding && (
+                                    <span className="px-1.5 py-0.2 text-[9px] font-black rounded bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
+                                      Held
+                                    </span>
+                                  )}
+                                </div>
+                                <span
+                                  className="text-[11px] text-[var(--text-muted)] block truncate max-w-[190px] sm:max-w-[260px] cursor-help"
+                                  title={s.name}
+                                >
+                                  {s.name}
+                                </span>
                               </div>
                             </div>
                           </td>
                           <td className="py-2.5 px-2 text-right font-mono font-medium text-[var(--text-primary)]">
-                            {formatMoney(s.currentValINR)}
+                            {marketScope === 'PORTFOLIO' ? (
+                              formatMoney(s.currentValINR)
+                            ) : (
+                              <div>
+                                <div className="font-bold text-xs">
+                                  {s.currency === 'USD' ? `$${s.endPrice.toFixed(2)}` : `₹${s.endPrice.toFixed(2)}`}
+                                </div>
+                                {s.marketCapCr ? (
+                                  <div className="text-[10px] text-[var(--text-muted)] font-normal">
+                                    ₹{Number(s.marketCapCr).toLocaleString('en-IN')} Cr
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
                           </td>
                           <td className="py-2.5 px-2 text-right font-mono font-bold">
                             <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[10px] ${

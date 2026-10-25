@@ -48,7 +48,7 @@ export async function healMissingHistoricalFxRates() {
         const tDate = new Date(t * 1000);
         const offsetDate = new Date(tDate.getTime() - (tDate.getTimezoneOffset() * 60000));
         const dStr = offsetDate.toISOString().split('T')[0];
-        const val = adjclose[i] !== null && adjclose[i] !== undefined ? adjclose[i] : quote.close[i];
+        const val = quote.close[i] !== null && quote.close[i] !== undefined ? quote.close[i] : adjclose[i];
 
         if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
           if (!existingDates.has(dStr)) {

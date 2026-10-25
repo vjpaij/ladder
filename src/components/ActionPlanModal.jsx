@@ -131,7 +131,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
 
   const formatInr = (val) => {
     const num = Number(val) || 0;
-    return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const formatInr2 = (val) => {
@@ -314,25 +314,12 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
-                  Recycled Capital
-                </span>
-                {summary.realizedRecycledCapital > 0 && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
-                    Realized Exits
-                  </span>
-                )}
-              </div>
+              <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
+                Recycled Capital
+              </span>
               <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
                 +{formatInr(summary.recycledCapital)}
               </span>
-              <div className="mt-1 text-[10px] text-[var(--text-muted)] leading-tight space-y-0.5">
-                <div>Realized (21-Oct+): <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{formatInr(summary.realizedRecycledCapital)}</span></div>
-                {summary.projectedRecycledCapital > 0 && (
-                  <div>Projected Trims: <span className="font-mono font-semibold text-[var(--text-primary)]">+{formatInr(summary.projectedRecycledCapital)}</span></div>
-                )}
-              </div>
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
