@@ -856,6 +856,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                   {/* 3. PRIMARY ACTION DIRECTIVE BANNER */}
                   {(() => {
                     const isCompounding = selected.compoundingShield?.isActive || selected.state === 'NORMAL';
+                    const isRetestHold = selected.action === 'ACCUMULATION_RETEST';
                     const isTrim = selected.state === 'TECHNICAL_TRIM_CANDIDATE' || selected.state === 'FUNDAMENTAL_TRIM_CANDIDATE' || selected.state === 'PORTFOLIO_RISK_TRIM';
                     const isFullExit = selected.state === 'FULL_EXIT_CANDIDATE';
                     const isWatch = selected.state === 'WATCH';
@@ -866,39 +867,44 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
 
                     const actionType = isFullExit
                       ? 'EXIT'
-                      : isT1DoneHold
-                        ? 'HOLD'
-                        : isTrim
-                          ? 'TRIM'
-                          : isWatch
-                            ? 'WATCH'
-                            : isNewListing
-                              ? 'IPO_HOLD'
-                              : 'HOLD';
+                      : isRetestHold
+                        ? 'RETEST_HOLD'
+                        : isT1DoneHold
+                          ? 'HOLD'
+                          : isTrim
+                            ? 'TRIM'
+                            : isWatch
+                              ? 'WATCH'
+                              : isNewListing
+                                ? 'IPO_HOLD'
+                                : 'HOLD';
 
-                    const actionTitle = isT1DoneHold
-                      ? 'TRANCHE 1 COMPLETED — HOLDING CORE POSITION'
-                      : (selected.stopFloorBreached && !isFullExit && (selected.suggestedSellQuantity > 0 || selected.totalActionShares > 0))
-                        ? 'ACTION: STOP FLOOR BREACHED — REVIEW TRIM'
-                        : ({
-                        EXIT: 'ACTION: FULL EXIT (SELL ALL)',
-                        TRIM: 'ACTION: TRIM POSITION',
-                        WATCH: 'ACTION: HOLD (WATCH CLOSELY)',
-                        IPO_HOLD: 'ACTION: HOLD (NEW LISTING)',
-                        HOLD: 'ACTION: HOLD (DO NOT SELL)'
-                      }[actionType]);
+                    const actionTitle = isRetestHold
+                      ? 'ACTION: HOLD (FRESH BUY RETEST)'
+                      : isT1DoneHold
+                        ? 'TRANCHE 1 COMPLETED — HOLDING CORE POSITION'
+                        : (selected.stopFloorBreached && !isFullExit && (selected.suggestedSellQuantity > 0 || selected.totalActionShares > 0))
+                          ? 'ACTION: STOP FLOOR BREACHED — REVIEW TRIM'
+                          : ({
+                          EXIT: 'ACTION: FULL EXIT (SELL ALL)',
+                          TRIM: 'ACTION: TRIM POSITION',
+                          WATCH: 'ACTION: HOLD (WATCH CLOSELY)',
+                          IPO_HOLD: 'ACTION: HOLD (NEW LISTING)',
+                          HOLD: 'ACTION: HOLD (DO NOT SELL)'
+                        }[actionType]);
 
                     const actionTheme = {
                       EXIT: 'border-red-500/50 bg-red-500/[0.08] text-red-600 dark:text-red-300',
                       TRIM: 'border-rose-500/40 bg-rose-500/[0.07] text-rose-600 dark:text-rose-300',
                       WATCH: 'border-amber-500/40 bg-amber-500/[0.07] text-amber-600 dark:text-amber-300',
                       IPO_HOLD: 'border-cyan-500/30 bg-cyan-500/[0.06] text-cyan-600 dark:text-cyan-300',
+                      RETEST_HOLD: 'border-cyan-500/40 bg-cyan-500/[0.07] text-cyan-600 dark:text-cyan-300',
                       HOLD: 'border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-600 dark:text-emerald-300'
                     }[actionType];
 
                     const sellQty = isFullExit
                       ? selected.quantity
-                      : isT1DoneHold
+                      : (isT1DoneHold || isRetestHold)
                         ? 0
                         : (isTrim || selected.stopFloorBreached)
                           ? (selected.suggestedSellQuantity || selected.totalActionShares || 0)
@@ -915,19 +921,21 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     );
                     const reasonText = isFullExit
                       ? (selected.explanation || 'Both technical trend and quarterly fundamental growth have broken down. Exit complete position.')
-                      : isT1DoneHold
-                        ? (selected.explanation || `Tranche 1 de-risking trim completed. Holding core position until 30-week SMA breakdown.`)
-                        : isTrim
-                          ? (selected.explanation || `Price dropped below 30-week moving average. Sell ${sellQty} shares to de-risk.`)
-                          : isWatch
-                            ? (selected.explanation || `Price is consolidating near the 30-week average (${curSymbol}${selected.sma30Week || '—'}). Continue holding.`)
-                            : isNewListing
-                              ? (selected.invalidation || 'Recently listed stock (<40 weeks history). 30-week trend baseline is establishing. Hold position.')
-                              : selected.stopFloorBreached
-                                ? `Live price ${curSymbol}${Number(selected.currentPrice).toFixed(2)} is at or below the stop floor (${curSymbol}${stopFloor || '—'}). Review the suggested trim; no trade is placed automatically.`
-                                : liveBufferPct !== null
-                                  ? `Live price is ${Math.abs(liveBufferPct).toFixed(2)}% ${liveBufferPct >= 0 ? 'above' : 'below'} the stop floor (${curSymbol}${stopFloor || '—'}). ${liveBufferPct >= 0 ? 'Bull thesis remains above this stop level.' : 'Review the stop-breach signal and staged exit plan.'}`
-                                  : 'Trailing stop floor is unavailable; refresh price history before relying on the sell analysis.';
+                      : isRetestHold
+                        ? (selected.explanation || 'Fresh buy within 5-day noise corridor. Holding through initial retest volatility without premature exit.')
+                        : isT1DoneHold
+                          ? (selected.explanation || `Tranche 1 de-risking trim completed. Holding core position until 30-week SMA breakdown.`)
+                          : isTrim
+                            ? (selected.explanation || `Price dropped below 30-week moving average. Sell ${sellQty} shares to de-risk.`)
+                            : isWatch
+                              ? (selected.explanation || `Price is consolidating near the 30-week average (${curSymbol}${selected.sma30Week || '—'}). Continue holding.`)
+                              : isNewListing
+                                ? (selected.invalidation || 'Recently listed stock (<40 weeks history). 30-week trend baseline is establishing. Hold position.')
+                                : selected.stopFloorBreached
+                                  ? `Live price ${curSymbol}${Number(selected.currentPrice).toFixed(2)} is at or below the stop floor (${curSymbol}${stopFloor || '—'}). Review the suggested trim; no trade is placed automatically.`
+                                  : liveBufferPct !== null
+                                    ? `Live price is ${Math.abs(liveBufferPct).toFixed(2)}% ${liveBufferPct >= 0 ? 'above' : 'below'} the stop floor (${curSymbol}${stopFloor || '—'}). ${liveBufferPct >= 0 ? 'Bull thesis remains above this stop level.' : 'Review the stop-breach signal and staged exit plan.'}`
+                                    : 'Trailing stop floor is unavailable; refresh price history before relying on the sell analysis.';
 
                     return (
                       <div className={`mt-4 rounded-2xl border p-4 ${actionTheme}`}>
@@ -939,7 +947,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                               <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
                             ) : actionType === 'WATCH' ? (
                               <Activity className="w-5 h-5 text-amber-400 shrink-0" />
-                            ) : actionType === 'IPO_HOLD' ? (
+                            ) : (actionType === 'IPO_HOLD' || actionType === 'RETEST_HOLD') ? (
                               <Clock3 className="w-5 h-5 text-cyan-400 shrink-0" />
                             ) : (
                               <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -965,7 +973,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
                             <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Action Needed</div>
                             <div className={`mt-0.5 text-sm font-black font-mono ${sellQty > 0 ? 'text-rose-500 dark:text-rose-300' : 'text-emerald-500 dark:text-emerald-300'}`}>
-                              {sellQty > 0 ? `Sell ${sellQty.toLocaleString()} shs` : (isT1DoneHold ? 'HOLD (Tranche 1 Done)' : 'Do Not Sell')}
+                              {sellQty > 0 ? `Sell ${sellQty.toLocaleString()} shs` : (isRetestHold ? 'HOLD (Retest Buffer)' : (isT1DoneHold ? 'HOLD (Tranche 1 Done)' : 'Do Not Sell'))}
                             </div>
                           </div>
                           <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">

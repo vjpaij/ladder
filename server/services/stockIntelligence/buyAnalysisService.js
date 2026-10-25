@@ -172,6 +172,8 @@ function computeTechnicalBuyScore(trendData = {}, chartinkFilter = {}, currentPr
  */
 function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earningsCatalyst, newsSignal, hasGovernanceRedFlag, rrRatio, volumeConfirmed, chartinkFilter) {
   const fundScore = fundResult.score;
+  const currentPrice = Number(chartinkFilter?.currentPrice) || Number(trendData?.weeklyClose) || 0;
+
   // Governance red flag overrides everything
   if (hasGovernanceRedFlag) {
     return {
@@ -190,11 +192,13 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
     };
   }
 
-  // Downtrend (Stage 4) — not a buy
-  if (trendData.weinsteinStage === 4) {
+  // Downtrend (Stage 4) or trading below 30-week SMA — strictly prohibited from Buy entry
+  if (trendData.weinsteinStage === 4 || (!trendData.isIpo && trendData.sma30Week && currentPrice <= trendData.sma30Week)) {
     return {
       signal: 'AVOID',
-      reason: 'Stock in Stage 4 structural decline — wait for Stage 1 base before considering entry.',
+      reason: trendData.weinsteinStage === 4
+        ? 'Stock in Stage 4 structural decline — wait for Stage 1 base before considering entry.'
+        : `Trading below 30-week moving average (CMP ₹${currentPrice.toFixed(2)} ≤ SMA ₹${trendData.sma30Week.toFixed(2)}). Bottom-fishing in sub-SMA territory is strictly prohibited.`,
       isStrongBuyEligible: false
     };
   }
@@ -208,7 +212,6 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
     };
   }
 
-  const currentPrice = chartinkFilter?.currentPrice || 0;
   // Dynamic setup eligibility: Stage 2 Bull, Stage 1 Base Breakout, 50-EMA support, or Blowout earnings
   const isSetupEligible = trendData.weinsteinStage === 2
     || (trendData.weinsteinStage === 1 && (trendData.drawdownFrom20WeekHighPct >= -15 || currentPrice >= (chartinkFilter?.high52w || 0) * 0.85))

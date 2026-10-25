@@ -134,13 +134,14 @@ export async function generateActionPlan({
     candleCache
   });
 
-  const fullExits = heldAnalyses.filter(a => a.state === 'FULL_EXIT_CANDIDATE');
-  const trims = heldAnalyses.filter(a => a.state === 'TECHNICAL_TRIM_CANDIDATE' || a.state === 'FUNDAMENTAL_TRIM_CANDIDATE');
+  const fullExits = heldAnalyses.filter(a => a.state === 'FULL_EXIT_CANDIDATE' && a.action !== 'ACCUMULATION_RETEST');
+  const trims = heldAnalyses.filter(a => (a.state === 'TECHNICAL_TRIM_CANDIDATE' || a.state === 'FUNDAMENTAL_TRIM_CANDIDATE') && a.action !== 'ACCUMULATION_RETEST');
 
   // Chandelier-breach sells: stocks where live CMP has broken below their chandelier stop floor.
   // Only positions that are genuinely marked for trim/exit (not compounding-protected winners or already completed tranches) are included.
   const chandelierBreachSells = heldAnalyses.filter(a =>
     a.stopFloorBreached &&
+    a.action !== 'ACCUMULATION_RETEST' &&
     (a.action === 'REVIEW_PARTIAL_SALE' || a.action === 'SELL_ALL' || a.state === 'TECHNICAL_TRIM_CANDIDATE') &&
     a.state !== 'DATA_UNAVAILABLE' &&
     (Number(a.suggestedSellQuantity) > 0 || calculateTriggeredStagedSell(a).quantity > 0) &&

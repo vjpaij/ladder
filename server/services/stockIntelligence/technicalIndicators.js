@@ -53,7 +53,13 @@ export function calculateWeeklyATR(weeklyCloses = [], period = 14) {
   return recent.reduce((sum, v) => sum + v, 0) / period;
 }
 
-export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOString().slice(0, 10), candleMapList = null, includeCurrentWeek = false } = {}) {
+export function analyzeTechnicalTrend(rawPrices, {
+  today = new Date().toISOString().slice(0, 10),
+  candleMapList = null,
+  includeCurrentWeek = false,
+  entryDate = null,
+  entryPrice = null
+} = {}) {
   const daily = normalizePriceSeries(rawPrices);
   const weekly = aggregateWeeklyCloses(daily, { today, includeCurrentWeek });
   const latest = weekly.at(-1);
@@ -123,9 +129,25 @@ export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOStrin
     weinsteinStageLabel = 'Stage 1 (Base / Accumulation)';
   }
 
-  // 2. Chandelier Trailing Exit: Peak(20w) - 3.0 * ATR(14w)
+  // 2. Chandelier Trailing Exit: TrailingPeak - 3.0 * ATR(14w)
+  // For held positions, anchor trailing peak strictly to the maximum price achieved since entry
+  // (or entry purchase price), preventing pre-entry historical peaks from triggering premature stops.
+  let trailingPeak = peak20;
+  if (entryDate) {
+    const pricesSinceEntry = daily
+      .slice(-100)
+      .filter(row => row.date >= entryDate)
+      .map(row => row.close);
+    if (entryPrice && Number(entryPrice) > 0) {
+      pricesSinceEntry.push(Number(entryPrice));
+    }
+    if (pricesSinceEntry.length > 0) {
+      trailingPeak = Math.max(...pricesSinceEntry);
+    }
+  }
+
   const atr14 = calculateWeeklyATR(closes, 14) || (latest.close * 0.04);
-  const chandelierStopPrice = Number(Math.max(0, peak20 - 3.0 * atr14).toFixed(2));
+  const chandelierStopPrice = Number(Math.max(0, trailingPeak - 3.0 * atr14).toFixed(2));
 
   // 3. Compounding Protection Engine
   // A stock in Stage 2 Bull that trades above its trailing stop has active compounding protection.
@@ -163,6 +185,7 @@ export function analyzeTechnicalTrend(rawPrices, { today = new Date().toISOStrin
     weinsteinStage,
     weinsteinStageLabel,
     peak20WeekPrice: peak20,
+    trailingPeakPrice: trailingPeak,
     chandelierStopPrice,
     isCompoundingProtected,
     trailingFloorPrice,

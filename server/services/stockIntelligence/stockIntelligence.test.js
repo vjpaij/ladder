@@ -317,3 +317,140 @@ test('Task 9: Recently sold stocks from crash/past 90 days are added to candidat
   assert.equal(oct21Sold.inPortfolio, false);
 });
 
+test('Rule 1: Entry-anchored Chandelier trailing stop anchors to peak since purchase rather than pre-entry historical high', () => {
+  // 60 weeks of price history (420 days):
+  // Days 0-300: price rises to 150 at day 300 (historical peak in week 42, within last 20 weeks)
+  // Days 301-380: price cools down to 100
+  // User enters at day 385 at price 100
+  // Days 386-420: price is at 102 (peak since purchase is 102)
+  const prices = {};
+  const start = new Date('2023-01-01T00:00:00Z');
+  for (let i = 0; i < 420; i++) {
+    const d = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
+    if (i < 300) prices[d] = 100 + (i / 300) * 50;
+    else if (i < 380) prices[d] = 150 - ((i - 300) / 80) * 50;
+    else prices[d] = 102;
+  }
+  const entryDate = new Date(start.getTime() + 385 * 86400000).toISOString().slice(0, 10);
+  const today = new Date(start.getTime() + 419 * 86400000).toISOString().slice(0, 10);
+
+  // Without entryDate: peak20 captures day 300's peak (150)
+  const unanchored = analyzeTechnicalTrend(prices, { today });
+  assert.ok(unanchored.peak20WeekPrice >= 145, 'Unanchored peak20 captures pre-entry high');
+
+  // With entryDate: trailingPeak is anchored to prices since entry (102), so trailing stop is well below 102
+  const anchored = analyzeTechnicalTrend(prices, { today, entryDate, entryPrice: 100 });
+  assert.equal(anchored.trailingPeakPrice, 102, 'Anchored trailing peak reflects post-entry high');
+  assert.ok(anchored.chandelierStopPrice < 102, 'Chandelier stop is below entry peak');
+});
+
+test('Rule 2: Fresh buy position held <= 5 trading days with loss < 8% is protected under ACCUMULATION_RETEST', () => {
+  const prices = weekdays(300, '2023-01-02');
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+  const buyDate = dates.at(-3);
+  const buyPrice = prices[buyDate];
+  const cmp = Number((buyPrice * 0.98).toFixed(2));
+  prices[today] = cmp;
+
+  const holdings = [{
+    id: 'h_fresh_1',
+    symbol: 'FRESH_TEST',
+    name: 'Fresh Buy Retest Test',
+    category_id: 'in_stocks',
+    quantity: 100,
+    current_price: cmp,
+    avg_buy_price: buyPrice,
+    investedValueINR: buyPrice * 100
+  }];
+  const transactions = [{
+    holding_id: 'h_fresh_1',
+    symbol: 'FRESH_TEST',
+    date: buyDate,
+    type: 'BUY',
+    quantity: 100,
+    price: buyPrice,
+    total_amount: buyPrice * 100
+  }];
+
+  const results = buildStockAnalyses(holdings, { FRESH_TEST: prices }, {
+    today,
+    transactions,
+    fundamentalsMap: { FRESH_TEST: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING' } }
+  });
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].action, 'ACCUMULATION_RETEST', 'Fresh buy should be under ACCUMULATION_RETEST');
+  assert.equal(results[0].suggestedSellQuantity, 0, 'No shares suggested for sale during noise corridor');
+  assert.equal(results[0].totalActionShares, 0, 'Total action shares must be 0');
+});
+
+test('Rule 2: Fresh buy position dropping >= 8% triggers hard circuit-breaker de-risk trim', () => {
+  const prices = weekdays(300, '2023-01-02');
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+  const buyDate = dates.at(-3);
+  const buyPrice = prices[buyDate];
+  const cmp = Number((buyPrice * 0.90).toFixed(2));
+  prices[today] = cmp;
+
+  const holdings = [{
+    id: 'h_fresh_2',
+    symbol: 'FRESH_HARD_STOP',
+    name: 'Fresh Buy Hard Stop Test',
+    category_id: 'in_stocks',
+    quantity: 100,
+    current_price: cmp,
+    avg_buy_price: buyPrice,
+    investedValueINR: buyPrice * 100
+  }];
+  const transactions = [{
+    holding_id: 'h_fresh_2',
+    symbol: 'FRESH_HARD_STOP',
+    date: buyDate,
+    type: 'BUY',
+    quantity: 100,
+    price: buyPrice,
+    total_amount: buyPrice * 100
+  }];
+
+  const results = buildStockAnalyses(holdings, { FRESH_HARD_STOP: prices }, {
+    today,
+    transactions,
+    fundamentalsMap: { FRESH_HARD_STOP: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING' } }
+  });
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].state, 'TECHNICAL_TRIM_CANDIDATE', 'Hard loss triggers technical trim');
+  assert.equal(results[0].action, 'REVIEW_PARTIAL_SALE', 'Action must be review partial sale');
+  assert.ok(results[0].suggestedSellQuantity > 0, 'Tranche 1 trim shares must be > 0');
+});
+
+test('Rule 3: Buy analysis strictly disqualifies candidate stocks trading <= 30-week SMA as AVOID', () => {
+  const prices = weekdays(300, '2023-01-02');
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+  const trend = analyzeTechnicalTrend(prices, { today });
+
+  const subSmaPrice = Number((trend.sma30Week * 0.95).toFixed(2));
+  prices[today] = subSmaPrice;
+
+  const candidate = {
+    symbol: 'SUB_SMA_CANDIDATE',
+    name: 'Sub SMA Candidate Test',
+    currentPrice: subSmaPrice,
+    category: 'in_stocks',
+    inPortfolio: false
+  };
+
+  const buyAnalyses = buildBuyAnalyses({
+    candidates: [candidate],
+    priceHistory: { SUB_SMA_CANDIDATE: prices },
+    fundamentalsCache: { SUB_SMA_CANDIDATE: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING', roePct: 20 } },
+    today
+  });
+
+  assert.equal(buyAnalyses.length, 1);
+  assert.equal(buyAnalyses[0].buySignal, 'AVOID', 'Candidate <= 30w SMA must be classified AVOID');
+  assert.ok(buyAnalyses[0].signalReason.includes('30-week moving average'), 'Reason must cite 30-week SMA');
+});

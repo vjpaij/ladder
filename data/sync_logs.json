@@ -1,5 +1,71 @@
 [
   {
+    "id": "log_1792954621813_7hxbr",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-25T18:57:01.810Z",
+    "status": "SUCCESS",
+    "durationMs": 3304,
+    "details": "Evaluated 60 active Indian equity holdings. 8 in Stage 2 Compounding, 36 technical trim, 0 on watch. Data integrity: 90% (6 anomalies). Recorded 9 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792953396511_3iemp",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (00:05 AM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-25T18:36:36.511Z",
+    "status": "SUCCESS",
+    "durationMs": 896,
+    "details": "Evaluated 60 active Indian equity holdings. 11 in Stage 2 Compounding, 41 technical trim, 0 on watch. Data integrity: 90% (6 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792953395613_fogan",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (00:05 AM IST)",
+    "scheduledTime": "00:05 AM IST",
+    "runTime": "2026-10-25T18:36:35.613Z",
+    "status": "SUCCESS",
+    "durationMs": 95597,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
+    "id": "log_1792953331411_ur96e",
+    "jobType": "SELF_HEALING",
+    "jobName": "Midnight Comprehensive Self-Healing",
+    "scheduledTime": "00:05 AM IST",
+    "runTime": "2026-10-25T18:35:31.411Z",
+    "status": "SUCCESS",
+    "durationMs": 31407,
+    "details": "Self-healing completed. Healed FX dates: 0, Healed Prices: 0.",
+    "error": null
+  },
+  {
+    "id": "log_1792952204547_f6nj7",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (11:45 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-25T18:16:44.547Z",
+    "status": "SUCCESS",
+    "durationMs": 3772,
+    "details": "Evaluated 60 active Indian equity holdings. 11 in Stage 2 Compounding, 41 technical trim, 0 on watch. Data integrity: 90% (6 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792952200773_srf5g",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (11:45 PM IST)",
+    "scheduledTime": "11:45 PM IST",
+    "runTime": "2026-10-25T18:16:40.773Z",
+    "status": "SUCCESS",
+    "durationMs": 100757,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
     "id": "log_1792951120994_3voi3",
     "jobType": "MANUAL_SYNC",
     "jobName": "Live Asset Price Refresh",
@@ -5432,71 +5498,5 @@
     "durationMs": 7197,
     "details": "Evaluated 82 active Indian equity holdings. 15 in Stage 2 Compounding, 2 technical trim, 2 on watch. Recorded 4 state transition(s).",
     "error": null
-  },
-  {
-    "id": "log_1791740255283_j57zk",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (TEST)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-11T17:37:35.280Z",
-    "status": "SUCCESS",
-    "durationMs": 7676,
-    "details": "Evaluated 82 active Indian equity holdings. 15 in Stage 2 Compounding, 3 technical trim, 2 on watch. Recorded 36 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1791730288623_dmwjj",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-11T14:51:28.623Z",
-    "status": "FAILED",
-    "durationMs": 1,
-    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
-    "error": "refreshActiveHoldingsPrices is not defined"
-  },
-  {
-    "id": "log_1791729543818_sw2vf",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-11T14:39:03.818Z",
-    "status": "FAILED",
-    "durationMs": 1,
-    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
-    "error": "refreshActiveHoldingsPrices is not defined"
-  },
-  {
-    "id": "log_1791728855177_gymyv",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-11T14:27:35.177Z",
-    "status": "FAILED",
-    "durationMs": 0,
-    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
-    "error": "refreshActiveHoldingsPrices is not defined"
-  },
-  {
-    "id": "log_1791728855163_7034x",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-11T14:27:35.157Z",
-    "status": "FAILED",
-    "durationMs": 0,
-    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
-    "error": "refreshActiveHoldingsPrices is not defined"
-  },
-  {
-    "id": "log_1791724589780_zkym5",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-11T13:16:29.780Z",
-    "status": "FAILED",
-    "durationMs": 0,
-    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
-    "error": "refreshActiveHoldingsPrices is not defined"
   }
 ]
