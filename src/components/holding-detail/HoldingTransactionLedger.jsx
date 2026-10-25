@@ -1062,7 +1062,21 @@ export default function HoldingTransactionLedger({
                         />
                       </td>
                       <td className="py-2 px-3">
-                        <select value={editForm.type || 'BUY'} onChange={(e) => setEditForm(prev => ({ ...prev, type: e.target.value }))} className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                        <select
+                          value={editForm.type || 'BUY'}
+                          onChange={(e) => {
+                            const newType = e.target.value;
+                            setEditForm(prev => {
+                              const q = Number(prev.quantity) || 0;
+                              const p = Number(prev.price) || 0;
+                              const c = Number(prev.charges) || 0;
+                              const isSell = newType === 'SELL' || newType === 'REDEEM' || newType === 'DEBIT';
+                              const total = isSell ? Math.max(0, (q * p) - c) : ((q * p) + c);
+                              return { ...prev, type: newType, total_amount: q && p ? total.toFixed(2) : prev.total_amount };
+                            });
+                          }}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                        >
                           {(() => {
                             let types = ['BUY', 'SELL', 'DIVIDEND', 'BONUS', 'SPLIT', 'DEMERGER', 'MERGER'];
                             if (holding.category_id === 'mutual_funds' || holding.category_id === 'nps') {
@@ -1139,15 +1153,34 @@ export default function HoldingTransactionLedger({
                           value={editForm.charges || ''}
                           onChange={(e) => {
                             const c = e.target.value;
-                            setEditForm(prev => ({ ...prev, charges: c }));
+                            setEditForm(prev => {
+                              const q = Number(prev.quantity) || 0;
+                              const p = Number(prev.price) || 0;
+                              const chargesNum = Number(c) || 0;
+                              const isSell = prev.type === 'SELL' || prev.type === 'REDEEM' || prev.type === 'DEBIT';
+                              const total = isSell ? Math.max(0, (q * p) - chargesNum) : ((q * p) + chargesNum);
+                              return {
+                                ...prev,
+                                charges: c,
+                                total_amount: (q && p) ? total.toFixed(2) : prev.total_amount
+                              };
+                            });
                           }}
                           onBlur={(e) => {
                             const val = parseFloat(e.target.value);
-                            if (!isNaN(val)) {
-                              setEditForm(prev => ({ ...prev, charges: val.toFixed(2) }));
-                            } else {
-                              setEditForm(prev => ({ ...prev, charges: '0.00' }));
-                            }
+                            const chargesStr = !isNaN(val) ? val.toFixed(2) : '0.00';
+                            setEditForm(prev => {
+                              const q = Number(prev.quantity) || 0;
+                              const p = Number(prev.price) || 0;
+                              const chargesNum = Number(chargesStr) || 0;
+                              const isSell = prev.type === 'SELL' || prev.type === 'REDEEM' || prev.type === 'DEBIT';
+                              const total = isSell ? Math.max(0, (q * p) - chargesNum) : ((q * p) + chargesNum);
+                              return {
+                                ...prev,
+                                charges: chargesStr,
+                                total_amount: (q && p) ? total.toFixed(2) : prev.total_amount
+                              };
+                            });
                           }}
                           className="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono text-right focus:outline-none focus:border-blue-500"
                           placeholder="0.00"

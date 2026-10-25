@@ -192,9 +192,11 @@ function deriveLogicalTrimQuantity({
 }
 
 /**
- * Builds staged multi-tranche exit plan & dynamic execution tracker.
- * Each target is a non-overlapping allocation of the position at the start of
- * the recent 90-day cycle; later stages wait for previous stage sales in ledger.
+ * Builds streamlined 2-tranche staged exit plan & dynamic execution tracker:
+ * - Tranche 1 (Initial Stop-Floor Trim): 33% of position at Trailing Stop Floor / Chandelier ATR / 4-Red < 21 EMA.
+ * - Tranche 2 (Structural Trend Breakdown): 100% of remaining position on 30-Week SMA breakdown.
+ * Tracks recent sales dynamically from ledger; when Tranche 1 is completed and Tranche 2 is not breached,
+ * suggested action is to HOLD core position with 0 sales.
  */
 function buildStagedExitPlan({ holding, currentPrice, sma30Week, chandelierStopPrice, trailingFloorPrice, state, suggestedSellQuantity, sizingRatio, sizingMethod, ledgerAudit }) {
   const currentQty = Number(holding.quantity) || 0;
@@ -203,7 +205,6 @@ function buildStagedExitPlan({ holding, currentPrice, sma30Week, chandelierStopP
   const triggers = [Number(sma30Week) || 0, stopFloor].filter(price => price > 0).sort((a, b) => b - a);
   const triggerPrice1 = Number((triggers[0] || currentPrice).toFixed(2));
   const triggerPrice2 = Number((triggers[1] || triggerPrice1 * 0.90).toFixed(2));
-  const tranche3TriggerPrice = Number((triggerPrice2 * 0.85).toFixed(2));
 
   const isFullExit = state === 'FULL_EXIT_CANDIDATE';
   const cycleStartQuantity = Math.max(currentQty, currentQty + (ledgerAudit.recentSharesSold || 0) - (ledgerAudit.recentSharesBought || 0));
@@ -222,38 +223,27 @@ function buildStagedExitPlan({ holding, currentPrice, sma30Week, chandelierStopP
   const stagedPositionQuantity = Math.max(currentQty, currentQty + (ledgerAudit.recentSharesSold || 0));
   const remainingAfterTranche1 = Math.max(0, stagedPositionQuantity - tranche1Quantity);
 
-  // Tranche 2 dynamically targets remaining balance or 50% of remaining position
-  const dynamicT2Ratio = isFullExit ? 0 : (dynamicT1Ratio >= 0.50 ? 1.0 : 0.33);
-  const tranche2Quantity = isFullExit 
-    ? 0 
-    : (remainingAfterTranche1 > 0 ? Math.min(remainingAfterTranche1, Math.max(1, Math.round(remainingAfterTranche1 * dynamicT2Ratio))) : 0);
-
   const tranche1Complete = tranche1Quantity > 0 && (ledgerAudit.recentSharesSold || 0) >= tranche1Quantity;
-  const tranche2Complete = tranche1Complete && (ledgerAudit.recentSharesSold || 0) >= tranche1Quantity + tranche2Quantity;
-  const tranche3Quantity = isFullExit
+  const tranche2Quantity = isFullExit
     ? 0
-    : (tranche2Complete ? currentQty : Math.max(0, remainingAfterTranche1 - tranche2Quantity));
+    : (tranche1Complete ? currentQty : Math.max(0, remainingAfterTranche1));
+  const tranche2Complete = tranche1Complete && currentQty === 0;
 
   const tranche1Triggered = currentPrice <= triggerPrice1;
   const tranche2Breached = currentPrice <= triggerPrice2;
-  const tranche3Breached = currentPrice <= tranche3TriggerPrice;
-
   const tranche2Triggered = tranche2Breached && !tranche2Complete;
-  const tranche3Triggered = tranche3Breached;
 
   const catchUpSellQuantity = isFullExit
     ? currentQty
     : Math.min(currentQty,
         (tranche1Triggered && !tranche1Complete ? tranche1Quantity : 0)
-        + (tranche2Breached && !tranche2Complete ? tranche2Quantity : 0)
-        + (tranche3Breached ? tranche3Quantity : 0));
+        + (tranche2Breached && !tranche2Complete ? tranche2Quantity : 0));
 
   const totalActionShares = isFullExit
     ? currentQty
     : Math.min(currentQty,
         (tranche1Triggered && !tranche1Complete ? tranche1Quantity : 0)
-        + (tranche2Triggered ? tranche2Quantity : 0)
-        + (tranche3Triggered ? tranche3Quantity : 0));
+        + (tranche2Triggered ? tranche2Quantity : 0));
 
   const tranche1 = {
     name: 'Tranche 1 (Initial Stop-Floor Trim)',
@@ -261,48 +251,29 @@ function buildStagedExitPlan({ holding, currentPrice, sma30Week, chandelierStopP
     triggerPrice: triggerPrice1,
     status: tranche1Complete ? 'COMPLETED' : (tranche1Quantity > 0 ? (tranche1Triggered ? 'READY' : 'PENDING') : 'INACTIVE'),
     executionNote: tranche1Complete
-      ? `Tranche 1 appears completed from recent ledger sales (${ledgerAudit.recentSharesSold} sold, ${ledgerAudit.recentSharesBought} bought).`
+      ? `Tranche 1 completed from recent ledger sales (${ledgerAudit.recentSharesSold} sold, ${ledgerAudit.recentSharesBought} bought).`
       : tranche1Triggered
         ? `First stage triggered. Review selling ${tranche1Quantity} shares; estimated remaining position: ${Math.max(0, currentQty - tranche1Quantity)} shares.`
         : `At or below ₹${triggerPrice1}, review selling ${tranche1Quantity} shares as the first stage.`
   };
 
   const tranche2 = {
-    name: 'Tranche 2 (30-Week Trend Breakdown)',
+    name: 'Tranche 2 (Structural Trend Breakdown)',
     targetShares: tranche2Quantity,
     triggerPrice: triggerPrice2,
     status: tranche2Complete ? 'COMPLETED' : (tranche2Triggered ? 'READY' : (tranche2Breached ? 'ARMED' : 'PENDING')),
     executionNote: tranche2Complete
-      ? `Tranche 2 appears completed from recent ledger sales (${ledgerAudit.recentSharesSold} sold, ${ledgerAudit.recentSharesBought} bought).`
+      ? `Position fully exited in ledger (${ledgerAudit.recentSharesSold} shares sold).`
       : tranche2Triggered && !tranche1Complete
-        ? tranche3Breached
-          ? `Price has crossed all three stage triggers before sales were recorded. Review the full staged catch-up of ${catchUpSellQuantity} shares across Tranches 1, 2, and 3.`
-          : `Price has crossed both stage triggers before Tranche 1 was recorded. Catch up by reviewing ${catchUpSellQuantity} shares total (${tranche1Quantity} first-stage + ${tranche2Quantity} second-stage).`
+        ? `Price has crossed both stage triggers before Tranche 1 was recorded. Catch up by reviewing full exit of ${catchUpSellQuantity} shares.`
         : tranche2Triggered
-          ? `Second stage triggered after Tranche 1. Review selling ${tranche2Quantity} shares; estimated remaining position: ${Math.max(0, currentQty - tranche2Quantity)} shares.`
-        : tranche2Breached
-          ? `Second-stage price level crossed. Complete and record Tranche 1 (${tranche1Quantity} shares) before selling this ${tranche2Quantity}-share stage.`
-          : `If price falls to ₹${triggerPrice2} after Tranche 1, review selling ${tranche2Quantity} additional shares.`
-  };
-
-  const tranche3 = {
-    name: 'Tranche 3 (Structural Thesis Exit)',
-    targetShares: tranche3Quantity,
-    triggerPrice: tranche3TriggerPrice,
-    status: tranche3Quantity <= 0 ? 'COMPLETED' : (tranche3Triggered ? 'READY' : 'CONTINGENT'),
-    executionNote: tranche3Quantity <= 0
-      ? 'No shares remain allocated to the final stage.'
-      : tranche3Triggered && (!tranche1Complete || !tranche2Complete)
-        ? `Final-stage floor crossed before earlier stages were recorded. Catch up across every breached, incomplete stage; total outstanding triggered shares: ${catchUpSellQuantity}.`
-        : tranche3Triggered
-        ? `Final stage triggered. Review selling the remaining planned ${tranche3Quantity} shares; no order is placed automatically.`
-        : `After Tranches 1 and 2, review selling the remaining ${tranche3Quantity} shares if price breaches ₹${tranche3TriggerPrice}.`
+          ? `Structural trend breakdown below 30-week SMA. Review final exit of remaining ${tranche2Quantity} shares; no order placed automatically.`
+          : `If price falls below 30-week SMA at ₹${triggerPrice2}, review final exit of remaining ${tranche2Quantity} shares.`
   };
 
   return {
     tranche1,
     tranche2,
-    tranche3,
     totalActionShares,
     catchUpSellQuantity,
     ledgerAudit: {
@@ -320,7 +291,7 @@ export function calculateTriggeredStagedSell(analysis) {
   const currentPrice = Number(analysis?.currentPrice) || 0;
   if (!plan || currentPrice <= 0) return { quantity: 0, triggeredTranches: [] };
 
-  const triggeredTranches = [plan.tranche1, plan.tranche2, plan.tranche3]
+  const triggeredTranches = [plan.tranche1, plan.tranche2]
     .filter(tranche => tranche
       && tranche.status !== 'COMPLETED'
       && Number(tranche.targetShares) > 0
@@ -649,19 +620,35 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       suggestedSellQuantity = baseSizing.quantity;
       sizingMethod = baseSizing.method;
     } else if (state === 'TECHNICAL_TRIM_CANDIDATE') {
-      // Use the exact staged catch-up quantity across breached tranches, or at least Tranche 1
-      const planShares = stagedExitPlan.totalActionShares > 0
-        ? stagedExitPlan.totalActionShares
-        : (baseSizing.quantity > 0 ? baseSizing.quantity : Math.max(1, Math.round(item.quantity * 0.33)));
-      suggestedSellQuantity = Math.min(item.quantity, planShares);
+      const isT1Done = stagedExitPlan.tranche1?.status === 'COMPLETED';
+      const isT2Ready = stagedExitPlan.tranche2?.status === 'READY';
 
-      if (isStopFloorBreached) {
-        const breachFloorStr = stopFloorPrice ? stopFloorPrice.toFixed(2) : '—';
-        sizingMethod = stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares
-          ? `Multiple triggers breached below ₹${breachFloorStr}. Staged catch-up: Sell ${suggestedSellQuantity} shares across breached tranches.`
-          : `Trailing stop floor breached at ₹${item.currentPrice.toFixed(2)} (floor ₹${breachFloorStr}). Review Tranche 1 staged trim of ${suggestedSellQuantity} shares.`;
-      } else if (has4RedBreakdown) {
-        sizingMethod = `4 consecutive red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review defensive Tranche 1 trim of ${suggestedSellQuantity} shares.`;
+      if (isT1Done && !isT2Ready) {
+        // Tranche 1 is already completed and 30-week SMA (Tranche 2) has not broken:
+        // Hold remaining core position! Do NOT re-divide remaining shares into fresh trims!
+        suggestedSellQuantity = 0;
+        action = 'HOLD';
+        sizingMethod = `Tranche 1 completed (${ledgerAudit.recentSharesSold} shares sold). Holding core position (${item.quantity} shares) until 30-week SMA breakdown.`;
+      } else if (isT2Ready) {
+        // Tranche 2 is triggered: Structural exit of all remaining shares!
+        suggestedSellQuantity = item.quantity;
+        action = 'SELL_ALL';
+        sizingMethod = `Structural trend breakdown: Live CMP ₹${item.currentPrice.toFixed(2)} is below 30-week SMA ₹${stagedExitPlan.tranche2?.triggerPrice}. Final Tranche 2 exit of remaining ${suggestedSellQuantity} shares.`;
+      } else {
+        // Tranche 1 is pending/ready
+        const planShares = stagedExitPlan.totalActionShares > 0
+          ? stagedExitPlan.totalActionShares
+          : (baseSizing.quantity > 0 ? baseSizing.quantity : Math.max(1, Math.round(item.quantity * 0.33)));
+        suggestedSellQuantity = Math.min(item.quantity, planShares);
+
+        if (isStopFloorBreached) {
+          const breachFloorStr = stopFloorPrice ? stopFloorPrice.toFixed(2) : '—';
+          sizingMethod = stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares
+            ? `Multiple triggers breached below ₹${breachFloorStr}. Staged catch-up: Sell ${suggestedSellQuantity} shares across breached tranches.`
+            : `Trailing stop floor breached at ₹${item.currentPrice.toFixed(2)} (floor ₹${breachFloorStr}). Review Tranche 1 staged trim of ${suggestedSellQuantity} shares.`;
+        } else if (has4RedBreakdown) {
+          sizingMethod = `4 consecutive red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review defensive Tranche 1 trim of ${suggestedSellQuantity} shares.`;
+        }
       }
     }
 
@@ -684,8 +671,14 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     } else if (state === 'PORTFOLIO_RISK_TRIM') {
       explanation = `Position weight is ${currentWeightPct.toFixed(2)}%, above your ${config.maxPositionWeightPct}% risk ceiling. The system calculates trimming ${suggestedSellQuantity} shares to return allocation to target ceiling.`;
     } else if (isStopFloorBreached && state === 'TECHNICAL_TRIM_CANDIDATE') {
-      const dropPct = stopFloorPrice > 0 ? (((stopFloorPrice - item.currentPrice) / stopFloorPrice) * 100).toFixed(1) : '—';
-      explanation = `Trailing stop floor breached! Live CMP ₹${item.currentPrice.toFixed(2)} is ${dropPct}% below stop floor ₹${stopFloorPrice.toFixed(2)}. Review selling ${suggestedSellQuantity} shares (${stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares ? 'staged multi-tranche catch-up' : 'Tranche 1 trim'}); no order is placed automatically.`;
+      if (stagedExitPlan.tranche1?.status === 'COMPLETED' && suggestedSellQuantity === 0) {
+        explanation = `Tranche 1 trim completed (${ledgerAudit.recentSharesSold} shares sold). Holding core balance of ${item.quantity} shares; final Tranche 2 exit triggers if price breaches 30-week SMA at ₹${stagedExitPlan.tranche2?.triggerPrice}.`;
+      } else if (stagedExitPlan.tranche2?.status === 'READY') {
+        explanation = `Structural trend breakdown below 30-week SMA (CMP ₹${item.currentPrice.toFixed(2)} vs SMA ₹${stagedExitPlan.tranche2?.triggerPrice}). Review final Tranche 2 exit of remaining ${suggestedSellQuantity} shares.`;
+      } else {
+        const dropPct = stopFloorPrice > 0 ? (((stopFloorPrice - item.currentPrice) / stopFloorPrice) * 100).toFixed(1) : '—';
+        explanation = `Trailing stop floor breached! Live CMP ₹${item.currentPrice.toFixed(2)} is ${dropPct}% below stop floor ₹${stopFloorPrice.toFixed(2)}. Review selling ${suggestedSellQuantity} shares (${stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares ? 'staged multi-tranche catch-up' : 'Tranche 1 trim'}); no order is placed automatically.`;
+      }
     } else if (has4RedBreakdown && state === 'TECHNICAL_TRIM_CANDIDATE') {
       explanation = `Short-term breakdown: 4 consecutive daily red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review trimming Tranche 1 (${suggestedSellQuantity} shares) to de-risk.`;
     } else if (compoundingShield.isActive) {
@@ -728,9 +721,6 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       tranche2Shares: stagedExitPlan.tranche2?.targetShares || 0,
       tranche2Trigger: stagedExitPlan.tranche2?.triggerPrice || 0,
       tranche2Status: stagedExitPlan.tranche2?.status || 'PENDING',
-      tranche3Shares: stagedExitPlan.tranche3?.targetShares || 0,
-      tranche3Trigger: stagedExitPlan.tranche3?.triggerPrice || 0,
-      tranche3Status: stagedExitPlan.tranche3?.status || 'CONTINGENT',
       totalActionShares: suggestedSellQuantity || 0,
       principalHarvest,
       compoundingShield,

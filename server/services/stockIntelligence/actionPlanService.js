@@ -138,11 +138,12 @@ export async function generateActionPlan({
   const trims = heldAnalyses.filter(a => a.state === 'TECHNICAL_TRIM_CANDIDATE' || a.state === 'FUNDAMENTAL_TRIM_CANDIDATE');
 
   // Chandelier-breach sells: stocks where live CMP has broken below their chandelier stop floor.
-  // Only positions that are genuinely marked for trim/exit (not compounding-protected winners) are included.
+  // Only positions that are genuinely marked for trim/exit (not compounding-protected winners or already completed tranches) are included.
   const chandelierBreachSells = heldAnalyses.filter(a =>
     a.stopFloorBreached &&
-    (a.action === 'REVIEW_PARTIAL_SALE' || a.state === 'TECHNICAL_TRIM_CANDIDATE') &&
+    (a.action === 'REVIEW_PARTIAL_SALE' || a.action === 'SELL_ALL' || a.state === 'TECHNICAL_TRIM_CANDIDATE') &&
     a.state !== 'DATA_UNAVAILABLE' &&
+    (Number(a.suggestedSellQuantity) > 0 || calculateTriggeredStagedSell(a).quantity > 0) &&
     !fullExits.some(f => f.holdingId === a.holdingId)
   );
   const regularTrims = trims.filter(a => !a.stopFloorBreached);
@@ -447,12 +448,9 @@ export async function generateActionPlan({
       tranche1Shares: a.tranche1Shares || a.stagedExitPlan?.tranche1?.targetShares || Math.round(qty * 0.33),
       tranche1Trigger: a.tranche1Trigger || a.stagedExitPlan?.tranche1?.triggerPrice || trigger,
       tranche1Status: a.stagedExitPlan?.tranche1?.status || 'READY',
-      tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || Math.round(qty * 0.33),
+      tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || (qty - Math.round(qty * 0.33)),
       tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || Number((trigger * 0.90).toFixed(2)),
       tranche2Status: a.stagedExitPlan?.tranche2?.status || 'READY',
-      tranche3Shares: a.tranche3Shares || a.stagedExitPlan?.tranche3?.targetShares || (qty - Math.round(qty * 0.66)),
-      tranche3Trigger: a.tranche3Trigger || a.stagedExitPlan?.tranche3?.triggerPrice || Number((trigger * 0.765).toFixed(2)),
-      tranche3Status: a.stagedExitPlan?.tranche3?.status || 'READY',
       breachedTranchesSummary: 'All Stages Triggered (Full Thesis Liquidation)',
       reason: a.sizingMethod || `Full thesis liquidation: 100% of remaining position (${qty} shares) to protect capital against structural breakdown below 30W-SMA.`,
       isFullExit: true
@@ -488,9 +486,6 @@ export async function generateActionPlan({
         tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || 0,
         tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || 0,
         tranche2Status: a.stagedExitPlan?.tranche2?.status || 'PENDING',
-        tranche3Shares: a.tranche3Shares || a.stagedExitPlan?.tranche3?.targetShares || 0,
-        tranche3Trigger: a.tranche3Trigger || a.stagedExitPlan?.tranche3?.triggerPrice || 0,
-        tranche3Status: a.stagedExitPlan?.tranche3?.status || 'CONTINGENT',
         breachedTranchesSummary: a.stagedExitPlan?.tranche1?.name || 'Tranche 1 Trim',
         reason: a.sizingMethod || `Tranche 1 defensive de-risk trim: Sell ${trimQty} shares; keep core ${held - trimQty} shares riding.`,
         isFullExit: false
@@ -537,9 +532,6 @@ export async function generateActionPlan({
       tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || 0,
       tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || 0,
       tranche2Status: a.stagedExitPlan?.tranche2?.status || 'PENDING',
-      tranche3Shares: a.tranche3Shares || a.stagedExitPlan?.tranche3?.targetShares || 0,
-      tranche3Trigger: a.tranche3Trigger || a.stagedExitPlan?.tranche3?.triggerPrice || 0,
-      tranche3Status: a.stagedExitPlan?.tranche3?.status || 'CONTINGENT',
       breachedTranchesSummary: triggeredNames.length > 0 ? triggeredNames.join(' + ') : 'Tranche 1 (Stop Floor)',
       reason: `Live CMP ₹${cmp.toFixed(2)} has breached trailing stop floor ₹${stopFloor.toFixed(2)} (${breachPct}% below stop). ${stageDescription} Review sale; no order placed automatically.`,
       isFullExit: false,
@@ -563,8 +555,6 @@ export async function generateActionPlan({
     'Tranche 1 Trigger (INR)',
     'Tranche 2 Shares',
     'Tranche 2 Trigger (INR)',
-    'Tranche 3 Shares',
-    'Tranche 3 Trigger (INR)',
     'Current Held Shares',
     'Capital Source & Execution Rationale'
   ];
@@ -583,8 +573,6 @@ export async function generateActionPlan({
       b.actionValue.toFixed(2),
       b.sl > 0 ? b.sl.toFixed(2) : '—',
       '—', // Tranche 1 shares (N/A for buy)
-      '—',
-      '—',
       '—',
       '—',
       '—',
@@ -609,8 +597,6 @@ export async function generateActionPlan({
       s.tranche1Trigger > 0 ? s.tranche1Trigger.toFixed(2) : '—',
       s.tranche2Shares || '—',
       s.tranche2Trigger > 0 ? s.tranche2Trigger.toFixed(2) : '—',
-      s.tranche3Shares || '—',
-      s.tranche3Trigger > 0 ? s.tranche3Trigger.toFixed(2) : '—',
       s.heldShares,
       s.reason
     ]);

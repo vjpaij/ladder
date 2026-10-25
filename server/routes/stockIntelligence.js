@@ -335,8 +335,7 @@ router.get('/stock-intelligence/breach-alerts', authenticateToken, async (req, r
         action: b.action,
         state: b.state,
         tranche1Shares: b.tranche1Shares,
-        tranche2Shares: b.tranche2Shares,
-        tranche3Shares: b.tranche3Shares
+        tranche2Shares: b.tranche2Shares
       }))
     });
   } catch (error) {

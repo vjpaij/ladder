@@ -19,28 +19,6 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
   const [refreshToast, setRefreshToast] = useState(null);
   const closeDetail = useCallback(() => setSelectedHolding(null), []);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-
-  // Reset to first page when search query, filter type or holdings count changes
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [search, statusFilter, sortedHoldings.length]);
-
-  const totalRecords = sortedHoldings.length;
-  const numericPageSize = pageSize === 'ALL' ? totalRecords : Number(pageSize);
-  const totalPages = Math.max(1, Math.ceil(totalRecords / (numericPageSize || 1)));
-  const safePage = Math.min(currentPage, totalPages);
-
-  const paginatedHoldings = useMemo(() => {
-    if (pageSize === 'ALL') return sortedHoldings;
-    const start = (safePage - 1) * numericPageSize;
-    return sortedHoldings.slice(start, start + numericPageSize);
-  }, [sortedHoldings, safePage, numericPageSize, pageSize]);
-
-  const startRecord = totalRecords === 0 ? 0 : (safePage - 1) * (pageSize === 'ALL' ? totalRecords : numericPageSize) + 1;
-  const endRecord = pageSize === 'ALL' ? totalRecords : Math.min(totalRecords, safePage * numericPageSize);
-
   const handleRefreshPrices = async () => {
     setIsRefreshingPrices(true);
     try {
@@ -99,6 +77,28 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
       return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
     });
   }, [searchFiltered, sortField, sortOrder]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  // Reset to first page when search query, filter type or holdings count changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, sortedHoldings.length]);
+
+  const totalRecords = sortedHoldings.length;
+  const numericPageSize = pageSize === 'ALL' ? totalRecords : Number(pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalRecords / (numericPageSize || 1)));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedHoldings = useMemo(() => {
+    if (pageSize === 'ALL') return sortedHoldings;
+    const start = (safePage - 1) * numericPageSize;
+    return sortedHoldings.slice(start, start + numericPageSize);
+  }, [sortedHoldings, safePage, numericPageSize, pageSize]);
+
+  const startRecord = totalRecords === 0 ? 0 : (safePage - 1) * (pageSize === 'ALL' ? totalRecords : numericPageSize) + 1;
+  const endRecord = pageSize === 'ALL' ? totalRecords : Math.min(totalRecords, safePage * numericPageSize);
 
   const totalInvested = useMemo(() => statusFiltered.reduce((sum, h) => sum + (h.investedValueINR || 0), 0), [statusFiltered]);
   const totalCurrent = useMemo(() => statusFiltered.reduce((sum, h) => sum + (h.currentValueINR || 0), 0), [statusFiltered]);

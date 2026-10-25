@@ -135,6 +135,16 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
       if (!updates.notes || updates.notes.startsWith('Bonus issue')) {
         updates.notes = `Bonus issue: +${updates.quantity} shares credited`;
       }
+    } else {
+      const targetType = updates.type || txs[0].type;
+      const qty = Number(updates.quantity !== undefined ? updates.quantity : txs[0].quantity);
+      const price = Number(updates.price !== undefined ? updates.price : txs[0].price);
+      const charges = Number(updates.charges !== undefined ? updates.charges : (txs[0].charges || 0));
+
+      if (qty > 0 && price > 0 && targetType && !['SPLIT', 'BONUS', 'DIVIDEND'].includes(targetType)) {
+        const isSell = targetType === 'SELL' || targetType === 'REDEEM' || targetType === 'DEBIT';
+        updates.total_amount = isSell ? Math.max(0, (qty * price) - charges) : ((qty * price) + charges);
+      }
     }
 
     await db.update('transactions', id, updates);

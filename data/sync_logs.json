@@ -1,5 +1,60 @@
 [
   {
+    "id": "log_1792950553003_2pmlc",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-25T17:49:13.001Z",
+    "status": "SUCCESS",
+    "durationMs": 2981,
+    "details": "Evaluated 60 active Indian equity holdings. 11 in Stage 2 Compounding, 41 technical trim, 0 on watch. Data integrity: 90% (6 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792950458711_4hgqk",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-25T17:47:38.708Z",
+    "status": "SUCCESS",
+    "durationMs": 3753,
+    "details": "Evaluated 60 active Indian equity holdings. 11 in Stage 2 Compounding, 41 technical trim, 0 on watch. Data integrity: 90% (6 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792937786111_seskk",
+    "jobType": "MANUAL_SYNC",
+    "jobName": "Live Asset Price Refresh",
+    "scheduledTime": "Manual / UI Trigger",
+    "runTime": "2026-10-25T14:16:26.111Z",
+    "status": "SUCCESS",
+    "durationMs": 1159,
+    "details": "Refreshed live quotes and NAVs across all asset classes (85 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1792933318299_ei2cp",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (06:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-25T13:01:58.299Z",
+    "status": "SUCCESS",
+    "durationMs": 6380,
+    "details": "Evaluated 88 active Indian equity holdings. 11 in Stage 2 Compounding, 69 technical trim, 0 on watch. Data integrity: 77.3% (20 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1792933311918_7bicm",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (06:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-25T13:01:51.918Z",
+    "status": "SUCCESS",
+    "durationMs": 111880,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
     "id": "log_1792931135424_nkh9s",
     "jobType": "LOGIN_SYNC",
     "jobName": "Webpage Login Asset Auto-Sync",
@@ -5443,60 +5498,5 @@
     "durationMs": 0,
     "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
     "error": "refreshActiveHoldingsPrices is not defined"
-  },
-  {
-    "id": "log_1791704695772_dgucc",
-    "jobType": "EOD_REBUILD",
-    "jobName": "EOD Valuation Rebuild (07:00 AM IST)",
-    "scheduledTime": "07:00 AM IST",
-    "runTime": "2026-10-11T07:44:55.772Z",
-    "status": "SUCCESS",
-    "durationMs": 136348,
-    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
-    "error": null
-  },
-  {
-    "id": "log_1791704679772_exfo3",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-11T07:44:39.772Z",
-    "status": "FAILED",
-    "durationMs": 0,
-    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
-    "error": "refreshActiveHoldingsPrices is not defined"
-  },
-  {
-    "id": "log_1791704679767_1zfg8",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-11T07:44:39.767Z",
-    "status": "FAILED",
-    "durationMs": 0,
-    "details": "Sync failed: refreshActiveHoldingsPrices is not defined",
-    "error": "refreshActiveHoldingsPrices is not defined"
-  },
-  {
-    "id": "log_1791704585952_yf040",
-    "jobType": "CLOUD_BACKUP",
-    "jobName": "Automated Daily Cloud Backup",
-    "scheduledTime": "08:25 AM IST",
-    "runTime": "2026-10-11T07:43:05.951Z",
-    "status": "SUCCESS",
-    "durationMs": 26527,
-    "details": "Lossless gzip backup saved to Supabase Storage (ladder_backup_2026-10-11T07-42-39-519Z_PARTIAL.json.gz).",
-    "error": null
-  },
-  {
-    "id": "log_1791657411824_w53z4",
-    "jobType": "EOD_REBUILD",
-    "jobName": "EOD Valuation Rebuild (00:05 AM IST)",
-    "scheduledTime": "00:05 AM IST",
-    "runTime": "2026-10-10T18:36:51.823Z",
-    "status": "SUCCESS",
-    "durationMs": 111814,
-    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
-    "error": null
   }
 ]

@@ -71,104 +71,77 @@ test('rising price history activates Stage 2 Bull and Compounding Protection', (
 test('live Chandelier stop breach overrides the hold shield and stages a manual trim review', () => {
   const prices = weeklyPrices(Array.from({ length: 60 }, (_, index) => 100 + index * 2));
   const trend = analyzeTechnicalTrend(prices, { today: '2025-03-02' });
-  const currentPrice = Number((Math.min(trend.chandelierStopPrice, trend.sma30Week) * 0.99).toFixed(2));
-  const holdings = [{ id: 'h1', symbol: 'RUNNER', category_id: 'in_stocks', quantity: 1500, current_price: currentPrice }];
+  // Price below trailing floor (212) but safely above 30-week SMA (189): Tranche 1 triggers
+  const trimPrice = 200;
+  const holdings = [{ id: 'h1', symbol: 'RUNNER', category_id: 'in_stocks', quantity: 1500, current_price: trimPrice }];
   const [result] = buildStockAnalyses(holdings, { RUNNER: prices }, { today: '2025-03-02' });
 
   assert.equal(result.stopFloorBreached, true);
   assert.equal(result.state, 'TECHNICAL_TRIM_CANDIDATE');
-  assert.equal(result.suggestedSellQuantity, 827);
+  assert.equal(result.suggestedSellQuantity, 495);
   assert.equal(result.stagedExitPlan.tranche1.status, 'READY');
-  assert.equal(result.stagedExitPlan.tranche2.status, 'READY');
+  assert.equal(result.stagedExitPlan.tranche2.status, 'PENDING');
   assert.deepEqual(
-    [result.stagedExitPlan.tranche1.targetShares, result.stagedExitPlan.tranche2.targetShares, result.stagedExitPlan.tranche3.targetShares],
-    [495, 332, 673]
+    [result.stagedExitPlan.tranche1.targetShares, result.stagedExitPlan.tranche2.targetShares],
+    [495, 1005]
   );
   assert.equal(
-    result.stagedExitPlan.tranche1.targetShares + result.stagedExitPlan.tranche2.targetShares + result.stagedExitPlan.tranche3.targetShares,
+    result.stagedExitPlan.tranche1.targetShares + result.stagedExitPlan.tranche2.targetShares,
     result.quantity
   );
-  assert.equal(calculateTriggeredStagedSell(result).quantity, 827);
-  assert.equal(calculateTriggeredStagedSell(result).triggeredTranches.length, 2);
+  assert.equal(calculateTriggeredStagedSell(result).quantity, 495);
+  assert.equal(calculateTriggeredStagedSell(result).triggeredTranches.length, 1);
   assert.ok(result.stagedExitPlan.tranche1.triggerPrice > result.stagedExitPlan.tranche2.triggerPrice);
-  assert.equal(result.stagedExitPlan.tranche3.status, 'CONTINGENT');
   assert.match(result.explanation, /no order is placed automatically|not an automatically placed order/i);
   assert.ok(result.liveBufferToTrailingFloorPct < 0);
 
-  const [anantRajSized] = buildStockAnalyses(
-    [{ ...holdings[0], quantity: 1495 }],
-    { RUNNER: prices },
-    { today: '2025-03-02' }
-  );
-  assert.deepEqual(
-    [anantRajSized.stagedExitPlan.tranche1.targetShares, anantRajSized.stagedExitPlan.tranche2.targetShares],
-    [493, 331]
-  );
-  assert.equal(calculateTriggeredStagedSell(anantRajSized).quantity, 824);
-
-  const deepAnantRajPrice = Number((anantRajSized.stagedExitPlan.tranche3.triggerPrice * 0.99).toFixed(2));
-  const [deepAnantRaj] = buildStockAnalyses(
-    [{ ...holdings[0], quantity: 1495, current_price: deepAnantRajPrice }],
-    { RUNNER: prices },
-    { today: '2025-03-02' }
-  );
-  assert.equal(deepAnantRaj.stagedExitPlan.tranche3.status, 'READY');
-  assert.equal(calculateTriggeredStagedSell(deepAnantRaj).triggeredTranches.length, 3);
-  assert.equal(calculateTriggeredStagedSell(deepAnantRaj).quantity, 1495);
-
-  const firstSale = buildStockAnalyses(
-    [{ ...holdings[0], quantity: 1005 }],
-    { RUNNER: prices },
-    {
-      today: '2025-03-02',
-      transactions: [{ holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: currentPrice }]
-    }
-  )[0];
-  assert.equal(firstSale.stagedExitPlan.tranche1.status, 'COMPLETED');
-  assert.equal(firstSale.stagedExitPlan.tranche2.targetShares, 332);
-  assert.equal(firstSale.stagedExitPlan.tranche2.status, 'READY');
-  assert.equal(calculateTriggeredStagedSell(firstSale).quantity, 332);
-
-  const firstSalePlusBuy = buildStockAnalyses(
-    [{ ...holdings[0], quantity: 1018 }],
-    { RUNNER: prices },
-    {
-      today: '2025-03-02',
-      transactions: [
-        { holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: currentPrice },
-        { holding_id: 'h1', type: 'BUY', date: '2025-03-02', quantity: 13, price: currentPrice }
-      ]
-    }
-  )[0];
-  assert.equal(firstSalePlusBuy.stagedExitPlan.tranche1.targetShares, 495);
-  assert.equal(firstSalePlusBuy.stagedExitPlan.tranche2.targetShares, 336);
-  assert.equal(calculateTriggeredStagedSell(firstSalePlusBuy).quantity, 336);
-
-  const fullExitFloorPrice = Number((Math.min(trend.trailingFloorPrice, trend.sma30Week) * 0.85 * 0.99).toFixed(2));
-  const secondSale = buildStockAnalyses(
-    [{ ...holdings[0], quantity: 673, current_price: fullExitFloorPrice }],
-    { RUNNER: prices },
-    {
-      today: '2025-03-02',
-      transactions: [
-        { holding_id: 'h1', type: 'SELL', date: '2025-02-28', quantity: 495, price: currentPrice },
-        { holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 332, price: fullExitFloorPrice }
-      ]
-    }
-  )[0];
-  assert.equal(secondSale.stagedExitPlan.tranche2.status, 'COMPLETED');
-  assert.equal(secondSale.stagedExitPlan.tranche3.targetShares, 673);
-  assert.equal(secondSale.stagedExitPlan.tranche3.status, 'READY');
-
+  // Both triggers breached (below 30-week SMA at 187.11): Both Tranches trigger for full exit
+  const deepBreachPrice = Number((Math.min(trend.chandelierStopPrice, trend.sma30Week) * 0.99).toFixed(2));
   const [deepBreach] = buildStockAnalyses(
-    [{ ...holdings[0], current_price: fullExitFloorPrice }],
+    [{ ...holdings[0], current_price: deepBreachPrice }],
     { RUNNER: prices },
     { today: '2025-03-02' }
   );
-  assert.equal(deepBreach.stagedExitPlan.tranche3.status, 'READY');
-  assert.match(deepBreach.stagedExitPlan.tranche3.executionNote, /catch up across every breached/i);
-  assert.equal(calculateTriggeredStagedSell(deepBreach).quantity, deepBreach.quantity);
-  assert.equal(calculateTriggeredStagedSell(deepBreach).triggeredTranches.length, 3);
+  assert.equal(deepBreach.stagedExitPlan.tranche1.status, 'READY');
+  assert.equal(deepBreach.stagedExitPlan.tranche2.status, 'READY');
+  assert.equal(deepBreach.suggestedSellQuantity, 1500);
+  assert.equal(calculateTriggeredStagedSell(deepBreach).quantity, 1500);
+  assert.equal(calculateTriggeredStagedSell(deepBreach).triggeredTranches.length, 2);
+
+  // Ledger audit: Tranche 1 is completed (495 shares sold) and price is above 30-week SMA (200)
+  // Holds core position with suggestedSellQuantity = 0, action = 'HOLD' (no recursive subdivision)
+  const firstSaleHold = buildStockAnalyses(
+    [{ ...holdings[0], quantity: 1005, current_price: 200 }],
+    { RUNNER: prices },
+    {
+      today: '2025-03-02',
+      transactions: [{ holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: 200 }]
+    }
+  )[0];
+  assert.equal(firstSaleHold.stagedExitPlan.tranche1.status, 'COMPLETED');
+  assert.equal(firstSaleHold.stagedExitPlan.tranche2.status, 'PENDING');
+  assert.equal(firstSaleHold.stagedExitPlan.tranche2.targetShares, 1005);
+  assert.equal(firstSaleHold.suggestedSellQuantity, 0);
+  assert.equal(firstSaleHold.action, 'HOLD');
+  assert.equal(calculateTriggeredStagedSell(firstSaleHold).quantity, 0);
+
+  // Ledger audit: Tranche 1 is completed and price now breaks 30-week SMA (187.11)
+  // Tranche 2 is READY, executing full exit of all remaining 1005 shares
+  const secondSaleExit = buildStockAnalyses(
+    [{ ...holdings[0], quantity: 1005, current_price: deepBreachPrice }],
+    { RUNNER: prices },
+    {
+      today: '2025-03-02',
+      transactions: [{ holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: 200 }]
+    }
+  )[0];
+  assert.equal(secondSaleExit.stagedExitPlan.tranche1.status, 'COMPLETED');
+  assert.equal(secondSaleExit.stagedExitPlan.tranche2.status, 'READY');
+  assert.equal(secondSaleExit.stagedExitPlan.tranche2.targetShares, 1005);
+  assert.equal(secondSaleExit.suggestedSellQuantity, 1005);
+  assert.equal(secondSaleExit.action, 'SELL_ALL');
+  assert.equal(calculateTriggeredStagedSell(secondSaleExit).quantity, 1005);
+  assert.equal(calculateTriggeredStagedSell(secondSaleExit).triggeredTranches.length, 1);
 });
 
 test('backtest uses next observation and avoids selling in a persistent uptrend', () => {

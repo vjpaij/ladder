@@ -559,7 +559,6 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                       <th className="py-2.5 px-3 text-right font-black text-rose-500 dark:text-rose-400">Sell Now</th>
                       <th className="py-2.5 px-3">Tranche 1 (Floor)</th>
                       <th className="py-2.5 px-3">Tranche 2 (30w SMA)</th>
-                      <th className="py-2.5 px-3">Tranche 3 (Structural)</th>
                       <th className="py-2.5 px-3 text-right">Proceeds (INR)</th>
                       <th className="py-2.5 px-3">Trigger Rationale & Strategy</th>
                     </tr>
@@ -567,7 +566,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                   <tbody className="divide-y divide-[var(--border-color)]">
                     {sells.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-[var(--text-muted)]">
+                        <td colSpan={8} className="py-8 text-center text-[var(--text-muted)]">
                           Zero performance-decayed sells triggered. All active holdings are performing cleanly!
                         </td>
                       </tr>
@@ -615,18 +614,6 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                   s.tranche2Status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-500' :
                                   s.tranche2Status === 'READY' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 font-black' : 'bg-slate-500/15 text-[var(--text-muted)]'
                                 }`}>{s.tranche2Status}</span>
-                              </div>
-                            ) : '—'}
-                          </td>
-                          <td className="py-2.5 px-3 font-mono text-[11px]">
-                            {s.tranche3Shares > 0 ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold">{s.tranche3Shares} shs</span>
-                                <span className="text-[10px] text-[var(--text-muted)]">@ ₹{s.tranche3Trigger}</span>
-                                <span className={`text-[8.5px] px-1 py-0.2 rounded font-bold uppercase ${
-                                  s.tranche3Status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-500' :
-                                  s.tranche3Status === 'READY' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 font-black' : 'bg-slate-500/15 text-[var(--text-muted)]'
-                                }`}>{s.tranche3Status}</span>
                               </div>
                             ) : '—'}
                           </td>
