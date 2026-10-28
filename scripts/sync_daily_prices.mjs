@@ -31,9 +31,15 @@ async function fetchYahooFinanceHistorical(symbol, startDate = '2015-01-01') {
         const offsetDate = new Date(tDate.getTime() - (tDate.getTimezoneOffset() * 60000));
         const dStr = offsetDate.toISOString().split('T')[0];
         let val = adjclose[i] !== null && adjclose[i] !== undefined ? adjclose[i] : quote.close[i];
-        if ((val === null || val === undefined || isNaN(val) || val <= 0) && i === timestamps.length - 2 && (meta.chartPreviousClose || meta.previousClose)) {
-          val = meta.chartPreviousClose || meta.previousClose;
-          console.warn(`[WARN] Equity fallback used for ${symbol} on ${dStr}: substituted previous close ${val}`);
+        if (val === null || val === undefined || isNaN(val) || val <= 0) {
+          for (let pi = i - 1; pi >= 0; pi--) {
+            const pVal = adjclose[pi] !== null && adjclose[pi] !== undefined ? adjclose[pi] : quote.close[pi];
+            if (pVal !== null && pVal !== undefined && !isNaN(pVal) && pVal > 0) {
+              val = pVal;
+              console.warn(`[WARN] Equity fallback used for ${symbol} on ${dStr}: carried forward prior candle close ${val}`);
+              break;
+            }
+          }
         }
         if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
           prices[dStr] = Number(Number(val).toFixed(2));
@@ -227,10 +233,14 @@ async function syncAllPrices() {
       if (Object.keys(boFresh).length > 0) {
         if (!historicalData[h.symbol]) historicalData[h.symbol] = {};
         for (const [dStr, bPrice] of Object.entries(boFresh)) {
-          // Merge BSE quote if higher or if NSE quote missing
           const existingPrice = historicalData[h.symbol][dStr] || 0;
-          if (bPrice > existingPrice || existingPrice === 0) {
+          if (existingPrice === 0) {
             historicalData[h.symbol][dStr] = bPrice;
+          } else if (bPrice > existingPrice) {
+            // Only merge BSE if within 15% parity with NSE to prevent stale price overwrites
+            if (Math.abs(bPrice - existingPrice) / existingPrice <= 0.15) {
+              historicalData[h.symbol][dStr] = bPrice;
+            }
           }
         }
       }

@@ -501,7 +501,17 @@ router.get('/summary', async (req, res) => {
     let resolvedEpf = Number((valuation.epf || 0).toFixed(2));
     let resolvedDebt = Number((valuation.debt || 0).toFixed(2));
 
-    let finalTotalAssetsINR = Number((valuation.totalAssets || 0).toFixed(2));
+    // When US market is closed and no US trades occurred today, align US stock valuation with yesterday's finalized close
+    const hasUsTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && h.category_id === 'us_stocks';
+    });
+    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    if (!isUsTrading && !hasUsTxToday && yesterdayLog && yesterdayLog.us_stocks !== undefined) {
+      resolvedUsStocks = yesterdayLog.us_stocks;
+    }
+
+    let finalTotalAssetsINR = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     let finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));
 
     const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||

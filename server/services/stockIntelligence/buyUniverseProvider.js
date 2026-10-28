@@ -251,9 +251,12 @@ export function applyChartinkFilter(priceSeriesMap, symbol, fundamentals = {}, {
 
   const marketCapCr = Number(fundamentals.marketCapCr);
   const marketCapKnown = fundamentals.marketCapCr !== null && fundamentals.marketCapCr !== undefined && Number.isFinite(marketCapCr);
-  const marketCapPass = !marketCapKnown || marketCapCr >= 500;
-  if (marketCapKnown && !marketCapPass) failReasons.push('Market capitalization is below ₹500 Cr');
-  else if (marketCapKnown) reasons.push('Market capitalization is at least ₹500 Cr');
+  const isPennyPrice = today < 20.00;
+  const isMicrocap = marketCapKnown && marketCapCr < 1000;
+  const marketCapPass = !isPennyPrice && (!marketCapKnown || marketCapCr >= 1000);
+  if (isPennyPrice) failReasons.push(`Penny stock price (CMP ₹${today.toFixed(2)} < ₹20.00)`);
+  else if (isMicrocap) failReasons.push(`Market capitalization (₹${marketCapCr} Cr) is below ₹1,000 Cr threshold`);
+  else if (marketCapKnown) reasons.push(`Market capitalization (₹${marketCapCr} Cr) is at least ₹1,000 Cr ✓`);
 
   // Completed weekly closes, aligned with the main trend analyzer.
   const weeklyCloses = aggregateWeeklyCloses(entries, { today: asOfDate }).map(row => row.close);

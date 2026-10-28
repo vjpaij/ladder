@@ -22,6 +22,7 @@ import { recalculateHoldingState } from '../services/recalculator.js';
 import { scheduleAutoSyncFromPortfolio } from '../services/tradingJournalService.js';
 import { calculateXirr } from '../services/xirrCalculator.js';
 import { invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
+import { invalidateBuyCache } from './buyAnalysis.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 import { getLoanAmortizationData, settleAmortizationForMonth } from '../services/loanEngine.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -1895,6 +1896,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       scheduleAutoSyncFromPortfolio();
       await recalculateHoldingState(holdingId);
       invalidateBenchmarkCache();
+      invalidateBuyCache();
       triggerEodRebuildIfPastDate(txDate);
 
       return res.json({ success: true, holdingId, action: 'transaction_recorded' });

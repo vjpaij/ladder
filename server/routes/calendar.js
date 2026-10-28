@@ -74,7 +74,8 @@ export function invalidateCalendarValuationCache() {
 
 router.get('/daily-pnl', authenticateToken, async (req, res) => {
   try {
-    const { startDate, endDate, range } = req.query;
+    const { startDate, endDate, range, forceRefresh: forceRefreshParam } = req.query;
+    const forceRefresh = forceRefreshParam === 'true';
 
     // ── 1. Load EOD logs from RAM cache (mtime-validated) ────────────────────
     let eodLogs = getEodLogs().slice();
@@ -143,13 +144,14 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     let liveTodayValuation;
     let fxRate;
     let todayTxs = [];
+    let holdings = [];
 
-    if (_todayValCache && now < _todayValCacheExpiry) {
+    if (!forceRefresh && _todayValCache && now < _todayValCacheExpiry) {
       // Serve today's metrics from cache
-      ({ liveTodayValuation, fxRate, todayTxs } = _todayValCache);
+      ({ liveTodayValuation, fxRate, todayTxs, holdings } = _todayValCache);
     } else {
       fxRate = await fetchFxRate();
-      const holdings = await db.select('holdings');
+      holdings = await db.select('holdings');
       const liabilities = await db.select('liabilities');
       const allTxs = await db.select('transactions');
       todayTxs = (allTxs || []).filter(t => t.date === todayStr);
@@ -164,7 +166,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       });
       liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, effectiveUsFx);
 
-      _todayValCache = { liveTodayValuation, fxRate: effectiveUsFx, todayTxs };
+      _todayValCache = { liveTodayValuation, fxRate: effectiveUsFx, todayTxs, holdings };
       _todayValCacheExpiry = now + TODAY_VAL_TTL_MS;
     }
 
@@ -262,6 +264,15 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     let resolvedSavings = Number((liveTodayValuation.savings ?? 0).toFixed(2));
     let resolvedEpf = Number((liveTodayValuation.epf ?? 0).toFixed(2));
     let resolvedDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
+
+    const hasUsTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && h.category_id === 'us_stocks';
+    });
+    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    if (!isUsTrading && !hasUsTxToday && lastTradingLog && lastTradingLog.us_stocks !== undefined) {
+      resolvedUsStocks = lastTradingLog.us_stocks;
+    }
 
     let totalAssets = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     let totalWealth = Number((totalAssets - resolvedDebt).toFixed(2));

@@ -520,7 +520,17 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                             {q.targetShares}
                           </td>
                           <td className="py-2.5 px-3">
-                            <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded-md bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30">
+                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                              q.executionStatus?.includes('CORE HOLD') || q.sizing?.tierLabel?.includes('Hold Core') || q.actionType?.includes('MAXIMUM POSITION')
+                                ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
+                                : q.executionStatus?.includes('AWAIT PULLBACK') || q.sizing?.tierLabel?.includes('Extended')
+                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
+                                : q.executionStatus?.includes('SECTOR')
+                                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/30'
+                                : q.executionStatus?.includes('MICROCAP') || q.sizing?.tierLabel?.includes('Microcap')
+                                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
+                                : 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
+                            }`}>
                               {q.sizing?.tierLabel || q.stance}
                             </span>
                           </td>

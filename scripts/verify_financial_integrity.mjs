@@ -108,8 +108,8 @@ async function runIntegrityAudit() {
     for (let attempt = 1; attempt <= 10; attempt++) {
       try {
         [sumRes, pnlRes, holdingsRes] = await Promise.all([
-          fetch('http://localhost:5000/api/summary', { headers: authHeaders }).then(r => r.json()),
-          fetch('http://localhost:5000/api/daily-pnl?range=1M', { headers: authHeaders }).then(r => r.json()),
+          fetch('http://localhost:5000/api/summary?forceRefresh=true', { headers: authHeaders }).then(r => r.json()),
+          fetch('http://localhost:5000/api/daily-pnl?range=1M&forceRefresh=true', { headers: authHeaders }).then(r => r.json()),
           fetch('http://localhost:5000/api/holdings', { headers: authHeaders }).then(r => r.json())
         ]);
         latestCalendarLog = pnlRes[pnlRes.length - 1];

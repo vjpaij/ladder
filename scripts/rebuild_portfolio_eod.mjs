@@ -329,8 +329,14 @@ async function rebuildEod() {
               timestamps.forEach((t, idx) => {
                 const dStr = new Date(t * 1000).toISOString().split('T')[0];
                 let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
-                if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
-                  val = meta.chartPreviousClose || meta.previousClose;
+                if (val === null || val === undefined || isNaN(val) || val <= 0) {
+                  for (let pi = idx - 1; pi >= 0; pi--) {
+                    const pVal = adjclose[pi] !== null && adjclose[pi] !== undefined ? adjclose[pi] : quote.close?.[pi];
+                    if (pVal !== null && pVal !== undefined && !isNaN(pVal) && pVal > 0) {
+                      val = pVal;
+                      break;
+                    }
+                  }
                 }
                 if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
                   nseMap[dStr] = Number(Number(val).toFixed(2));
@@ -355,8 +361,14 @@ async function rebuildEod() {
               timestamps.forEach((t, idx) => {
                 const dStr = new Date(t * 1000).toISOString().split('T')[0];
                 let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
-                if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
-                  val = meta.chartPreviousClose || meta.previousClose;
+                if (val === null || val === undefined || isNaN(val) || val <= 0) {
+                  for (let pi = idx - 1; pi >= 0; pi--) {
+                    const pVal = adjclose[pi] !== null && adjclose[pi] !== undefined ? adjclose[pi] : quote.close?.[pi];
+                    if (pVal !== null && pVal !== undefined && !isNaN(pVal) && pVal > 0) {
+                      val = pVal;
+                      break;
+                    }
+                  }
                 }
                 if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
                   bseMap[dStr] = Number(Number(val).toFixed(2));
@@ -373,9 +385,19 @@ async function rebuildEod() {
         combinedDates.forEach(dStr => {
           const pN = nseMap[dStr] || 0;
           const pB = bseMap[dStr] || 0;
-          const maxP = Math.max(pN, pB);
-          if (maxP > 0) {
-            historicalPrices[h.symbol][dStr] = maxP;
+          let chosen = 0;
+          if (pN > 0 && pB > 0) {
+            // Take the higher quote only if within 15% parity, else prioritize primary exchange NSE
+            if (Math.abs(pN - pB) / Math.min(pN, pB) <= 0.15) {
+              chosen = Math.max(pN, pB);
+            } else {
+              chosen = pN;
+            }
+          } else {
+            chosen = pN > 0 ? pN : pB;
+          }
+          if (chosen > 0) {
+            historicalPrices[h.symbol][dStr] = chosen;
           }
         });
       } else {
@@ -395,8 +417,14 @@ async function rebuildEod() {
             timestamps.forEach((t, idx) => {
               const dStr = new Date(t * 1000).toISOString().split('T')[0];
               let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
-              if ((val === null || val === undefined || isNaN(val) || val <= 0) && dStr === targetEndDate) {
-                val = meta.chartPreviousClose || meta.previousClose;
+              if (val === null || val === undefined || isNaN(val) || val <= 0) {
+                for (let pi = idx - 1; pi >= 0; pi--) {
+                  const pVal = adjclose[pi] !== null && adjclose[pi] !== undefined ? adjclose[pi] : quote.close?.[pi];
+                  if (pVal !== null && pVal !== undefined && !isNaN(pVal) && pVal > 0) {
+                    val = pVal;
+                    break;
+                  }
+                }
               }
               if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
                 historicalPrices[h.symbol][dStr] = Number(Number(val).toFixed(2));

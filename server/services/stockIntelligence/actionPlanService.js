@@ -22,6 +22,7 @@ import { validateAndHealStockData } from './dataIntegrityValidator.js';
 import { getTodayIST } from '../marketCalendar.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../priceEngine.js';
 import { getIntelligenceConfig } from './repository.js';
+import { resolveCanonicalSector } from './buyAnalysisService.js';
 
 function escapeCsvCell(val) {
   const str = String(val ?? '');
@@ -62,7 +63,7 @@ export async function generateActionPlan({
   // Compute Dynamic Sector Breadth & Group Momentum across universe
   const sectorStats = {};
   buyAnalyses.forEach(x => {
-    const s = x.sector || 'Other';
+    const s = resolveCanonicalSector(x.fundamentals, x.name, x.symbol) || x.sector || 'Diversified & Other';
     if (!sectorStats[s]) sectorStats[s] = { total: 0, bullish: 0, scores: [] };
     sectorStats[s].total++;
     if (['STRONG_BUY', 'BUY'].includes(x.buySignal)) sectorStats[s].bullish++;
@@ -78,8 +79,18 @@ export async function generateActionPlan({
     .slice(0, 5)
     .map(([s]) => s);
 
-  const strongBuys = buyAnalyses.filter(x => x.buySignal === 'STRONG_BUY');
-  const primeBuys = buyAnalyses.filter(x => x.buySignal === 'BUY' && x.executiveStrategy?.stance === 'PRIME_SETUP');
+  // Filter institutional quality: strictly exclude penny stocks (< ₹20), microcaps (< ₹1000 Cr), and AVOID signals
+  const isInstitutionalQuality = (x) => {
+    const cmp = Number(x.currentPrice) || 0;
+    const mcap = Number(x.marketCapCr) || 0;
+    if (cmp < 20.00) return false;
+    if (mcap > 0 && mcap < 1000) return false;
+    if (x.buySignal === 'AVOID') return false;
+    return true;
+  };
+
+  const strongBuys = buyAnalyses.filter(x => x.buySignal === 'STRONG_BUY' && isInstitutionalQuality(x));
+  const primeBuys = buyAnalyses.filter(x => x.buySignal === 'BUY' && x.executiveStrategy?.stance === 'PRIME_SETUP' && isInstitutionalQuality(x));
 
   // 2. Load Portfolio Holdings and Evaluate Sell / Exit Analyses
   const [holdings, transactions, dividends, metadata, history] = await Promise.all([
@@ -194,6 +205,13 @@ export async function generateActionPlan({
   const recycledCapital = recyclingMode === 'EXTERNAL_ONLY' ? 0 : round2(realizedRecycledCapital);
   const totalPurchasingPower = round2(externalCashBudget + recycledCapital);
 
+  // Dynamic Portfolio Weight Cap calculation based on total Indian equity valuation
+  const totalIndianEquityValuation = enrichedHoldings
+    .filter(h => h.category_id === 'in_stocks' || (!h.category_id && !String(h.symbol).includes('.')))
+    .reduce((acc, h) => acc + (Number(h.quantity || 0) * Number(h.current_price || 0)), 0) || 4600000;
+
+  const targetWeightPct = Number(userConfig?.maxPositionWeightPct) || 10.0;
+
   // Dynamic Conviction-Weighted Allocation Calculator
   function calculateDynamicConvictionAllocation(item, isOwned, heldQty, holdingObj) {
     const stance = item.executiveStrategy?.stance || 'PRIME_SETUP';
@@ -212,12 +230,118 @@ export async function generateActionPlan({
       };
     }
 
-    // Uncapped Conviction Sizing Tiers:
-    // 1. Prime / Turnaround Top Tier: ₹1,00,000 Base Entry
-    // 2. Strong Buy / High Composite (>= 70): ₹50,000 Base Entry
-    // 3. Extended Runner: ₹15,000 Scout Entry
-    // 4. Standard Setup: ₹35,000 Base Entry
+    const mcap = Number(item.marketCapCr) || 0;
+    if (cmp < 20 || (mcap > 0 && mcap < 1000)) {
+      return {
+        alloc: 0,
+        tierLabel: 'Sub-Institutional Microcap (₹0)',
+        factors: [`Market Cap < ₹1,000 Cr (₹${mcap} Cr) or Price < ₹20`],
+        summary: `AVOID (₹0): Market Cap ₹${mcap} Cr < ₹1,000 Cr or CMP ₹${cmp} < ₹20. Disqualified to protect from illiquid circuit freeze and operator manipulation.`
+      };
+    }
+
     const isPrime = (item.buySignal === 'STRONG_BUY' && composite >= 80) || isTurnaround;
+    const isTier2 = (item.buySignal === 'STRONG_BUY' || composite >= 70);
+
+    // Dynamic Portfolio Weight Caps based on total equity valuation (Rule: 10% Prime, 7% Tier 2, 5% Standard)
+    const primeCap = Math.max(150000, Math.round(totalIndianEquityValuation * (targetWeightPct / 100)));
+    const tier2Cap = Math.max(100000, Math.round(totalIndianEquityValuation * ((targetWeightPct * 0.7) / 100)));
+    const standardCap = Math.max(50000, Math.round(totalIndianEquityValuation * ((targetWeightPct * 0.5) / 100)));
+
+    const maxPositionCap = isPrime ? primeCap : isTier2 ? tier2Cap : standardCap;
+    const currentHeldValue = heldQty * cmp;
+    const pctEma50 = Number(item.pctFromEma50) || 0;
+    const isExtended = stance === 'EXTENDED_RUNNER' || pctEma50 > 16.0;
+
+    // Factor A: Institutional Base Compression & Volatility Contraction Pattern (VCP)
+    const riskPct = cmp > 0 && sl > 0 ? Math.abs((cmp - sl) / cmp * 100) : 10;
+    const isVcp = riskPct <= 8.5 && Math.abs(item.pctFromHigh52w || 0) <= 14.0;
+    const vcpBonus = isVcp ? (isPrime ? 10000 : 5000) : 0;
+
+    // Factor B: Sector Breadth & Group Rank Momentum
+    const isTopSector = topSectors.includes(item.sector);
+    const sectorBonus = isTopSector ? (isPrime ? 10000 : 5000) : 0;
+
+    // Sizing for Existing Portfolio Holdings (Pyramiding / Staged Accumulation)
+    if (isOwned && heldQty > 0) {
+      const avgPrice = Number(holdingObj?.average_buy_price || item.portfolioAvgPrice) || 0;
+      const isInProfit = avgPrice > 0 && cmp > avgPrice;
+      const gainPct = avgPrice > 0 ? ((cmp / avgPrice - 1) * 100).toFixed(1) : '0.0';
+      const heldWeightPct = totalIndianEquityValuation > 0 ? ((currentHeldValue / totalIndianEquityValuation) * 100).toFixed(1) : '0.0';
+
+      // Guard 1: Position Ceiling Check (e.g. Gabriel, Sagility over ceiling)
+      if (currentHeldValue >= maxPositionCap) {
+        return {
+          alloc: 0,
+          tierLabel: 'Position Cap Reached (Hold Core)',
+          factors: [`Position Cap Reached (${heldWeightPct}% of equity portfolio, holding ₹${Math.round(currentHeldValue).toLocaleString('en-IN')})`],
+          summary: `HOLD CORE: Maximum position cap (₹${Math.round(maxPositionCap/1000)}k / ${heldWeightPct}% of portfolio) reached (Holding ₹${Math.round(currentHeldValue).toLocaleString('en-IN')}, +${gainPct}%). Let compounder ride on house money; no additional capital allocated.`
+        };
+      }
+
+      // Guard 2: Extension Check — Do NOT pyramid into an overextended runner at multi-month highs
+      if (isExtended) {
+        return {
+          alloc: 0,
+          tierLabel: 'Extended Runner (Await Pullback)',
+          factors: [`Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA, holding ₹${Math.round(currentHeldValue).toLocaleString('en-IN')})`],
+          summary: `STAND ASIDE (HOLD): Holding ${heldQty} shares (₹${Math.round(currentHeldValue).toLocaleString('en-IN')}), but price is extended +${pctEma50.toFixed(1)}% above 50-EMA. Await 50-EMA support retest before adding next pyramid tranche.`
+        };
+      }
+
+      // Subordinate Pyramid Tranche (NOT a full fresh position base)
+      // Prime: ₹50k base tranche | Tier 2: ₹25k base tranche | Standard: ₹15k support tranche
+      const pyramidTranche = isInProfit
+        ? (isPrime ? 50000 : 25000)
+        : (isPrime ? 25000 : 15000);
+
+      const trancheTierLabel = isInProfit
+        ? `Pyramid Tranche (${isPrime ? '₹50k' : '₹25k'} Addition)`
+        : `Support Tranche (${isPrime ? '₹25k' : '₹15k'} Addition)`;
+
+      const trancheFactors = [trancheTierLabel];
+      let trancheTotal = pyramidTranche;
+
+      if (vcpBonus > 0) {
+        trancheTotal += vcpBonus;
+        trancheFactors.push(`VCP (+₹${vcpBonus/1000}k)`);
+      }
+      if (sectorBonus > 0) {
+        trancheTotal += sectorBonus;
+        trancheFactors.push(`Sector Tailwind (+₹${sectorBonus/1000}k)`);
+      }
+      if (isInProfit) {
+        trancheFactors.push(`Scaling into strength (+${gainPct}% in profit)`);
+      } else {
+        trancheFactors.push(`Disciplined support accumulation`);
+      }
+
+      // Tranche cannot exceed remaining headroom to maxPositionCap
+      const remainingHeadroom = Math.max(0, maxPositionCap - currentHeldValue);
+      const finalTrancheAlloc = Math.min(trancheTotal, remainingHeadroom);
+
+      if (finalTrancheAlloc < trancheTotal) {
+        trancheFactors.push(`Scaled to max cap headroom (₹${Math.round(finalTrancheAlloc).toLocaleString('en-IN')})`);
+      }
+
+      return {
+        alloc: Math.round(finalTrancheAlloc),
+        tierLabel: trancheTierLabel,
+        factors: trancheFactors,
+        summary: `Tranche Addition (Holding ${heldQty} shs, ₹${Math.round(currentHeldValue).toLocaleString('en-IN')}): ${trancheFactors.join(' + ')}`
+      };
+    }
+
+    // Sizing for Brand-New Entries (Zero Existing Exposure)
+    if (isExtended) {
+      return {
+        alloc: 0,
+        tierLabel: 'Extended Runner (Await Pullback)',
+        factors: [`Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA)`],
+        summary: `STAND ASIDE (AWAIT PULLBACK): Price is extended +${pctEma50.toFixed(1)}% above 50-day EMA. Await healthy base consolidation or pullback toward 50-EMA support before initiating initial position.`
+      };
+    }
+
     let base = 35000;
     let tierLabel = 'Standard Setup (₹35k Base)';
 
@@ -235,34 +359,14 @@ export async function generateActionPlan({
     const factors = [tierLabel];
     let total = base;
 
-    // Factor A: Institutional Base Compression & Volatility Contraction Pattern (VCP)
-    const riskPct = cmp > 0 && sl > 0 ? Math.abs((cmp - sl) / cmp * 100) : 10;
-    const isVcp = riskPct <= 8.5 && Math.abs(item.pctFromHigh52w || 0) <= 14.0;
-    if (isVcp) {
-      const vcpBonus = isPrime ? 10000 : 5000;
+    if (vcpBonus > 0) {
       total += vcpBonus;
       factors.push(`VCP Base Compression (+₹${vcpBonus/1000}k)`);
     }
 
-    // Factor B: Sector Breadth & Group Rank Momentum
-    if (topSectors.includes(item.sector)) {
-      const sectorBonus = isPrime ? 10000 : 5000;
+    if (sectorBonus > 0) {
       total += sectorBonus;
       factors.push(`Sector Tailwind [${item.sector}] (+₹${sectorBonus/1000}k)`);
-    }
-
-    // Factor C: Uncapped Upward Pyramiding on Confirmed Support
-    if (isOwned && heldQty > 0) {
-      const avgPrice = Number(holdingObj?.average_buy_price || item.portfolioAvgPrice) || 0;
-      const isInProfit = avgPrice > 0 && cmp > avgPrice;
-      if (isInProfit) {
-        const pyramidTranche = isPrime ? 50000 : 25000;
-        total += pyramidTranche;
-        const gainPct = ((cmp / avgPrice - 1) * 100).toFixed(1);
-        factors.push(`Upward Pyramiding: Position in profit (+${gainPct}%), scaling into proven runner (+₹${pyramidTranche/1000}k)`);
-      } else {
-        factors.push('Existing holding: Adding disciplined support tranche');
-      }
     }
 
     return {
@@ -335,6 +439,13 @@ export async function generateActionPlan({
 
     let actionType = isOwned ? 'BUY - ACCUMULATE (ADD TRANCHE)' : 'BUY - NEW POSITION';
     if (stance === 'PRE_EARNINGS') actionType = 'STAND ASIDE (PRE-EARNINGS)';
+    if (isOwned && sizing.alloc <= 0) {
+      if (sizing.tierLabel?.includes('Hold Core') || sizing.tierLabel?.includes('Cap Reached')) {
+        actionType = 'HOLD CORE — MAXIMUM POSITION TARGET REACHED';
+      } else if (stance === 'EXTENDED_RUNNER') {
+        actionType = 'STAND ASIDE — EXTENDED (AWAIT PULLBACK)';
+      }
+    }
 
     return {
       symbol: x.symbol,
@@ -355,26 +466,55 @@ export async function generateActionPlan({
       targetAmount,
       priorityRank,
       actionType,
-      sector: x.sector
+      sector: resolveCanonicalSector(x.fundamentals, x.name, x.symbol) || x.sector || 'Diversified & Other',
+      mcap: Number(x.marketCapCr) || 0
     };
   });
 
   // Sort candidates by priority rank descending
   candidateEvaluations.sort((a, b) => b.priorityRank - a.priorityRank);
 
-  // Sequential Budget Deployment Pass
+  // Sequential Budget Deployment Pass with Sector Concentration Guard
   let remainingCapital = totalPurchasingPower;
   const immediateBuys = [];
   const queuedBuys = [];
+  const sectorSpendMap = {};
+  const sectorCountMap = {};
+  const maxSectorSpend = Math.max(150000, totalPurchasingPower * 0.50); // Max 50% of total purchasing power in one sector
+  const maxSectorBuys = 5; // User configured: Max 5 immediate funded buys in the same sector on the same day
 
   candidateEvaluations.forEach(cand => {
-    if (cand.stance === 'PRE_EARNINGS' || cand.targetAmount <= 0) {
+    // Disqualified microcaps (< ₹1,000 Cr) and penny stocks (CMP < ₹20) are strictly excluded from all Action Plan buckets (never queued or exported in CSV)
+    const isMicrocapOrPenny = cand.cmp < 20 || (cand.mcap > 0 && cand.mcap < 1000) || cand.sizing?.tierLabel?.includes('Microcap');
+    if (isMicrocapOrPenny) {
+      return;
+    }
+
+    if (cand.stance === 'PRE_EARNINGS' || cand.targetAmount <= 0 || (cand.sizing && cand.sizing.alloc <= 0)) {
+      const isCoreHold = cand.isOwned && (cand.sizing?.tierLabel?.includes('Hold Core') || cand.sizing?.tierLabel?.includes('Cap Reached'));
+      const isExtendedHold = cand.isOwned && cand.stance === 'EXTENDED_RUNNER';
       queuedBuys.push({
         ...cand,
-        executionStatus: 'STAND ASIDE (PRE-EARNINGS)',
+        executionStatus: isCoreHold ? 'CORE HOLD (CAP REACHED)' : isExtendedHold ? 'STAND ASIDE (AWAIT PULLBACK)' : 'STAND ASIDE (PRE-EARNINGS)',
         actionShares: 0,
         actionValue: 0,
-        note: 'Pre-Earnings Stand Aside (₹0 binary risk). Await quarterly filing.'
+        note: cand.sizing?.summary || 'Pre-Earnings Stand Aside (₹0 binary risk). Await quarterly filing.'
+      });
+      return;
+    }
+
+    const candSector = cand.sector || 'Diversified';
+    const currentSectorSpend = sectorSpendMap[candSector] || 0;
+    const currentSectorCount = sectorCountMap[candSector] || 0;
+
+    // Sector Concentration Guard: Prevent deploying >50% or >5 positions into the same sector on one day
+    if (currentSectorCount >= maxSectorBuys || (currentSectorSpend + cand.targetAmount > maxSectorSpend && currentSectorCount >= 1)) {
+      queuedBuys.push({
+        ...cand,
+        executionStatus: 'QUEUED (SECTOR CONCENTRATION CAP)',
+        actionShares: 0,
+        actionValue: 0,
+        note: `Sector Cap Reached: Already allocated ₹${Math.round(currentSectorSpend).toLocaleString('en-IN')} across ${currentSectorCount} position(s) in [${candSector}]. Queued to ensure cross-sector diversification.`
       });
       return;
     }
@@ -383,6 +523,8 @@ export async function generateActionPlan({
       const fundedShares = cand.targetShares;
       const fundedValue = fundedShares * cand.cmp;
       remainingCapital -= fundedValue;
+      sectorSpendMap[candSector] = currentSectorSpend + fundedValue;
+      sectorCountMap[candSector] = currentSectorCount + 1;
       immediateBuys.push({
         ...cand,
         executionStatus: 'FUNDED TODAY (IMMEDIATE EXECUTION)',
@@ -397,6 +539,8 @@ export async function generateActionPlan({
       if (partialShares >= 1) {
         const partialValue = partialShares * cand.cmp;
         remainingCapital -= partialValue;
+        sectorSpendMap[candSector] = currentSectorSpend + partialValue;
+        sectorCountMap[candSector] = currentSectorCount + 1;
         immediateBuys.push({
           ...cand,
           executionStatus: 'PARTIALLY FUNDED TODAY (BUDGET BUFFER)',
@@ -434,7 +578,7 @@ export async function generateActionPlan({
     const trigger = a.chandelierStopPrice || a.sma30Week || 0;
 
     activeSells.push({
-      executionGroup: '3. ALGORITHMIC SELL (PERFORMANCE DECAY)',
+      executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
       actionType: 'SELL - FULL EXIT',
       category: 'Full Exit (Structural Breakdown)',
       symbol: a.symbol,
@@ -469,7 +613,7 @@ export async function generateActionPlan({
       const actionType = a.state === 'TECHNICAL_TRIM_CANDIDATE' ? 'SELL - TECHNICAL TRIM' : 'SELL - FUNDAMENTAL TRIM';
 
       activeSells.push({
-        executionGroup: '3. ALGORITHMIC SELL (PERFORMANCE DECAY)',
+        executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
         actionType,
         category: cat,
         symbol: a.symbol,
@@ -515,7 +659,7 @@ export async function generateActionPlan({
       : 'SELL - STOP FLOOR BREACH';
 
     activeSells.push({
-      executionGroup: '3. ALGORITHMIC SELL (PERFORMANCE DECAY)',
+      executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
       actionType,
       category: 'Trailing Stop Floor Breach',
       symbol: a.symbol,
@@ -615,7 +759,10 @@ export async function generateActionPlan({
       q.targetShares,
       q.targetAmount.toFixed(2),
       q.sl > 0 ? q.sl.toFixed(2) : '—',
-      q.tgt > 0 ? q.tgt.toFixed(2) : '—',
+      '—', // Tranche 1 shares (N/A for queued buy)
+      '—', // Tranche 1 trigger
+      '—', // Tranche 2 shares
+      '—', // Tranche 2 trigger
       q.heldQty,
       q.note
     ]);

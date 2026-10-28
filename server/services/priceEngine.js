@@ -98,14 +98,14 @@ export function buildCanonicalLivePriceMap({
       (isMfInvariant && h.category_id === 'mutual_funds') ||
       (isNpsInvariant && h.category_id === 'nps');
     if (isHoldingInvariant) {
-      if (h.category_id === 'mutual_funds' || h.category_id === 'nps') {
-        price = Number(h.current_price) || 0;
+      const cleanSymbol = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
+      const priceHistory = histCache[h.symbol] || histCache[cleanSymbol] ||
+        histCache[`${cleanSymbol}.NS`] || {};
+      const previousDates = Object.keys(priceHistory).filter(date => date < currentTodayStr && Number(priceHistory[date]) > 0).sort();
+      if (previousDates.length > 0) {
+        price = Number(priceHistory[previousDates.at(-1)]);
       } else {
-        const cleanSymbol = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
-        const priceHistory = histCache[h.symbol] || histCache[cleanSymbol] ||
-          histCache[`${cleanSymbol}.NS`] || {};
-        const previousDates = Object.keys(priceHistory).filter(date => date < currentTodayStr && Number(priceHistory[date]) > 0).sort();
-        if (previousDates.length > 0) price = Number(priceHistory[previousDates.at(-1)]);
+        price = Number(h.current_price) || 0;
       }
     }
     livePriceMap[h.symbol] = price;

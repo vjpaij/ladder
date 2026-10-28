@@ -1,6 +1,7 @@
 import express from 'express';
 import { invalidateTxDatesCache } from './calendar.js';
 import { invalidateSummaryCache } from './summary.js';
+import { invalidateBuyCache } from './buyAnalysis.js';
 import db from '../db.js';
 import { recalculateHoldingState } from '../services/recalculator.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
@@ -80,6 +81,7 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
     triggerEodRebuildIfPastDate(txs[0].date);
 
     scheduleAutoSyncFromPortfolio();
+    invalidateBuyCache();
 
     res.json({ success: true, message: 'Transaction deleted and holding position automatically recalculated.' });
   } catch (err) {
@@ -159,6 +161,7 @@ router.put('/transactions/:id', authenticateToken, async (req, res) => {
     triggerEodRebuildIfPastDate(updates.date || txs[0].date);
 
     scheduleAutoSyncFromPortfolio();
+    invalidateBuyCache();
 
     res.json({ success: true, message: 'Transaction updated and holding position automatically recalculated.' });
   } catch (err) {

@@ -35,6 +35,57 @@ const BUY_ANALYSIS_VERSION = 'buy-analysis-v1.0';
  * @param {number} high52w
  * @returns {{ score: number, signals: string[], stopLoss: number|null, rrRatio: number|null }}
  */
+export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = '') {
+  const raw = String(fundamentals.sector || fundamentals.industry || '').trim();
+  const s = raw.toLowerCase();
+  if (s.includes('tech') || s.includes('information') || s.includes('software') || s.includes('semiconductor') || s.includes('it ') || s === 'it') {
+    return 'Information Technology';
+  }
+  if (s.includes('bank') || s.includes('finance') || s.includes('financial') || s.includes('insurance') || s.includes('capital market') || s.includes('amc') || s.includes('credit')) {
+    return 'Financial Services';
+  }
+  if (s.includes('health') || s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('hospital') || s.includes('diagnostic') || s.includes('lab')) {
+    return 'Healthcare & Pharmaceuticals';
+  }
+  if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('ancillar') || s.includes('motor') || s.includes('retail') || s.includes('apparel') || s.includes('hotel')) {
+    return 'Consumer Discretionary';
+  }
+  if (s.includes('fmcg') || s.includes('consumer good') || s.includes('food') || s.includes('beverage') || s.includes('personal care') || s.includes('staple')) {
+    return 'Consumer Staples & FMCG';
+  }
+  if (s.includes('industrial') || s.includes('capital good') || s.includes('engineering') || s.includes('machiner') || s.includes('defence') || s.includes('equipment') || s.includes('electrical')) {
+    return 'Capital Goods & Industrials';
+  }
+  if (s.includes('infra') || s.includes('construction') || s.includes('cement') || s.includes('realty') || s.includes('real estate') || s.includes('logistics') || s.includes('port')) {
+    return 'Infrastructure & Real Estate';
+  }
+  if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('petroleum') || s.includes('power') || s.includes('solar') || s.includes('renewable')) {
+    return 'Energy, Power & Utilities';
+  }
+  if (s.includes('metal') || s.includes('mining') || s.includes('steel') || s.includes('aluminum') || s.includes('copper')) {
+    return 'Metals & Mining';
+  }
+  if (s.includes('chemical') || s.includes('fertilizer') || s.includes('specialty chem') || s.includes('material')) {
+    return 'Chemicals & Materials';
+  }
+  if (s.includes('telecom') || s.includes('media') || s.includes('entertainment') || s.includes('communication')) {
+    return 'Telecommunication & Media';
+  }
+
+  // Fallback to name/symbol inference
+  const n = (name + ' ' + symbol).toLowerCase();
+  if (n.includes('bank') || n.includes('finance') || n.includes('fin ') || n.includes('capital') || n.includes('pnb') || n.includes('sbi') || n.includes('hdfc') || n.includes('icici')) return 'Financial Services';
+  if (n.includes('pharma') || n.includes('health') || n.includes('lab') || n.includes('remed') || n.includes('diagnostic') || n.includes('drreddy') || n.includes('cipla') || n.includes('sunpharma')) return 'Healthcare & Pharmaceuticals';
+  if (n.includes('motor') || n.includes('auto') || n.includes('maruti') || n.includes('bajaj') || n.includes('tvs') || n.includes('lumax') || n.includes('sona') || n.includes('gabriel')) return 'Consumer Discretionary';
+  if (n.includes('tech') || n.includes('software') || n.includes('tcs') || n.includes('infy') || n.includes('wipro') || n.includes('hcl') || n.includes('persistent') || n.includes('sagility')) return 'Information Technology';
+  if (n.includes('power') || n.includes('energy') || n.includes('solar') || n.includes('ntpc') || n.includes('ongc')) return 'Energy, Power & Utilities';
+  if (n.includes('steel') || n.includes('metal') || n.includes('tata steel') || n.includes('jsw') || n.includes('hindalco') || n.includes('vedl')) return 'Metals & Mining';
+  if (n.includes('infra') || n.includes('const') || n.includes('cement') || n.includes('ultratech') || n.includes('l&t') || n.includes('lt') || n.includes('rpel')) return 'Infrastructure & Real Estate';
+  if (n.includes('chem') || n.includes('fertiliz') || n.includes('aarti') || n.includes('deepak') || n.includes('pushkar')) return 'Chemicals & Materials';
+  
+  return raw && raw !== 'Unknown' ? raw : 'Diversified & Other';
+}
+
 function findCloseResistance(prices = [], currentPrice = 0) {
   const closes = prices.slice(-252).map(row => Number(row.close)).filter(Number.isFinite);
   const pivots = [];
@@ -173,17 +224,36 @@ function computeTechnicalBuyScore(trendData = {}, chartinkFilter = {}, currentPr
 function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earningsCatalyst, newsSignal, hasGovernanceRedFlag, rrRatio, volumeConfirmed, chartinkFilter) {
   const fundScore = fundResult.score;
   const currentPrice = Number(chartinkFilter?.currentPrice) || Number(trendData?.weeklyClose) || 0;
+  const mcap = Number(fundamentals.marketCapCr);
 
-  // Governance red flag overrides everything
-  if (hasGovernanceRedFlag) {
+  // 1. Penny stock price exclusion (CMP < ₹20.00)
+  if (currentPrice > 0 && currentPrice < 20.00) {
     return {
       signal: 'AVOID',
-      reason: 'Governance red flag detected (high promoter pledge or extreme debt). Capital preservation priority.',
+      reason: `Penny stock price (CMP ₹${currentPrice.toFixed(2)} < ₹20.00). High risk of operator manipulation, wide bid-ask spreads, and illiquid circuit lockouts.`,
       isStrongBuyEligible: false
     };
   }
 
-  // Critical news red flag
+  // 2. Sub-institutional microcap exclusion (Market Cap < ₹1,000 Cr)
+  if (Number.isFinite(mcap) && mcap > 0 && mcap < 1000) {
+    return {
+      signal: 'AVOID',
+      reason: `Sub-institutional microcap (Market Cap ₹${Math.round(mcap)} Cr < ₹1,000 Cr threshold). High risk of illiquid lower circuit lockouts, absence of institutional support, and accounting volatility.`,
+      isStrongBuyEligible: false
+    };
+  }
+
+  // 3. Governance red flag overrides everything
+  if (hasGovernanceRedFlag) {
+    return {
+      signal: 'AVOID',
+      reason: 'Governance red flag detected (high promoter pledge >20% or extreme debt >3.0 D/E). Capital preservation priority.',
+      isStrongBuyEligible: false
+    };
+  }
+
+  // 4. Critical news red flag
   if (newsSignal?.hasVerifiedCriticalRedFlag) {
     return {
       signal: 'AVOID',
@@ -192,13 +262,37 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
     };
   }
 
-  // Downtrend (Stage 4) or trading below 30-week SMA — strictly prohibited from Buy entry
+  // 5. Downtrend (Stage 4) or trading below 30-week SMA — strictly prohibited from Buy entry
   if (trendData.weinsteinStage === 4 || (!trendData.isIpo && trendData.sma30Week && currentPrice <= trendData.sma30Week)) {
     return {
       signal: 'AVOID',
       reason: trendData.weinsteinStage === 4
         ? 'Stock in Stage 4 structural decline — wait for Stage 1 base before considering entry.'
         : `Trading below 30-week moving average (CMP ₹${currentPrice.toFixed(2)} ≤ SMA ₹${trendData.sma30Week.toFixed(2)}). Bottom-fishing in sub-SMA territory is strictly prohibited.`,
+      isStrongBuyEligible: false
+    };
+  }
+
+  // 6. Chronic loss-maker gate: quarterly net loss bars BUY entry
+  const quarterlyPat = Array.isArray(fundamentals.quarterlyPat || fundamentals.quarterRows?.['Net Profit'])
+    ? (fundamentals.quarterlyPat || fundamentals.quarterRows?.['Net Profit']).map(Number).filter(Number.isFinite)
+    : [];
+  const latestQuarterPat = quarterlyPat.length > 0 ? quarterlyPat.at(-1) : null;
+  if (latestQuarterPat !== null && latestQuarterPat < 0) {
+    return {
+      signal: 'WATCH',
+      reason: `Latest reported quarter posted a net loss (PAT: ₹${latestQuarterPat} Cr). Awaiting profitability turnaround before allocating fresh buy capital.`,
+      isStrongBuyEligible: false
+    };
+  }
+
+  // 7. Excessive leverage gate: non-BFSI debt-to-equity > 1.8 cannot enter BUY
+  const isBfsi = fundResult.financialSector;
+  const de = Number(fundamentals.debtToEquity);
+  if (!isBfsi && Number.isFinite(de) && de > 1.8) {
+    return {
+      signal: 'WATCH',
+      reason: `High balance sheet leverage (D/E ${de.toFixed(2)} > 1.8 safety ceiling). High interest burden increases vulnerability during economic slowdowns.`,
       isStrongBuyEligible: false
     };
   }
@@ -586,7 +680,7 @@ export function buildBuyAnalyses(
         symbol: clean,
         name: resolvedName,
         source,
-        sector: fundamentals.sector || 'Unknown',
+        sector: resolveCanonicalSector(fundamentals, resolvedName, clean),
         industry: fundamentals.industry || 'Unknown',
         inPortfolio,
         portfolioQuantity: inPortfolio ? portfolioQuantity : 0,

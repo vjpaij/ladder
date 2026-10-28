@@ -566,7 +566,15 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const isStopFloorBreached = stopFloorPrice !== null
       && stopFloorPrice !== undefined
       && item.currentPrice <= stopFloorPrice;
-    const isFundsDecaying = item.fundamentals?.opmTrendDirection === 'CONTRACTING' || (item.fundamentals?.yoyPatGrowthPct !== null && item.fundamentals?.yoyPatGrowthPct < -25);
+    // Rigorous fundamental decay definition:
+    // 1. Severe PAT collapse (< -25% YoY)
+    // 2. Margin squeeze with earnings drop (OPM contracting AND YoY PAT < -10%)
+    // 3. Dual contraction (Sales < -10% AND YoY PAT < -10%)
+    const isSeverePatCollapse = item.fundamentals?.yoyPatGrowthPct !== null && item.fundamentals?.yoyPatGrowthPct !== undefined && item.fundamentals?.yoyPatGrowthPct < -25;
+    const isMarginDecayWithEarningsDrop = item.fundamentals?.opmTrendDirection === 'CONTRACTING' && (item.fundamentals?.yoyPatGrowthPct !== null && item.fundamentals?.yoyPatGrowthPct !== undefined && item.fundamentals?.yoyPatGrowthPct < -10);
+    const isDualContraction = item.fundamentals?.yoySalesGrowthPct !== null && item.fundamentals?.yoySalesGrowthPct !== undefined && item.fundamentals?.yoySalesGrowthPct < -10
+      && item.fundamentals?.yoyPatGrowthPct !== null && item.fundamentals?.yoyPatGrowthPct !== undefined && item.fundamentals?.yoyPatGrowthPct < -10;
+    const isFundsDecaying = isSeverePatCollapse || isMarginDecayWithEarningsDrop || isDualContraction;
     const isGovernanceRedFlag = item.fundamentals?.promoterPledgePct > 20;
     const has4RedBreakdown = Boolean(item.has4RedCandlesBelow21Ema);
 
@@ -595,13 +603,14 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
         // 3 completed weekly closes below falling 30-week SMA
         state = 'TECHNICAL_TRIM_CANDIDATE';
         action = 'REVIEW_PARTIAL_SALE';
+      } else if (isStage2Bull && !isGovernanceRedFlag && !isStopFloorBreached && !has4RedBreakdown && !isSeverePatCollapse) {
+        // Multi-Bagger Compounding Guard Active: healthy Stage 2 trading safely above safety corridor.
+        // Minor quarterly margin fluctuations (e.g. SONACOMS / INDEGENE) do NOT override compounding when sales/PAT expand.
+        state = 'NORMAL';
+        action = 'HOLD_AND_COMPOUND';
       } else if (isFundsDecaying) {
         state = 'FUNDAMENTAL_TRIM_CANDIDATE';
         action = 'REVIEW_FUNDAMENTAL_TRIM';
-      } else if (isStage2Bull && !isGovernanceRedFlag && !isStopFloorBreached && !has4RedBreakdown) {
-        // Multi-Bagger Compounding Guard Active: healthy Stage 2 trading safely above safety corridor
-        state = 'NORMAL';
-        action = 'HOLD_AND_COMPOUND';
       } else if (item.state === 'WATCH') {
         action = 'MONITOR';
       } else {
@@ -715,6 +724,8 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       explanation = item.invalidation || 'Insufficient price history to evaluate trend.';
     } else if (action === 'ACCUMULATION_RETEST') {
       explanation = `Fresh buy within 5-day noise corridor (P&L ${pnlFromLatestBuyPct >= 0 ? '+' : ''}${pnlFromLatestBuyPct}%). Holding through initial retest volatility without premature exit.`;
+    } else if (isRecentBuy && pnlFromLatestBuyPct <= -8.0 && state === 'TECHNICAL_TRIM_CANDIDATE') {
+      explanation = `Fresh entry circuit-breaker: Position is down ${Math.abs(pnlFromLatestBuyPct)}% from recent entry (CMP ₹${item.currentPrice.toFixed(2)} vs entry ₹${latestBuyPrice.toFixed(2)}), exceeding the 8.0% risk buffer. Review defensive Tranche 1 trim (${suggestedSellQuantity} shares).`;
     } else if (state === 'PORTFOLIO_RISK_TRIM') {
       explanation = `Position weight is ${currentWeightPct.toFixed(2)}%, above your ${config.maxPositionWeightPct}% risk ceiling. The system calculates trimming ${suggestedSellQuantity} shares to return allocation to target ceiling.`;
     } else if (isStopFloorBreached && state === 'TECHNICAL_TRIM_CANDIDATE') {
@@ -733,7 +744,9 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     } else if (state === 'TECHNICAL_TRIM_CANDIDATE') {
       explanation = `Three completed weekly closes are below a falling 30-week average (CMP ₹${item.currentPrice} vs SMA ₹${item.sma30Week?.toFixed(1)}). Review trimming Tranche 1 (${suggestedSellQuantity} shares) while letting core position ride.`;
     } else if (state === 'FUNDAMENTAL_TRIM_CANDIDATE') {
-      explanation = `Fundamentals show quarterly deceleration (${item.fundamentals?.opmTrendDirection?.toLowerCase()} margins at ${item.fundamentals?.latestOpmPct}%). Review trimming ${suggestedSellQuantity} shares in line with earnings deceleration.`;
+      const patDrop = item.fundamentals?.yoyPatGrowthPct;
+      const patNote = patDrop !== null && patDrop !== undefined ? ` (YoY PAT ${patDrop > 0 ? `+${patDrop}%` : `${patDrop}%`})` : '';
+      explanation = `Fundamentals show earnings deterioration (${item.fundamentals?.opmTrendDirection?.toLowerCase()} margins at ${item.fundamentals?.latestOpmPct || '—'}%${patNote}). Review trimming ${suggestedSellQuantity} shares in line with earnings deceleration.`;
     } else if (state === 'FULL_EXIT_CANDIDATE') {
       explanation = `Confluence of Stage 4 secular downtrend and fundamental deterioration. Full exit candidate (${suggestedSellQuantity} shares) to protect against permanent capital loss.`;
     } else if (state === 'WATCH') {
@@ -755,6 +768,11 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       technicalState: item.state,
       stopFloorBreached: isStopFloorBreached,
       has4RedBreakdown,
+      isRecentBuy,
+      pnlFromLatestBuyPct,
+      latestBuyPrice,
+      latestBuyDate,
+      tradingDaysSinceBuy,
       liveBufferToTrailingFloorPct: item.trailingFloorPrice > 0
         ? Number(((item.currentPrice / item.trailingFloorPrice - 1) * 100).toFixed(2))
         : null,

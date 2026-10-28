@@ -37,7 +37,7 @@ let _buyAnalysisCacheTimestamp = 0;
 const BUY_CACHE_TTL_MS = 15 * 60 * 1000;
 const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'buy_analysis_snapshot.json');
 
-function invalidateBuyCache() {
+export function invalidateBuyCache() {
   _buyAnalysisCache = null;
   _buyAnalysisCacheTimestamp = 0;
   _fundamentalsCacheMap = null;

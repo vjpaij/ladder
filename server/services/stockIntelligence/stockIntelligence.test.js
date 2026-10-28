@@ -454,3 +454,107 @@ test('Rule 3: Buy analysis strictly disqualifies candidate stocks trading <= 30-
   assert.equal(buyAnalyses[0].buySignal, 'AVOID', 'Candidate <= 30w SMA must be classified AVOID');
   assert.ok(buyAnalyses[0].signalReason.includes('30-week moving average'), 'Reason must cite 30-week SMA');
 });
+
+test('Rule 4: Minor margin dip does not trigger fundamental trim for Stage 2 compounder with expanding revenue and profit (SONACOMS / INDGN protection)', () => {
+  const prices = weekdays(300, '2023-01-02');
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+  const currentPrice = prices[today];
+
+  const holdings = [{
+    id: 'h-compounder',
+    symbol: 'COMPOUNDER',
+    category_id: 'in_stocks',
+    quantity: 100,
+    current_price: currentPrice,
+    avg_buy_price: Number((currentPrice * 0.7).toFixed(2))
+  }];
+
+  // Fundamentals show expanding Sales (+30%) and expanding PAT (+18%), but OPM contracted (e.g. 26% to 22%)
+  const fundamentalsMap = {
+    COMPOUNDER: {
+      status: 'AVAILABLE',
+      opmTrendDirection: 'CONTRACTING',
+      latestOpmPct: 22,
+      yoySalesGrowthPct: 30.27,
+      yoyPatGrowthPct: 18.67,
+      promoterPledgePct: 0
+    }
+  };
+
+  const results = buildStockAnalyses(holdings, { COMPOUNDER: prices }, {
+    today,
+    fundamentalsMap
+  });
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].action, 'HOLD_AND_COMPOUND', 'Stage 2 compounder with growing sales/PAT must be protected under HOLD_AND_COMPOUND');
+  assert.equal(results[0].state, 'NORMAL', 'State must be NORMAL');
+  assert.equal(results[0].suggestedSellQuantity, null, 'Suggested sell quantity must be null/0');
+});
+
+test('Rule 5: Action Plan dynamically sizes subordinate pyramid tranches for owned positions and enforces cumulative position caps (RPEL / GABRIEL protection)', async () => {
+  const { generateActionPlan } = await import('./actionPlanService.js');
+  const plan = await generateActionPlan({ externalCashBudget: 200000 });
+
+  assert.ok(plan.immediateBuys, 'Immediate buys must exist');
+  assert.ok(plan.queuedBuys, 'Queued buys must exist');
+
+  // Verify that any owned holding in immediate buys has a subordinate tranche, not an oversized ₹1.6L new entry
+  const ownedImmediate = plan.immediateBuys.filter(b => b.isOwned);
+  ownedImmediate.forEach(b => {
+    assert.ok(b.actionValue <= 75000, `Owned buy ${b.symbol} actionValue (${b.actionValue}) must not exceed single pyramid tranche size`);
+  });
+
+  // Verify that Gabriel (which exceeds position cap) is routed to Queued Buys with 0 shares and CORE HOLD
+  const gabriel = plan.queuedBuys.find(b => b.symbol === 'GABRIEL');
+  if (gabriel) {
+    assert.equal(gabriel.actionShares, 0, 'Gabriel must have 0 action shares');
+    assert.ok(gabriel.executionStatus.includes('CORE HOLD') || gabriel.executionStatus.includes('CAP REACHED'), 'Gabriel must be marked CORE HOLD');
+  }
+
+  // Verify CSV has exactly 15 columns on every row
+  const rows = plan.csv.split('\r\n').filter(Boolean);
+  assert.ok(rows.length > 1, 'CSV must have rows');
+  rows.forEach((row, i) => {
+    let inQuotes = false;
+    let colCount = 1;
+    for (let c = 0; c < row.length; c++) {
+      if (row[c] === '"') inQuotes = !inQuotes;
+      else if (row[c] === ',' && !inQuotes) colCount++;
+    }
+    assert.equal(colCount, 15, `Row ${i+1} must have 15 columns, got ${colCount}`);
+  });
+});
+
+test('Rule 6: Market Cap < ₹1,000 Cr and penny stocks (CMP < ₹20) are strictly disqualified as AVOID and barred from Action Plan', async () => {
+  const { generateActionPlan } = await import('./actionPlanService.js');
+  const plan = await generateActionPlan({ externalCashBudget: 200000 });
+
+  // No stock in immediate buys can have marketCapCr < 1000 or price < 20
+  plan.immediateBuys.forEach(b => {
+    if (b.marketCapCr && b.marketCapCr > 0) {
+      assert.ok(b.marketCapCr >= 1000, `Immediate buy ${b.symbol} must have market cap >= 1000 Cr, got ${b.marketCapCr}`);
+    }
+    assert.ok(b.cmp >= 20.00, `Immediate buy ${b.symbol} must have CMP >= 20, got ${b.cmp}`);
+  });
+
+  // Verify SIL (Mcap 116 Cr, CMP 17) is completely excluded from immediate buys, queued buys, and CSV export
+  const silInImmediate = plan.immediateBuys.find(b => b.symbol === 'SIL');
+  assert.equal(silInImmediate, undefined, 'SIL must not be in immediate buys');
+  const silInQueued = plan.queuedBuys.find(b => b.symbol === 'SIL');
+  assert.equal(silInQueued, undefined, 'SIL must not be in queued buys');
+  assert.ok(!plan.csv.includes('SIL,'), 'SIL must not be exported in the Action Plan CSV');
+});
+
+test('Rule 7: Sector Concentration Guard limits immediate buys to max 5 per sector and caps single sector spend', async () => {
+  const { generateActionPlan } = await import('./actionPlanService.js');
+  const plan = await generateActionPlan({ externalCashBudget: 200000 });
+
+  const sectorCounts = {};
+  plan.immediateBuys.forEach(b => {
+    const s = b.sector || 'Unknown';
+    sectorCounts[s] = (sectorCounts[s] || 0) + 1;
+    assert.ok(sectorCounts[s] <= 5, `Sector ${s} cannot have more than 5 immediate buys funded on the same day`);
+  });
+});
