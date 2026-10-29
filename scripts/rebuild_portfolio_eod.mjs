@@ -7,6 +7,7 @@ import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
 import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache, resolveHoldingPrice, fetchAmfiNavBatch, formatCleanQuoteDate } from '../server/services/priceEngine.js';
 import { getYesterdayIST, getLastTradingDay } from '../server/services/marketCalendar.js';
+import { syncRecentNpsEodValuations } from '../server/services/selfHealingService.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -65,6 +66,11 @@ async function rebuildEod() {
   // Force fresh NPS NAV data by clearing stale Protean/historical caches.
   // This prevents T+1 publication lag from persisting stale carry-forward NAVs.
   clearProteanCache();
+  try {
+    await syncRecentNpsEodValuations();
+  } catch (err) {
+    console.warn('[EOD Rebuild] NPS EOD auto-sync warning:', err.message);
+  }
   console.log(incrementalMode
     ? 'Extending verified portfolio EOD history with missing finalized dates...'
     : 'Rebuilding portfolio EOD logs from portfolio.xlsx and Supabase holdings...');

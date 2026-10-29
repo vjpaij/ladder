@@ -37,10 +37,18 @@ let _buyAnalysisCacheTimestamp = 0;
 const BUY_CACHE_TTL_MS = 15 * 60 * 1000;
 const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'buy_analysis_snapshot.json');
 
+export const BUY_ANALYSIS_RULE_VERSION = 'v7.5.6';
+
 export function invalidateBuyCache() {
   _buyAnalysisCache = null;
   _buyAnalysisCacheTimestamp = 0;
   _fundamentalsCacheMap = null;
+  try {
+    if (fs.existsSync(SNAPSHOT_FILE)) {
+      fs.unlinkSync(SNAPSHOT_FILE);
+      console.log('[Buy Analysis] Purged disk snapshot file on cache invalidation.');
+    }
+  } catch (_) {}
 }
 
 // In-memory fundamentals cache to avoid hundreds of synchronous disk reads per evaluation
@@ -119,13 +127,17 @@ async function processNextWarmingItem() {
   }
 }
 
-// Load disk snapshot on server boot for instant 0ms responses
+// Load disk snapshot on server boot for instant 0ms responses, verifying ruleVersion
 try {
   if (fs.existsSync(SNAPSHOT_FILE)) {
     const parsed = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf8'));
-    if (parsed && Array.isArray(parsed.analyses) && parsed.analyses.length > 0) {
+    if (parsed && Array.isArray(parsed.analyses) && parsed.analyses.length > 0 && parsed.ruleVersion === BUY_ANALYSIS_RULE_VERSION) {
       _buyAnalysisCache = parsed;
       _buyAnalysisCacheTimestamp = Date.now();
+      console.log(`[Buy Analysis] Loaded verified snapshot (${parsed.ruleVersion}, ${parsed.analyses.length} candidates)`);
+    } else if (parsed && parsed.ruleVersion !== BUY_ANALYSIS_RULE_VERSION) {
+      console.log(`[Buy Analysis] Discarded outdated snapshot (${parsed.ruleVersion || 'legacy'} !== ${BUY_ANALYSIS_RULE_VERSION}). Recomputation required.`);
+      try { fs.unlinkSync(SNAPSHOT_FILE); } catch (_) {}
     }
   }
 } catch (_) {}
@@ -154,8 +166,8 @@ router.get('/buy-analysis/sync-status', authenticateToken, (req, res) => {
 export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
   const now = Date.now();
 
-  // Serve from in-memory cache (15-min TTL) if fresh and not force-refreshed
-  if (!forceRefresh && _buyAnalysisCache && (now - _buyAnalysisCacheTimestamp < BUY_CACHE_TTL_MS)) {
+  // Serve from in-memory cache (15-min TTL) if fresh, matching ruleVersion, and not force-refreshed
+  if (!forceRefresh && _buyAnalysisCache && _buyAnalysisCache.ruleVersion === BUY_ANALYSIS_RULE_VERSION && (now - _buyAnalysisCacheTimestamp < BUY_CACHE_TTL_MS)) {
     return _buyAnalysisCache;
   }
 
@@ -252,7 +264,7 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
   }
 
   // Build buy analyses across candidate universe, strictly excluding any sell/trim flagged stocks
-  const analyses = buildBuyAnalyses(
+  const rawAnalyses = buildBuyAnalyses(
     enrichedCandidates,
     history,
     fundamentalsMap,
@@ -261,12 +273,21 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
     { today, maxResults: 500, includeSipPlans: true, sellAnalyses }
   );
 
+  // Filter institutional quality: strictly exclude penny stocks (< ₹20) and microcaps (< ₹1,000 Cr)
+  const analyses = rawAnalyses.filter(a => {
+    const mcap = Number(a.marketCapCr ?? a.marketCap) || 0;
+    const price = Number(a.currentPrice ?? a.cmp) || 0;
+    if (price > 0 && price < 20.00) return false;
+    if (mcap > 0 && mcap < 1000) return false;
+    return true;
+  });
+
   const summary = buildBuyPortfolioSummary(analyses);
 
   const result = {
     generatedAt: new Date().toISOString(),
     today,
-    ruleVersion: 'buy-analysis-v1.0',
+    ruleVersion: BUY_ANALYSIS_RULE_VERSION,
     summary,
     candidateCount: enrichedCandidates.length,
     analyses,
@@ -298,6 +319,20 @@ router.get('/buy-analysis', authenticateToken, async (req, res) => {
     const sourceFilter = req.query.source || null; // 'Portfolio' | 'NSE500' | 'Watchlist'
 
     const cachedOrFresh = await runBuyAnalysisEngine({ forceRefresh });
+
+    // Defensive output gate: Ensure no disqualified microcaps (< ₹1000 Cr) or penny stocks (< ₹20) escape to UI
+    if (cachedOrFresh?.analyses) {
+      cachedOrFresh.analyses = cachedOrFresh.analyses.filter(a => {
+        const mcap = Number(a.marketCapCr ?? a.marketCap) || 0;
+        const price = Number(a.currentPrice ?? a.cmp) || 0;
+        if (mcap > 0 && mcap < 1000) return false;
+        if (price > 0 && price < 20.00) return false;
+        return true;
+      });
+      if (cachedOrFresh.summary) {
+        cachedOrFresh.summary.totalAnalyzed = cachedOrFresh.analyses.length;
+      }
+    }
 
     // Apply optional filters on the fly
     if (signalFilter || sourceFilter) {

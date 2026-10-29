@@ -1,5 +1,148 @@
 [
   {
+    "id": "log_1793299297622_cbzei",
+    "jobType": "SELF_HEALING",
+    "jobName": "Midnight Comprehensive Self-Healing",
+    "scheduledTime": "00:05 AM IST",
+    "runTime": "2026-10-29T18:41:37.622Z",
+    "status": "SUCCESS",
+    "durationMs": 62684,
+    "details": "Self-healing completed. Healed FX dates: 0, Healed Prices: 0.",
+    "error": null
+  },
+  {
+    "id": "log_1793299295202_xgwh1",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (06:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-29T18:41:35.202Z",
+    "status": "FAILED",
+    "durationMs": 60265,
+    "details": "Rebuild failed with exit code 1.",
+    "error": "Exit code 1"
+  },
+  {
+    "id": "log_1793299287647_1zqpq",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-29T18:41:27.647Z",
+    "status": "SUCCESS",
+    "durationMs": 36911,
+    "details": "Refreshed live quotes and NAVs across all asset classes (28 holdings updated). Catch-up EOD rebuild launched.",
+    "error": null
+  },
+  {
+    "id": "log_1793299287045_wnp5b",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-29T18:41:27.045Z",
+    "status": "SUCCESS",
+    "durationMs": 36314,
+    "details": "Refreshed live quotes and NAVs across all asset classes (28 holdings updated). Catch-up EOD rebuild launched.",
+    "error": null
+  },
+  {
+    "id": "log_1793246783864_oj5ch",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-29T04:06:23.864Z",
+    "status": "SUCCESS",
+    "durationMs": 2842,
+    "details": "Refreshed live quotes and NAVs across all asset classes (75 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1793246783823_m0vtu",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-29T04:06:23.822Z",
+    "status": "SUCCESS",
+    "durationMs": 3022,
+    "details": "Refreshed live quotes and NAVs across all asset classes (75 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1793246382263_y39wn",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-29T03:59:42.260Z",
+    "status": "SUCCESS",
+    "durationMs": 4497,
+    "details": "Evaluated 50 active Indian equity holdings. 25 in Stage 2 Compounding, 12 technical trim, 0 on watch. Data integrity: 98% (1 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1793245842190_hpudr",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (07:00 AM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-10-29T03:50:42.190Z",
+    "status": "SUCCESS",
+    "durationMs": 4284,
+    "details": "Evaluated 50 active Indian equity holdings. 25 in Stage 2 Compounding, 12 technical trim, 0 on watch. Data integrity: 98% (1 anomalies). Recorded 1 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1793245837903_x5mlm",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (07:00 AM IST)",
+    "scheduledTime": "07:00 AM IST",
+    "runTime": "2026-10-29T03:50:37.903Z",
+    "status": "SUCCESS",
+    "durationMs": 72232,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
+    "id": "log_1793245809793_lf06j",
+    "jobType": "CLOUD_BACKUP",
+    "jobName": "Automated Daily Cloud Backup",
+    "scheduledTime": "08:25 AM IST",
+    "runTime": "2026-10-29T03:50:09.793Z",
+    "status": "SUCCESS",
+    "durationMs": 44121,
+    "details": "Lossless gzip backup saved to Supabase Storage (ladder_backup_2026-10-29T03-49-25-674Z.json.gz).",
+    "error": null
+  },
+  {
+    "id": "log_1793213885836_5ln30",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-28T18:58:05.836Z",
+    "status": "SUCCESS",
+    "durationMs": 3390,
+    "details": "Refreshed live quotes and NAVs across all asset classes (75 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1793213885809_0b7kn",
+    "jobType": "LOGIN_SYNC",
+    "jobName": "Webpage Login Asset Auto-Sync",
+    "scheduledTime": "On Webpage Login",
+    "runTime": "2026-10-28T18:58:05.809Z",
+    "status": "SUCCESS",
+    "durationMs": 3366,
+    "details": "Refreshed live quotes and NAVs across all asset classes (75 holdings updated).",
+    "error": null
+  },
+  {
+    "id": "log_1793213816297_9vw2z",
+    "jobType": "MANUAL_SYNC",
+    "jobName": "Live Asset Price Refresh",
+    "scheduledTime": "Manual / UI Trigger",
+    "runTime": "2026-10-28T18:56:56.296Z",
+    "status": "SUCCESS",
+    "durationMs": 1419,
+    "details": "Refreshed live quotes and NAVs across all asset classes (75 holdings updated).",
+    "error": null
+  },
+  {
     "id": "log_1793213667427_4gkg2",
     "jobType": "MANUAL_SYNC",
     "jobName": "Live Asset Price Refresh",
@@ -5354,149 +5497,6 @@
     "status": "SUCCESS",
     "durationMs": 6661,
     "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792225706740_fgtiy",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T08:28:26.740Z",
-    "status": "SUCCESS",
-    "durationMs": 3374,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792225706381_od53u",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T08:28:26.381Z",
-    "status": "SUCCESS",
-    "durationMs": 3017,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792225692042_zk08r",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T08:28:12.041Z",
-    "status": "SUCCESS",
-    "durationMs": 3883,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792225692010_uau3t",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T08:28:12.009Z",
-    "status": "SUCCESS",
-    "durationMs": 3859,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792225443871_wng9u",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T08:24:03.870Z",
-    "status": "SUCCESS",
-    "durationMs": 4116,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792225442638_mcunh",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T08:24:02.638Z",
-    "status": "SUCCESS",
-    "durationMs": 2983,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792225152658_5d7c4",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (BOOT)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-17T08:19:12.654Z",
-    "status": "SUCCESS",
-    "durationMs": 7621,
-    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792220493438_6ngs8",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (07:00 AM IST)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-17T07:01:33.438Z",
-    "status": "SUCCESS",
-    "durationMs": 2152,
-    "details": "Evaluated 82 active Indian equity holdings. 29 in Stage 2 Compounding, 7 technical trim, 11 on watch. Data integrity: 100% (0 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792220491283_90i1i",
-    "jobType": "EOD_REBUILD",
-    "jobName": "EOD Valuation Rebuild (07:00 AM IST)",
-    "scheduledTime": "07:00 AM IST",
-    "runTime": "2026-10-17T07:01:31.283Z",
-    "status": "SUCCESS",
-    "durationMs": 126288,
-    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
-    "error": null
-  },
-  {
-    "id": "log_1792220459011_euem8",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T07:00:59.010Z",
-    "status": "SUCCESS",
-    "durationMs": 22388,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792220455285_ya6pr",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-17T07:00:55.284Z",
-    "status": "SUCCESS",
-    "durationMs": 19256,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792220405865_t6i0f",
-    "jobType": "CLOUD_BACKUP",
-    "jobName": "Automated Daily Cloud Backup",
-    "scheduledTime": "08:25 AM IST",
-    "runTime": "2026-10-17T07:00:05.865Z",
-    "status": "SUCCESS",
-    "durationMs": 40869,
-    "details": "Lossless gzip backup saved to Supabase Storage (ladder_backup_2026-10-17T06-59-24-998Z.json.gz).",
-    "error": null
-  },
-  {
-    "id": "log_1792178591860_o3t6a",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-16T19:23:11.860Z",
-    "status": "SUCCESS",
-    "durationMs": 2011,
-    "details": "Refreshed live quotes and NAVs across all asset classes (105 holdings updated).",
     "error": null
   }
 ]

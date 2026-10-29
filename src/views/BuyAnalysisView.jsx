@@ -938,10 +938,17 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
 
   useEffect(() => {
     if (onStatsChange && _clientBuyAnalysisCache?.analyses) {
-      const strongBuy = _clientBuyAnalysisCache.analyses.filter(a => a.buySignal === 'STRONG_BUY').length;
-      const buy = _clientBuyAnalysisCache.analyses.filter(a => a.buySignal === 'BUY').length;
-      const watch = _clientBuyAnalysisCache.analyses.filter(a => a.buySignal === 'WATCH').length;
-      onStatsChange({ strongBuy, buy, watch, total: _clientBuyAnalysisCache.analyses.length });
+      const validAnalyses = _clientBuyAnalysisCache.analyses.filter(a => {
+        const mcap = Number(a.marketCapCr ?? a.marketCap) || 0;
+        const price = Number(a.currentPrice ?? a.cmp) || 0;
+        if (price > 0 && price < 20.00) return false;
+        if (mcap > 0 && mcap < 1000) return false;
+        return true;
+      });
+      const strongBuy = validAnalyses.filter(a => a.buySignal === 'STRONG_BUY').length;
+      const buy = validAnalyses.filter(a => a.buySignal === 'BUY').length;
+      const watch = validAnalyses.filter(a => a.buySignal === 'WATCH').length;
+      onStatsChange({ strongBuy, buy, watch, total: validAnalyses.length });
     }
   }, [onStatsChange]);
 
@@ -957,10 +964,17 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
       _clientBuyAnalysisCache = res.data;
       setData(res.data);
       if (onStatsChange && res.data?.analyses) {
-        const strongBuy = res.data.analyses.filter(a => a.buySignal === 'STRONG_BUY').length;
-        const buy = res.data.analyses.filter(a => a.buySignal === 'BUY').length;
-        const watch = res.data.analyses.filter(a => a.buySignal === 'WATCH').length;
-        onStatsChange({ strongBuy, buy, watch, total: res.data.analyses.length });
+        const validAnalyses = res.data.analyses.filter(a => {
+          const mcap = Number(a.marketCapCr ?? a.marketCap) || 0;
+          const price = Number(a.currentPrice ?? a.cmp) || 0;
+          if (price > 0 && price < 20.00) return false;
+          if (mcap > 0 && mcap < 1000) return false;
+          return true;
+        });
+        const strongBuy = validAnalyses.filter(a => a.buySignal === 'STRONG_BUY').length;
+        const buy = validAnalyses.filter(a => a.buySignal === 'BUY').length;
+        const watch = validAnalyses.filter(a => a.buySignal === 'WATCH').length;
+        onStatsChange({ strongBuy, buy, watch, total: validAnalyses.length });
       }
     } catch (err) {
       if (!_clientBuyAnalysisCache) {
@@ -1025,7 +1039,14 @@ export default function BuyAnalysisView({ embedded = false, onStatsChange, holdi
   const filteredAnalyses = useMemo(() => {
     if (!data?.analyses) return [];
     const signalOrder = { STRONG_BUY: 0, BUY: 1, WATCH: 2, INSUFFICIENT_DATA: 3, MONITOR: 4, AVOID: 5 };
-    let list = data.analyses;
+    // Institutional quality baseline: strictly exclude penny stocks (< ₹20) and microcaps (< ₹1000 Cr)
+    let list = data.analyses.filter(a => {
+      const mcap = Number(a.marketCapCr ?? a.marketCap) || 0;
+      const price = Number(a.currentPrice ?? a.cmp) || 0;
+      if (price > 0 && price < 20.00) return false;
+      if (mcap > 0 && mcap < 1000) return false;
+      return true;
+    });
 
     // Signal filter
     if (signalFilter !== 'ALL') {

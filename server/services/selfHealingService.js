@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import axios from 'axios';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
@@ -248,11 +250,175 @@ export async function healNpsNavGaps() {
     if (healedCount.updated > 0) {
       console.log(`[Self-Healing] Total NPS NAV gaps filled: ${healedCount.updated}`);
     }
+    // Automatically synchronize any past-date EOD valuations that had stale carry-forward NAVs
+    await syncRecentNpsEodValuations();
   } catch (err) {
     console.warn('[Self-Healing] NPS NAV gap healing warning:', err.message);
   }
   return healedCount;
 }
+
+/**
+ * Automatically synchronizes EOD logs and Supabase pnl_history for recent trading
+ * days when T+1 published NPS NAVs become available.
+ * Resolves the issue where day T was initially logged with stale carry-forward NAVs
+ * and never updated, shifting day T's change onto day T+1 and leaving day T with 0 change.
+ */
+export async function syncRecentNpsEodValuations() {
+  const result = { updatedDates: [] };
+  try {
+    const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+    if (!fs.existsSync(eodPath)) return result;
+
+    const raw = fs.readFileSync(eodPath, 'utf8');
+    const logs = JSON.parse(raw);
+    if (!Array.isArray(logs) || logs.length === 0) return result;
+
+    const holdings = await db.select('holdings');
+    const npsHoldings = holdings.filter(h => h.category_id === 'nps' && Number(h.quantity) > 0 && h.symbol);
+    if (npsHoldings.length === 0) return result;
+
+    const heldCodes = npsHoldings.map(h => h.symbol);
+    const today = getTodayIST();
+
+    // Inspect the last 7 trading days
+    const tradingDays = [];
+    const checkDate = new Date(`${today}T00:00:00Z`);
+    for (let i = 0; i < 14 && tradingDays.length < 7; i++) {
+      checkDate.setUTCDate(checkDate.getUTCDate() - 1);
+      const ds = checkDate.toISOString().slice(0, 10);
+      if (isTradingDay(ds, 'NSE')) {
+        tradingDays.push(ds);
+      }
+    }
+    if (tradingDays.length === 0) return result;
+
+    // Query nps_daily_navs for held schemes across these trading days
+    const { data: navRows } = await supabase
+      .from('nps_daily_navs')
+      .select('scheme_code, nav, nav_date')
+      .in('scheme_code', heldCodes)
+      .in('nav_date', tradingDays);
+
+    const navMap = {};
+    (navRows || []).forEach(r => {
+      if (!navMap[r.nav_date]) navMap[r.nav_date] = {};
+      navMap[r.nav_date][r.scheme_code] = Number(r.nav);
+    });
+
+    let dirty = false;
+    const sortedDays = tradingDays.slice().sort();
+
+    for (const date of sortedDays) {
+      const dayNavs = navMap[date];
+      if (!dayNavs) continue;
+      const allHaveNav = heldCodes.every(c => dayNavs[c] && dayNavs[c] > 0);
+      if (!allHaveNav) continue;
+
+      const expectedNps = Number(npsHoldings.reduce((sum, h) => sum + Number((Number(h.quantity) * dayNavs[h.symbol]).toFixed(2)), 0).toFixed(2));
+      const logIdx = logs.findIndex(l => l.date === date);
+      if (logIdx < 0) continue;
+
+      const log = logs[logIdx];
+      const currentNps = Number((log.nps || 0).toFixed(2));
+
+      if (Math.abs(currentNps - expectedNps) > 0.005) {
+        console.log(`[Self-Healing] Correcting stale NPS valuation on ${date}: ₹${currentNps} -> ₹${expectedNps} (delta: ₹${(expectedNps - currentNps).toFixed(2)})`);
+        log.nps = expectedNps;
+        const savings = Number(log.savings || 0);
+        const epf = Number(log.epf || 0);
+        const mf = Number(log.mutual_funds || 0);
+        const inStocks = Number(log.indian_stocks || 0);
+        const usStocks = Number(log.us_stocks || 0);
+        const debt = Number((log.debt !== undefined ? log.debt : ((log.loan || 0) + (log.credits || 0))).toFixed(2));
+
+        log.total_assets = Number((savings + epf + mf + inStocks + usStocks + expectedNps).toFixed(2));
+        log.total_assets_inr = log.total_assets;
+        log.wealth = Number((log.total_assets - debt).toFixed(2));
+        log.total_wealth = log.wealth;
+        log.net_worth_inr = log.wealth;
+
+        // Recalculate daily_pnl
+        const prevLog = logIdx > 0 ? logs[logIdx - 1] : log;
+        const prevWealth = Number((prevLog.total_wealth !== undefined ? prevLog.total_wealth : (prevLog.wealth || 0)).toFixed(2));
+        log.daily_pnl = Number((log.wealth - prevWealth).toFixed(2));
+        log.pnl_pct = prevWealth > 0 ? Number(((log.daily_pnl / prevWealth) * 100).toFixed(2)) : 0;
+
+        // Recalculate next day's daily_pnl if exists
+        if (logIdx < logs.length - 1) {
+          const nextLog = logs[logIdx + 1];
+          const nextWealth = Number((nextLog.total_wealth !== undefined ? nextLog.total_wealth : (nextLog.wealth || 0)).toFixed(2));
+          nextLog.daily_pnl = Number((nextWealth - log.wealth).toFixed(2));
+          nextLog.pnl_pct = log.wealth > 0 ? Number(((nextLog.daily_pnl / log.wealth) * 100).toFixed(2)) : 0;
+        }
+
+        result.updatedDates.push(date);
+        dirty = true;
+      }
+    }
+
+    if (dirty) {
+      fs.writeFileSync(eodPath, JSON.stringify(logs, null, 2), 'utf8');
+
+      try {
+        const histPath = path.join(process.cwd(), 'data', 'historical_prices.json');
+        if (fs.existsSync(histPath)) {
+          const hist = JSON.parse(fs.readFileSync(histPath, 'utf8'));
+          (navRows || []).forEach(r => {
+            if (!hist[r.scheme_code]) hist[r.scheme_code] = {};
+            hist[r.scheme_code][r.nav_date] = Number(r.nav);
+          });
+          fs.writeFileSync(histPath, JSON.stringify(hist, null, 2), 'utf8');
+        }
+      } catch (_) {}
+
+      const rowsToUpsert = logs
+        .filter(l => result.updatedDates.includes(l.date) || (result.updatedDates.length > 0 && l.date > result.updatedDates[0]))
+        .map(l => ({
+          log_date: l.date,
+          daily_pnl_inr: l.daily_pnl,
+          pnl_percentage: l.pnl_pct,
+          total_assets_inr: l.total_assets,
+          total_liabilities_inr: l.debt,
+          net_worth_inr: l.wealth,
+          breakdown: {
+            hdfc: l.hdfc,
+            indusind: l.indusind,
+            idfc: l.idfc,
+            rbl: l.rbl,
+            sbi: l.sbi,
+            federal: l.federal,
+            savings: l.savings,
+            mutual_funds: l.mutual_funds,
+            indian_stocks: l.indian_stocks,
+            us_stocks: l.us_stocks,
+            nps: l.nps,
+            epf: l.epf,
+            loan: l.loan,
+            credits: l.credits,
+            debt: l.debt
+          }
+        }));
+
+      if (rowsToUpsert.length > 0) {
+        const { error: upsertErr } = await supabase
+          .from('pnl_history')
+          .upsert(rowsToUpsert, { onConflict: 'log_date' });
+        if (upsertErr) {
+          console.warn('[Self-Healing] Supabase pnl_history upsert warning:', upsertErr.message);
+        } else {
+          console.log(`[Self-Healing] Upserted ${rowsToUpsert.length} corrected rows to Supabase pnl_history.`);
+        }
+      }
+
+      db.invalidateCache('pnl_history');
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] NPS EOD valuation sync warning:', err.message);
+  }
+  return result;
+}
+
 
 /**
  * Runs all self-healing routines in sequence
@@ -263,6 +429,7 @@ export async function runComprehensiveSelfHealing() {
   const txHeal = await healTransactionFxRates();
   const priceHeal = await healMissingHoldingPrices();
   const npsGapHeal = await healNpsNavGaps();
+  const npsEodSync = await syncRecentNpsEodValuations();
   let navHeal = null;
   try {
     navHeal = await syncAllMissingNavs();
@@ -275,6 +442,8 @@ export async function runComprehensiveSelfHealing() {
     fxHealed: fxHeal,
     transactionsHealed: txHeal,
     pricesHealed: priceHeal,
+    npsGapHeal,
+    npsEodSync,
     navSync: navHeal
   };
 }

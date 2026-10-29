@@ -69,7 +69,8 @@ export default function Sidebar({ currentView, setCurrentView, summary, isCollap
       {/* Collapse Toggle Button */}
       <button 
         onClick={onToggleCollapse}
-        className="absolute top-4 right-[-14px] z-50 bg-slate-800 border border-slate-700 text-white rounded-full p-1 shadow-lg hover:bg-slate-700 transition-colors hidden md:block"
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        className="absolute top-4 right-[-14px] z-50 bg-slate-800 border border-slate-700 text-white rounded-full p-1 shadow-lg hover:bg-slate-700 transition-colors flex items-center justify-center cursor-pointer"
         style={{ right: isCollapsed ? 'auto' : '10px', left: isCollapsed ? '50%' : 'auto', transform: isCollapsed ? 'translateX(-50%)' : 'none', top: '10px' }}
       >
         {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}

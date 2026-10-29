@@ -54,7 +54,7 @@ import searchRouter from './routes/search.js';
 import reportsRouter from './routes/reports.js';
 import syncLogsRouter from './routes/syncLogs.js';
 import stockIntelligenceRouter, { runDailyStockAnalysisAudit } from './routes/stockIntelligence.js';
-import buyAnalysisRouter, { runBuyAnalysisEngine } from './routes/buyAnalysis.js';
+import buyAnalysisRouter, { runBuyAnalysisEngine, invalidateBuyCache } from './routes/buyAnalysis.js';
 import stockLogosRouter from './routes/stockLogos.js';
 import tradingJournalRouter from './routes/tradingJournal.js';
 import { logSyncEvent } from './services/syncLogService.js';
@@ -76,6 +76,11 @@ app.use(express.json());
 // Keep derived dashboard/calendar caches coherent after successful domain
 // writes, regardless of which CRUD route handled the mutation.
 app.use('/api', (req, res, next) => {
+  // Enforce zero client-side caching on all financial API endpoints
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
   const domainWrite = /^\/(transactions|holdings|liabilities|dividends|sips|refresh-prices|database)(\/|$)/.test(req.path);
   if (mutating && domainWrite) {
@@ -83,6 +88,7 @@ app.use('/api', (req, res, next) => {
       if (res.statusCode >= 200 && res.statusCode < 400) {
         invalidateSummaryCache();
         invalidateTxDatesCache();
+        invalidateBuyCache();
       }
     });
   }

@@ -707,6 +707,7 @@ export function buildBuyAnalyses(
 
         // Technical details
         currentPrice,
+        cmp: currentPrice,
         latestPriceAgeDays,
         high52w,
         pctFromHigh52w: chartinkFilter.pctFromHigh52w,
@@ -723,6 +724,7 @@ export function buildBuyAnalyses(
 
         // Fundamental details
         peRatio: fundamentals.peRatio || null,
+        marketCap: fundamentals.marketCapCr || null,
         marketCapCr: fundamentals.marketCapCr || null,
         debtToEquity: fundamentals.debtToEquity || null,
         rocePct: fundamentals.rocePct || null,
