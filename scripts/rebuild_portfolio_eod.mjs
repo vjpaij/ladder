@@ -7,7 +7,7 @@ import { supabase } from '../server/supabaseClient.js';
 import { computePortfolioValuation } from '../server/services/portfolioCalculator.js';
 import { fetchNpsHistoricalNav, isTradingDay, syncAllMissingNavs, clearProteanCache, resolveHoldingPrice, fetchAmfiNavBatch, formatCleanQuoteDate } from '../server/services/priceEngine.js';
 import { getYesterdayIST, getLastTradingDay } from '../server/services/marketCalendar.js';
-import { syncRecentNpsEodValuations } from '../server/services/selfHealingService.js';
+import { syncRecentNpsEodValuations, healRecentHistoricalPrices } from '../server/services/selfHealingService.js';
 
 const EOD_FILE = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
 const HISTORICAL_FILE = path.join(process.cwd(), 'data', 'historical_prices.json');
@@ -68,8 +68,9 @@ async function rebuildEod() {
   clearProteanCache();
   try {
     await syncRecentNpsEodValuations();
+    await healRecentHistoricalPrices({ triggerEodSync: false });
   } catch (err) {
-    console.warn('[EOD Rebuild] NPS EOD auto-sync warning:', err.message);
+    console.warn('[EOD Rebuild] Auto-sync warning:', err.message);
   }
   console.log(incrementalMode
     ? 'Extending verified portfolio EOD history with missing finalized dates...'
@@ -334,10 +335,10 @@ async function rebuildEod() {
               const meta = result.meta || {};
               timestamps.forEach((t, idx) => {
                 const dStr = new Date(t * 1000).toISOString().split('T')[0];
-                let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+                let val = quote.close?.[idx] !== null && quote.close?.[idx] !== undefined ? quote.close[idx] : adjclose?.[idx];
                 if (val === null || val === undefined || isNaN(val) || val <= 0) {
                   for (let pi = idx - 1; pi >= 0; pi--) {
-                    const pVal = adjclose[pi] !== null && adjclose[pi] !== undefined ? adjclose[pi] : quote.close?.[pi];
+                    const pVal = quote.close?.[pi] !== null && quote.close?.[pi] !== undefined ? quote.close[pi] : adjclose?.[pi];
                     if (pVal !== null && pVal !== undefined && !isNaN(pVal) && pVal > 0) {
                       val = pVal;
                       break;
@@ -366,10 +367,10 @@ async function rebuildEod() {
               const meta = result.meta || {};
               timestamps.forEach((t, idx) => {
                 const dStr = new Date(t * 1000).toISOString().split('T')[0];
-                let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+                let val = quote.close?.[idx] !== null && quote.close?.[idx] !== undefined ? quote.close[idx] : adjclose?.[idx];
                 if (val === null || val === undefined || isNaN(val) || val <= 0) {
                   for (let pi = idx - 1; pi >= 0; pi--) {
-                    const pVal = adjclose[pi] !== null && adjclose[pi] !== undefined ? adjclose[pi] : quote.close?.[pi];
+                    const pVal = quote.close?.[pi] !== null && quote.close?.[pi] !== undefined ? quote.close[pi] : adjclose?.[pi];
                     if (pVal !== null && pVal !== undefined && !isNaN(pVal) && pVal > 0) {
                       val = pVal;
                       break;
@@ -422,10 +423,10 @@ async function rebuildEod() {
             historicalPrices[h.symbol] = historicalPrices[h.symbol] || {};
             timestamps.forEach((t, idx) => {
               const dStr = new Date(t * 1000).toISOString().split('T')[0];
-              let val = adjclose[idx] !== null && adjclose[idx] !== undefined ? adjclose[idx] : quote.close?.[idx];
+              let val = quote.close?.[idx] !== null && quote.close?.[idx] !== undefined ? quote.close[idx] : adjclose?.[idx];
               if (val === null || val === undefined || isNaN(val) || val <= 0) {
                 for (let pi = idx - 1; pi >= 0; pi--) {
-                  const pVal = adjclose[pi] !== null && adjclose[pi] !== undefined ? adjclose[pi] : quote.close?.[pi];
+                  const pVal = quote.close?.[pi] !== null && quote.close?.[pi] !== undefined ? quote.close[pi] : adjclose?.[pi];
                   if (pVal !== null && pVal !== undefined && !isNaN(pVal) && pVal > 0) {
                     val = pVal;
                     break;

@@ -1,10 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import { fork } from 'child_process';
 import axios from 'axios';
-import db from '../db.js';
+import db, { updateCacheRow } from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { getHistoricalFxRate, getHistoricalFxRatesMap, recordDailyFxRate, getPersistedRate } from './fxRateStore.js';
 import { recalculateHoldingState } from './recalculator.js';
+import { triggerEodRebuildIfPastDate } from './eodSync.js';
 import { 
   fetchStockQuote, 
   fetchMutualFundNav, 
@@ -419,10 +421,401 @@ export async function syncRecentNpsEodValuations() {
   return result;
 }
 
+/**
+ * Universal Multi-Asset Historical Price & NAV Self-Healing Engine
+ *
+ * Audits recent trading sessions (last 10 trading days) for all held & recently-traded assets:
+ * - Indian Stocks: Reconciles against official Yahoo Finance NSE / BSE candle closes (quote.close)
+ * - US Stocks: Reconciles against official Yahoo Finance closes (quote.close)
+ * - Mutual Funds: Reconciles against authoritative AMFI historical NAVs
+ *
+ * Replaces both:
+ * 1. Multi-month fallback spikes (e.g., meta.chartPreviousClose from 3 months ago)
+ * 2. Stale single-day carry-forward freezes (where day T was temporarily carried forward from T-1
+ *    and daily deltas were <= 10%)
+ */
+export async function healRecentHistoricalPrices(options = {}) {
+  const result = { updated: 0, updatedSymbols: [], updatedDates: [] };
+  try {
+    const hpPath = path.join(process.cwd(), 'data', 'historical_prices.json');
+    if (!fs.existsSync(hpPath)) return result;
+
+    const hp = JSON.parse(fs.readFileSync(hpPath, 'utf8'));
+    const holdings = await db.select('holdings');
+    const transactions = await db.select('transactions');
+    const today = getTodayIST();
+
+    // 1. Last 10 NSE Trading Days
+    const nseTradingDays = [];
+    const checkDate = new Date(`${today}T00:00:00Z`);
+    for (let i = 0; i < 25 && nseTradingDays.length < 10; i++) {
+      checkDate.setUTCDate(checkDate.getUTCDate() - 1);
+      const ds = checkDate.toISOString().slice(0, 10);
+      if (isTradingDay(ds, 'NSE')) {
+        nseTradingDays.push(ds);
+      }
+    }
+
+    // 2. Last 10 NYSE Trading Days
+    const nyseTradingDays = [];
+    const checkNyse = new Date(`${today}T00:00:00Z`);
+    for (let i = 0; i < 25 && nyseTradingDays.length < 10; i++) {
+      checkNyse.setUTCDate(checkNyse.getUTCDate() - 1);
+      const ds = checkNyse.toISOString().slice(0, 10);
+      if (isTradingDay(ds, 'NYSE')) {
+        nyseTradingDays.push(ds);
+      }
+    }
+
+    const cutoffDate = nseTradingDays[nseTradingDays.length - 1];
+    const recentTxs = transactions.filter(t => t.date && t.date >= cutoffDate);
+
+    const activeInHoldings = holdings.filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0);
+    const activeUsHoldings = holdings.filter(h => h.category_id === 'us_stocks' && Number(h.quantity) > 0);
+    const activeMfHoldings = holdings.filter(h => h.category_id === 'mutual_funds' && Number(h.quantity) > 0);
+
+    const allInSymbols = [...new Set([
+      ...activeInHoldings.map(h => h.symbol),
+      ...recentTxs.filter(t => t.symbol && !t.symbol.includes('-') && !t.symbol.includes('^')).map(t => t.symbol)
+    ])].map(s => s.replace(/\.(NS|BO)$/i, ''));
+
+    const allUsSymbols = [...new Set([
+      ...activeUsHoldings.map(h => h.symbol),
+      ...recentTxs.filter(t => t.currency === 'USD' && t.symbol).map(t => t.symbol)
+    ])];
+
+    const allMfCodes = [...new Set(activeMfHoldings.map(h => h.symbol))];
+
+    let dirty = false;
+    const affectedDates = new Set();
+    const affectedSymbols = new Set();
+
+    // 1. Audit Indian Equities against verified candle closes
+    for (const sym of allInSymbols) {
+      let officialMap = {};
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}.NS?interval=1d&range=1mo`;
+        const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 4000 });
+        const r = res.data?.chart?.result?.[0];
+        if (r && r.timestamp) {
+          const timestamps = r.timestamp;
+          const quote = r.indicators?.quote?.[0];
+          const adjclose = r.indicators?.adjclose?.[0]?.adjclose;
+          timestamps.forEach((t, i) => {
+            const d = new Date(t * 1000).toISOString().split('T')[0];
+            const val = quote.close?.[i] !== null && quote.close?.[i] !== undefined ? quote.close[i] : adjclose?.[i];
+            if (val > 0) officialMap[d] = Number(Number(val).toFixed(2));
+          });
+        }
+      } catch (_) {}
+
+      if (Object.keys(officialMap).length === 0) {
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}.BO?interval=1d&range=1mo`;
+          const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 4000 });
+          const r = res.data?.chart?.result?.[0];
+          if (r && r.timestamp) {
+            const timestamps = r.timestamp;
+            const quote = r.indicators?.quote?.[0];
+            const adjclose = r.indicators?.adjclose?.[0]?.adjclose;
+            timestamps.forEach((t, i) => {
+              const d = new Date(t * 1000).toISOString().split('T')[0];
+              const val = quote.close?.[i] !== null && quote.close?.[i] !== undefined ? quote.close[i] : adjclose?.[i];
+              if (val > 0) officialMap[d] = Number(Number(val).toFixed(2));
+            });
+          }
+        } catch (_) {}
+      }
+
+      const storedSeries = hp[sym] || hp[`${sym}.NS`] || hp[`${sym}.BO`] || {};
+
+      for (const date of nseTradingDays) {
+        const official = officialMap[date];
+        const stored = storedSeries[date];
+        if (official && official > 0) {
+          const diff = stored !== undefined ? Math.abs(stored - official) : Infinity;
+          if (stored === undefined || diff > 0.05) {
+            if (!hp[sym]) hp[sym] = {};
+            hp[sym][date] = official;
+            dirty = true;
+            result.updated++;
+            affectedDates.add(date);
+            affectedSymbols.add(sym);
+          }
+        }
+      }
+    }
+
+    // 2. Audit US Equities against verified candle closes
+    for (const sym of allUsSymbols) {
+      let officialMap = {};
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1mo`;
+        const res = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 4000 });
+        const r = res.data?.chart?.result?.[0];
+        if (r && r.timestamp) {
+          const timestamps = r.timestamp;
+          const quote = r.indicators?.quote?.[0];
+          const adjclose = r.indicators?.adjclose?.[0]?.adjclose;
+          timestamps.forEach((t, i) => {
+            const d = new Date(t * 1000).toISOString().split('T')[0];
+            const val = quote.close?.[i] !== null && quote.close?.[i] !== undefined ? quote.close[i] : adjclose?.[i];
+            if (val > 0) officialMap[d] = Number(Number(val).toFixed(2));
+          });
+        }
+      } catch (_) {}
+
+      const storedSeries = hp[sym] || {};
+      for (const date of nyseTradingDays) {
+        const official = officialMap[date];
+        const stored = storedSeries[date];
+        if (official && official > 0) {
+          const diff = stored !== undefined ? Math.abs(stored - official) : Infinity;
+          if (stored === undefined || diff > 0.01) {
+            if (!hp[sym]) hp[sym] = {};
+            hp[sym][date] = official;
+            dirty = true;
+            result.updated++;
+            affectedDates.add(date);
+            affectedSymbols.add(sym);
+          }
+        }
+      }
+    }
+
+    // 3. Audit Mutual Funds against official AMFI historical NAVs
+    for (const code of allMfCodes) {
+      let officialMap = {};
+      try {
+        const url = `https://api.mfapi.in/mf/${code}`;
+        const res = await axios.get(url, { timeout: 6000 });
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          for (const row of res.data.data.slice(0, 30)) {
+            if (!row.date || !row.nav) continue;
+            const [d, m, y] = row.date.split('-');
+            if (d && m && y) {
+              const iso = `${y}-${m}-${d}`;
+              const n = parseFloat(row.nav);
+              if (n > 0) officialMap[iso] = n;
+            }
+          }
+        }
+      } catch (_) {}
+
+      const storedSeries = hp[code] || {};
+      for (const date of nseTradingDays) {
+        const official = officialMap[date];
+        const stored = storedSeries[date];
+        if (official && official > 0) {
+          const diff = stored !== undefined ? Math.abs(stored - official) : Infinity;
+          if (stored === undefined || diff > 0.001) {
+            if (!hp[code]) hp[code] = {};
+            hp[code][date] = official;
+            dirty = true;
+            result.updated++;
+            affectedDates.add(date);
+            affectedSymbols.add(code);
+          }
+        }
+      }
+    }
+
+    if (dirty) {
+      fs.writeFileSync(hpPath, JSON.stringify(hp, null, 2), 'utf8');
+      result.updatedDates = [...affectedDates].sort();
+      result.updatedSymbols = [...affectedSymbols];
+      console.log(`[Self-Healing] Reconciled and saved ${result.updated} price points across ${result.updatedSymbols.length} assets and ${result.updatedDates.length} trading days.`);
+
+      // Trigger automatic EOD cascade when prices change for past dates
+      if (options.triggerEodSync !== false && result.updatedDates.length > 0) {
+        try {
+          const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
+          const child = fork(scriptPath, ['--incremental'], { stdio: 'inherit' });
+          await new Promise((resolve) => {
+            child.on('exit', () => resolve());
+          });
+        } catch (e) {
+          console.warn('[Self-Healing] EOD cascade trigger warning:', e.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] Multi-asset historical price reconciliation warning:', err.message);
+  }
+  return result;
+}
+
+/**
+ * Automatically audits and self-heals Mutual Fund SIP transactions in the transactions table
+ * over the last 14 days against official published NAVs for each transaction's trade date.
+ * If an SIP was executed with an unfinalized or prior-day NAV, this automatically corrects
+ * the transaction price, unit allocation (netInvested / officialNav), notes, and triggers
+ * recalculateHoldingState to maintain 100% financial ledger integrity.
+ */
+export async function healRecentSipTransactions() {
+  const result = { audited: 0, healed: 0, details: [] };
+  try {
+    const transactions = await db.select('transactions');
+    if (!transactions || transactions.length === 0) return result;
+
+    const today = getTodayIST();
+    // Scan past 14 days of SIP transactions
+    const cutoffDate = new Date(`${today}T00:00:00Z`);
+    cutoffDate.setDate(cutoffDate.getDate() - 14);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+    const recentSipTxs = transactions.filter(t => 
+      t.type === 'BUY' &&
+      (t.notes || '').includes('SIP') &&
+      t.date >= cutoffStr &&
+      /^\d+$/.test(t.symbol)
+    );
+
+    result.audited = recentSipTxs.length;
+    if (recentSipTxs.length === 0) return result;
+
+    const affectedHoldingIds = new Set();
+    let earliestHealedDate = null;
+
+    for (const tx of recentSipTxs) {
+      try {
+        const quote = await fetchMutualFundNav(tx.symbol, tx.date);
+        if (!quote || !quote.nav || quote.nav <= 0) continue;
+
+        // Parse official quote date to verify exact trade date parity
+        let quoteDateISO = null;
+        if (quote.date) {
+          const dStr = String(quote.date).trim();
+          if (/^\d{2}-\d{2}-\d{4}$/.test(dStr)) {
+            const [d, m, y] = dStr.split('-');
+            quoteDateISO = `${y}-${m}-${d}`;
+          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+            quoteDateISO = dStr;
+          }
+        }
+
+        // Only heal if the quote corresponds exactly to the transaction's trade date
+        if (quoteDateISO !== tx.date) continue;
+
+        const officialNav = Number(quote.nav);
+        const currentPrice = Number(tx.price);
+
+        if (Math.abs(officialNav - currentPrice) > 0.0001) {
+          const totalAmount = Number(tx.total_amount); // net invested
+          const newUnits = parseFloat((totalAmount / officialNav).toFixed(4));
+          const newNotes = `SIP @ NAV Rs.${officialNav.toFixed(4)}`;
+
+          console.log(`[Self-Healing] Healing SIP transaction ${tx.id} for ${tx.name} on ${tx.date}: NAV ${currentPrice} -> ${officialNav}, Units ${tx.quantity} -> ${newUnits}`);
+
+          // Update in Supabase
+          const { error } = await supabase.from('transactions').update({
+            price: officialNav,
+            quantity: newUnits,
+            notes: newNotes
+          }).eq('id', tx.id);
+
+          if (!error) {
+            // Update in-memory dbCache
+            updateCacheRow('transactions', tx.id, {
+              price: officialNav,
+              quantity: newUnits,
+              notes: newNotes
+            });
+
+            affectedHoldingIds.add(tx.holding_id);
+            if (!earliestHealedDate || tx.date < earliestHealedDate) {
+              earliestHealedDate = tx.date;
+            }
+
+            result.healed++;
+            result.details.push({
+              id: tx.id,
+              symbol: tx.symbol,
+              name: tx.name,
+              date: tx.date,
+              oldNav: currentPrice,
+              newNav: officialNav,
+              oldUnits: tx.quantity,
+              newUnits
+            });
+          } else {
+            console.warn(`[Self-Healing] Failed to update SIP tx ${tx.id}:`, error.message);
+          }
+        }
+      } catch (itemErr) {
+        console.warn(`[Self-Healing] Error checking SIP tx ${tx.id}:`, itemErr.message);
+      }
+    }
+
+    // Recalculate holding state for all affected mutual funds
+    for (const hId of affectedHoldingIds) {
+      await recalculateHoldingState(hId);
+    }
+
+    // Trigger past-date EOD rebuild if past-dated transactions were healed
+    if (earliestHealedDate && earliestHealedDate < today) {
+      console.log(`[Self-Healing] Triggering EOD rebuild for Calendar sync from ${earliestHealedDate}...`);
+      triggerEodRebuildIfPastDate(earliestHealedDate);
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] healRecentSipTransactions error:', err.message);
+  }
+  return result;
+}
 
 /**
  * Runs all self-healing routines in sequence
  */
+
+/**
+ * Scans all holdings for fractional rounding dust (0 < quantity < 0.005)
+ * If found, reconciles the final exit transaction to eliminate remaining dust,
+ * recalculates holding state to 0 and REDEEMED, and updates Supabase and dbCache.
+ */
+export async function healDustFractionalHoldings() {
+  const result = { healed: 0, holdings: [] };
+  try {
+    const allHoldings = await db.select('holdings');
+    const allTxs = await db.select('transactions');
+
+    const dustHoldings = (allHoldings || []).filter(h => {
+      const q = Number(h.quantity) || 0;
+      return q > 0 && q < 0.005;
+    });
+
+    for (const h of dustHoldings) {
+      const hTxs = (allTxs || [])
+        .filter(t => t.holding_id === h.id || (h.symbol && t.symbol === h.symbol))
+        .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+      const sellTxs = hTxs.filter(t => ['SELL', 'REDEEM', 'REDEMPTION'].includes((t.type || '').toUpperCase()));
+      if (sellTxs.length === 0) continue;
+
+      const lastSell = sellTxs[sellTxs.length - 1];
+      const remainingDust = Number(h.quantity) || 0;
+      const oldQty = Number(lastSell.quantity) || 0;
+      const newQty = parseFloat((oldQty + remainingDust).toFixed(4));
+      const price = Number(lastSell.price) || 0;
+      const newTotal = parseFloat((newQty * price).toFixed(2));
+
+      console.log(`[Self-Healing] Healing fractional dust on ${h.symbol} (${h.name}): remaining ${remainingDust} units. Aligning final sell TX ${lastSell.id} from ${oldQty} to ${newQty}`);
+
+      await db.update('transactions', lastSell.id, {
+        quantity: newQty,
+        total_amount: newTotal,
+        notes: (lastSell.notes ? lastSell.notes + ' | ' : '') + `Full exit liquidated (${newQty} units)`
+      });
+
+      await recalculateHoldingState(h.id);
+      result.healed++;
+      result.holdings.push(h.symbol);
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] healDustFractionalHoldings error:', err.message);
+  }
+  return result;
+}
+
 export async function runComprehensiveSelfHealing() {
   console.log('[Self-Healing Service] Starting comprehensive self-healing scan...');
   const fxHeal = await healMissingHistoricalFxRates();
@@ -430,6 +823,9 @@ export async function runComprehensiveSelfHealing() {
   const priceHeal = await healMissingHoldingPrices();
   const npsGapHeal = await healNpsNavGaps();
   const npsEodSync = await syncRecentNpsEodValuations();
+  const histPriceHeal = await healRecentHistoricalPrices({ triggerEodSync: false });
+  const sipHeal = await healRecentSipTransactions();
+  const dustHeal = await healDustFractionalHoldings();
   let navHeal = null;
   try {
     navHeal = await syncAllMissingNavs();
@@ -437,13 +833,15 @@ export async function runComprehensiveSelfHealing() {
     console.warn('[Self-Healing Service] NAV sync warning:', err.message);
   }
 
-  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Prices: ${priceHeal.updated}, NPS NAV Gaps: ${npsGapHeal.updated}`);
+  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Current Prices: ${priceHeal.updated}, NPS NAV Gaps: ${npsGapHeal.updated}, Historical Asset Prices: ${histPriceHeal.updated}, Healed SIP TXs: ${sipHeal.healed}`);
   return {
     fxHealed: fxHeal,
     transactionsHealed: txHeal,
     pricesHealed: priceHeal,
+    historicalPricesHealed: histPriceHeal,
     npsGapHeal,
     npsEodSync,
+    sipHealed: sipHeal,
     navSync: navHeal
   };
 }

@@ -312,6 +312,45 @@ function sanitizeRowForTable(table, row) {
     console.log(`  Restored ${table}: ${rows.length} rows`);
   }
 
+
+  // Post-restore fractional dust sanitization (< 0.005 units)
+  try {
+    const { data: dustRows } = await supabaseAdmin
+      .from('holdings')
+      .select('id, symbol, name, quantity, buy_qty, sell_qty, status')
+      .gt('quantity', 0)
+      .lt('quantity', 0.005);
+
+    if (dustRows && dustRows.length > 0) {
+      for (const d of dustRows) {
+        console.log(`  [Restore Manager] Sanitizing dust holding ${d.symbol} (${d.name}): qty ${d.quantity} -> 0, status -> REDEEMED`);
+        await supabaseAdmin
+          .from('holdings')
+          .update({
+            quantity: 0,
+            status: 'REDEEMED',
+            sell_qty: d.buy_qty,
+            unrealized_pnl: 0,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', d.id);
+      }
+    }
+  } catch (dustErr) {
+    console.warn('  [Restore Manager] Dust sanitization warning:', dustErr.message);
+  }
+
+  if (Array.isArray(snapshot.tables?.holdings)) {
+    for (const h of snapshot.tables.holdings) {
+      if (h.quantity > 0 && h.quantity < 0.005) {
+        h.quantity = 0;
+        h.status = 'REDEEMED';
+        h.sell_qty = h.buy_qty;
+        h.unrealized_pnl = 0;
+      }
+    }
+  }
+
   // ── Step 5: Post-restore — seed RAM and disk cache from the snapshot ──────
   console.log('[Restore Manager] Seeding cache from the restored snapshot...');
   try {

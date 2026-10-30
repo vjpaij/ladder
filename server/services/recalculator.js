@@ -185,6 +185,9 @@ export async function recalculateHoldingState(holdingId) {
       // Epsilon clamp for fractional liquidation rounding (e.g. mutual funds)
       if (Math.abs(runningQty) < 0.005) {
         runningQty = 0;
+        if (totalBuyQty > 0) {
+          totalSellQty = totalBuyQty;
+        }
       }
 
       // Compute weighted average cost basis of remaining open lots

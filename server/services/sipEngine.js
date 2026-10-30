@@ -137,14 +137,17 @@ export async function processDueSips() {
         if (scheduledDate > today) break;
       }
 
-      const quote = await fetchMutualFundNav(sip.symbol, scheduledDate);
+      let quote = await fetchMutualFundNav(sip.symbol, scheduledDate);
       let nav = quote?.nav;
 
       // Retry once after 5s on transient AMFI API failure (prevents 15-min wait for momentary glitches)
       if (!nav || nav <= 0) {
         await sleep(5000);
         const retryQuote = await fetchMutualFundNav(sip.symbol, scheduledDate);
-        nav = retryQuote?.nav;
+        if (retryQuote && retryQuote.nav > 0) {
+          quote = retryQuote;
+          nav = retryQuote.nav;
+        }
       }
 
       // Exact trade date parity guard: ensure fetched NAV has been published for scheduledDate
@@ -164,10 +167,11 @@ export async function processDueSips() {
         }
       }
 
-      // If scheduledDate is today but today's NAV is not yet published (only previous date's NAV is available),
-      // do NOT execute with old NAV; wait for evening NAV declaration sweep.
-      if (scheduledDate === today && quoteDateISO && quoteDateISO < scheduledDate) {
-        console.log(`[SIP Engine] NAV for ${sip.name} on ${scheduledDate} not yet declared (latest is ${quoteDateISO}). Deferring sweep.`);
+      // Mandatory Exact Trade Date Parity: A SIP for scheduledDate must ONLY execute if the NAV date is EXACTLY scheduledDate.
+      // If the NAV has not been declared yet (quoteDateISO is null or quoteDateISO !== scheduledDate), defer execution.
+      // We do NOT restrict this with 'scheduledDate === today', ensuring sweeps on subsequent days also strictly demand scheduledDate's NAV.
+      if (!quoteDateISO || quoteDateISO !== scheduledDate) {
+        console.log(`[SIP Engine] NAV for ${sip.name} on ${scheduledDate} not yet declared (latest available is ${quoteDateISO || "none"}). Deferring sweep.`);
         break;
       }
 

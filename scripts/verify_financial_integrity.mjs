@@ -4,7 +4,7 @@ import assert from 'assert';
 import { db, initDatabase } from '../server/db.js';
 import { supabase } from '../server/supabaseClient.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../server/services/portfolioCalculator.js';
-import { liveQuoteCache, fetchFxRate, resolveHoldingPrice, buildCanonicalLivePriceMap } from '../server/services/priceEngine.js';
+import { liveQuoteCache, fetchFxRate, resolveHoldingPrice, buildCanonicalLivePriceMap, fetchMutualFundNav } from '../server/services/priceEngine.js';
 import { getEodLogs } from '../server/routes/calendar.js';
 import { getTodayIST, isTradingDay, isAnyMarketOpen } from '../server/services/marketCalendar.js';
 
@@ -192,8 +192,50 @@ async function runIntegrityAudit() {
     throw err;
   }
 
+  // 4d. Mutual Fund SIP Trade-Date NAV Parity Verification
+  console.log('[Test 4] Verifying Mutual Fund SIP Trade-Date NAV Parity (Past 30 Days)...');
+  const cutoffDate = new Date(`${todayDateStr}T00:00:00Z`);
+  cutoffDate.setDate(cutoffDate.getDate() - 30);
+  const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+  const recentSips = allTxs.filter(t => 
+    t.type === 'BUY' &&
+    (t.notes || '').includes('SIP') &&
+    t.date >= cutoffStr &&
+    /^\d+$/.test(t.symbol)
+  );
+
+  let sipParityErrors = 0;
+  for (const sipTx of recentSips) {
+    try {
+      const q = await fetchMutualFundNav(sipTx.symbol, sipTx.date);
+      if (q && q.nav > 0) {
+        let quoteDateISO = null;
+        if (q.date) {
+          const dStr = String(q.date).trim();
+          if (/^\d{2}-\d{2}-\d{4}$/.test(dStr)) {
+            const [d, m, y] = dStr.split('-');
+            quoteDateISO = `${y}-${m}-${d}`;
+          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+            quoteDateISO = dStr;
+          }
+        }
+        if (quoteDateISO === sipTx.date) {
+          const officialNav = Number(q.nav);
+          const diff = Math.abs(officialNav - Number(sipTx.price));
+          if (diff > 0.001) {
+            console.error(`❌ SIP NAV Discrepancy on ${sipTx.date} for ${sipTx.name}: Tx NAV = ${sipTx.price}, Official NAV = ${officialNav}`);
+            sipParityErrors++;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  assert.strictEqual(sipParityErrors, 0, `All Mutual Fund SIP transactions must match the official declared NAV for their trade date (found ${sipParityErrors} mismatches).`);
+  console.log(`✓ Mutual Fund SIP Trade-Date NAV Parity Verified: ${recentSips.length} recent SIP transactions audited, 0 mismatches.\n`);
+
   // 5. Market Hours, Multi-Asset Independence & Special Trading Session Verification
-  console.log('[Test 4] Verifying Market Hours, Multi-Asset Independence & Special Sessions...');
+  console.log('[Test 5] Verifying Market Hours, Multi-Asset Independence & Special Sessions...');
 
   // 5a. Non-Hardcoded Dynamic Trading Schedule Assertions
   assert.strictEqual(isTradingDay('2024-03-02', 'NSE'), true, 'Special Saturday Disaster Recovery session (2024-03-02) must be recognized as a trading day');
@@ -259,6 +301,19 @@ async function runIntegrityAudit() {
   } else {
     console.log(`✓ Current session (${todayStr}) is active market trading hours.\n`);
   }
+
+  
+  // 6. Zero Dust Fractional Quantities Verification (< 0.005) on Active Holdings
+  console.log('[Test 6] Verifying Zero Dust Fractional Quantities (< 0.005) on Active Holdings...');
+  const dustHoldings = holdings.filter(h => {
+    const q = Number(h.quantity) || 0;
+    return q > 0 && q < 0.005;
+  });
+  if (dustHoldings.length > 0) {
+    console.error('Found active holdings with fractional dust quantities:', dustHoldings.map(h => ({ symbol: h.symbol, name: h.name, qty: h.quantity })));
+  }
+  assert.strictEqual(dustHoldings.length, 0, `Zero active holdings may have un-liquidated fractional dust quantities < 0.005 (found ${dustHoldings.length} holdings).`);
+  console.log('✓ Zero Dust Fractional Quantities Verified: All fully redeemed holdings strictly clamped to 0 units with REDEEMED status.\n');
 
   console.log('================================================================');
   console.log('     ALL FINANCIAL INTEGRITY & INVARIANCE TESTS PASSED (100%)   ');

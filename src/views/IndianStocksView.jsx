@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CandlestickChart, Search, X, Plus, CheckCircle2, Edit3, Trash2, ArrowUpDown, ArrowUp, ArrowDown, XCircle, RefreshCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import axios from 'axios';
@@ -80,9 +80,26 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const tableContainerRef = useRef(null);
+  const isInitialMount = useRef(true);
+
+  // When page changes, reset internal table scroll to top and bring table top into viewport
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTop = 0;
+      const rect = tableContainerRef.current.getBoundingClientRect();
+      if (rect.top < 80 || rect.top > window.innerHeight - 150) {
+        tableContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, [currentPage]);
 
   // Reset to first page when search query, filter type or holdings count changes
-  React.useEffect(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [search, statusFilter, sortedHoldings.length]);
 
@@ -327,7 +344,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
             </div>
 
             {/* Table */}
-            <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] rounded-2xl border border-slate-800/80 custom-scrollbar">
+            <div ref={tableContainerRef} className="relative overflow-x-auto overflow-y-auto max-h-[640px] rounded-2xl border border-slate-800/80 custom-scrollbar">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm select-none">
                   {statusFilter === 'closed' ? (

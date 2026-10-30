@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -65,6 +65,19 @@ export default function HoldingTransactionLedger({
 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const ledgerContainerRef = useRef(null);
+  const isInitialMount = useRef(true);
+
+  // When page changes, reset internal ledger table scroll to top
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (ledgerContainerRef.current) {
+      ledgerContainerRef.current.scrollTop = 0;
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -554,7 +567,7 @@ export default function HoldingTransactionLedger({
       </AnimatePresence>
 
       <div className="glass-card rounded-2xl border border-slate-800 overflow-hidden">
-        <div className="relative overflow-x-auto overflow-y-auto max-h-[560px] custom-scrollbar rounded-2xl">
+        <div ref={ledgerContainerRef} className="relative overflow-x-auto overflow-y-auto max-h-[560px] custom-scrollbar rounded-2xl">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
               <tr className="border-b border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">

@@ -58,6 +58,8 @@ function scheduleSave() {
       if (_domainsMap) {
         fs.mkdirSync(path.dirname(DOMAINS_MAP_FILE), { recursive: true });
         fs.writeFileSync(DOMAINS_MAP_FILE, JSON.stringify(_domainsMap, null, 2), 'utf8');
+        const jsFile = DOMAINS_MAP_FILE.replace(/\.json$/, '.js');
+        fs.writeFileSync(jsFile, `// Generated corporate domain registry for Indian & Global Equities\nexport default ${JSON.stringify(_domainsMap, null, 2)};\n`, 'utf8');
       }
     } catch (e) {
       console.error('[StockLogoService] Failed to persist logo cache:', e.message);
@@ -85,7 +87,7 @@ async function discoverDomainFromWeb(symbol) {
     } catch {}
   }
 
-  // 2. Fetch live Screener page to extract <i class="icon-link">
+  // 2. Fetch live Screener page to extract official corporate website
   const urls = [
     `https://www.screener.in/company/${clean}/consolidated/`,
     `https://www.screener.in/company/${clean}/`
@@ -99,15 +101,14 @@ async function discoverDomainFromWeb(symbol) {
       });
       if (res.ok) {
         const html = await res.text();
-        const m = html.match(/<a[^>]+href=["'](https?:\/\/[^"']+)["'][^>]*>\s*<i class=["']icon-link["']/i)
-               || html.match(/<i class=["']icon-link["']><\/i>\s*<span[^>]*>([^<]+)<\/span>/i)
-               || html.match(/href=["'](https?:\/\/(?:www\.)?([a-z0-9.-]+\.[a-z]{2,}))["'][^>]*target=["']_blank["'][^>]*>\s*(?:<i class=["']icon-link["']|<span[^>]*>(?:Website|[a-z0-9.-]+))/i);
-        
-        if (m) {
-          const raw = (m[2] || m[1]).replace(/^https?:\/\/(www\.)?/, '').split('/')[0].trim().toLowerCase();
-          if (raw && !raw.includes('screener.in') && !raw.includes('bseindia') && !raw.includes('nseindia')) {
-            return raw;
-          }
+        const matches = [...html.matchAll(/href=["'](https?:\/\/[^"']+)["'][^>]*>(?:\s*<i class=["']icon-link["']|\s*Website)/gi)];
+        if (matches.length > 0) {
+          try {
+            const raw = new URL(matches[0][1]).hostname.replace(/^www\./i, '').toLowerCase();
+            if (raw && !raw.includes('screener.in') && !raw.includes('bseindia') && !raw.includes('nseindia')) {
+              return raw;
+            }
+          } catch {}
         }
       }
     } catch {
@@ -131,18 +132,34 @@ async function discoverDomainFromWeb(symbol) {
         });
         if (pageRes.ok) {
           const html = await pageRes.text();
-          const m = html.match(/<i class=["']icon-link["']><\/i>\s*<span[^>]*>([^<]+)<\/span>/i)
-                 || html.match(/href=["'](https?:\/\/(?:www\.)?([a-z0-9.-]+\.[a-z]{2,}))["'][^>]*target=["']_blank["']/i);
-          if (m) {
-            const raw = (m[2] || m[1]).replace(/^https?:\/\/(www\.)?/, '').split('/')[0].trim().toLowerCase();
-            if (raw && !raw.includes('screener.in') && !raw.includes('bseindia') && !raw.includes('nseindia')) {
-              return raw;
-            }
+          const matches = [...html.matchAll(/href=["'](https?:\/\/[^"']+)["'][^>]*>(?:\s*<i class=["']icon-link["']|\s*Website)/gi)];
+          if (matches.length > 0) {
+            try {
+              const raw = new URL(matches[0][1]).hostname.replace(/^www\./i, '').toLowerCase();
+              if (raw && !raw.includes('screener.in') && !raw.includes('bseindia') && !raw.includes('nseindia')) {
+                return raw;
+              }
+            } catch {}
           }
         }
       }
     }
   } catch {}
+
+  // 4. Candidate domain heuristics
+  const heuristics = [
+    `${clean.toLowerCase()}.com`,
+    `${clean.toLowerCase()}.in`,
+    `${clean.toLowerCase()}.co.in`
+  ];
+  for (const h of heuristics) {
+    try {
+      const res = await fetch(`https://logos.hunter.io/${h}`, { method: 'HEAD', signal: AbortSignal.timeout(2000) });
+      if (res.ok && (res.headers.get('content-type') || '').includes('image')) {
+        return h;
+      }
+    } catch {}
+  }
 
   return null;
 }
@@ -152,11 +169,14 @@ async function discoverDomainFromWeb(symbol) {
  */
 async function verifyLogoForDomain(domain) {
   if (!domain) return null;
+  const cleanDomain = String(domain).replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].trim().toLowerCase();
+  if (!cleanDomain) return null;
+
   const candidates = [
-    `https://logos.hunter.io/${domain}`,
-    `https://unavatar.io/${domain}?fallback=false`,
-    `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
-    `https://icons.duckduckgo.com/ip3/${domain}.ico`
+    `https://logos.hunter.io/${cleanDomain}`,
+    `https://unavatar.io/${cleanDomain}?fallback=false`,
+    `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`,
+    `https://icons.duckduckgo.com/ip3/${cleanDomain}.ico`
   ];
 
   for (const url of candidates) {
@@ -235,7 +255,32 @@ export function registerStockLogo(symbol, domain, logoUrl = null) {
     domain,
     logoUrl: logoUrl || `https://logos.hunter.io/${domain}`,
     verifiedAt: new Date().toISOString(),
-    source: 'Manual / Preset Registry'
+    source: 'Verified Corporate Brand Registry'
   };
   scheduleSave();
+}
+
+/**
+ * Pre-warms corporate logos for portfolio and universe symbols in the background
+ */
+export async function prewarmPortfolioLogos(symbols = []) {
+  const domains = loadDomainsMap();
+  const cache = loadLogoCache();
+  let count = 0;
+
+  for (const s of symbols) {
+    const clean = cleanSymbol(s);
+    if (!clean) continue;
+    if (cache[clean]?.logoUrl && domains[clean]) continue;
+
+    try {
+      const entry = await getLogoForSymbol(clean);
+      if (entry?.logoUrl) count++;
+    } catch {}
+  }
+
+  if (count > 0) {
+    scheduleSave();
+    console.log(`[StockLogoService] Prewarmed and verified ${count} corporate logos.`);
+  }
 }

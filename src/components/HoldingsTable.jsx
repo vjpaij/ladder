@@ -33,6 +33,23 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
   const [sortOrder, setSortOrder] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const tableContainerRef = React.useRef(null);
+  const isInitialMount = React.useRef(true);
+
+  // When page changes, reset internal table scroll to top and bring table top into viewport
+  React.useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTop = 0;
+      const rect = tableContainerRef.current.getBoundingClientRect();
+      if (rect.top < 80 || rect.top > window.innerHeight - 150) {
+        tableContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, [currentPage]);
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -164,7 +181,7 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
       </div>
 
       {/* High-Density Production Data Table */}
-      <div className="relative overflow-x-auto overflow-y-auto max-h-[640px] custom-scrollbar rounded-2xl border border-slate-800/80">
+      <div ref={tableContainerRef} className="relative overflow-x-auto overflow-y-auto max-h-[640px] custom-scrollbar rounded-2xl border border-slate-800/80">
         <table className="w-full text-left border-collapse">
           <thead className="sticky top-0 z-30 bg-slate-900 shadow-sm">
             <tr className="border-b border-slate-800/80 text-[11px] font-semibold uppercase tracking-wider text-slate-400">

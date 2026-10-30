@@ -1,4 +1,4 @@
-﻿import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
@@ -29,15 +29,19 @@ async function updatePrices() {
   console.log("Fetching live NASDAQ/NYSE quotes for US Stocks...");
   const { data: holdings } = await supabase
     .from("holdings")
-    .select("id, symbol, avg_buy_price, quantity")
+    .select("id, symbol, current_price, avg_buy_price, quantity")
     .eq("category_id", "us_stocks");
 
   if (!holdings) return;
 
   for (const h of holdings) {
     const live = await fetchYahooPrice(h.symbol);
-    const finalPrice = live || h.avg_buy_price;
-    console.log(`  ${h.symbol}: Live Price = $${finalPrice} (Avg Buy = $${h.avg_buy_price})`);
+    if (!live && (!h.current_price || h.current_price <= 0)) {
+      console.warn(`  ${h.symbol}: No live price or existing closing quote available. Retaining existing record.`);
+      continue;
+    }
+    const finalPrice = live || h.current_price;
+    console.log(`  ${h.symbol}: Price = $${finalPrice} (Live: ${live ? `$${live}` : 'Last Known'}, Existing: $${h.current_price})`);
 
     await supabase
       .from("holdings")

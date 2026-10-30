@@ -318,7 +318,7 @@ export async function fetchStockQuote(symbol) {
       const result = res.data?.chart?.result?.[0];
       if (result && result.meta && result.meta.regularMarketPrice) {
         const price = Number(result.meta.regularMarketPrice) || 0;
-        const prevClose = Number(result.meta.chartPreviousClose || result.meta.previousClose || price);
+        const prevClose = Number(result.meta.previousClose || result.meta.chartPreviousClose || price);
         const dayChange = price - prevClose;
         const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
         const quoteObj = result.indicators?.quote?.[0] || {};
@@ -434,17 +434,15 @@ export async function fetchAmfiNavBatch() {
 
 export async function fetchMutualFundNav(schemeCode, targetDate = null) {
   try {
-    // If no historical targetDate requested, first check real-time official AMFI NAVAll batch
+    // First check real-time official AMFI NAVAll batch
     let amfiItem = null;
-    if (!targetDate) {
-      try {
-        const amfiMap = await fetchAmfiNavBatch();
-        if (amfiMap && amfiMap.has(schemeCode)) {
-          amfiItem = amfiMap.get(schemeCode);
-        }
-      } catch (e) {
-        console.warn(`[AMFI Batch Error for ${schemeCode}]:`, e.message);
+    try {
+      const amfiMap = await fetchAmfiNavBatch();
+      if (amfiMap && amfiMap.has(schemeCode)) {
+        amfiItem = amfiMap.get(schemeCode);
       }
+    } catch (e) {
+      console.warn(`[AMFI Batch Error for ${schemeCode}]:`, e.message);
     }
 
     let mfApiRecords = null;
@@ -487,7 +485,7 @@ export async function fetchMutualFundNav(schemeCode, targetDate = null) {
       }
     }
 
-    if (amfiItem && (!targetDate || (amfiIsoDate && amfiIsoDate <= targetDate))) {
+    if (amfiItem && (!targetDate || amfiIsoDate === targetDate)) {
       const nav = Number(amfiItem.nav);
       let prevNav = nav;
       let fiftyTwoWeekHigh = nav;
