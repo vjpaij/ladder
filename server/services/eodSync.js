@@ -3,7 +3,7 @@ import path from 'path';
 import { fork } from 'child_process';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { getLastTradingDay, getYesterdayIST } from './marketCalendar.js';
+import { getLastTradingDay, getYesterdayIST, getTodayIST } from './marketCalendar.js';
 
 /**
  * Fast in-process synchronous cascade of portfolio_eod_logs.json when any bank,
@@ -13,7 +13,7 @@ import { getLastTradingDay, getYesterdayIST } from './marketCalendar.js';
  */
 export async function fastCascadeEodLogs(txDate) {
   try {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getTodayIST();
     if (!txDate || String(txDate).slice(0, 10) >= todayStr) return;
 
     const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
@@ -222,7 +222,7 @@ let _eodRebuildTimer = null;
 let _earliestTxDate = null;
 
 export function triggerEodRebuildIfPastDate(txDate) {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getTodayIST();
   const d = txDate ? String(txDate).slice(0, 10) : '';
   if (!d || d >= todayStr) return;
 
