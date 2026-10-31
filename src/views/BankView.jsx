@@ -197,7 +197,7 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
                   <div className="flex items-center gap-3 mt-1">
                     <HoldingLogo 
                       holding={h} 
-                      className="w-8 h-8 rounded-lg shadow-sm"
+                      className="w-10 h-10 rounded-xl shadow-sm"
                     />
                     <h3 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
                       {cleanBankName(h.name)}

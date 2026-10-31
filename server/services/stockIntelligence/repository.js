@@ -9,6 +9,8 @@ const DEFAULT_CONFIG = {
   maxPositionWeightPct: null,
   externalCashBudget: 200000,
   periodicIncrement: 200000,
+  baseRecycledCapital: 4500000,
+  recycledCapitalBaselineDate: '2026-10-31',
   recyclingMode: 'FULL_AND_TRIMS',
   updatedAt: null
 };
@@ -62,10 +64,22 @@ export function saveIntelligenceConfig(userId, input) {
     recMode = input.recyclingMode;
   }
 
+  let baseRecycled = current.baseRecycledCapital ?? 4500000;
+  if (input?.baseRecycledCapital !== undefined) {
+    const val = Number(input.baseRecycledCapital);
+    if (Number.isFinite(val) && val >= 0) {
+      baseRecycled = Math.round(val);
+    }
+  }
+
+  const baselineDate = input?.recycledCapitalBaselineDate || current.recycledCapitalBaselineDate || '2026-10-31';
+
   const config = {
     maxPositionWeightPct: targetWeight,
     externalCashBudget: externalBudget,
     periodicIncrement: periodicIncr,
+    baseRecycledCapital: baseRecycled,
+    recycledCapitalBaselineDate: baselineDate,
     recyclingMode: recMode,
     updatedAt: new Date().toISOString()
   };

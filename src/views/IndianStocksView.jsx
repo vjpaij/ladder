@@ -473,8 +473,8 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                           <div className="flex items-center gap-2.5">
                             <HoldingLogo 
                               holding={h} 
-                              className="w-7 h-7 rounded-lg" 
-                              fallbackClass="text-[10px]"
+                              className="w-10 h-10 rounded-xl" 
+                              fallbackClass="text-xs"
                               accentColor={isClosed ? '#f59e0b' : '#10b981'}
                             />
                             <div>

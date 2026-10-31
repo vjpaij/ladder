@@ -587,11 +587,34 @@ export function buildBuyAnalyses(
       // Chartink active conditions are evaluated separately from the company-quality score.
       const chartinkFilter = applyChartinkFilter(historyMap, symbol, fundamentals, { asOfDate: todayStr });
 
+      // Relative Strength Momentum vs Benchmark (126-day / 6-month momentum proxy)
+      const idx126 = prices.length - 1 - 126;
+      const p126 = idx126 >= 0 ? prices[idx126].close : (prices[0]?.close || currentPrice);
+      const rsScore = p126 > 0 ? ((currentPrice / p126) - 1) * 100 : 0;
+      const normalizedRs = Math.max(0, Math.min(100, Math.round(50 + rsScore * 0.5)));
+
       // Technical buy score
       const techResult = computeTechnicalBuyScore(trendData, chartinkFilter, currentPrice, high52w, prices);
+      if (normalizedRs >= 80) {
+        techResult.signals.push(`Top-decile Relative Strength momentum (+${rsScore.toFixed(1)}%/6mo, RS ${normalizedRs}/100) ✓`);
+      } else if (normalizedRs >= 65) {
+        techResult.signals.push(`Strong Relative Strength momentum (+${rsScore.toFixed(1)}%/6mo, RS ${normalizedRs}/100) ✓`);
+      }
 
       // Fundamental score
       const fundResult = computeFundamentalScore(fundamentals);
+      if (normalizedRs >= 75 && Array.isArray(fundResult.tags) && !fundResult.tags.some(t => t.tag === 'HIGH_RS')) {
+        fundResult.tags.unshift({
+          tag: 'HIGH_RS',
+          label: `High Relative Strength (RS ${normalizedRs})`,
+          color: 'emerald',
+          informational: true
+        });
+      }
+
+      // Multibagger Probability Score (MPS): 50% Relative Strength + 50% Fundamental/Technical Composite
+      const baseComposite = Math.round((techResult.score + fundResult.score) / 2);
+      const mps = Math.round(0.50 * normalizedRs + 0.50 * baseComposite);
 
       // Earnings catalyst
       const earningsCatalyst = catalystsMap[clean] || computeEarningsCatalyst(clean, fundamentals, todayStr);
@@ -689,7 +712,11 @@ export function buildBuyAnalyses(
         // Scores
         technicalScore: techResult.score,
         fundamentalScore: fundResult.score,
-        compositeScore: Math.round((techResult.score + fundResult.score) / 2),
+        compositeScore: baseComposite,
+        rsScore: Number(rsScore.toFixed(1)),
+        normalizedRs,
+        mps,
+        multibaggerProbabilityScore: mps,
         fundamentalGrade: fundResult.fundamentalGrade,
         fundamentalCoveragePct: fundResult.coveragePct,
         fundamentalDataValid: fundResult.isValid,
@@ -797,6 +824,10 @@ export function buildBuyAnalyses(
     if (boomingSectors.has(a.sector)) {
       a.hasSectorTailwind = true;
       a.compositeScore = Math.min(100, a.compositeScore + 5);
+      if (a.normalizedRs !== undefined) {
+        a.mps = Math.min(100, Math.round(0.50 * a.normalizedRs + 0.50 * a.compositeScore));
+        a.multibaggerProbabilityScore = a.mps;
+      }
       if (Array.isArray(a.qualitativeTags) && !a.qualitativeTags.some(t => t.tag === 'SECTOR_TAILWIND')) {
         a.qualitativeTags.unshift({
           tag: 'SECTOR_TAILWIND',
@@ -809,11 +840,14 @@ export function buildBuyAnalyses(
   }
 
   // Sort: STRONG_BUY first, then BUY, then WATCH, then MONITOR
+  // Within signals: prioritize Multibagger Probability Score (MPS) descending, then compositeScore descending
   const signalOrder = { STRONG_BUY: 0, BUY: 1, WATCH: 2, INSUFFICIENT_DATA: 3, MONITOR: 4, AVOID: 5 };
   results.sort((a, b) => {
     const orderDiff = (signalOrder[a.buySignal] ?? 99) - (signalOrder[b.buySignal] ?? 99);
     if (orderDiff !== 0) return orderDiff;
-    return b.compositeScore - a.compositeScore; // Within same signal, higher score first
+    const mpsDiff = (b.mps ?? b.compositeScore) - (a.mps ?? a.compositeScore);
+    if (mpsDiff !== 0) return mpsDiff;
+    return b.compositeScore - a.compositeScore; // Within same signal and MPS, higher score first
   });
 
   return results.slice(0, opts.maxResults || 500);

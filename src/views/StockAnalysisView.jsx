@@ -676,7 +676,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       : 'border-transparent hover:bg-[var(--bg-card)]'
                   }`}
                 >
-                  <HoldingLogo holding={item} className="w-7 h-7 rounded-lg shrink-0" />
+                  <HoldingLogo holding={item} className="w-10 h-10 rounded-xl shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-bold text-inherit leading-snug line-clamp-1" title={item.name}>

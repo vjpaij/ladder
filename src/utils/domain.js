@@ -1,5 +1,6 @@
 import stockLogosMap from '../data/stockLogosMap.js';
 import stockDomainsMap from '../data/stockDomainsMap.js';
+import stockTvLogosMap from '../data/stockTvLogosMap.js';
 
 const pushLogos = (urls, domain) => {
   if (!domain) return;
@@ -58,17 +59,18 @@ const KNOWN_STOCK_DOMAINS = {
 
 // Direct high-res verified official corporate brand logos
 const KNOWN_STOCK_LOGOS = {
-  'SHANKESH': 'https://shankeshjewellers.com/web_assets/assets/images/logos/Shankesh-logo.png',
+  'AIAENG': '/logos/aiaeng.png',
+  'SHANKESH': '/logos/shankesh.png',
   'ARTEMISMED': '/logos/artemis.png',
   'DYCL': 'https://www.dynamiccables.co.in/images/logo-dark.png',
   'GABRIEL': 'https://www.anandgroupindia.com/wp-content/uploads/2017/10/gabriel_child.gif',
-  'RADICO': 'https://logos.hunter.io/radicokhaitan.com',
-  'ATHERENERG': 'https://logos.hunter.io/atherenergy.com',
-  'CORONA': 'https://logos.hunter.io/coronaremedies.com',
+  'DHOOTTRANS': '/logos/dhoottrans.png',
   'INDGN': '/logos/indegene.png',
   'FRACTAL': '/logos/fractal.png',
   'ANANTRAJ': '/logos/anantraj.png',
   'VAML': '/logos/vaml.png',
+  'VEDPOWER': '/logos/vaml.png',
+  'VOGL': '/logos/vaml.png',
   'SBCL': '/logos/sbcl.jpg',
   'TARIL': '/logos/taril.png',
   'HBLENGINE': '/logos/hblengine.png',
@@ -76,39 +78,10 @@ const KNOWN_STOCK_LOGOS = {
   'PNB': '/logos/pnb.svg',
   'TVSMOTOR': '/logos/tvsmotor.svg',
   'SYRMA': '/logos/syrma.png',
-  'SANSERA': 'https://logos.hunter.io/sansera.in',
-  'AFFLE': 'https://logos.hunter.io/affle.com',
-  'AWL': 'https://logos.hunter.io/adaniwilmar.com',
-  'BECTORFOOD': 'https://logos.hunter.io/bectorfoods.com',
-  'BSOFT': 'https://logos.hunter.io/birlasoft.com',
-  'BOROSCI': 'https://logos.hunter.io/borosilscientific.com',
-  'DATAPATTNS': 'https://logos.hunter.io/datapatterns.co.in',
-  'INDHOTEL': 'https://logos.hunter.io/ihcltata.com',
-  'INDOTECH': 'https://logos.hunter.io/indo-tech.com',
-  'IRCON': 'https://logos.hunter.io/ircon.org',
-  'JKLAKSHMI': 'https://logos.hunter.io/jklakshmicement.com',
-  'KEI': 'https://logos.hunter.io/kei-ind.com',
-  'KPITTECH': 'https://logos.hunter.io/kpit.com',
-  'KPIT': 'https://logos.hunter.io/kpit.com',
-  'KPRMILL': 'https://logos.hunter.io/kprmilllimited.com',
-  'MOLDTECH': 'https://logos.hunter.io/moldtekgroup.com',
-  'MOLDTKPAC': 'https://logos.hunter.io/moldtekpackaging.com',
-  'NETWEB': 'https://logos.hunter.io/netwebindia.com',
-  'NYKAA': 'https://logos.hunter.io/nykaa.com',
-  'OFSS': 'https://logos.hunter.io/oracle.com',
-  'ORIENTCEM': 'https://logos.hunter.io/orientcement.com',
-  'RAMCOSYS': 'https://logos.hunter.io/ramco.com',
-  'RICOAUTO': 'https://logos.hunter.io/ricoauto.com',
-  'SCHAEFFLER': 'https://logos.hunter.io/schaeffler.com',
-  'SHANTIGEAR': 'https://logos.hunter.io/shanthigears.com',
-  'SHYAMMETL': 'https://logos.hunter.io/shyammetalics.com',
-  'TRITURBINE': 'https://logos.hunter.io/triveniturbines.com',
-  'UJJIVANSFB': 'https://logos.hunter.io/ujjivansfb.in',
-  'VOLTAS': 'https://logos.hunter.io/voltas.com',
-  'WAAREEENER': 'https://logos.hunter.io/waaree.com',
-  'WEBELSOLAR': 'https://logos.hunter.io/websolenergy.com',
   'SUDEEPPHRM': '/logos/sudeep.png',
-  'EMMVEE': 'https://emmvee.com/wp-content/uploads/2019/08/emvlogo.png'
+  'EMMVEE': 'https://emmvee.com/wp-content/uploads/2019/08/emvlogo.png',
+  'SHYAMMETL': '/logos/shyammetl.png',
+  'JBCHEPHARM': '/logos/jbchepharm.svg'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {
@@ -139,55 +112,182 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
 
   // Mutual Funds & NPS
   if (category === 'mutual_funds' || category === 'nps') {
-    if (n.includes('hdfc')) { pushLogos(urls, 'hdfcfund.com'); pushLogos(urls, 'hdfclife.com'); }
-    if (n.includes('sbi') || n.includes('state bank')) { pushLogos(urls, 'sbimf.com'); pushLogos(urls, 'sbipensionfunds.com'); }
-    if (n.includes('icici') || n.includes('pru')) { pushLogos(urls, 'icicipruamc.com'); pushLogos(urls, 'iciciprulife.com'); }
-    if (n.includes('axis')) { pushLogos(urls, 'axismf.com'); pushLogos(urls, 'axisbank.com'); }
-    if (n.includes('kotak')) { pushLogos(urls, 'kotakmf.com'); pushLogos(urls, 'kotakpension.com'); }
-    if (n.includes('nippon')) pushLogos(urls, 'nipponindiaim.com');
+    if (n.includes('hdfc')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/hdfc-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/HDFCAMC.NS.png');
+      pushLogos(urls, 'hdfcfund.com');
+      pushLogos(urls, 'hdfclife.com');
+    }
+    if (n.includes('sbi') || n.includes('state bank')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/state-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/SBIN.NS.png');
+      pushLogos(urls, 'sbimf.com');
+      pushLogos(urls, 'sbipensionfunds.com');
+    }
+    if (n.includes('icici') || n.includes('pru')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/icici-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/ICICIPRULI.NS.png');
+      pushLogos(urls, 'icicipruamc.com');
+      pushLogos(urls, 'iciciprulife.com');
+    }
+    if (n.includes('axis')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/axis-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/AXISBANK.NS.png');
+      pushLogos(urls, 'axismf.com');
+      pushLogos(urls, 'axisbank.com');
+    }
+    if (n.includes('kotak')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/kotak-mahindra-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/KOTAKBANK.NS.png');
+      pushLogos(urls, 'kotakmf.com');
+      pushLogos(urls, 'kotakpension.com');
+    }
+    if (n.includes('lic')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/life-insurance-corporation-of-india--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/LICI.NS.png');
+      pushLogos(urls, 'licmf.com');
+      pushLogos(urls, 'licindia.in');
+    }
+    if (n.includes('tata')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/TATAMOTORS.NS.png');
+      pushLogos(urls, 'tatamutualfund.com');
+      pushLogos(urls, 'tatapension.com');
+    }
+    if (n.includes('aditya') || n.includes('birl') || n.includes('absl')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/ABCAPITAL.NS.png');
+      pushLogos(urls, 'adityabirlacapital.com');
+    }
+    if (n.includes('canara') || n.includes('robeco')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/canara-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/CANBK.NS.png');
+      pushLogos(urls, 'canararobeco.com');
+    }
+    if (n.includes('nippon')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/NAM-INDIA.NS.png');
+      pushLogos(urls, 'nipponindiaim.com');
+    }
+    if (n.includes('uti')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/UTIAMC.NS.png');
+      pushLogos(urls, 'utimf.com');
+      pushLogos(urls, 'utiretirement.com');
+    }
+    if (n.includes('mirae')) {
+      pushLogos(urls, 'miraeassetmf.co.in');
+      pushLogos(urls, 'miraeasset.co.in');
+    }
     if (n.includes('dsp')) pushLogos(urls, 'dspim.com');
-    if (n.includes('mirae')) pushLogos(urls, 'miraeassetmf.co.in');
-    if (n.includes('aditya') || n.includes('birl') || n.includes('absl')) pushLogos(urls, 'adityabirlacapital.com');
-    if (n.includes('uti')) { pushLogos(urls, 'utimf.com'); pushLogos(urls, 'utiretirement.com'); }
-    if (n.includes('tata')) { pushLogos(urls, 'tatamutualfund.com'); pushLogos(urls, 'tatapension.com'); }
-    if (n.includes('lic')) { pushLogos(urls, 'licmf.com'); pushLogos(urls, 'licpensionfund.in'); }
-    if (n.includes('motilal')) pushLogos(urls, 'motilaloswalmf.com');
+    if (n.includes('motilal')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/MOTILALOFS.NS.png');
+      pushLogos(urls, 'motilaloswalmf.com');
+    }
     if (n.includes('franklin')) pushLogos(urls, 'franklintempletonindia.com');
-    if (n.includes('canara') || n.includes('robeco')) pushLogos(urls, 'canararobeco.com');
     if (n.includes('quant')) pushLogos(urls, 'quantmutual.com');
     if (n.includes('parag') || n.includes('ppfas')) pushLogos(urls, 'amc.ppfas.com');
-    if (n.includes('bandhan')) pushLogos(urls, 'bandhanmutual.com');
+    if (n.includes('bandhan')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/BANDHANBNK.NS.png');
+      pushLogos(urls, 'bandhanmutual.com');
+    }
     if (n.includes('invesco')) pushLogos(urls, 'invescomutualfund.com');
     if (n.includes('hsbc')) pushLogos(urls, 'assetmanagement.hsbc.co.in');
     if (n.includes('sundaram')) pushLogos(urls, 'sundarammutual.com');
     if (n.includes('pgim')) pushLogos(urls, 'pgimindiamf.com');
     if (n.includes('whiteoak')) pushLogos(urls, 'whiteoakamc.com');
-    if (n.includes('edelweiss')) pushLogos(urls, 'edelweissmf.com');
+    if (n.includes('edelweiss')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/EDELWEISS.NS.png');
+      pushLogos(urls, 'edelweissmf.com');
+    }
     if (n.includes('navi')) pushLogos(urls, 'navi.com');
     if (n.includes('samco')) pushLogos(urls, 'samcomf.com');
-    if (n.includes('baroda')) pushLogos(urls, 'barodabnpparibasmf.in');
-    if (n.includes('mahindra')) pushLogos(urls, 'mahindramanulife.com');
-    if (n.includes('union')) pushLogos(urls, 'unionmf.com');
-    if (n.includes('max')) { pushLogos(urls, 'maxlifeinsurance.com'); pushLogos(urls, 'maxpension.co.in'); }
+    if (n.includes('baroda')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/bank-of-baroda--600.png');
+      pushLogos(urls, 'barodabnpparibasmf.in');
+    }
+    if (n.includes('mahindra')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/M&M.NS.png');
+      pushLogos(urls, 'mahindramanulife.com');
+    }
+    if (n.includes('union')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/union-bank-of-india--600.png');
+      pushLogos(urls, 'unionmf.com');
+    }
+    if (n.includes('max')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/MFSL.NS.png');
+      pushLogos(urls, 'maxlifeinsurance.com');
+      pushLogos(urls, 'maxpension.co.in');
+    }
     return urls;
   }
 
   // Banking & Financial institutions (Loans, Credit Cards, Banks)
   if (category === 'bank' || category === 'loans' || category === 'credit_cards') {
-    if (n.includes('federal')) pushLogos(urls, 'federalbank.co.in');
-    if (n.includes('idfc')) pushLogos(urls, 'idfcfirstbank.com');
-    if (n.includes('hdfc')) pushLogos(urls, 'hdfcbank.com');
-    if (n.includes('sbi') || n.includes('state bank')) pushLogos(urls, 'sbi.co.in');
-    if (n.includes('icici')) pushLogos(urls, 'icicibank.com');
-    if (n.includes('axis')) pushLogos(urls, 'axisbank.com');
-    if (n.includes('kotak')) pushLogos(urls, 'kotak.com');
-    if (n.includes('indusind')) pushLogos(urls, 'indusind.com');
-    if (n.includes('rbl')) pushLogos(urls, 'rblbank.com');
-    if (n.includes('bank of baroda') || n.includes('bob')) pushLogos(urls, 'bankofbaroda.in');
-    if (n.includes('punjab national') || n.includes('pnb')) pushLogos(urls, 'pnbindia.in');
-    if (n.includes('canara')) pushLogos(urls, 'canarabank.com');
-    if (n.includes('union bank')) pushLogos(urls, 'unionbankofindia.co.in');
-    if (n.includes('yes bank')) pushLogos(urls, 'yesbank.in');
+    if (n.includes('federal')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/fed-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/FEDERALBNK.NS.png');
+      pushLogos(urls, 'federalbank.co.in');
+    }
+    if (n.includes('idfc')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/idfc-first-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/IDFCFIRSTB.NS.png');
+      pushLogos(urls, 'idfcfirstbank.com');
+    }
+    if (n.includes('hdfc')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/hdfc-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/HDFCBANK.NS.png');
+      pushLogos(urls, 'hdfcbank.com');
+    }
+    if (n.includes('sbi') || n.includes('state bank')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/state-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/SBIN.NS.png');
+      pushLogos(urls, 'sbi.co.in');
+    }
+    if (n.includes('icici')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/icici-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/ICICIBANK.NS.png');
+      pushLogos(urls, 'icicibank.com');
+    }
+    if (n.includes('axis')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/axis-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/AXISBANK.NS.png');
+      pushLogos(urls, 'axisbank.com');
+    }
+    if (n.includes('kotak')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/kotak-mahindra-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/KOTAKBANK.NS.png');
+      pushLogos(urls, 'kotak.com');
+    }
+    if (n.includes('indusind')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/INDUSINDBK.NS.png');
+      pushLogos(urls, 'indusind.com');
+    }
+    if (n.includes('rbl')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/RBLBANK.NS.png');
+      pushLogos(urls, 'rblbank.com');
+    }
+    if (n.includes('bank of baroda') || n.includes('bob')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/bank-of-baroda--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/BANKBARODA.NS.png');
+      pushLogos(urls, 'bankofbaroda.in');
+    }
+    if (n.includes('punjab national') || n.includes('pnb')) {
+      urls.push('/logos/pnb.svg');
+      urls.push('https://s3-symbol-logo.tradingview.com/punjab-natl-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/PNB.NS.png');
+      pushLogos(urls, 'pnbindia.in');
+    }
+    if (n.includes('canara')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/canara-bank--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/CANBK.NS.png');
+      pushLogos(urls, 'canarabank.com');
+    }
+    if (n.includes('union bank')) {
+      urls.push('https://s3-symbol-logo.tradingview.com/union-bank-of-india--600.png');
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/UNIONBANK.NS.png');
+      pushLogos(urls, 'unionbankofindia.co.in');
+    }
+    if (n.includes('yes bank')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/YESBANK.NS.png');
+      pushLogos(urls, 'yesbank.in');
+    }
     if (n.includes('standard chartered') || n.includes('scb')) pushLogos(urls, 'sc.com');
     if (n.includes('hsbc')) pushLogos(urls, 'hsbc.co.in');
     if (n.includes('citi')) pushLogos(urls, 'citibank.co.in');
@@ -196,26 +296,54 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
     if (n.includes('amazon')) pushLogos(urls, 'amazon.in');
     if (n.includes('flipkart')) pushLogos(urls, 'flipkart.com');
     if (n.includes('tata neu') || n.includes('tataneu')) pushLogos(urls, 'tatadigital.com');
-    if (n.includes('bajaj')) pushLogos(urls, 'bajajfinserv.in');
+    if (n.includes('bajaj')) {
+      urls.push('https://companiesmarketcap.com/img/company-logos/256/BAJAJFINSV.NS.png');
+      pushLogos(urls, 'bajajfinserv.in');
+    }
     if (n.includes('credila')) pushLogos(urls, 'hdfccredila.com');
     return urls;
   }
 
   // Indian Stocks (Default / Fallback)
-  // Priority 0: Direct high-res verified official corporate logo override
+  // Priority 0: Direct verified local high-res official corporate logo override
   if (KNOWN_STOCK_LOGOS[cleanSym] || KNOWN_STOCK_LOGOS[rawSym]) {
     urls.push(KNOWN_STOCK_LOGOS[cleanSym] || KNOWN_STOCK_LOGOS[rawSym]);
   }
-
-  // Priority 1: Verified corporate domain brand logos (Hunter -> Unavatar -> Google S2)
-  if (KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]) {
-    pushLogos(urls, KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]);
+  if (n.includes('sudeep pharma') || s === 'SUDEEPPHRM' || s === 'SUDEEP') {
+    urls.push('/logos/sudeep.png');
+  }
+  if (n.includes('shyam metal') || s === 'SHYAMMETL' || s === 'SHYAM') {
+    urls.push('/logos/shyammetl.png');
+  }
+  if (n.includes('jb chem') || n.includes('j b chem') || n.includes('jb pharma') || s === 'JBCHEPHARM' || s === 'JBCHEM') {
+    urls.push('/logos/jbchepharm.svg');
   }
 
-  // Priority 2: Institutional financial brand logo APIs
-  if (s) {
-    urls.push(`https://assets.parqet.com/logos/symbol/${s}`);
-    urls.push(`https://companiesmarketcap.com/img/company-logos/64/${s}.webp`);
+  // Priority 1: Curated Institutional Financial Brand Portals (TradingView 600px & CompaniesMarketCap 256px & Parqet)
+  // Check TradingView 600px verified universe logos first (548 mapped symbols)
+  const tvLogoid = stockTvLogosMap[rawSym] || stockTvLogosMap[cleanSym];
+  if (tvLogoid) {
+    urls.push(`https://s3-symbol-logo.tradingview.com/${tvLogoid}--600.png`);
+    urls.push(`https://s3-symbol-logo.tradingview.com/${tvLogoid}.svg`);
+  }
+
+  // CompaniesMarketCap 256px & Parqet
+  if (rawSym) {
+    urls.push(`https://companiesmarketcap.com/img/company-logos/256/${rawSym}.NS.png`);
+    urls.push(`https://assets.parqet.com/logos/symbol/${rawSym}.NS`);
+    urls.push(`https://companiesmarketcap.com/img/company-logos/256/${rawSym}.png`);
+    urls.push(`https://assets.parqet.com/logos/symbol/${rawSym}`);
+  }
+  if (cleanSym && cleanSym !== rawSym) {
+    urls.push(`https://companiesmarketcap.com/img/company-logos/256/${cleanSym}.NS.png`);
+    urls.push(`https://assets.parqet.com/logos/symbol/${cleanSym}.NS`);
+    urls.push(`https://companiesmarketcap.com/img/company-logos/256/${cleanSym}.png`);
+    urls.push(`https://assets.parqet.com/logos/symbol/${cleanSym}`);
+  }
+
+  // Priority 2: Verified corporate domain brand logos (Hunter -> Unavatar)
+  if (KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]) {
+    pushLogos(urls, KNOWN_STOCK_DOMAINS[cleanSym] || KNOWN_STOCK_DOMAINS[rawSym]);
   }
 
   // Priority 3: Dynamic domain heuristics for any future stock without explicit mapping
@@ -248,9 +376,9 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
 
   if (s) {
     urls.push(`https://cdn.jsdelivr.net/gh/dharunashokkumar/indian-listed-company-logos@main/data/logos/nse/NSE_${s}.svg`);
-    urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos/main/data/logos/nse/NSE_${s}.svg`);
+    urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos@main/data/logos/nse/NSE_${s}.svg`);
     urls.push(`https://cdn.jsdelivr.net/gh/dharunashokkumar/indian-listed-company-logos@main/data/logos/bse/BSE_${s}.svg`);
-    urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos/main/data/logos/bse/BSE_${s}.svg`);
+    urls.push(`https://raw.githubusercontent.com/dharunashokkumar/indian-listed-company-logos@main/data/logos/bse/BSE_${s}.svg`);
   }
 
   return urls;

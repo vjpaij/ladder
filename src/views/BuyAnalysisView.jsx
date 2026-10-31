@@ -257,7 +257,7 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
               symbol={analysis.symbol}
               name={analysis.name}
               category="in_stocks"
-              className="w-10 h-10 rounded-xl shrink-0"
+              className="w-12 h-12 rounded-2xl shrink-0"
             />
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

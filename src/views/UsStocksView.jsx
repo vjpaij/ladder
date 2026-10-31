@@ -539,8 +539,8 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                         <div className="flex items-center gap-2.5">
                           <HoldingLogo 
                             holding={h} 
-                            className="w-7 h-7 rounded-lg" 
-                            fallbackClass="text-[10px]"
+                            className="w-10 h-10 rounded-xl" 
+                            fallbackClass="text-xs"
                             accentColor={isClosed ? '#a855f7' : '#a855f7'}
                           />
                           <div>

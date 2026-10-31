@@ -31,7 +31,7 @@ export default function HoldingDetailHeader({
       style={{ background: `linear-gradient(135deg, ${accentColor}10 0%, transparent 60%)` }}
     >
       <div className="flex items-center gap-3">
-        <HoldingLogo holding={holding} accentColor={accentColor} />
+        <HoldingLogo holding={holding} className="w-12 h-12 rounded-2xl shrink-0" accentColor={accentColor} />
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-white font-black text-[15px] leading-tight">{displayHoldingName}</h2>

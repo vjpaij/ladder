@@ -1,0 +1,58 @@
+{
+  "summary": {
+    "C": {
+      "strategyType": "C",
+      "totalInfused": 5000000,
+      "finalVal": 12491062,
+      "netProfit": 7491062,
+      "returnPct": 149.82,
+      "naiveCagr": 27.05,
+      "xirr": 27.05,
+      "maxDD": -23.83,
+      "totalTrades": 1906,
+      "buysCount": 682,
+      "sellsCount": 1224,
+      "openPositionsCount": 148,
+      "winRate": 61.1,
+      "profitFactor": 6.93,
+      "avgWin": 44.5,
+      "avgLoss": 9.7
+    },
+    "B": {
+      "strategyType": "B",
+      "totalInfused": 5000000,
+      "finalVal": 7709832,
+      "netProfit": 2709832,
+      "returnPct": 54.2,
+      "naiveCagr": 11.99,
+      "xirr": 11.99,
+      "maxDD": -17.49,
+      "totalTrades": 1151,
+      "buysCount": 780,
+      "sellsCount": 371,
+      "openPositionsCount": 25,
+      "winRate": 41.7,
+      "profitFactor": 2.67,
+      "avgWin": 16.2,
+      "avgLoss": 7.7
+    },
+    "A": {
+      "strategyType": "A",
+      "totalInfused": 5000000,
+      "finalVal": 14648691,
+      "netProfit": 9648691,
+      "returnPct": 192.97,
+      "naiveCagr": 32.45,
+      "xirr": 32.45,
+      "maxDD": -42.23,
+      "totalTrades": 221,
+      "buysCount": 77,
+      "sellsCount": 144,
+      "openPositionsCount": 20,
+      "winRate": 50,
+      "profitFactor": 4.02,
+      "avgWin": 91.7,
+      "avgLoss": 12.9
+    }
+  }
+}

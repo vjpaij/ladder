@@ -410,7 +410,7 @@ export default function DividendsView({ holdings = [], onRefresh }) {
                                 symbol: s.symbol,
                                 category_id: s.category_id || (isUS ? 'us_stocks' : 'in_stocks')
                               }} 
-                              className="w-7 h-7 rounded-lg" 
+                              className="w-10 h-10 rounded-xl" 
                               fallbackClass="text-[10px]"
                               accentColor={isUS ? '#a855f7' : '#10b981'}
                             />

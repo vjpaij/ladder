@@ -212,7 +212,7 @@ export default function HoldingsTable({ holdings, liabilities, onDeleteHolding, 
                     <div className="flex items-center gap-3">
                       <HoldingLogo 
                         holding={h} 
-                        className={`w-8 h-8 rounded-xl shadow-sm ${h.quantity <= 0 ? 'grayscale opacity-50' : ''}`}
+                        className={`w-10 h-10 rounded-xl shadow-sm ${h.quantity <= 0 ? 'grayscale opacity-50' : ''}`}
                         fallbackClass="text-xs"
                         accentColor={h.quantity <= 0 ? '#64748b' : h.category_color}
                       />

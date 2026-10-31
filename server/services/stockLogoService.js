@@ -189,10 +189,15 @@ async function verifyLogoForDomain(domain) {
 }
 
 const LOCAL_ASSET_LOGOS = {
+  'AIAENG': '/logos/aiaeng.png',
   'INDGN': '/logos/indegene.png',
   'FRACTAL': '/logos/fractal.png',
   'ANANTRAJ': '/logos/anantraj.png',
   'VAML': '/logos/vaml.png',
+  'VEDPOWER': '/logos/vaml.png',
+  'VOGL': '/logos/vaml.png',
+  'DHOOTTRANS': '/logos/dhoottrans.png',
+  'SHANKESH': '/logos/shankesh.png',
   'SBCL': '/logos/sbcl.jpg',
   'TARIL': '/logos/taril.png',
   'HBLENGINE': '/logos/hblengine.png',
@@ -201,7 +206,9 @@ const LOCAL_ASSET_LOGOS = {
   'TVSMOTOR': '/logos/tvsmotor.svg',
   'SYRMA': '/logos/syrma.png',
   'SUDEEPPHRM': '/logos/sudeep.png',
-  'ARTEMISMED': '/logos/artemis.png'
+  'ARTEMISMED': '/logos/artemis.png',
+  'SHYAMMETL': '/logos/shyammetl.png',
+  'JBCHEPHARM': '/logos/jbchepharm.svg'
 };
 
 /**

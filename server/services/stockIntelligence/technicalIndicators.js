@@ -146,14 +146,32 @@ export function analyzeTechnicalTrend(rawPrices, {
     }
   }
 
+  // 2. Tiered Trailing Stop Corridor & Chandelier Exit:
+  // Before +25% profit cushion: standard 3.0 * ATR(14w) trailing stop.
+  // After +25% profit cushion established: widen trailing stop corridor to max(20%, 3.5x ATR)
+  // from peak to prevent premature shakeouts of high-beta compounder runners during normal pullbacks.
+  const numEntryPrice = Number(entryPrice) || 0;
+  const peakGainPct = (numEntryPrice > 0 && trailingPeak > 0)
+    ? (trailingPeak - numEntryPrice) / numEntryPrice
+    : 0;
+
   const atr14 = calculateWeeklyATR(closes, 14) || (latest.close * 0.04);
-  const chandelierStopPrice = Number(Math.max(0, trailingPeak - 3.0 * atr14).toFixed(2));
+  let chandelierStopPrice;
+  if (peakGainPct >= 0.25) {
+    const widePctFloor = trailingPeak * 0.80; // 20% pullback allowance
+    const wideAtrFloor = trailingPeak - 3.5 * atr14;
+    chandelierStopPrice = Number(Math.max(0, Math.max(widePctFloor, wideAtrFloor)).toFixed(2));
+  } else {
+    chandelierStopPrice = Number(Math.max(0, trailingPeak - 3.0 * atr14).toFixed(2));
+  }
 
   // 3. Compounding Protection Engine
   // A stock in Stage 2 Bull that trades above its trailing stop has active compounding protection.
   // Standard 15% to 25% pullbacks in Indian growth stocks are recognized as normal volatility.
   const isCompoundingProtected = weinsteinStage === 2 && latest.close >= chandelierStopPrice;
-  const trailingFloorPrice = Number(Math.max(latestSma * 0.95, chandelierStopPrice).toFixed(2));
+  const trailingFloorPrice = peakGainPct >= 0.25
+    ? chandelierStopPrice
+    : Number(Math.max(latestSma * 0.95, chandelierStopPrice).toFixed(2));
   const bufferToTrailingFloorPct = latest.close > 0 && trailingFloorPrice > 0
     ? Number(((latest.close / trailingFloorPrice - 1) * 100).toFixed(2))
     : 0;
@@ -190,6 +208,7 @@ export function analyzeTechnicalTrend(rawPrices, {
     isCompoundingProtected,
     trailingFloorPrice,
     bufferToTrailingFloorPct,
+    peakGainPct: Number((peakGainPct * 100).toFixed(1)),
     ...analyzeDaily21EmaPattern(daily, candleMapList),
     evidence,
     invalidation: confirmed

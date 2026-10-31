@@ -664,7 +664,7 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
                     {/* Symbol & Logo */}
                     <td className="py-2.5 px-4 font-sans">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-transparent">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-transparent">
                           <HoldingLogo
                             symbol={sym.symbol}
                             name={sym.name}
@@ -774,7 +774,7 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
                 {/* Top Row: Symbol, Logo & Net P&L */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-transparent">
+                    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-transparent">
                       <HoldingLogo
                         symbol={sym.symbol}
                         name={sym.name}

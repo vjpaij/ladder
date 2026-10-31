@@ -448,8 +448,8 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                         <div className="flex items-center gap-2.5">
                           <HoldingLogo 
                             holding={h} 
-                            className="w-7 h-7 rounded-lg" 
-                            fallbackClass="text-[10px]"
+                            className="w-10 h-10 rounded-xl" 
+                            fallbackClass="text-xs"
                             accentColor={isClosed ? '#06b6d4' : '#06b6d4'}
                           />
                           <div>

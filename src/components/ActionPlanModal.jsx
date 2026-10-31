@@ -311,6 +311,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-base sm:text-lg font-black font-mono text-cyan-600 dark:text-cyan-400 mt-1 block">
                 {formatInr(summary.externalCashBudget)}
               </span>
+              <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
+                Monthly infusion
+              </span>
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
@@ -320,6 +323,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
                 +{formatInr(summary.recycledCapital)}
               </span>
+              <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 block mt-0.5 truncate" title="Base ₹45L + Indian stock sales - buys">
+                Base ₹45L + Net Sales
+              </span>
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
@@ -328,6 +334,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               </span>
               <span className="text-base sm:text-lg font-black font-mono text-[var(--text-primary)] mt-1 block">
                 {formatInr(summary.totalPurchasingPower)}
+              </span>
+              <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
+                Ready to deploy
               </span>
             </div>
 
@@ -438,13 +447,20 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                         return (
                           <tr key={idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                             <td className="py-2.5 px-3">
-                              <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
-                                isAccumulate
-                                  ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
-                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
-                              }`}>
-                                {isAccumulate ? 'PYRAMID TRANCHE' : 'NEW POSITION'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                                  isAccumulate
+                                    ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
+                                    : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
+                                }`}>
+                                  {isAccumulate ? 'PYRAMID TRANCHE' : 'NEW POSITION'}
+                                </span>
+                                {b.mps !== undefined && (
+                                  <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-indigo-500/15 text-indigo-500 border border-indigo-500/30" title={`Multibagger Probability Score: ${b.mps}/100`}>
+                                    MPS {b.mps}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)]">
                               {b.symbol}
@@ -520,19 +536,26 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                             {q.targetShares}
                           </td>
                           <td className="py-2.5 px-3">
-                            <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
-                              q.executionStatus?.includes('CORE HOLD') || q.sizing?.tierLabel?.includes('Hold Core') || q.actionType?.includes('MAXIMUM POSITION')
-                                ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
-                                : q.executionStatus?.includes('AWAIT PULLBACK') || q.sizing?.tierLabel?.includes('Extended')
-                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
-                                : q.executionStatus?.includes('SECTOR')
-                                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/30'
-                                : q.executionStatus?.includes('MICROCAP') || q.sizing?.tierLabel?.includes('Microcap')
-                                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
-                                : 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
-                            }`}>
-                              {q.sizing?.tierLabel || q.stance}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
+                                q.executionStatus?.includes('CORE HOLD') || q.sizing?.tierLabel?.includes('Hold Core') || q.actionType?.includes('MAXIMUM POSITION')
+                                  ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
+                                  : q.executionStatus?.includes('AWAIT PULLBACK') || q.sizing?.tierLabel?.includes('Extended')
+                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
+                                  : q.executionStatus?.includes('SECTOR')
+                                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/30'
+                                  : q.executionStatus?.includes('MICROCAP') || q.sizing?.tierLabel?.includes('Microcap')
+                                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
+                                  : 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
+                              }`}>
+                                {q.sizing?.tierLabel || q.stance}
+                              </span>
+                              {q.mps !== undefined && (
+                                <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-indigo-500/15 text-indigo-500 border border-indigo-500/30" title={`Multibagger Probability Score: ${q.mps}/100`}>
+                                  MPS {q.mps}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-2.5 px-3 text-[11px] text-[var(--text-muted)] max-w-sm">
                             {q.note}

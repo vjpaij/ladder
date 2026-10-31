@@ -2574,5 +2574,24 @@
     "closing_balance": 4431050,
     "is_settled": true,
     "notes": null
+  },
+  {
+    "id": "eff28e7c-925a-44ef-93e6-11d0ea893578",
+    "liability_id": "00000000-0000-0000-0000-000000000010",
+    "date": "2026-10-15",
+    "entry_type": "RATE_CHANGE",
+    "interest_rate": 7.5,
+    "days_between": 0,
+    "disbursed_amount": 0,
+    "emi_amount": 60000,
+    "bulk_payment": 0,
+    "opening_balance": 0,
+    "interest_amount": 0,
+    "principal_amount": 0,
+    "closing_balance": 0,
+    "is_settled": true,
+    "notes": null,
+    "created_at": "2026-10-31T18:56:41.716413+00:00",
+    "updated_at": "2026-10-31T18:56:41.716413+00:00"
   }
 ]

@@ -578,3 +578,66 @@ test('Rule 7: Sector Concentration Guard limits immediate buys to max 5 per sect
     assert.ok(sectorCounts[s] <= 5, `Sector ${s} cannot have more than 5 immediate buys funded on the same day`);
   });
 });
+
+test('Rule 8: Tiered Trailing Stop Corridor widens stop floor to max(20%, 3.5x ATR) after +25% profit cushion is established', () => {
+  // Setup synthetic prices: entry at 100, rises to 160 (+60% profit cushion)
+  const prices = {};
+  const start = new Date('2023-01-01T00:00:00Z');
+  for (let i = 0; i < 420; i++) {
+    const d = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
+    if (i < 300) prices[d] = 100 + (i / 300) * 60; // rises to 160
+    else prices[d] = 150; // normal consolidation
+  }
+  const entryDate = new Date(start.getTime() + 50 * 86400000).toISOString().slice(0, 10);
+  const today = new Date(start.getTime() + 419 * 86400000).toISOString().slice(0, 10);
+
+  const res = analyzeTechnicalTrend(prices, { today, entryDate, entryPrice: 100 });
+  assert.ok(res.peakGainPct >= 50, 'Peak gain percent should be >= 50%');
+  // With peak at 160, wide 20% floor is 160 * 0.80 = 128
+  assert.ok(res.chandelierStopPrice >= 120, 'Wide corridor trailing stop should be well above early stop');
+  assert.equal(res.trailingFloorPrice, res.chandelierStopPrice, 'Trailing floor price mirrors chandelier stop in deep profit');
+});
+
+test('Rule 9: Buy Analysis calculates 126-day Relative Strength and Multibagger Probability Score (MPS)', () => {
+  const prices = weekdays(300, '2023-01-02');
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+
+  // Boost last 126 days so price doubles
+  const idx126Date = dates[dates.length - 126];
+  const basePrice = prices[idx126Date];
+  prices[today] = basePrice * 2.0; // +100% gain
+
+  const candidate = { symbol: 'TESTSYM', name: 'Test Multibagger Ltd', inPortfolio: false };
+  const buyAnalyses = buildBuyAnalyses({
+    candidates: [candidate],
+    priceHistory: { TESTSYM: prices },
+    fundamentalsCache: { TESTSYM: { name: 'Test Multibagger Ltd', marketCapCr: 5000, debtToEquity: 0.2, promoterPledgePct: 0 } },
+    today
+  });
+
+  assert.equal(buyAnalyses.length, 1);
+  const a = buyAnalyses[0];
+  assert.ok(a.rsScore > 50, `126-day Relative strength score (${a.rsScore}) should be > 50`);
+  assert.ok(a.normalizedRs >= 75, `Normalized RS (${a.normalizedRs}) should be >= 75`);
+  assert.ok(a.mps >= 60, `Multibagger Probability Score (MPS: ${a.mps}) should be >= 60`);
+});
+
+test('Rule 10: Next Day Action Plan calculates Recycled Capital starting at ₹45 Lakhs baseline and applies asymmetric conviction sizing', async () => {
+  const { generateActionPlan } = await import('./actionPlanService.js');
+  const plan = await generateActionPlan({ externalCashBudget: 200000 });
+
+  // Recycled capital should be at least ₹45 Lakhs baseline
+  assert.ok(plan.summary.recycledCapital >= 4500000, `Recycled capital (${plan.summary.recycledCapital}) must be at least ₹45,00,000 baseline`);
+  assert.ok(plan.summary.totalPurchasingPower >= 4700000, `Total purchasing power (${plan.summary.totalPurchasingPower}) must be at least ₹47,00,000`);
+
+  // Immediate buys must be funded and have priority rank and sizing
+  assert.ok(plan.immediateBuys.length > 0, 'Immediate buys should be funded from ₹47L+ purchasing power');
+  const topImmediate = plan.immediateBuys[0];
+  assert.ok(topImmediate.sizing.alloc > 0, 'Top candidate must have allocated capital');
+  // Check that prime candidates receive up to ₹2.0L base
+  const primeCandidate = plan.immediateBuys.find(b => b.sizing.tierLabel.includes('₹2L Base') || b.sizing.tierLabel.includes('Prime Ultra'));
+  if (primeCandidate) {
+    assert.ok(primeCandidate.sizing.alloc >= 200000, 'Prime Ultra candidates must receive ₹2L base allocation');
+  }
+});

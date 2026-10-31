@@ -168,16 +168,23 @@ export async function generateActionPlan({
     return acc + (trimQty * (Number(a.currentPrice) || 0));
   }, 0);
 
-  // 2b. Calculate Realized Recycled Capital from ACTUAL sell and buy transactions executed on/after 21st Oct 2026
+  // 2b. Recycled Capital Architecture:
+  // Base Recycled Capital = ₹45 Lakhs (configurable via userConfig.baseRecycledCapital).
+  // Dynamic Real-Time Update: Any buy or sell transactions on Indian stocks executed on or after baseline date update this field dynamically.
+  const baseRecycledCapital = Number(userConfig?.baseRecycledCapital ?? 4500000);
+  const baselineDate = userConfig?.recycledCapitalBaselineDate || '2026-10-31';
+
   let totalRealizedExitProceeds = 0;
   let totalDeployedBuys = 0;
 
   for (const tx of (transactions || [])) {
-    if (tx.date && tx.date >= '2026-10-21') {
+    if (tx.date && tx.date >= baselineDate) {
       const type = String(tx.type || '').toUpperCase();
       const sym = String(tx.symbol || '');
       // Exclude bank/debt ledger transfers
       if (sym.includes('-SAVINGS') || sym.includes('-EPF') || sym.includes('-LOAN') || sym.includes('-CC')) continue;
+      const isIndianStock = !sym.includes('.') && !sym.includes('-');
+      if (!isIndianStock) continue;
 
       const amt = Number(tx.total_amount) || (Number(tx.quantity || 0) * Number(tx.price || 0)) || 0;
       if (['SELL', 'REDEEM', 'REDEMPTION'].includes(type)) {
@@ -188,20 +195,21 @@ export async function generateActionPlan({
     }
   }
 
-  // Net realized capital obtained in account after selling and buying on 21st Oct 2026
-  const realizedRecycledCapital = Math.max(0, totalRealizedExitProceeds - totalDeployedBuys);
+  // Realized Recycled Capital = Base (₹45 Lakhs) + Indian Stock Sells - Indian Stock Buys executed going forward
+  const netTransactionCashDelta = totalRealizedExitProceeds - totalDeployedBuys;
+  const realizedRecycledCapital = Math.max(0, baseRecycledCapital + netTransactionCashDelta);
 
-  let projectedRecycledCapital = 0;
+  let projectedRecycledCapital = realizedRecycledCapital;
   if (recyclingMode === 'FULL_AND_TRIMS') {
-    projectedRecycledCapital = fullExitProceeds + trimProceeds + chandelierBreachProceeds;
+    projectedRecycledCapital += (fullExitProceeds + trimProceeds + chandelierBreachProceeds);
   } else if (recyclingMode === 'FULL_ONLY') {
-    projectedRecycledCapital = fullExitProceeds + chandelierBreachProceeds;
+    projectedRecycledCapital += (fullExitProceeds + chandelierBreachProceeds);
   } else {
     // 'EXTERNAL_ONLY': zero selling, pure portfolio expansion
     projectedRecycledCapital = 0;
   }
 
-  // Recycled capital represents the actual net cash obtained from rebalance transactions on 21st Oct 2026
+  // Recycled capital represents the actual net cash obtained from the base + subsequent rebalances
   const recycledCapital = recyclingMode === 'EXTERNAL_ONLY' ? 0 : round2(realizedRecycledCapital);
   const totalPurchasingPower = round2(externalCashBudget + recycledCapital);
 
@@ -240,13 +248,15 @@ export async function generateActionPlan({
       };
     }
 
-    const isPrime = (item.buySignal === 'STRONG_BUY' && composite >= 80) || isTurnaround;
-    const isTier2 = (item.buySignal === 'STRONG_BUY' || composite >= 70);
+    const mps = Number(item.mps ?? item.multibaggerProbabilityScore ?? item.compositeScore ?? composite);
+    const isPrime = (mps >= 80) || isTurnaround;
+    const isTier2 = (mps >= 70 || item.buySignal === 'STRONG_BUY');
+    const isStd = (mps >= 60 || item.buySignal === 'BUY');
 
     // Dynamic Portfolio Weight Caps based on total equity valuation (Rule: 10% Prime, 7% Tier 2, 5% Standard)
-    const primeCap = Math.max(150000, Math.round(totalIndianEquityValuation * (targetWeightPct / 100)));
-    const tier2Cap = Math.max(100000, Math.round(totalIndianEquityValuation * ((targetWeightPct * 0.7) / 100)));
-    const standardCap = Math.max(50000, Math.round(totalIndianEquityValuation * ((targetWeightPct * 0.5) / 100)));
+    const primeCap = Math.max(200000, Math.round(totalIndianEquityValuation * (targetWeightPct / 100)));
+    const tier2Cap = Math.max(125000, Math.round(totalIndianEquityValuation * ((targetWeightPct * 0.7) / 100)));
+    const standardCap = Math.max(75000, Math.round(totalIndianEquityValuation * ((targetWeightPct * 0.5) / 100)));
 
     const maxPositionCap = isPrime ? primeCap : isTier2 ? tier2Cap : standardCap;
     const currentHeldValue = heldQty * cmp;
@@ -256,11 +266,11 @@ export async function generateActionPlan({
     // Factor A: Institutional Base Compression & Volatility Contraction Pattern (VCP)
     const riskPct = cmp > 0 && sl > 0 ? Math.abs((cmp - sl) / cmp * 100) : 10;
     const isVcp = riskPct <= 8.5 && Math.abs(item.pctFromHigh52w || 0) <= 14.0;
-    const vcpBonus = isVcp ? (isPrime ? 10000 : 5000) : 0;
+    const vcpBonus = isVcp ? (isPrime ? 15000 : 10000) : 0;
 
     // Factor B: Sector Breadth & Group Rank Momentum
     const isTopSector = topSectors.includes(item.sector);
-    const sectorBonus = isTopSector ? (isPrime ? 10000 : 5000) : 0;
+    const sectorBonus = isTopSector ? (isPrime ? 15000 : 10000) : 0;
 
     // Sizing for Existing Portfolio Holdings (Pyramiding / Staged Accumulation)
     if (isOwned && heldQty > 0) {
@@ -289,15 +299,15 @@ export async function generateActionPlan({
         };
       }
 
-      // Subordinate Pyramid Tranche (NOT a full fresh position base)
-      // Prime: ₹50k base tranche | Tier 2: ₹25k base tranche | Standard: ₹15k support tranche
+      // Subordinate Pyramid Tranche (Asymmetric Conviction Sizing)
+      // Prime / High MPS >= 75: ₹50k base tranche | Standard: ₹35k | Support: ₹25k / ₹15k
       const pyramidTranche = isInProfit
-        ? (isPrime ? 50000 : 25000)
-        : (isPrime ? 25000 : 15000);
+        ? (mps >= 75 ? 50000 : 35000)
+        : (mps >= 70 ? 25000 : 15000);
 
       const trancheTierLabel = isInProfit
-        ? `Pyramid Tranche (${isPrime ? '₹50k' : '₹25k'} Addition)`
-        : `Support Tranche (${isPrime ? '₹25k' : '₹15k'} Addition)`;
+        ? `Pyramid Tranche (${mps >= 75 ? '₹50k' : '₹35k'} Addition)`
+        : `Support Tranche (${mps >= 70 ? '₹25k' : '₹15k'} Addition)`;
 
       const trancheFactors = [trancheTierLabel];
       let trancheTotal = pyramidTranche;
@@ -316,9 +326,10 @@ export async function generateActionPlan({
         trancheFactors.push(`Disciplined support accumulation`);
       }
 
-      // Tranche cannot exceed remaining headroom to maxPositionCap
+      // Tranche cannot exceed remaining headroom to maxPositionCap or single tranche ceiling (₹75k)
       const remainingHeadroom = Math.max(0, maxPositionCap - currentHeldValue);
-      const finalTrancheAlloc = Math.min(trancheTotal, remainingHeadroom);
+      const trancheCeiling = 75000;
+      const finalTrancheAlloc = Math.min(trancheTotal, remainingHeadroom, trancheCeiling);
 
       if (finalTrancheAlloc < trancheTotal) {
         trancheFactors.push(`Scaled to max cap headroom (₹${Math.round(finalTrancheAlloc).toLocaleString('en-IN')})`);
@@ -342,18 +353,21 @@ export async function generateActionPlan({
       };
     }
 
-    let base = 35000;
-    let tierLabel = 'Standard Setup (₹35k Base)';
+    let base = 40000;
+    let tierLabel = 'Catalyst Scout Entry (₹40k Base)';
 
     if (isPrime) {
-      base = 100000;
-      tierLabel = isTurnaround ? 'Turnaround Prime Setup (₹1L Base)' : 'Prime High-Conviction (₹1L Base)';
-    } else if (item.buySignal === 'STRONG_BUY' || composite >= 70) {
-      base = 50000;
-      tierLabel = 'Tier 2 High-Confluence (₹50k Base)';
+      base = 200000;
+      tierLabel = isTurnaround ? 'Turnaround Prime Setup (₹2L Base)' : 'Prime Ultra Conviction (₹2L Base)';
+    } else if (isTier2) {
+      base = 125000;
+      tierLabel = 'High Conviction Setup (₹1.25L Base)';
+    } else if (isStd) {
+      base = 75000;
+      tierLabel = 'Standard Momentum Setup (₹75k Base)';
     } else if (stance === 'EXTENDED_RUNNER') {
-      base = 15000;
-      tierLabel = 'Scout Test Entry (₹15k Base)';
+      base = 20000;
+      tierLabel = 'Scout Test Entry (₹20k Base)';
     }
 
     const factors = [tierLabel];
@@ -423,18 +437,23 @@ export async function generateActionPlan({
     const tags = Array.isArray(x.qualitativeTags) ? x.qualitativeTags : [];
     const isTurnaround = tags.some(t => t.tag === 'TURNAROUND_CATALYST');
 
+    const mps = Number(x.mps ?? x.multibaggerProbabilityScore ?? x.compositeScore ?? composite);
     const sizing = calculateDynamicConvictionAllocation(x, isOwned, heldQty, holdingObj);
-    const targetShares = sizing.alloc > 0 && cmp > 0 ? Math.max(1, Math.round(sizing.alloc / cmp)) : 0;
+    const targetShares = sizing.alloc > 0 && cmp > 0
+      ? (isOwned ? Math.max(1, Math.floor(sizing.alloc / cmp)) : Math.max(1, Math.round(sizing.alloc / cmp)))
+      : 0;
     const targetAmount = targetShares * cmp;
 
-    // Priority Rank Score:
+    // Priority Rank Score (Optimized Multibagger Probability Engine):
     // 1. Pyramiding into existing owned winners in profit (+1000 pts)
     // 2. Turnaround Inflection Multibagger (+800 pts)
-    // 3. Strong Buy with VCP & Sector (+400 pts)
-    // 4. Composite score
-    let priorityRank = composite;
+    // 3. Prime Ultra Conviction (MPS >= 80) (+500 pts)
+    // 4. Strong Buy (+400 pts)
+    // 5. Multibagger Probability Score (MPS)
+    let priorityRank = mps;
     if (isInProfit) priorityRank += 1000;
     else if (isTurnaround) priorityRank += 800;
+    else if (mps >= 80) priorityRank += 500;
     else if (x.sourceSignal === 'STRONG_BUY') priorityRank += 400;
 
     let actionType = isOwned ? 'BUY - ACCUMULATE (ADD TRANCHE)' : 'BUY - NEW POSITION';
@@ -460,6 +479,9 @@ export async function generateActionPlan({
       avgPrice,
       isInProfit,
       composite,
+      mps,
+      normalizedRs: x.normalizedRs,
+      rsScore: x.rsScore,
       isTurnaround,
       sizing,
       targetShares,
@@ -777,6 +799,8 @@ export async function generateActionPlan({
     today,
     externalCashBudget: round2(externalCashBudget),
     periodicIncrement: round2(periodicIncrement),
+    baseRecycledCapital: round2(baseRecycledCapital),
+    recycledCapitalBaselineDate: baselineDate,
     recyclingMode,
     totalRealizedExitProceeds: round2(totalRealizedExitProceeds),
     totalDeployedBuys: round2(totalDeployedBuys),
