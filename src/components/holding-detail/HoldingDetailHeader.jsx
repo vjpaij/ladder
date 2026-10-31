@@ -31,7 +31,7 @@ export default function HoldingDetailHeader({
       style={{ background: `linear-gradient(135deg, ${accentColor}10 0%, transparent 60%)` }}
     >
       <div className="flex items-center gap-3">
-        <HoldingLogo holding={holding} className="w-12 h-12 rounded-2xl shrink-0" accentColor={accentColor} />
+        <HoldingLogo holding={holding} name={holding?.lender || displayHoldingName || holding?.name} className="w-12 h-12 rounded-2xl shrink-0" accentColor={accentColor} />
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-white font-black text-[15px] leading-tight">{displayHoldingName}</h2>
@@ -55,8 +55,8 @@ export default function HoldingDetailHeader({
                 {holding.category_id === 'mutual_funds' ? 'Mutual Fund'
                   : holding.category_id === 'us_stocks' ? 'US Equity'
                   : holding.category_id === 'nps' ? 'NPS Scheme'
-                  : holding.category_id === 'loans' ? 'Housing Loan'
-                  : holding.category_id === 'credit_cards' ? 'Credit Card'
+                  : holding.category_id === 'loans' ? (holding.facility_name || 'Housing Loan')
+                  : holding.category_id === 'credit_cards' ? (holding.facility_name || 'Credit Card')
                   : 'Indian Equity'}
               </span>
             )}

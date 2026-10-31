@@ -533,7 +533,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
     ? (holding.name || '').replace(/\s*\(SBI\)/gi, '').trim()
     : holding?.category_id === 'epf'
     ? 'Employee Provident Fund'
-    : (holding?.name || '').replace(/\s*\(SBI\)/gi, '').trim();
+    : (activeHolding?.lender || holding?.lender || activeHolding?.name || holding?.name || '').replace(/\s*\(SBI\)/gi, '').trim();
 
   useEffect(() => {
     if (!hasActualChart) setActiveTab('tracker');
@@ -637,7 +637,7 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                       liabilityId={holding.id} 
                       refreshTick={amortRefreshTick} 
                       onDataChanged={async () => {
-                        await loadDetail();
+                        await fetchDetail();
                         if (onRefresh) await onRefresh();
                       }}
                     />

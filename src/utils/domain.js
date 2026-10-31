@@ -81,7 +81,10 @@ const KNOWN_STOCK_LOGOS = {
   'SUDEEPPHRM': '/logos/sudeep.png',
   'EMMVEE': 'https://emmvee.com/wp-content/uploads/2019/08/emvlogo.png',
   'SHYAMMETL': '/logos/shyammetl.png',
-  'JBCHEPHARM': '/logos/jbchepharm.svg'
+  'JBCHEPHARM': '/logos/jbchepharm.svg',
+  'SBIN': '/logos/sbi.png',
+  'SBI': '/logos/sbi.png',
+  'STATEBANK': '/logos/sbi.png'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {
@@ -119,6 +122,7 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
       pushLogos(urls, 'hdfclife.com');
     }
     if (n.includes('sbi') || n.includes('state bank')) {
+      urls.push('/logos/sbi.png');
       urls.push('https://s3-symbol-logo.tradingview.com/state-bank--600.png');
       urls.push('https://companiesmarketcap.com/img/company-logos/256/SBIN.NS.png');
       pushLogos(urls, 'sbimf.com');
@@ -236,6 +240,7 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
       pushLogos(urls, 'hdfcbank.com');
     }
     if (n.includes('sbi') || n.includes('state bank')) {
+      urls.push('/logos/sbi.png');
       urls.push('https://s3-symbol-logo.tradingview.com/state-bank--600.png');
       urls.push('https://companiesmarketcap.com/img/company-logos/256/SBIN.NS.png');
       pushLogos(urls, 'sbi.co.in');

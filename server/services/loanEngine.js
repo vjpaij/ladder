@@ -14,6 +14,186 @@ const DATA_JSON_PATH = path.join(__dirname, '../../data/loan_amortization.json')
  * Atomic two-way synchronization: guarantees that any settled loan amortization row
  * has an exact matching transaction in the transactions table (Rule 2 & Rule 17).
  */
+
+/**
+ * Recursive Amortization Chain Recalculator
+ * Re-simulates the entire chronological statement history of a loan from inception.
+ * Guarantees that opening_balance, days_between, interest_amount, principal_amount,
+ * and closing_balance strictly maintain mathematical continuity across all entries.
+ */
+export async function recomputeSettledAmortizationChain(liabilityId) {
+  if (!liabilityId) return [];
+
+  // Fetch all rows from Supabase
+  let entries = [];
+  try {
+    const { data, error } = await supabase
+      .from('loan_amortization')
+      .select('*')
+      .eq('liability_id', liabilityId)
+      .order('date', { ascending: true });
+    if (!error && data && data.length > 0) {
+      entries = data;
+    }
+  } catch (err) {
+    console.warn('[loanEngine.recomputeSettledAmortizationChain] Supabase fetch error:', err.message);
+  }
+
+  if (entries.length === 0 && fs.existsSync(DATA_JSON_PATH)) {
+    try {
+      const local = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
+      entries = Array.isArray(local) ? local.filter(e => e.liability_id === liabilityId) : [];
+    } catch (e) {
+      console.warn('[loanEngine.recomputeSettledAmortizationChain] Local JSON read error:', e.message);
+    }
+  }
+
+  if (!entries || entries.length === 0) return [];
+
+  // Separate settled vs future custom projections
+  const settled = entries.filter(e => e.is_settled !== false);
+  const future = entries.filter(e => e.is_settled === false);
+  if (settled.length === 0) return entries;
+
+  // Chronological sort
+  settled.sort((a, b) => a.date.localeCompare(b.date));
+
+  let prevClosing = 0;
+  let prevDate = null;
+  let currentRate = 7.25;
+
+  for (let i = 0; i < settled.length; i++) {
+    const row = settled[i];
+    const rowDate = new Date(row.date);
+
+    // Opening balance strictly inherits previous row's closing balance
+    row.opening_balance = i === 0 ? 0 : prevClosing;
+
+    // Days between statements
+    if (prevDate) {
+      const diffDays = Math.max(0, Math.round((rowDate - prevDate) / (1000 * 60 * 60 * 24)));
+      row.days_between = diffDays;
+    } else {
+      row.days_between = Number(row.days_between) || 0;
+    }
+
+    // Rate resolution
+    if (Number(row.interest_rate) > 0) {
+      currentRate = Number(row.interest_rate);
+    } else {
+      row.interest_rate = currentRate;
+    }
+
+    const type = (row.entry_type || 'EMI').toUpperCase();
+
+    if (type === 'RATE_CHANGE') {
+      row.disbursed_amount = 0;
+      row.bulk_payment = 0;
+      row.interest_amount = 0;
+      row.principal_amount = 0;
+      row.emi_amount = 0;
+      row.closing_balance = row.opening_balance;
+      row.notes = row.notes || `Interest rate changed to ${currentRate}% p.a.`;
+    } else if (type === 'PREPAYMENT') {
+      const bulk = Number(row.bulk_payment) || Number(row.emi_amount) || 0;
+      row.bulk_payment = bulk;
+      row.disbursed_amount = 0;
+      row.interest_amount = 0;
+      row.principal_amount = bulk;
+      row.closing_balance = Math.max(0, row.opening_balance - bulk);
+      row.notes = row.notes || `Bulk Prepayment ₹${bulk}`;
+    } else if (type === 'DISBURSEMENT') {
+      const disbursed = Number(row.disbursed_amount) || 0;
+      row.disbursed_amount = disbursed;
+      row.interest_amount = 0;
+      row.principal_amount = 0;
+      row.closing_balance = row.opening_balance + disbursed;
+      row.notes = row.notes || `Loan Disbursement ₹${disbursed}`;
+    } else if (type === 'FEE_OR_ADJUSTMENT') {
+      const adj = Number(row.disbursed_amount) || 0;
+      row.interest_amount = 0;
+      row.principal_amount = 0;
+      row.closing_balance = row.opening_balance + adj;
+    } else {
+      // Standard EMI or MONTHLY_PAYMENT
+      const emi = Number(row.emi_amount) || 60000;
+      row.emi_amount = emi;
+      row.disbursed_amount = 0;
+      const bulk = Number(row.bulk_payment) || 0;
+      const interest = Math.round(row.opening_balance * (currentRate / 100 / 365) * row.days_between);
+      row.interest_amount = interest;
+      const principal = Math.max(0, Math.min(row.opening_balance, (emi - interest) + bulk));
+      row.principal_amount = principal;
+      row.closing_balance = Math.max(0, row.opening_balance - principal);
+    }
+
+    prevClosing = row.closing_balance;
+    prevDate = rowDate;
+  }
+
+  // Batch persist updated settled rows to Supabase
+  for (let i = 0; i < settled.length; i += 50) {
+    const chunk = settled.slice(i, i + 50);
+    for (const r of chunk) {
+      if (r.id && !String(r.id).startsWith('proj-')) {
+        await supabase
+          .from('loan_amortization')
+          .update({
+            opening_balance: r.opening_balance,
+            days_between: r.days_between,
+            interest_rate: r.interest_rate,
+            disbursed_amount: r.disbursed_amount,
+            emi_amount: r.emi_amount,
+            bulk_payment: r.bulk_payment,
+            interest_amount: r.interest_amount,
+            principal_amount: r.principal_amount,
+            closing_balance: r.closing_balance,
+            notes: r.notes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', r.id);
+      }
+    }
+  }
+
+  // Update local JSON
+  try {
+    const fullDataset = [...settled, ...future];
+    fullDataset.sort((a, b) => a.date.localeCompare(b.date));
+    fs.writeFileSync(DATA_JSON_PATH, JSON.stringify(fullDataset, null, 2));
+  } catch (e) {
+    console.warn('[loanEngine.recomputeSettledAmortizationChain] Error writing DATA_JSON_PATH:', e.message);
+  }
+
+  // Synchronize liabilities table with latest settled state
+  const latest = settled[settled.length - 1];
+  if (latest) {
+    try {
+      await supabase
+        .from('liabilities')
+        .update({
+          outstanding_balance: latest.closing_balance,
+          interest_rate: currentRate,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', liabilityId);
+
+      await db.update('liabilities', liabilityId, {
+        outstanding_balance: latest.closing_balance,
+        interest_rate: currentRate,
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('[loanEngine.recomputeSettledAmortizationChain] Error updating liability:', e.message);
+    }
+  }
+
+  await recomputeSettledAmortizationChain(liabilityId);
+    db.invalidateCache('loan_amortization');
+  db.invalidateCache('liabilities');
+  return settled;
+}
+
 async function syncAmortizationToTransaction(liabilityId, amortRow, action = 'UPSERT') {
   if (!liabilityId || !amortRow) return;
   const isSettled = Boolean(amortRow.is_settled);
@@ -39,15 +219,23 @@ async function syncAmortizationToTransaction(liabilityId, amortRow, action = 'UP
     }
 
     const entryType = (amortRow.entry_type || 'EMI').toUpperCase();
+    if (entryType === 'RATE_CHANGE') {
+      // Rate changes are amortization recalculation parameters, not monetary cash flows.
+      return;
+    }
     const bulk = Number(amortRow.bulk_payment) || 0;
     const emi = Number(amortRow.emi_amount) || 0;
     const disbursed = Number(amortRow.disbursed_amount) || 0;
 
     let txType = 'EMI_PAYMENT';
-    let txAmt = emi;
+    // For EMI payments, txAmt must strictly equal the principal portion, because in recalculator.js
+    // netDebt is reduced by tx.total_amount. Subtracting full EMI would mistakenly deduct interest
+    // from remaining principal debt.
+    const principalPaid = Number(amortRow.principal_amount) || Math.max(0, emi - (Number(amortRow.interest_amount) || 0));
+    let txAmt = principalPaid;
     if (entryType === 'PREPAYMENT' || bulk > 0) {
       txType = 'PREPAYMENT';
-      txAmt = bulk > 0 ? bulk : emi;
+      txAmt = bulk > 0 ? bulk : principalPaid;
     } else if (entryType === 'DISBURSEMENT' || disbursed > 0) {
       txType = 'BORROW';
       txAmt = disbursed > 0 ? disbursed : emi;
@@ -117,14 +305,23 @@ export async function getLoanAmortizationData(liabilityId) {
     console.warn('[loanEngine] Supabase fetch error, falling back to local JSON:', err.message);
   }
 
-  // Fallback to local JSON if DB empty or unavailable
-  if (entries.length === 0 && fs.existsSync(DATA_JSON_PATH)) {
+  // 1b. Auto-seed / sync from local JSON if local has more entries than DB
+  if (fs.existsSync(DATA_JSON_PATH)) {
     try {
       const allEntries = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
-      // Filter by liability_id if the JSON contains mixed entries
-      entries = Array.isArray(allEntries) ? allEntries.filter(e => e.liability_id === liabilityId) : [];
+      const relevantLocal = Array.isArray(allEntries) ? allEntries.filter(e => e.liability_id === liabilityId) : [];
+      if (relevantLocal.length > entries.length) {
+        console.log(`[loanEngine] Auto-seeding Supabase from local JSON (${relevantLocal.length} local vs ${entries.length} in DB)`);
+        for (let i = 0; i < relevantLocal.length; i += 50) {
+          const chunk = relevantLocal.slice(i, i + 50);
+          await supabase.from('loan_amortization').upsert(chunk, { onConflict: 'liability_id,date,entry_type' });
+        }
+        entries = relevantLocal;
+      } else if (entries.length === 0 && relevantLocal.length > 0) {
+        entries = relevantLocal;
+      }
     } catch (e) {
-      console.error('[loanEngine] Failed reading fallback JSON:', e.message);
+      console.error('[loanEngine] Failed reading/syncing fallback JSON:', e.message);
     }
   }
 
@@ -339,7 +536,7 @@ export async function addLoanAmortizationEntry(entry) {
   }
   const liabilityId = entry.liability_id;
   const date = entry.date;
-  const entryType = entry.entry_type || (Number(entry.bulk_payment) > 0 ? 'PREPAYMENT' : 'EMI');
+  const entryType = (entry.entry_type || (Number(entry.bulk_payment) > 0 ? 'PREPAYMENT' : 'EMI')).toUpperCase();
   const rate = Number(entry.interest_rate) || 0;
   const bulk = Number(entry.bulk_payment) || 0;
   const emi = Number(entry.emi_amount) || 0;
@@ -355,10 +552,10 @@ export async function addLoanAmortizationEntry(entry) {
     disbursed_amount: disbursed,
     emi_amount: emi,
     bulk_payment: bulk,
-    opening_balance: Number(entry.opening_balance) || 0,
-    interest_amount: Number(entry.interest_amount) || 0,
-    principal_amount: Number(entry.principal_amount) || 0,
-    closing_balance: Number(entry.closing_balance) || 0,
+    opening_balance: 0,
+    interest_amount: 0,
+    principal_amount: 0,
+    closing_balance: 0,
     is_settled: isSettled,
     notes
   };
@@ -375,25 +572,39 @@ export async function addLoanAmortizationEntry(entry) {
     throw new Error(error.message);
   }
 
-  // Update local JSON
-  try {
-    let current = [];
-    if (fs.existsSync(DATA_JSON_PATH)) {
-      current = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
+  // If settled, recompute entire chronological chain
+  let updatedRow = data;
+  if (isSettled) {
+    const chain = await recomputeSettledAmortizationChain(liabilityId);
+    updatedRow = chain.find(r => r.id === data.id || (r.date === date && r.entry_type === entryType)) || data;
+    await syncAmortizationToTransaction(liabilityId, updatedRow, 'UPSERT');
+  } else {
+    // If future projected row, update local JSON
+    try {
+      let current = [];
+      if (fs.existsSync(DATA_JSON_PATH)) {
+        current = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
+      }
+      current.push(data);
+      current.sort((a, b) => a.date.localeCompare(b.date));
+      fs.writeFileSync(DATA_JSON_PATH, JSON.stringify(current, null, 2));
+    } catch (e) {
+      console.warn('[loanEngine] Could not update local JSON:', e.message);
     }
-    current.push(data);
-    current.sort((a, b) => a.date.localeCompare(b.date));
-    fs.writeFileSync(DATA_JSON_PATH, JSON.stringify(current, null, 2));
-  } catch (e) {
-    console.warn('[loanEngine] Could not update local JSON:', e.message);
   }
 
-  // Two-way atomic sync: sync to transactions table if settled
-  if (data && isSettled) {
-    await syncAmortizationToTransaction(liabilityId, data, 'UPSERT');
+  if (rate > 0) {
+    try {
+      await db.update('liabilities', liabilityId, { interest_rate: rate, updated_at: new Date().toISOString() });
+      db.invalidateCache('liabilities');
+    } catch (e) {
+      console.warn('[loanEngine] Could not update liability interest_rate:', e.message);
+    }
   }
 
-  return data;
+  db.invalidateCache('loan_amortization');
+  db.invalidateCache('liabilities');
+  return updatedRow;
 }
 
 export async function updateLoanAmortizationEntry(id, updates) {
@@ -427,9 +638,26 @@ export async function updateLoanAmortizationEntry(id, updates) {
     console.warn('[loanEngine] Could not update local JSON on edit:', e.message);
   }
 
-  // Two-way atomic sync with transactions table
-  if (data) {
-    await syncAmortizationToTransaction(data.liability_id || updates.liability_id, data, data.is_settled ? 'UPSERT' : 'DELETE');
+  // Recompute settled chain and sync
+  const targetLiabId = data?.liability_id || updates.liability_id;
+  if (data && targetLiabId) {
+    if (data.is_settled) {
+      await recomputeSettledAmortizationChain(targetLiabId);
+      await syncAmortizationToTransaction(targetLiabId, data, 'UPSERT');
+    } else {
+      await syncAmortizationToTransaction(targetLiabId, data, 'DELETE');
+    }
+  }
+  if (updates.interest_rate && Number(updates.interest_rate) > 0) {
+    try {
+      const liabilityId = data?.liability_id || updates.liability_id;
+      if (liabilityId) {
+        await db.update('liabilities', liabilityId, { interest_rate: Number(updates.interest_rate), updated_at: new Date().toISOString() });
+        db.invalidateCache('liabilities');
+      }
+    } catch (e) {
+      console.warn('[loanEngine] Could not update liability interest_rate on edit:', e.message);
+    }
   }
 
   return data;
@@ -489,9 +717,12 @@ export async function deleteLoanAmortizationEntry(id) {
     console.warn('[loanEngine] Could not update local JSON on delete:', e.message);
   }
 
-  // Sync delete with transactions
+  // Recompute settled chain and sync delete
   if (targetRow) {
     await syncAmortizationToTransaction(targetRow.liability_id, targetRow, 'DELETE');
+    if (targetRow.liability_id) {
+      await recomputeSettledAmortizationChain(targetRow.liability_id);
+    }
   }
 
   return { success: true, id };

@@ -68,6 +68,8 @@ async function runIntegrityAudit() {
       if (lastTradingLog.nps !== undefined) canonical.nps = lastTradingLog.nps;
       if (lastTradingLog.savings !== undefined) canonical.savings = lastTradingLog.savings;
       if (lastTradingLog.epf !== undefined) canonical.epf = lastTradingLog.epf;
+      if (lastTradingLog.loan !== undefined) canonical.loan = lastTradingLog.loan;
+      if (lastTradingLog.credits !== undefined) canonical.credits = lastTradingLog.credits;
       canonical.total_assets = Number((lastTradingLog.total_assets_inr || lastTradingLog.total_assets).toFixed(2));
       canonical.debt = Number((lastTradingLog.liabilities_inr || lastTradingLog.debt || canonical.debt).toFixed(2));
       canonical.total_wealth = Number((canonical.total_assets - canonical.debt).toFixed(2));

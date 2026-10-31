@@ -588,7 +588,9 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       if (liab) {
         holding = {
           id: liab.id,
-          name: liab.name,
+          name: liab.lender ? `${liab.lender}` : liab.name,
+          lender: liab.lender,
+          facility_name: liab.name,
           symbol: liab.category_id === 'loans' ? 'LOAN' : 'CREDITS',
           category_id: liab.category_id,
           quantity: 1,

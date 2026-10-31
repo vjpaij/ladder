@@ -16,7 +16,7 @@ export default function HoldingLogo({
   const [urls, setUrls] = useState([]);
   const [triedWebLookup, setTriedWebLookup] = useState(false);
 
-  const finalName = name || holding?.name || holding?.clean_name || holding?.asset_name || holding?.company || '';
+  const finalName = name || holding?.lender || holding?.name || holding?.clean_name || holding?.asset_name || holding?.company || '';
   const finalSymbol = symbol || holding?.symbol || '';
   const finalCategory = category || category_id || holding?.category_id || holding?.category || '';
 

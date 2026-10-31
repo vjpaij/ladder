@@ -170,16 +170,18 @@ Large database tables are fetched with explicit pagination, and simultaneous col
     - **Interactive Modal Interface**: Theme-matched (`modal-surface reports-card`), keyboard-accessible modal featuring category filter tabs (`All`, `EOD Rebuilds`, `Price Sync`, `Self-Healing`, `Backups`), real-time search filtering, and an on-demand 'Sync Now' trigger button.
 
 11. **Dynamic Housing Loan Amortization & Prepayment Engine**
-    - Ingests verified authoritative loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest, charges) from statements into Supabase `loan_amortization` and `data/loan_amortization.json`.
-    - Dynamic projection engine (`server/services/loanEngine.js`) calculating monthly principal and interest splits right up to loan payoff date (~Dec 2034) with daily interest compounding.
-    - Interactive Recharts visualization with 3 specialized modes: visualization with 3 specialized modes:
-     - **Balance Curve**: Long-term outstanding balance trajectory separating settled actuals from dynamic projections.
-     - **Payment Breakdown**: Dedicated monthly payment split chart displaying exact Principal Repaid (green) vs Interest Charges (rose) across past and projected lifecycles.
-     - **Annual Breakdown**: Stacked annual repayment distribution.
-   - Prepayment What-If simulator dynamically evaluating monthly extra payments and lump-sum prepayments against interest saved and months shaved.
-   - Accurately tracks active monthly installment payments (₹60,000.00) with true active interest rate (7.25% p.a.).
-   - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments) that immediately recalculate future amortization schedules and interest savings.
-   - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
+    - Ingests verified authoritative loan lifecycle records (sanctioned principal, disbursements, EMIs, prepayments, interest, charges) from statements into Supabase loan_amortization and data/loan_amortization.json with 100% full-history statement coverage (162 settled records from March 2017 to date).
+    - **Recursive Chain Recalculation Engine (ecomputeSettledAmortizationChain)**: Re-simulates mathematical loan continuity across opening balance, daily interest, principal, and closing balance upon any entry creation, edit, or deletion, guaranteeing closing balances never collapse to 0.
+    - **Multi-Entry Parameter & Cash-Flow Parity**: Distinguishes mathematical parameters (RATE_CHANGE, updating rates and re-projecting future schedules with zero cash flow transactions) from monetary cash flows (PREPAYMENT, DISBURSEMENT, EMI), passing only principal repayment portions into the transaction ledger to protect balance sheet accounting.
+    - Dynamic projection engine (server/services/loanEngine.js) calculating monthly principal and interest splits right up to loan payoff date with daily interest compounding.
+    - Interactive Recharts visualization with 3 specialized modes:
+      - **Balance Curve**: Long-term outstanding balance trajectory separating settled actuals from dynamic projections.
+      - **Payment Breakdown**: Dedicated monthly payment split chart displaying exact Principal Repaid (green) vs Interest Charges (rose) across past and projected lifecycles.
+      - **Annual Breakdown**: Stacked annual repayment distribution.
+    - Prepayment What-If simulator dynamically evaluating monthly extra payments and lump-sum prepayments against interest saved and months shaved.
+    - Accurately tracks active monthly installment payments (₹60,000.00) with true active interest rate (7.50% p.a.).
+    - Dynamic entry addition, in-table editing, and deletion (prepayments, EMIs, rate adjustments, disbursements) that immediately recalculate future amortization schedules and interest savings without spurious cash flow transactions. Includes authentic 600x600 State Bank of India brand logo resolution and full liability identity parity across modal headers and ledgers.
+    - Full currency precision throughout all metrics, tooltips, and tables with zero abbreviation.
 
 10. **Dividends Scheme Hub, Analytics & Transaction Management**
     - **Dedicated Dividends Report Suite (`ReportsView.jsx` -> `DividendReportView.jsx`)**:

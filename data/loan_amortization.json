@@ -2583,14 +2583,14 @@
     "interest_rate": 7.5,
     "days_between": 0,
     "disbursed_amount": 0,
-    "emi_amount": 60000,
+    "emi_amount": 0,
     "bulk_payment": 0,
-    "opening_balance": 0,
+    "opening_balance": 4431050,
     "interest_amount": 0,
     "principal_amount": 0,
-    "closing_balance": 0,
+    "closing_balance": 4431050,
     "is_settled": true,
-    "notes": null,
+    "notes": "Interest rate changed to 7.5% p.a.",
     "created_at": "2026-10-31T18:56:41.716413+00:00",
     "updated_at": "2026-10-31T18:56:41.716413+00:00"
   }

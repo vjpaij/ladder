@@ -255,6 +255,10 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
       showError('Please enter an amount.');
       return;
     }
+    if (newEntryType === 'RATE_CHANGE' && (!newRate || Number(newRate) <= 0)) {
+      showError('Please enter a valid interest rate.');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -265,9 +269,9 @@ export default function LoanAmortizationSection({ liabilityId = '00000000-0000-0
         entry_type: isPaymentUpdate ? 'EMI' : newEntryType,
         interest_rate: Number(newRate) || summary.currentInterestRate,
         disbursed_amount: newEntryType === 'DISBURSEMENT' ? Number(newAmount) : 0,
-        emi_amount: (isPaymentUpdate || newEntryType === 'EMI') ? Number(newAmount) : (summary.monthlyPayment || 60000),
+        emi_amount: (isPaymentUpdate || newEntryType === 'EMI') ? Number(newAmount) : 0,
         bulk_payment: newEntryType === 'PREPAYMENT' ? Number(newAmount) : 0,
-        notes: newNotes || (isPaymentUpdate ? `Monthly installment updated to ₹${newAmount}` : newEntryType === 'PREPAYMENT' ? `Voluntary Prepayment ₹${newAmount}` : null)
+        notes: newNotes || (isPaymentUpdate ? `Monthly installment updated to ₹${newAmount}` : newEntryType === 'PREPAYMENT' ? `Voluntary Prepayment ₹${newAmount}` : newEntryType === 'RATE_CHANGE' ? `Interest rate changed to ${newRate}% p.a.` : null)
       };
 
       await axios.post('/api/loan/amortization/entry', payload);
