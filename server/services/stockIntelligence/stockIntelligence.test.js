@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { aggregateWeeklyCloses, analyzeTechnicalTrend, normalizePriceSeries, calculateWeeklyATR, analyzeDaily21EmaPattern } from './technicalIndicators.js';
 import { runTrendStrategy } from './backtestEngine.js';
-import { buildStockAnalyses, calculateTriggeredStagedSell, openCostBasisINR } from './analysisService.js';
+import { buildStockAnalyses, calculateTriggeredStagedSell, openCostBasisINR, calculateOpenLots } from './analysisService.js';
 import { buildCandidateUniverse } from './buyUniverseProvider.js';
 import { buildBuyAnalyses } from './buyAnalysisService.js';
 
@@ -342,6 +342,26 @@ test('Rule 1: Entry-anchored Chandelier trailing stop anchors to peak since purc
   const anchored = analyzeTechnicalTrend(prices, { today, entryDate, entryPrice: 100 });
   assert.equal(anchored.trailingPeakPrice, 102, 'Anchored trailing peak reflects post-entry high');
   assert.ok(anchored.chandelierStopPrice < 102, 'Chandelier stop is below entry peak');
+});
+
+test('Rule 1b: Re-entered position with liquidated historical cycle anchors to active open FIFO lot rather than old liquidated cycle', () => {
+  const holding = {
+    id: 'h_reentry_1',
+    symbol: 'REENTRY_STOCK',
+    category_id: 'in_stocks',
+    quantity: 32,
+    avg_buy_price: 300
+  };
+  const transactions = [
+    { holding_id: 'h_reentry_1', symbol: 'REENTRY_STOCK', date: '2022-11-23', type: 'BUY', quantity: 100, price: 80 },
+    { holding_id: 'h_reentry_1', symbol: 'REENTRY_STOCK', date: '2025-05-08', type: 'SELL', quantity: 100, price: 240 },
+    { holding_id: 'h_reentry_1', symbol: 'REENTRY_STOCK', date: '2026-10-21', type: 'BUY', quantity: 32, price: 300 }
+  ];
+
+  const openLots = calculateOpenLots(holding, transactions);
+  assert.equal(openLots.length, 1, 'Only active cycle lot remains');
+  assert.equal(openLots[0].date, '2026-10-21', 'Earliest open lot date matches active re-entry date');
+  assert.equal(openLots[0].remaining, 32, 'Remaining quantity matches active position');
 });
 
 test('Rule 2: Fresh buy position held <= 5 trading days with loss < 8% is protected under ACCUMULATION_RETEST', () => {

@@ -71,7 +71,7 @@ export default function HoldingLogo({
       className={`relative flex items-center justify-center font-mono font-black shrink-0 ${
         failed
           ? `border border-slate-300/80 dark:border-slate-700/80 bg-slate-100 dark:bg-slate-800/90 shadow-xs ${containerClass}`
-          : `bg-transparent overflow-hidden ${containerClass}`
+          : `bg-white dark:bg-white/95 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs overflow-hidden p-0.5 ${containerClass}`
       }`}
       style={failed && accentColor ? { background: `${accentColor}18`, borderColor: `${accentColor}40`, color: accentColor } : {}}
       title={finalName || finalSymbol}

@@ -174,9 +174,7 @@ async function verifyLogoForDomain(domain) {
 
   const candidates = [
     `https://logos.hunter.io/${cleanDomain}`,
-    `https://unavatar.io/${cleanDomain}?fallback=false`,
-    `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`,
-    `https://icons.duckduckgo.com/ip3/${cleanDomain}.ico`
+    `https://unavatar.io/${cleanDomain}?fallback=false`
   ];
 
   for (const url of candidates) {
@@ -190,12 +188,38 @@ async function verifyLogoForDomain(domain) {
   return null;
 }
 
+const LOCAL_ASSET_LOGOS = {
+  'INDGN': '/logos/indegene.png',
+  'FRACTAL': '/logos/fractal.png',
+  'ANANTRAJ': '/logos/anantraj.png',
+  'VAML': '/logos/vaml.png',
+  'SBCL': '/logos/sbcl.jpg',
+  'TARIL': '/logos/taril.png',
+  'HBLENGINE': '/logos/hblengine.png',
+  'HBLPOWER': '/logos/hblengine.png',
+  'PNB': '/logos/pnb.svg',
+  'TVSMOTOR': '/logos/tvsmotor.svg',
+  'SYRMA': '/logos/syrma.png',
+  'SUDEEPPHRM': '/logos/sudeep.png',
+  'ARTEMISMED': '/logos/artemis.png'
+};
+
 /**
  * Main resolution function: returns logo metadata for any ticker
  */
 export async function getLogoForSymbol(rawSymbol, companyName = '', forceRefresh = false) {
   const clean = cleanSymbol(rawSymbol);
   if (!clean) return null;
+
+  if (LOCAL_ASSET_LOGOS[clean]) {
+    return {
+      symbol: clean,
+      name: companyName || clean,
+      logoUrl: LOCAL_ASSET_LOGOS[clean],
+      verifiedAt: new Date().toISOString(),
+      source: 'Verified High-Resolution Corporate Asset'
+    };
+  }
 
   const cache = loadLogoCache();
   const cached = cache[clean];

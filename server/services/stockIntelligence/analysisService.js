@@ -19,15 +19,12 @@ function priceSeriesFor(symbol, map) {
   return {};
 }
 
-export function openCostBasisINR(holding, transactions = [], { inrConversion = false } = {}) {
+export function calculateOpenLots(holding, transactions = []) {
   const clean = cleanSym(holding.symbol);
   const rows = transactions.filter(tx => String(tx.holding_id) === String(holding.id)
     || (!tx.holding_id && tx.symbol && cleanSym(tx.symbol) === clean))
     .slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  if (!rows.length) {
-    const rawCost = (Number(holding.quantity) || 0) * (Number(holding.avg_buy_price) || 0);
-    return inrConversion && holding.currency === 'USD' ? rawCost * (Number(holding.fx_rate) || 94.96) : rawCost;
-  }
+  if (!rows.length) return [];
   const lots = [];
   for (const tx of rows) {
     const type = String(tx.type || '').toUpperCase();
@@ -49,7 +46,20 @@ export function openCostBasisINR(holding, transactions = [], { inrConversion = f
       }
     }
   }
-  return lots.reduce((sum, lot) => {
+  return lots.filter(lot => lot.remaining > 0);
+}
+
+export function openCostBasisINR(holding, transactions = [], { inrConversion = false } = {}) {
+  const clean = cleanSym(holding.symbol);
+  const rows = transactions.filter(tx => String(tx.holding_id) === String(holding.id)
+    || (!tx.holding_id && tx.symbol && cleanSym(tx.symbol) === clean))
+    .slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (!rows.length) {
+    const rawCost = (Number(holding.quantity) || 0) * (Number(holding.avg_buy_price) || 0);
+    return inrConversion && holding.currency === 'USD' ? rawCost * (Number(holding.fx_rate) || 94.96) : rawCost;
+  }
+  const openLots = calculateOpenLots(holding, transactions);
+  return openLots.reduce((sum, lot) => {
     const lotCostNative = lot.remaining * lot.price + (lot.quantity > 0 ? lot.remaining / lot.quantity * lot.charges : 0);
     return sum + (inrConversion ? (lotCostNative * (lot.fx || 1.0)) : lotCostNative);
   }, 0);
@@ -434,10 +444,12 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const raw = priceSeriesFor(holding.symbol, historicalPriceMap);
     const prices = normalizePriceSeries(raw);
     const hTxs = getHoldingTxs(holding);
+    const openLots = calculateOpenLots(holding, hTxs);
+    const earliestOpenLotDate = openLots[0]?.date || null;
     const buyTxs = hTxs.filter(t => ['BUY', 'INVESTMENT', 'INVESTMENT (SIP)'].includes(t.type)).sort((a,b) => (a.date || '').localeCompare(b.date || ''));
-    const firstBuyDate = buyTxs[0]?.date || null;
+    const firstBuyDate = earliestOpenLotDate || buyTxs[0]?.date || null;
     const latestBuy = buyTxs.at(-1);
-    const entryPrice = Number(holding.avg_buy_price) || Number(latestBuy?.price) || 0;
+    const entryPrice = Number(openLots[0]?.price) || Number(holding.avg_buy_price) || Number(latestBuy?.price) || 0;
     const trend = analyzeTechnicalTrend(raw, {
       today,
       candleMapList: candleList,

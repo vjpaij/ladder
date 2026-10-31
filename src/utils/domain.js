@@ -7,8 +7,6 @@ const pushLogos = (urls, domain) => {
   if (!cleanDomain) return;
   urls.push(`https://logos.hunter.io/${cleanDomain}`);
   urls.push(`https://unavatar.io/${cleanDomain}?fallback=false`);
-  urls.push(`https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`);
-  urls.push(`https://icons.duckduckgo.com/ip3/${cleanDomain}.ico`);
 };
 
 // Known custom domain mappings for companies or schemes
@@ -67,7 +65,17 @@ const KNOWN_STOCK_LOGOS = {
   'RADICO': 'https://logos.hunter.io/radicokhaitan.com',
   'ATHERENERG': 'https://logos.hunter.io/atherenergy.com',
   'CORONA': 'https://logos.hunter.io/coronaremedies.com',
-  'INDGN': 'https://logos.hunter.io/indegene.com',
+  'INDGN': '/logos/indegene.png',
+  'FRACTAL': '/logos/fractal.png',
+  'ANANTRAJ': '/logos/anantraj.png',
+  'VAML': '/logos/vaml.png',
+  'SBCL': '/logos/sbcl.jpg',
+  'TARIL': '/logos/taril.png',
+  'HBLENGINE': '/logos/hblengine.png',
+  'HBLPOWER': '/logos/hblengine.png',
+  'PNB': '/logos/pnb.svg',
+  'TVSMOTOR': '/logos/tvsmotor.svg',
+  'SYRMA': '/logos/syrma.png',
   'SANSERA': 'https://logos.hunter.io/sansera.in',
   'AFFLE': 'https://logos.hunter.io/affle.com',
   'AWL': 'https://logos.hunter.io/adaniwilmar.com',
@@ -98,7 +106,9 @@ const KNOWN_STOCK_LOGOS = {
   'UJJIVANSFB': 'https://logos.hunter.io/ujjivansfb.in',
   'VOLTAS': 'https://logos.hunter.io/voltas.com',
   'WAAREEENER': 'https://logos.hunter.io/waaree.com',
-  'WEBELSOLAR': 'https://logos.hunter.io/websolenergy.com'
+  'WEBELSOLAR': 'https://logos.hunter.io/websolenergy.com',
+  'SUDEEPPHRM': '/logos/sudeep.png',
+  'EMMVEE': 'https://emmvee.com/wp-content/uploads/2019/08/emvlogo.png'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {

@@ -78,9 +78,7 @@ async function verifyLogoForDomain(domain) {
   if (!domain) return null;
   const candidates = [
     `https://logos.hunter.io/${domain}`,
-    `https://unavatar.io/${domain}?fallback=false`,
-    `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
-    `https://icons.duckduckgo.com/ip3/${domain}.ico`
+    `https://unavatar.io/${domain}?fallback=false`
   ];
 
   for (const url of candidates) {
@@ -110,7 +108,8 @@ export async function runResolution() {
   }
 
   // Load all stocks from holdings + buy_analysis_snapshot
-  const holdingsData = JSON.parse(fs.readFileSync('data/db_cache_snapshot.json', 'utf8')).holdings || [];
+  const snap = JSON.parse(fs.readFileSync('data/db_cache_snapshot.json', 'utf8'));
+  const holdingsData = snap.tables?.holdings?.data || snap.holdings || [];
   const buySnapshot = JSON.parse(fs.readFileSync('data/buy_analysis_snapshot.json', 'utf8')).analyses || [];
 
   const allStocks = new Map();
