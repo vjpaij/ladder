@@ -61,32 +61,33 @@ export async function recomputeSettledAmortizationChain(liabilityId) {
   let prevClosing = 0;
   let prevDate = null;
   let currentRate = 7.25;
+  let rateChangeState = null;
 
   for (let i = 0; i < settled.length; i++) {
     const row = settled[i];
-    const rowDate = new Date(row.date);
+    const rowDate = new Date(row.date + 'T00:00:00Z');
 
     // Opening balance strictly inherits previous row's closing balance
     row.opening_balance = i === 0 ? 0 : prevClosing;
 
     // Days between statements
+    let diffDays = 0;
     if (prevDate) {
-      const diffDays = Math.max(0, Math.round((rowDate - prevDate) / (1000 * 60 * 60 * 24)));
+      diffDays = Math.max(0, Math.round((rowDate - prevDate) / (1000 * 60 * 60 * 24)));
       row.days_between = diffDays;
     } else {
-      row.days_between = Number(row.days_between) || 0;
-    }
-
-    // Rate resolution
-    if (Number(row.interest_rate) > 0) {
-      currentRate = Number(row.interest_rate);
-    } else {
-      row.interest_rate = currentRate;
+      diffDays = Number(row.days_between) || 0;
+      row.days_between = diffDays;
     }
 
     const type = (row.entry_type || 'EMI').toUpperCase();
 
     if (type === 'RATE_CHANGE') {
+      const oldRate = currentRate;
+      if (Number(row.interest_rate) > 0) {
+        currentRate = Number(row.interest_rate);
+      }
+      row.interest_rate = currentRate;
       row.disbursed_amount = 0;
       row.bulk_payment = 0;
       row.interest_amount = 0;
@@ -94,7 +95,20 @@ export async function recomputeSettledAmortizationChain(liabilityId) {
       row.emi_amount = 0;
       row.closing_balance = row.opening_balance;
       row.notes = row.notes || `Interest rate changed to ${currentRate}% p.a.`;
-    } else if (type === 'PREPAYMENT') {
+      rateChangeState = { oldRate, changeDate: rowDate, days1: diffDays };
+    } else {
+      // Rate resolution for non-RATE_CHANGE rows
+      if (rateChangeState) {
+        row.interest_rate = currentRate;
+      } else if (Number(row.interest_rate) > 0) {
+        currentRate = Number(row.interest_rate);
+      } else {
+        row.interest_rate = currentRate;
+      }
+
+      if (type === 'PREPAYMENT') {
+      if (!rateChangeState && Number(row.interest_rate) > 0) currentRate = Number(row.interest_rate);
+      row.interest_rate = currentRate;
       const bulk = Number(row.bulk_payment) || Number(row.emi_amount) || 0;
       row.bulk_payment = bulk;
       row.disbursed_amount = 0;
@@ -103,6 +117,8 @@ export async function recomputeSettledAmortizationChain(liabilityId) {
       row.closing_balance = Math.max(0, row.opening_balance - bulk);
       row.notes = row.notes || `Bulk Prepayment ₹${bulk}`;
     } else if (type === 'DISBURSEMENT') {
+      if (Number(row.interest_rate) > 0) currentRate = Number(row.interest_rate);
+      row.interest_rate = currentRate;
       const disbursed = Number(row.disbursed_amount) || 0;
       row.disbursed_amount = disbursed;
       row.interest_amount = 0;
@@ -110,21 +126,45 @@ export async function recomputeSettledAmortizationChain(liabilityId) {
       row.closing_balance = row.opening_balance + disbursed;
       row.notes = row.notes || `Loan Disbursement ₹${disbursed}`;
     } else if (type === 'FEE_OR_ADJUSTMENT') {
+      if (Number(row.interest_rate) > 0) currentRate = Number(row.interest_rate);
+      row.interest_rate = currentRate;
       const adj = Number(row.disbursed_amount) || 0;
       row.interest_amount = 0;
       row.principal_amount = 0;
       row.closing_balance = row.opening_balance + adj;
     } else {
       // Standard EMI or MONTHLY_PAYMENT
+      if (Number(row.interest_rate) > 0) currentRate = Number(row.interest_rate);
+      row.interest_rate = currentRate;
       const emi = Number(row.emi_amount) || 60000;
       row.emi_amount = emi;
       row.disbursed_amount = 0;
       const bulk = Number(row.bulk_payment) || 0;
-      const interest = Math.round(row.opening_balance * (currentRate / 100 / 365) * row.days_between);
-      row.interest_amount = interest;
-      const principal = Math.max(0, Math.min(row.opening_balance, (emi - interest) + bulk));
-      row.principal_amount = principal;
-      row.closing_balance = Math.max(0, row.opening_balance - principal);
+
+      // Check if this historical statement row already has verified principal & interest matching opening balance
+      if (row.closing_balance > 0 && i < settled.length - 1 && Math.abs(row.opening_balance - prevClosing) <= 0.01) {
+        // Retain verified statement numbers from historical bank statements
+        rateChangeState = null;
+      } else {
+        let interest = 0;
+        if (rateChangeState) {
+          // Multi-segment prorated interest:
+          // Segment 1: from previous statement up to rate change date at oldRate
+          const int1 = Math.round(row.opening_balance * (rateChangeState.oldRate / 100 / 365) * rateChangeState.days1);
+          // Segment 2: from rate change date to current EMI date at currentRate
+          const int2 = Math.round(row.opening_balance * (currentRate / 100 / 365) * diffDays);
+          interest = int1 + int2;
+          rateChangeState = null; // Consumed
+        } else {
+          interest = Math.round(row.opening_balance * (currentRate / 100 / 365) * diffDays);
+        }
+
+        row.interest_amount = interest;
+        const principal = Math.max(0, Math.min(row.opening_balance, (emi - interest) + bulk));
+        row.principal_amount = principal;
+        row.closing_balance = Math.max(0, row.opening_balance - principal);
+      }
+    }
     }
 
     prevClosing = row.closing_balance;
@@ -188,8 +228,7 @@ export async function recomputeSettledAmortizationChain(liabilityId) {
     }
   }
 
-  await recomputeSettledAmortizationChain(liabilityId);
-    db.invalidateCache('loan_amortization');
+  db.invalidateCache('loan_amortization');
   db.invalidateCache('liabilities');
   return settled;
 }
@@ -379,8 +418,15 @@ export async function getLoanAmortizationData(liabilityId) {
   let curEmi = standardEmi;
 
   // Start from next month after latest settled date
-  const lastDate = new Date(latestSettled.date);
-  let schedDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+  // Deterministic month advance (strictly avoids UTC timezone shift e.g. 2026-10-31 vs 2026-11-01)
+  const [lastY, lastM] = (latestSettled.date || '2026-11-01').split('-').map(Number);
+  let nextYear = lastY;
+  let nextMonth = lastM + 1;
+  if (nextMonth > 12) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
+  let schedDateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
   const futureSchedule = [];
   let totalProjectedInterest = 0;
@@ -394,14 +440,14 @@ export async function getLoanAmortizationData(liabilityId) {
   });
 
   let maxIterations = 420; // 35 years safety guard
-  let prevDate = new Date(lastDate);
+  let prevDateStr = latestSettled.date;
 
   while (currentBal > 0.01 && maxIterations > 0) {
     maxIterations--;
-    const monthKey = schedDate.toISOString().slice(0, 7);
-    const dateStr = schedDate.toISOString().slice(0, 10);
+    const monthKey = schedDateStr.slice(0, 7);
+    const dateStr = schedDateStr;
 
-    const days = Math.max(1, Math.round((schedDate - prevDate) / (1000 * 60 * 60 * 24)));
+    const days = Math.max(1, Math.round((new Date(dateStr + 'T00:00:00Z') - new Date(prevDateStr + 'T00:00:00Z')) / 86400000));
 
     // Check if custom future entry exists for this month
     const customEntry = futureEntriesByMonth.get(monthKey);
@@ -423,7 +469,18 @@ export async function getLoanAmortizationData(liabilityId) {
 
     const openBal = currentBal;
     // Daily interest formula matching Excel: OpenBal * (Rate / 365) * Days
-    const interest = Math.round(openBal * (curRate / 100 / 365) * days);
+    let interest = 0;
+    if (futureSchedule.length === 0 && latestSettled.entry_type === 'RATE_CHANGE' && settledEntries.length >= 2) {
+      const prevSettled = settledEntries[settledEntries.length - 2];
+      const prevRate = Number(prevSettled.interest_rate) || curRate;
+      const d1 = Math.max(0, Math.round((new Date(latestSettled.date + 'T00:00:00Z') - new Date(prevSettled.date + 'T00:00:00Z')) / 86400000));
+      const int1 = Math.round(openBal * (prevRate / 100 / 365) * d1);
+      const int2 = Math.round(openBal * (curRate / 100 / 365) * days);
+      interest = int1 + int2;
+    } else {
+      interest = Math.round(openBal * (curRate / 100 / 365) * days);
+    }
+
     let totalPaymentForMonth = curEmi + bulkPayment;
     let principal = totalPaymentForMonth - interest;
 
@@ -457,8 +514,14 @@ export async function getLoanAmortizationData(liabilityId) {
       notes: notes
     });
 
-    prevDate = new Date(schedDate);
-    schedDate = new Date(schedDate.getFullYear(), schedDate.getMonth() + 1, 1);
+    prevDateStr = dateStr;
+    let [curY, curM] = dateStr.split('-').map(Number);
+    curM += 1;
+    if (curM > 12) {
+      curM = 1;
+      curY += 1;
+    }
+    schedDateStr = `${curY}-${String(curM).padStart(2, '0')}-01`;
   }
 
   const projectedPayoffDate = futureSchedule.length > 0
@@ -744,18 +807,23 @@ export async function deleteLoanAmortizationEntry(id) {
  *    do nothing — the loanEngine will dynamically regenerate future projections
  *    from the latest settled row on the next GET /api/loan/amortization call.
  */
-export async function settleAmortizationForMonth(liabilityId, txDate, actualEmi) {
+export async function settleAmortizationForMonth(liabilityId, txDate, actualPayment) {
   if (!liabilityId || !txDate) return;
 
   const monthPrefix = txDate.slice(0, 7); // YYYY-MM
+  const startOfMonth = `${monthPrefix}-01`;
+  const [y, m] = monthPrefix.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const endOfMonth = `${monthPrefix}-${String(lastDay).padStart(2, '0')}`;
 
   try {
-    // Find the projected row for this month
+    // 1. Find row in loan_amortization for this month using DATE range
     const { data: rows, error } = await supabase
       .from('loan_amortization')
-      .select('id, date, is_settled, emi_amount, bulk_payment')
+      .select('*')
       .eq('liability_id', liabilityId)
-      .like('date', `${monthPrefix}%`)
+      .gte('date', startOfMonth)
+      .lte('date', endOfMonth)
       .order('date', { ascending: true });
 
     if (error) {
@@ -763,57 +831,76 @@ export async function settleAmortizationForMonth(liabilityId, txDate, actualEmi)
       return;
     }
 
-    if (!rows || rows.length === 0) {
-      // No pre-existing row for this month — nothing to settle (projections will regenerate)
-      console.log(`[loanEngine.settleAmortizationForMonth] No amortization row found for ${monthPrefix}. Projections will regenerate dynamically.`);
-      return;
+    // 2. Fetch liability details for monthly_emi and current interest_rate
+    const allLiabs = await db.select('liabilities');
+    const liability = (allLiabs || []).find(l => String(l.id) === String(liabilityId));
+    const standardEmi = Number(liability?.monthly_emi) || 60000;
+    let currentRate = Number(liability?.interest_rate) || 7.5;
+    if (rows && rows.length > 0) {
+      const lastWithRate = [...rows].reverse().find(r => Number(r.interest_rate) > 0);
+      if (lastWithRate) currentRate = Number(lastWithRate.interest_rate);
     }
 
-    // Pick the first (usually only) row for this month
-    const row = rows[0];
+    // Filter to find an EMI or PREPAYMENT row for this month
+    const existingRow = (rows || []).find(r => r.entry_type !== 'RATE_CHANGE');
+    const emiToSet = Number(actualPayment) >= standardEmi ? Number(actualPayment) : standardEmi;
 
-    // If already settled, nothing to do
-    if (row.is_settled === true) {
-      console.log(`[loanEngine.settleAmortizationForMonth] Row ${row.id} for ${monthPrefix} is already settled. Skipping.`);
-      return;
-    }
-
-    const updatePayload = {
-      is_settled: true,
-      emi_amount: Number(actualEmi) || Number(row.emi_amount) || 0,
-      updated_at: new Date().toISOString()
-    };
-
-    const { error: updateError } = await supabase
-      .from('loan_amortization')
-      .update(updatePayload)
-      .eq('id', row.id);
-
-    if (updateError) {
-      console.warn('[loanEngine.settleAmortizationForMonth] Supabase update error:', updateError.message);
-      return;
-    }
-
-    // Sync local JSON file
-    try {
-      if (fs.existsSync(DATA_JSON_PATH)) {
-        let current = JSON.parse(fs.readFileSync(DATA_JSON_PATH, 'utf-8'));
-        current = current.map(item =>
-          item.id === row.id ? { ...item, ...updatePayload } : item
-        );
-        fs.writeFileSync(DATA_JSON_PATH, JSON.stringify(current, null, 2));
+    if (existingRow) {
+      if (existingRow.is_settled === true && existingRow.date === txDate) {
+        console.log(`[loanEngine.settleAmortizationForMonth] Row ${existingRow.id} for ${monthPrefix} is already settled.`);
+        return;
       }
-    } catch (e) {
-      console.warn('[loanEngine.settleAmortizationForMonth] Could not sync local JSON:', e.message);
+
+      // Update existing row to settled
+      const updatePayload = {
+        date: txDate,
+        is_settled: true,
+        emi_amount: emiToSet,
+        interest_rate: currentRate,
+        updated_at: new Date().toISOString()
+      };
+
+      await supabase
+        .from('loan_amortization')
+        .update(updatePayload)
+        .eq('id', existingRow.id);
+    } else {
+      // Insert new settled row
+      const newRecord = {
+        liability_id: liabilityId,
+        date: txDate,
+        entry_type: 'EMI',
+        interest_rate: currentRate,
+        disbursed_amount: 0,
+        emi_amount: emiToSet,
+        bulk_payment: 0,
+        opening_balance: 0,
+        interest_amount: 0,
+        principal_amount: 0,
+        closing_balance: 0,
+        is_settled: true,
+        notes: 'Settled EMI'
+      };
+
+      const { error: insertErr } = await supabase
+        .from('loan_amortization')
+        .insert(newRecord);
+
+      if (insertErr) {
+        console.warn('[loanEngine.settleAmortizationForMonth] Insert error:', insertErr.message);
+        return;
+      }
     }
+
+    // Now recompute the entire settled chain
+    await recomputeSettledAmortizationChain(liabilityId);
 
     db.invalidateCache('loan_amortization');
     db.invalidateCache('liabilities');
     db.invalidateCache('transactions');
     triggerEodRebuildIfPastDate(txDate);
-
-    console.log(`[loanEngine.settleAmortizationForMonth] ✅ Settled amortization row ${row.id} for ${monthPrefix} | EMI: ₹${actualEmi}`);
+    console.log(`[loanEngine.settleAmortizationForMonth] ✅ Settled amortization for ${txDate}`);
   } catch (err) {
-    console.warn('[loanEngine.settleAmortizationForMonth] Unexpected error:', err.message);
+    console.warn('[loanEngine.settleAmortizationForMonth] Error:', err.message);
   }
 }

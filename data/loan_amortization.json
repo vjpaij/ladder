@@ -1,5 +1,6 @@
 [
   {
+    "id": "e3238d3a-6a14-4120-8777-1e34e4a6fc12",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-03-13",
     "entry_type": "FEE_OR_ADJUSTMENT",
@@ -13,9 +14,12 @@
     "principal_amount": 0,
     "closing_balance": 1100,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:29.927+00:00"
   },
   {
+    "id": "7a79e0eb-7c24-456e-bd01-34878520a167",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-03-22",
     "entry_type": "DISBURSEMENT",
@@ -29,9 +33,12 @@
     "principal_amount": 0,
     "closing_balance": 431060,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹429960",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.006+00:00"
   },
   {
+    "id": "cb4e811f-8d4d-41b5-8404-9d2ecd8d032a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-03-23",
     "entry_type": "PREPAYMENT",
@@ -45,9 +52,12 @@
     "principal_amount": 1100,
     "closing_balance": 429960,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹1100"
+    "notes": "Bulk Prepayment ₹1100",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.122+00:00"
   },
   {
+    "id": "78fa56cb-1991-44dd-b8e2-00b38b66429d",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-03-24",
     "entry_type": "FEE_OR_ADJUSTMENT",
@@ -61,9 +71,12 @@
     "principal_amount": 0,
     "closing_balance": 430075,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.203+00:00"
   },
   {
+    "id": "f3b63cca-451d-463e-baaa-bcbf2b9ce05d",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-03-28",
     "entry_type": "PREPAYMENT",
@@ -77,9 +90,12 @@
     "principal_amount": 20,
     "closing_balance": 430055,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹20"
+    "notes": "Bulk Prepayment ₹20",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.292+00:00"
   },
   {
+    "id": "2d0919f3-e573-446c-8b51-e2a31dff925a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-04-01",
     "entry_type": "EMI",
@@ -93,9 +109,12 @@
     "principal_amount": 0,
     "closing_balance": 430055,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.37+00:00"
   },
   {
+    "id": "4412591c-b64b-4ae9-a6dc-6cbfc745405c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-05-01",
     "entry_type": "EMI",
@@ -109,9 +128,12 @@
     "principal_amount": 0,
     "closing_balance": 430055,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.432+00:00"
   },
   {
+    "id": "493ce691-6bff-4a18-9bdf-28f887d7f956",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-06-01",
     "entry_type": "EMI",
@@ -125,9 +147,12 @@
     "principal_amount": 0,
     "closing_balance": 430055,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.495+00:00"
   },
   {
+    "id": "51ccb04a-239a-4caf-9482-cc7e41881714",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-06-30",
     "entry_type": "FEE_OR_ADJUSTMENT",
@@ -141,9 +166,12 @@
     "principal_amount": 0,
     "closing_balance": 433201,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.556+00:00"
   },
   {
+    "id": "90e5d8c1-ba1c-4784-9570-02b8ad2fb27c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-08-01",
     "entry_type": "EMI",
@@ -157,9 +185,12 @@
     "principal_amount": 0,
     "closing_balance": 433201,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.62+00:00"
   },
   {
+    "id": "41242213-ad97-4d0c-93be-043bba9143db",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-09-01",
     "entry_type": "EMI",
@@ -173,9 +204,12 @@
     "principal_amount": 0,
     "closing_balance": 433201,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.693+00:00"
   },
   {
+    "id": "83977958-997f-413b-84cd-b0ae88c72b94",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-09-12",
     "entry_type": "DISBURSEMENT",
@@ -189,9 +223,12 @@
     "principal_amount": 0,
     "closing_balance": 863161,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹429960",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.752+00:00"
   },
   {
+    "id": "d1d9666e-3528-4a37-b69b-fb300af0b414",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-10-01",
     "entry_type": "EMI",
@@ -205,9 +242,12 @@
     "principal_amount": 0,
     "closing_balance": 863161,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.807+00:00"
   },
   {
+    "id": "e4ef3cda-b8c9-42c1-9a18-fb5aefdd7d91",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-10-25",
     "entry_type": "FEE_OR_ADJUSTMENT",
@@ -221,9 +261,12 @@
     "principal_amount": 0,
     "closing_balance": 863751,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.872+00:00"
   },
   {
+    "id": "77a67c92-c4cf-4d7b-a02b-acebd26dd42f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-11-01",
     "entry_type": "EMI",
@@ -237,9 +280,12 @@
     "principal_amount": 0,
     "closing_balance": 863751,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:30.938+00:00"
   },
   {
+    "id": "ef814ee7-c434-45e3-85f0-57943f1c833a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2017-12-01",
     "entry_type": "EMI",
@@ -253,9 +299,12 @@
     "principal_amount": 0,
     "closing_balance": 863751,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.016+00:00"
   },
   {
+    "id": "c658efe7-c660-4313-849a-1e54b5a24a0c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-01-01",
     "entry_type": "EMI",
@@ -269,9 +318,12 @@
     "principal_amount": 0,
     "closing_balance": 863751,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.077+00:00"
   },
   {
+    "id": "191a65f1-ad3e-4ff9-ae62-7d415cdf1cd0",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-01-18",
     "entry_type": "DISBURSEMENT",
@@ -285,9 +337,12 @@
     "principal_amount": 0,
     "closing_balance": 1326413,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹462662",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.157+00:00"
   },
   {
+    "id": "c215cba2-fadd-4309-8f6f-807e894d83e7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-02-01",
     "entry_type": "EMI",
@@ -301,9 +356,12 @@
     "principal_amount": 0,
     "closing_balance": 1326413,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.221+00:00"
   },
   {
+    "id": "38cdafeb-e9b0-400b-bfdd-a7fccd97488d",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-03-01",
     "entry_type": "EMI",
@@ -317,9 +375,12 @@
     "principal_amount": 0,
     "closing_balance": 1326413,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.284+00:00"
   },
   {
+    "id": "555fa859-c943-47d2-b9b7-0d4b1e8140c7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-03-13",
     "entry_type": "RATE_CHANGE",
@@ -333,9 +394,12 @@
     "principal_amount": 0,
     "closing_balance": 1326413,
     "is_settled": true,
-    "notes": "Rate Change to 8.8%"
+    "notes": "Rate Change to 8.8%",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.341+00:00"
   },
   {
+    "id": "bf38acca-48c9-4d15-86aa-b64eedf6a9a1",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-04-01",
     "entry_type": "EMI",
@@ -349,9 +413,12 @@
     "principal_amount": 0,
     "closing_balance": 1326413,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.399+00:00"
   },
   {
+    "id": "8ffd3485-2a45-4599-b1c0-d94d472f60f2",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-04-06",
     "entry_type": "DISBURSEMENT",
@@ -365,9 +432,12 @@
     "principal_amount": 0,
     "closing_balance": 1833671,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507258",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.462+00:00"
   },
   {
+    "id": "98b7a6dd-f5f0-45b2-b0ab-c85e6ebaac10",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-05-01",
     "entry_type": "EMI",
@@ -381,9 +451,12 @@
     "principal_amount": 0,
     "closing_balance": 1833671,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.52+00:00"
   },
   {
+    "id": "e5c6963f-dc4c-4560-98cb-f1b2e19ccb8b",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-05-10",
     "entry_type": "DISBURSEMENT",
@@ -397,9 +470,12 @@
     "principal_amount": 0,
     "closing_balance": 2341021,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507350",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.583+00:00"
   },
   {
+    "id": "eaebd041-b2a7-42a8-b7e3-0e91a97f047f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-06-01",
     "entry_type": "EMI",
@@ -413,9 +489,12 @@
     "principal_amount": 0,
     "closing_balance": 2341021,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.644+00:00"
   },
   {
+    "id": "bffda909-8f45-406e-ae75-376bd7c8fd42",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-06-15",
     "entry_type": "DISBURSEMENT",
@@ -429,9 +508,12 @@
     "principal_amount": 0,
     "closing_balance": 2848371,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507350",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.706+00:00"
   },
   {
+    "id": "36ac3a40-705c-467a-a85d-21210232893a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-07-01",
     "entry_type": "EMI",
@@ -445,9 +527,12 @@
     "principal_amount": 0,
     "closing_balance": 2848371,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.769+00:00"
   },
   {
+    "id": "ac5728da-bd3f-4bf8-b8b1-c1bbcdff209a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-07-16",
     "entry_type": "DISBURSEMENT",
@@ -461,9 +546,12 @@
     "principal_amount": 0,
     "closing_balance": 3355721,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507350",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.826+00:00"
   },
   {
+    "id": "8e4e63f4-4c4b-4e57-b9ab-1cb6de3ae2c6",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-08-01",
     "entry_type": "EMI",
@@ -477,9 +565,12 @@
     "principal_amount": 0,
     "closing_balance": 3355721,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.881+00:00"
   },
   {
+    "id": "29905514-7d86-4a4a-8299-66e53e882319",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-08-21",
     "entry_type": "DISBURSEMENT",
@@ -493,9 +584,12 @@
     "principal_amount": 0,
     "closing_balance": 3863071,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507350",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.938+00:00"
   },
   {
+    "id": "e9201309-995a-4f3e-9502-ff1221ad17bb",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-09-01",
     "entry_type": "EMI",
@@ -509,9 +603,12 @@
     "principal_amount": 0,
     "closing_balance": 3863071,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:31.994+00:00"
   },
   {
+    "id": "7c440557-a92f-4573-95f9-3613f75dc198",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-09-25",
     "entry_type": "DISBURSEMENT",
@@ -525,9 +622,12 @@
     "principal_amount": 0,
     "closing_balance": 4370421,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507350",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.054+00:00"
   },
   {
+    "id": "d889e4e0-549c-4398-8333-2f12401fda33",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-09-26",
     "entry_type": "DISBURSEMENT",
@@ -541,9 +641,12 @@
     "principal_amount": 0,
     "closing_balance": 4433421,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹63000",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.11+00:00"
   },
   {
+    "id": "c0a265a0-6294-4654-ba8e-95580c0d48d0",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-10-01",
     "entry_type": "EMI",
@@ -557,9 +660,12 @@
     "principal_amount": 0,
     "closing_balance": 4433421,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.173+00:00"
   },
   {
+    "id": "c1796496-1ed5-4053-be72-6dcdb0bf86b1",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-11-01",
     "entry_type": "EMI",
@@ -573,9 +679,12 @@
     "principal_amount": 0,
     "closing_balance": 4433421,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.229+00:00"
   },
   {
+    "id": "0c5402c7-a35c-4c0e-9486-50fb7c7092e7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2018-12-01",
     "entry_type": "EMI",
@@ -589,9 +698,12 @@
     "principal_amount": 0,
     "closing_balance": 4433421,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.285+00:00"
   },
   {
+    "id": "b419e13a-2922-4eb8-95b8-3ace40de9254",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-01-01",
     "entry_type": "EMI",
@@ -605,9 +717,12 @@
     "principal_amount": 0,
     "closing_balance": 4433421,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.342+00:00"
   },
   {
+    "id": "2f3d37e9-29e7-43be-b34b-9200262b1ba1",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-01-25",
     "entry_type": "DISBURSEMENT",
@@ -621,9 +736,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507350",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.406+00:00"
   },
   {
+    "id": "c97a4b19-2940-4e36-aed0-9eefd677ba09",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-02-01",
     "entry_type": "EMI",
@@ -637,9 +755,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.465+00:00"
   },
   {
+    "id": "2d44acc6-2f08-4f22-89c1-f02c9ec191b7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-03-01",
     "entry_type": "EMI",
@@ -653,9 +774,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.543+00:00"
   },
   {
+    "id": "cc95566d-228d-40af-9fe5-7b6e12437574",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-03-13",
     "entry_type": "RATE_CHANGE",
@@ -669,9 +793,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": "Rate Change to 9.2%"
+    "notes": "Rate Change to 9.2%",
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.599+00:00"
   },
   {
+    "id": "23bb20be-db14-4aac-bbae-d9387bcb52f7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-04-01",
     "entry_type": "EMI",
@@ -685,9 +812,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.663+00:00"
   },
   {
+    "id": "a6b065c3-b8d3-4de8-a165-39a8e6775cb7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-05-01",
     "entry_type": "EMI",
@@ -701,9 +831,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.719+00:00"
   },
   {
+    "id": "3848f572-575e-4d06-99ab-f9417143bf10",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-06-01",
     "entry_type": "EMI",
@@ -717,9 +850,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.78+00:00"
   },
   {
+    "id": "8b9de6e8-2b1f-4f12-85f3-a56d58d407d1",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-07-01",
     "entry_type": "EMI",
@@ -733,9 +869,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.849+00:00"
   },
   {
+    "id": "c7abd6fe-0c7e-41de-835d-e0fdb3fc76ae",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-08-01",
     "entry_type": "EMI",
@@ -749,9 +888,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.907+00:00"
   },
   {
+    "id": "a3e211cd-d923-4683-9b46-8191f08fadf4",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-09-01",
     "entry_type": "EMI",
@@ -765,9 +907,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:32.964+00:00"
   },
   {
+    "id": "e1e42a68-dc2e-4234-8d90-d26e0fc48aee",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-10-01",
     "entry_type": "EMI",
@@ -781,9 +926,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:33.02+00:00"
   },
   {
+    "id": "7921dad5-61ff-4258-9d37-4fe8fd6ad6ee",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-11-01",
     "entry_type": "EMI",
@@ -797,9 +945,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.705917+00:00",
+    "updated_at": "2026-11-01T08:32:33.146+00:00"
   },
   {
+    "id": "9120016a-149b-4d7c-9043-660487a0533d",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2019-12-01",
     "entry_type": "EMI",
@@ -813,9 +964,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.208+00:00"
   },
   {
+    "id": "01dbf4bb-28ae-4643-8834-a9ae0542881e",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-01-01",
     "entry_type": "EMI",
@@ -829,9 +983,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.268+00:00"
   },
   {
+    "id": "3ba90f35-36b5-4fae-98df-af2980ba3ad1",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-02-01",
     "entry_type": "EMI",
@@ -845,9 +1002,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.327+00:00"
   },
   {
+    "id": "e5fe4805-db9a-4bbb-866a-48b8b316f107",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-03-01",
     "entry_type": "EMI",
@@ -861,9 +1021,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.387+00:00"
   },
   {
+    "id": "1d416e6b-980d-4fd6-bd52-186c70118f22",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-03-13",
     "entry_type": "RATE_CHANGE",
@@ -877,9 +1040,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": "Rate Change to 8.4%"
+    "notes": "Rate Change to 8.4%",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.447+00:00"
   },
   {
+    "id": "57ddd7eb-de25-457c-925d-27ac3921c673",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-04-01",
     "entry_type": "EMI",
@@ -893,9 +1059,12 @@
     "principal_amount": 0,
     "closing_balance": 4940771,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.512+00:00"
   },
   {
+    "id": "0549b37a-3397-4210-99b0-5bba7428b95a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-04-22",
     "entry_type": "DISBURSEMENT",
@@ -909,9 +1078,12 @@
     "principal_amount": 0,
     "closing_balance": 5448121,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹507350",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.577+00:00"
   },
   {
+    "id": "47b31e01-824f-4fc6-864e-4e88a521694e",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-05-01",
     "entry_type": "EMI",
@@ -925,9 +1097,12 @@
     "principal_amount": 0,
     "closing_balance": 5448121,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.648+00:00"
   },
   {
+    "id": "04a90c1e-60a0-4b73-88b4-04f217312fcd",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-06-01",
     "entry_type": "EMI",
@@ -941,9 +1116,12 @@
     "principal_amount": 0,
     "closing_balance": 5448121,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.71+00:00"
   },
   {
+    "id": "02974fd5-84c8-48a6-9b65-d15acce034d1",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-06-15",
     "entry_type": "RATE_CHANGE",
@@ -957,9 +1135,12 @@
     "principal_amount": 0,
     "closing_balance": 5448121,
     "is_settled": true,
-    "notes": "Rate Change to 7.65%"
+    "notes": "Rate Change to 7.65%",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.769+00:00"
   },
   {
+    "id": "9f41b4c4-680b-4708-8a36-b202dfadf2fb",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-06-19",
     "entry_type": "PREPAYMENT",
@@ -973,13 +1154,16 @@
     "principal_amount": 42650,
     "closing_balance": 5405471,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹42650"
+    "notes": "Bulk Prepayment ₹42650",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.824+00:00"
   },
   {
+    "id": "3a8ee4e2-2fb8-477a-8ba6-5a2cf9709ec0",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-07-01",
     "entry_type": "EMI",
-    "interest_rate": 7.25,
+    "interest_rate": 7.65,
     "days_between": 12,
     "disbursed_amount": 0,
     "emi_amount": 55515,
@@ -989,9 +1173,12 @@
     "principal_amount": 19800,
     "closing_balance": 5385671,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.896+00:00"
   },
   {
+    "id": "6c6e1b43-51a4-4c05-aa22-57507ebc6801",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-08-01",
     "entry_type": "EMI",
@@ -1005,9 +1192,12 @@
     "principal_amount": 22352,
     "closing_balance": 5363319,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:33.955+00:00"
   },
   {
+    "id": "cc4cae02-fee1-44f3-9f46-06da25fe0c93",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-09-01",
     "entry_type": "EMI",
@@ -1021,9 +1211,12 @@
     "principal_amount": 22490,
     "closing_balance": 5340829,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.023+00:00"
   },
   {
+    "id": "123bbdb0-b7f5-43d2-b3c6-fa9ff0536ab6",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-10-01",
     "entry_type": "EMI",
@@ -1037,9 +1230,12 @@
     "principal_amount": 23689,
     "closing_balance": 5317140,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.079+00:00"
   },
   {
+    "id": "9104da7c-49b5-493f-ae03-1a15d04f9d90",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-11-01",
     "entry_type": "EMI",
@@ -1053,9 +1249,12 @@
     "principal_amount": 22775,
     "closing_balance": 5294365,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.138+00:00"
   },
   {
+    "id": "af3bde53-1ee0-46d7-a7c5-157ee4ccb4d4",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-11-03",
     "entry_type": "PREPAYMENT",
@@ -1069,9 +1268,12 @@
     "principal_amount": 4514.15,
     "closing_balance": 5289850.85,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹4514.15"
+    "notes": "Bulk Prepayment ₹4514.15",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.197+00:00"
   },
   {
+    "id": "36a887e3-3928-474c-ab86-634211a2ae2e",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2020-12-01",
     "entry_type": "EMI",
@@ -1085,9 +1287,12 @@
     "principal_amount": 23992,
     "closing_balance": 5265858.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.254+00:00"
   },
   {
+    "id": "76eeaa60-0a9c-49b5-b412-786baf352791",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-01-01",
     "entry_type": "EMI",
@@ -1101,9 +1306,12 @@
     "principal_amount": 23090,
     "closing_balance": 5242768.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.312+00:00"
   },
   {
+    "id": "366019aa-d588-47d6-84e0-09f658fe14a3",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-02-01",
     "entry_type": "EMI",
@@ -1117,9 +1325,12 @@
     "principal_amount": 23233,
     "closing_balance": 5219535.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.372+00:00"
   },
   {
+    "id": "4a8ac8b8-2831-44ff-806d-586eaa4ce7bf",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-02-04",
     "entry_type": "DISBURSEMENT",
@@ -1133,9 +1344,12 @@
     "principal_amount": 0,
     "closing_balance": 6376535.85,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹1157000",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.441+00:00"
   },
   {
+    "id": "1c9f25ba-aa85-4844-a16f-eb8a7229ed8b",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-02-09",
     "entry_type": "DISBURSEMENT",
@@ -1149,9 +1363,12 @@
     "principal_amount": 0,
     "closing_balance": 6724145.85,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹347610",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.501+00:00"
   },
   {
+    "id": "2bf15396-9fb1-4350-abd0-4bdf4be3e61c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-03-01",
     "entry_type": "EMI",
@@ -1165,9 +1382,12 @@
     "principal_amount": 19359,
     "closing_balance": 6704786.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.561+00:00"
   },
   {
+    "id": "04708df8-b02c-40c8-87c9-8c76c32a7e37",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-03-01",
     "entry_type": "PREPAYMENT",
@@ -1181,9 +1401,12 @@
     "principal_amount": 230156,
     "closing_balance": 6474630.85,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹230156"
+    "notes": "Bulk Prepayment ₹230156",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.621+00:00"
   },
   {
+    "id": "7ee6a5b5-23df-4d77-b5b9-f3082e8d7b33",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-03-30",
     "entry_type": "PREPAYMENT",
@@ -1197,9 +1420,12 @@
     "principal_amount": 54246,
     "closing_balance": 6420384.85,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹54246"
+    "notes": "Bulk Prepayment ₹54246",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.675+00:00"
   },
   {
+    "id": "644b34cd-b694-47fc-a470-d5087ab7e273",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-04-29",
     "entry_type": "EMI",
@@ -1213,9 +1439,12 @@
     "principal_amount": 14669,
     "closing_balance": 6405715.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.734+00:00"
   },
   {
+    "id": "5fcd205b-6feb-4352-85c8-fc6b74ab3aa8",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-04-30",
     "entry_type": "DISBURSEMENT",
@@ -1229,9 +1458,12 @@
     "principal_amount": 0,
     "closing_balance": 6444191.85,
     "is_settled": true,
-    "notes": null
+    "notes": "Loan Disbursement ₹38476",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.793+00:00"
   },
   {
+    "id": "55ba01b6-a1d3-4942-a8b0-91db188055cf",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-05-06",
     "entry_type": "FEE_OR_ADJUSTMENT",
@@ -1245,9 +1477,12 @@
     "principal_amount": 0,
     "closing_balance": 6444309.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.848+00:00"
   },
   {
+    "id": "47f4e006-1843-4c38-aaf0-db3827942169",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-06-01",
     "entry_type": "EMI",
@@ -1261,9 +1496,12 @@
     "principal_amount": 15834,
     "closing_balance": 6428475.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.904+00:00"
   },
   {
+    "id": "4d48ed55-578b-40ae-8348-7aae524a68c8",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-07-01",
     "entry_type": "EMI",
@@ -1277,9 +1515,12 @@
     "principal_amount": 17208,
     "closing_balance": 6411267.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:34.961+00:00"
   },
   {
+    "id": "b2b689cb-a620-4936-9dba-318b746341b2",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-08-01",
     "entry_type": "EMI",
@@ -1293,9 +1534,12 @@
     "principal_amount": 16037,
     "closing_balance": 6395230.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.027+00:00"
   },
   {
+    "id": "19fa7ff5-fcf3-42c8-95ca-80849107f726",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-09-01",
     "entry_type": "EMI",
@@ -1309,9 +1553,12 @@
     "principal_amount": 16136,
     "closing_balance": 6379094.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.104+00:00"
   },
   {
+    "id": "89a5c84a-1165-4753-83f8-f259866ae44a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-10-01",
     "entry_type": "EMI",
@@ -1325,9 +1572,12 @@
     "principal_amount": 17503,
     "closing_balance": 6361591.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.161+00:00"
   },
   {
+    "id": "4c7aa8df-053f-4b3b-ade2-84bc201e793c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-11-01",
     "entry_type": "EMI",
@@ -1341,9 +1591,12 @@
     "principal_amount": 16343,
     "closing_balance": 6345248.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.218+00:00"
   },
   {
+    "id": "e85207be-1951-4b19-89fe-03a8d37deaf9",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-11-23",
     "entry_type": "FEE_OR_ADJUSTMENT",
@@ -1357,9 +1610,12 @@
     "principal_amount": 0,
     "closing_balance": 6351148.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.279+00:00"
   },
   {
+    "id": "f6bac2ac-efcb-44a1-9e5d-36a4e42d7782",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2021-12-01",
     "entry_type": "EMI",
@@ -1373,9 +1629,12 @@
     "principal_amount": 17695,
     "closing_balance": 6333453.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.339+00:00"
   },
   {
+    "id": "c613a625-c313-4fd8-ba91-1573f50841cc",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-01-01",
     "entry_type": "EMI",
@@ -1389,9 +1648,12 @@
     "principal_amount": 16517,
     "closing_balance": 6316936.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.404+00:00"
   },
   {
+    "id": "fc7d2380-ca54-4c96-89b1-0935923c8cc5",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-02-01",
     "entry_type": "EMI",
@@ -1405,9 +1667,12 @@
     "principal_amount": 16618,
     "closing_balance": 6300318.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.466+00:00"
   },
   {
+    "id": "6b0bca07-6afa-4002-9a18-04a1e54b129c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-03-01",
     "entry_type": "EMI",
@@ -1421,9 +1686,12 @@
     "principal_amount": 20475,
     "closing_balance": 6279843.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.522+00:00"
   },
   {
+    "id": "ef29ddf0-0946-421c-b5ba-ad16525c2289",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-03-28",
     "entry_type": "PREPAYMENT",
@@ -1437,9 +1705,12 @@
     "principal_amount": 55515,
     "closing_balance": 6224328.85,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹55515"
+    "notes": "Bulk Prepayment ₹55515",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.588+00:00"
   },
   {
+    "id": "2c24c794-f98e-4f91-a7ae-e7914b2f0a71",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-04-01",
     "entry_type": "EMI",
@@ -1453,9 +1724,12 @@
     "principal_amount": 16891,
     "closing_balance": 6207437.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.643+00:00"
   },
   {
+    "id": "f78775bf-1977-4edd-ad9a-170bb0ce9c84",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-05-01",
     "entry_type": "EMI",
@@ -1469,9 +1743,12 @@
     "principal_amount": 18526,
     "closing_balance": 6188911.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.725+00:00"
   },
   {
+    "id": "efa8816f-3666-43a7-b4a7-290e80a6b10a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-06-01",
     "entry_type": "EMI",
@@ -1485,9 +1762,12 @@
     "principal_amount": 17407,
     "closing_balance": 6171504.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.805+00:00"
   },
   {
+    "id": "70034d93-03da-4dca-819a-0e6edb9639d2",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-06-15",
     "entry_type": "RATE_CHANGE",
@@ -1501,9 +1781,12 @@
     "principal_amount": 0,
     "closing_balance": 6171504.85,
     "is_settled": true,
-    "notes": "Rate Change to 8.15%"
+    "notes": "Rate Change to 8.15%",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.879+00:00"
   },
   {
+    "id": "a2f54c91-45e8-436a-8e95-549805307f89",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-07-01",
     "entry_type": "EMI",
@@ -1517,9 +1800,12 @@
     "principal_amount": 15358,
     "closing_balance": 6156146.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.936+00:00"
   },
   {
+    "id": "423f7876-d589-4f37-968a-c0568a6d4785",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-08-01",
     "entry_type": "EMI",
@@ -1533,9 +1819,12 @@
     "principal_amount": 12903,
     "closing_balance": 6143243.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:35.999+00:00"
   },
   {
+    "id": "9bc02592-ee89-467a-825f-4b183d0c3aaa",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-08-15",
     "entry_type": "RATE_CHANGE",
@@ -1549,9 +1838,12 @@
     "principal_amount": 0,
     "closing_balance": 6143243.85,
     "is_settled": true,
-    "notes": "Rate Change to 8.65%"
+    "notes": "Rate Change to 8.65%",
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:36.062+00:00"
   },
   {
+    "id": "550040b9-cc4b-4921-9f74-0493d817511f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-09-01",
     "entry_type": "EMI",
@@ -1565,9 +1857,12 @@
     "principal_amount": 11561,
     "closing_balance": 6131682.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:36.126+00:00"
   },
   {
+    "id": "7ac460fe-dfd6-408a-a5a2-e351f7f21d48",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-10-01",
     "entry_type": "EMI",
@@ -1581,9 +1876,12 @@
     "principal_amount": 11921,
     "closing_balance": 6119761.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:36.179+00:00"
   },
   {
+    "id": "efd47bdd-da64-40d6-a3e2-96a8db71fca7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-11-01",
     "entry_type": "EMI",
@@ -1597,9 +1895,12 @@
     "principal_amount": 7957,
     "closing_balance": 6111804.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.818805+00:00",
+    "updated_at": "2026-11-01T08:32:36.236+00:00"
   },
   {
+    "id": "df39aa07-9423-4934-af00-211dc528d9c3",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-12-01",
     "entry_type": "EMI",
@@ -1613,9 +1914,12 @@
     "principal_amount": 9551,
     "closing_balance": 6102253.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.293+00:00"
   },
   {
+    "id": "badf82e6-fd32-4f71-9f7a-500922aaa81f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2022-12-15",
     "entry_type": "RATE_CHANGE",
@@ -1629,9 +1933,12 @@
     "principal_amount": 0,
     "closing_balance": 6102253.85,
     "is_settled": true,
-    "notes": "Rate Change to 9.5%"
+    "notes": "Rate Change to 9.5%",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.388+00:00"
   },
   {
+    "id": "c395fcea-a5ed-4d4b-89d9-65ca372f1e70",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-01-01",
     "entry_type": "EMI",
@@ -1645,9 +1952,12 @@
     "principal_amount": 7098,
     "closing_balance": 6095155.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.445+00:00"
   },
   {
+    "id": "31656c38-2786-4d6f-b975-5af30c69e71d",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-02-01",
     "entry_type": "EMI",
@@ -1661,9 +1971,12 @@
     "principal_amount": 6336,
     "closing_balance": 6088819.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.51+00:00"
   },
   {
+    "id": "1ab0a11f-8c97-4f81-93d6-d4739812c84c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-02-15",
     "entry_type": "RATE_CHANGE",
@@ -1677,9 +1990,12 @@
     "principal_amount": 0,
     "closing_balance": 6088819.85,
     "is_settled": true,
-    "notes": "Rate Change to 9.75%"
+    "notes": "Rate Change to 9.75%",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.567+00:00"
   },
   {
+    "id": "0bda8dab-abd8-4ed6-ae64-35799cbab8cb",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-03-01",
     "entry_type": "EMI",
@@ -1693,9 +2009,12 @@
     "principal_amount": 10558,
     "closing_balance": 6078261.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.643+00:00"
   },
   {
+    "id": "9cd9565d-fb95-4c59-aa17-39072c080810",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-04-01",
     "entry_type": "EMI",
@@ -1709,9 +2028,12 @@
     "principal_amount": 5182,
     "closing_balance": 6073079.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.713+00:00"
   },
   {
+    "id": "427fafa6-60a2-470e-b694-2612dbe75899",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-05-01",
     "entry_type": "EMI",
@@ -1725,9 +2047,12 @@
     "principal_amount": 6847,
     "closing_balance": 6066232.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.77+00:00"
   },
   {
+    "id": "a94f9ebb-5dfb-4a90-be78-09d96fbd3032",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-06-01",
     "entry_type": "EMI",
@@ -1741,9 +2066,12 @@
     "principal_amount": 5282,
     "closing_balance": 6060950.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.826+00:00"
   },
   {
+    "id": "01538d6d-b5ac-4855-b89f-cff711c3ec49",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-07-01",
     "entry_type": "EMI",
@@ -1757,9 +2085,12 @@
     "principal_amount": 6944,
     "closing_balance": 6054006.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.885+00:00"
   },
   {
+    "id": "e474abe2-0824-4ca1-959c-31e677786479",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-08-01",
     "entry_type": "EMI",
@@ -1773,9 +2104,12 @@
     "principal_amount": 5383,
     "closing_balance": 6048623.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:36.948+00:00"
   },
   {
+    "id": "e47746df-88a1-48fa-99d6-53145787f867",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-09-01",
     "entry_type": "EMI",
@@ -1789,9 +2123,12 @@
     "principal_amount": 5427,
     "closing_balance": 6043196.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.004+00:00"
   },
   {
+    "id": "08ed5305-3e72-4856-ab74-de2a0a1fdc9b",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-09-13",
     "entry_type": "RATE_CHANGE",
@@ -1805,9 +2142,12 @@
     "principal_amount": 0,
     "closing_balance": 6043196.85,
     "is_settled": true,
-    "notes": "Rate Change to 8.5%"
+    "notes": "Rate Change to 8.5%",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.064+00:00"
   },
   {
+    "id": "46f9b3c2-e604-4c11-8c3d-e76638788271",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-10-01",
     "entry_type": "EMI",
@@ -1821,9 +2161,12 @@
     "principal_amount": 10812,
     "closing_balance": 6032384.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.126+00:00"
   },
   {
+    "id": "437c9ab8-2b59-4a67-b8c3-3a144775c3d7",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-11-01",
     "entry_type": "EMI",
@@ -1837,9 +2180,12 @@
     "principal_amount": 11966,
     "closing_balance": 6020418.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.189+00:00"
   },
   {
+    "id": "60008666-012b-44bb-8f0a-25b2f147a6cd",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2023-12-01",
     "entry_type": "EMI",
@@ -1853,9 +2199,12 @@
     "principal_amount": 13454,
     "closing_balance": 6006964.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.248+00:00"
   },
   {
+    "id": "b2e38097-c4b6-484e-9d20-5a4e7eb5e083",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-01-01",
     "entry_type": "EMI",
@@ -1869,9 +2218,12 @@
     "principal_amount": 12150,
     "closing_balance": 5994814.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.339+00:00"
   },
   {
+    "id": "8219f56d-7f6a-461f-ae23-8572a31b467b",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-02-01",
     "entry_type": "EMI",
@@ -1885,9 +2237,12 @@
     "principal_amount": 12237,
     "closing_balance": 5982577.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.397+00:00"
   },
   {
+    "id": "7594cf6a-8643-4de8-9392-d616876be1e1",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-03-01",
     "entry_type": "EMI",
@@ -1901,9 +2256,12 @@
     "principal_amount": 15112,
     "closing_balance": 5967465.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.457+00:00"
   },
   {
+    "id": "7abea86a-f6c0-4041-8b9a-6359911e7a5f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-04-01",
     "entry_type": "EMI",
@@ -1917,9 +2275,12 @@
     "principal_amount": 16920,
     "closing_balance": 5950545.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.523+00:00"
   },
   {
+    "id": "cd36616f-9c50-4270-92d1-399bccd82a37",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-05-01",
     "entry_type": "EMI",
@@ -1933,9 +2294,12 @@
     "principal_amount": 18428,
     "closing_balance": 5932117.85,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.578+00:00"
   },
   {
+    "id": "b07162f8-2ef3-4557-a722-bed8c600e4be",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-05-04",
     "entry_type": "PREPAYMENT",
@@ -1949,9 +2313,12 @@
     "principal_amount": 300000.85,
     "closing_balance": 5632117,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹300000.85"
+    "notes": "Bulk Prepayment ₹300000.85",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.633+00:00"
   },
   {
+    "id": "70db8509-efd0-443a-b386-d25be53b5a67",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-06-01",
     "entry_type": "EMI",
@@ -1965,9 +2332,12 @@
     "principal_amount": 19131,
     "closing_balance": 5612986,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.692+00:00"
   },
   {
+    "id": "f42507c0-cc18-4ccd-b4e7-ac1a3ed25581",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-07-01",
     "entry_type": "EMI",
@@ -1981,9 +2351,12 @@
     "principal_amount": 20786,
     "closing_balance": 5592200,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.752+00:00"
   },
   {
+    "id": "c29f1343-720f-4cb1-b90d-fed826403c9f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-08-01",
     "entry_type": "EMI",
@@ -1997,9 +2370,12 @@
     "principal_amount": 19629,
     "closing_balance": 5572571,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.808+00:00"
   },
   {
+    "id": "893c0c37-fb87-431a-8049-59ed68a66878",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-09-01",
     "entry_type": "EMI",
@@ -2013,9 +2389,12 @@
     "principal_amount": 19771,
     "closing_balance": 5552800,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.87+00:00"
   },
   {
+    "id": "1e468e26-b8df-442d-ba6e-1cbdfe81a564",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-10-01",
     "entry_type": "EMI",
@@ -2029,9 +2408,12 @@
     "principal_amount": 21206,
     "closing_balance": 5531594,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:37.931+00:00"
   },
   {
+    "id": "e949389a-1605-4492-ba1d-cfa803330c8c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-11-01",
     "entry_type": "EMI",
@@ -2045,9 +2427,12 @@
     "principal_amount": 20066,
     "closing_balance": 5511528,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.009+00:00"
   },
   {
+    "id": "cd033f08-cd56-4ab2-bc67-271b240de131",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2024-12-01",
     "entry_type": "EMI",
@@ -2061,9 +2446,12 @@
     "principal_amount": 21495,
     "closing_balance": 5490033,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.07+00:00"
   },
   {
+    "id": "4346c426-0921-46b2-8dec-66db15be8118",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-01-01",
     "entry_type": "EMI",
@@ -2077,9 +2465,12 @@
     "principal_amount": 20366,
     "closing_balance": 5469667,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.127+00:00"
   },
   {
+    "id": "e7dfd04f-3cf3-4138-821b-75ce3ccb675f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-02-04",
     "entry_type": "EMI",
@@ -2093,9 +2484,12 @@
     "principal_amount": 20513,
     "closing_balance": 5449154,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.186+00:00"
   },
   {
+    "id": "421bfcd3-bbbe-482e-8d73-2da6bd7dc432",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-02-15",
     "entry_type": "RATE_CHANGE",
@@ -2109,9 +2503,12 @@
     "principal_amount": 0,
     "closing_balance": 5449154,
     "is_settled": true,
-    "notes": "Rate Change to 8.25%"
+    "notes": "Rate Change to 8.25%",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.264+00:00"
   },
   {
+    "id": "f4ed42fe-cc02-4544-badc-7e8930374df8",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-03-01",
     "entry_type": "EMI",
@@ -2125,9 +2522,12 @@
     "principal_amount": 24949,
     "closing_balance": 5424205,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.323+00:00"
   },
   {
+    "id": "0cfb7c31-c968-4054-b4bb-7a95d83dd750",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-04-01",
     "entry_type": "EMI",
@@ -2141,9 +2541,12 @@
     "principal_amount": 21993,
     "closing_balance": 5402212,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.384+00:00"
   },
   {
+    "id": "8f4c1490-ad2b-499d-92a2-94bf7cb25cad",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-04-15",
     "entry_type": "RATE_CHANGE",
@@ -2157,9 +2560,12 @@
     "principal_amount": 0,
     "closing_balance": 5402212,
     "is_settled": true,
-    "notes": "Rate Change to 8%"
+    "notes": "Rate Change to 8%",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.437+00:00"
   },
   {
+    "id": "eba16231-a365-4d14-a441-ca5ac5195702",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-05-01",
     "entry_type": "EMI",
@@ -2173,9 +2579,12 @@
     "principal_amount": 23960,
     "closing_balance": 5378252,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.503+00:00"
   },
   {
+    "id": "771a2c89-775e-44e0-9cca-596c2cc4708c",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-06-01",
     "entry_type": "EMI",
@@ -2189,9 +2598,12 @@
     "principal_amount": 23458,
     "closing_balance": 5354794,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.572+00:00"
   },
   {
+    "id": "731bf353-d756-4cf9-9219-4ca58405bcb9",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-06-15",
     "entry_type": "RATE_CHANGE",
@@ -2205,9 +2617,12 @@
     "principal_amount": 0,
     "closing_balance": 5354794,
     "is_settled": true,
-    "notes": "Rate Change to 7.5%"
+    "notes": "Rate Change to 7.5%",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.633+00:00"
   },
   {
+    "id": "f5b794f3-97b2-491f-addb-37073eadd027",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-07-01",
     "entry_type": "EMI",
@@ -2221,9 +2636,12 @@
     "principal_amount": 25964,
     "closing_balance": 5328830,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.691+00:00"
   },
   {
+    "id": "45a953be-a160-4670-b1ca-b03f8aacd46d",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-08-01",
     "entry_type": "EMI",
@@ -2237,9 +2655,12 @@
     "principal_amount": 26056,
     "closing_balance": 5302774,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.746+00:00"
   },
   {
+    "id": "a4c0e989-9c90-4bdd-b147-d9b349326bbe",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-09-01",
     "entry_type": "EMI",
@@ -2253,9 +2674,12 @@
     "principal_amount": 26222,
     "closing_balance": 5276552,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.807+00:00"
   },
   {
+    "id": "84d159a4-9a90-47b8-9a84-b5bd4e24267a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-10-01",
     "entry_type": "EMI",
@@ -2269,9 +2693,12 @@
     "principal_amount": 27473,
     "closing_balance": 5249079,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.87+00:00"
   },
   {
+    "id": "2ed5667a-726f-4ce3-a97a-8e8b3c917bb9",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-10-01",
     "entry_type": "PREPAYMENT",
@@ -2285,9 +2712,12 @@
     "principal_amount": 25000,
     "closing_balance": 5224079,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹25000"
+    "notes": "Bulk Prepayment ₹25000",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:38.944+00:00"
   },
   {
+    "id": "3c9ae4cc-a150-4f6b-86f4-9d31a1a1530a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-11-01",
     "entry_type": "EMI",
@@ -2301,9 +2731,12 @@
     "principal_amount": 26723,
     "closing_balance": 5197356,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:39.011+00:00"
   },
   {
+    "id": "1f60e765-8b4a-46ca-83e3-c2a92fda9b50",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-11-01",
     "entry_type": "PREPAYMENT",
@@ -2317,9 +2750,12 @@
     "principal_amount": 25000,
     "closing_balance": 5172356,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹25000"
+    "notes": "Bulk Prepayment ₹25000",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:39.086+00:00"
   },
   {
+    "id": "884cf9b2-02f9-4465-9ad4-f84dbc690be4",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-12-01",
     "entry_type": "EMI",
@@ -2333,9 +2769,12 @@
     "principal_amount": 28116,
     "closing_balance": 5144240,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:39.154+00:00"
   },
   {
+    "id": "230506d5-5108-46ae-a30d-af8d302b3a7e",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-12-01",
     "entry_type": "PREPAYMENT",
@@ -2349,9 +2788,12 @@
     "principal_amount": 25000,
     "closing_balance": 5119240,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹25000"
+    "notes": "Bulk Prepayment ₹25000",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:39.211+00:00"
   },
   {
+    "id": "1b9eac13-6b97-4c80-9d55-1d1312b12c07",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2025-12-15",
     "entry_type": "RATE_CHANGE",
@@ -2365,9 +2807,12 @@
     "principal_amount": 0,
     "closing_balance": 5119240,
     "is_settled": true,
-    "notes": "Rate Change to 7.25%"
+    "notes": "Rate Change to 7.25%",
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:39.268+00:00"
   },
   {
+    "id": "c173111e-ac4f-48de-8966-1e4c195e3cc6",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-01-01",
     "entry_type": "EMI",
@@ -2381,9 +2826,12 @@
     "principal_amount": 52987,
     "closing_balance": 5066253,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:39.334+00:00"
   },
   {
+    "id": "621d8be2-cc04-4dc4-a656-ffd0338bf727",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-02-01",
     "entry_type": "EMI",
@@ -2397,9 +2845,12 @@
     "principal_amount": 28804,
     "closing_balance": 5037449,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.923793+00:00",
+    "updated_at": "2026-11-01T08:32:39.391+00:00"
   },
   {
+    "id": "2401caa5-0e51-41c8-a77c-55b51dda5bce",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-02-01",
     "entry_type": "PREPAYMENT",
@@ -2413,9 +2864,12 @@
     "principal_amount": 25000,
     "closing_balance": 5012449,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹25000"
+    "notes": "Bulk Prepayment ₹25000",
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.444+00:00"
   },
   {
+    "id": "b9588e90-ea8a-4182-a7c7-235100457dd0",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-03-01",
     "entry_type": "EMI",
@@ -2429,9 +2883,12 @@
     "principal_amount": 32123,
     "closing_balance": 4980326,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.504+00:00"
   },
   {
+    "id": "30869f04-9f1c-4ec6-84ec-41f30be357c5",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-03-01",
     "entry_type": "PREPAYMENT",
@@ -2445,9 +2902,12 @@
     "principal_amount": 25000,
     "closing_balance": 4955326,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹25000"
+    "notes": "Bulk Prepayment ₹25000",
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.56+00:00"
   },
   {
+    "id": "c005b9c1-7066-45cd-88c6-c47e88a9a002",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-04-01",
     "entry_type": "EMI",
@@ -2461,9 +2921,12 @@
     "principal_amount": 29487,
     "closing_balance": 4925839,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.619+00:00"
   },
   {
+    "id": "b242da0e-cbbf-4502-81ba-ecd35f6c17fd",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-04-01",
     "entry_type": "PREPAYMENT",
@@ -2477,9 +2940,12 @@
     "principal_amount": 300000,
     "closing_balance": 4625839,
     "is_settled": true,
-    "notes": "Bulk Prepayment ₹300000"
+    "notes": "Bulk Prepayment ₹300000",
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.678+00:00"
   },
   {
+    "id": "b175494b-bb87-43a2-89bf-014ee0265b4b",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-05-01",
     "entry_type": "EMI",
@@ -2493,9 +2959,12 @@
     "principal_amount": 32435,
     "closing_balance": 4593404,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.739+00:00"
   },
   {
+    "id": "ff973430-9815-4cee-83df-534e3fbc5e4f",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-06-01",
     "entry_type": "EMI",
@@ -2509,9 +2978,12 @@
     "principal_amount": 31716,
     "closing_balance": 4561688,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.803+00:00"
   },
   {
+    "id": "a1fa224c-c1b3-405e-90e0-4b068aa4a89d",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-07-01",
     "entry_type": "EMI",
@@ -2525,9 +2997,12 @@
     "principal_amount": 32817,
     "closing_balance": 4528871,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.862+00:00"
   },
   {
+    "id": "4c6bc999-08c4-429c-ab8c-ba89e2038b4a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-08-01",
     "entry_type": "EMI",
@@ -2541,9 +3016,12 @@
     "principal_amount": 32113,
     "closing_balance": 4496758,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.916+00:00"
   },
   {
+    "id": "1f5041fa-b0b1-40a1-b3ce-a9ecd8a6a009",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-09-01",
     "entry_type": "EMI",
@@ -2557,9 +3035,12 @@
     "principal_amount": 32311,
     "closing_balance": 4464447,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:39.977+00:00"
   },
   {
+    "id": "5b410477-a33f-4144-b84a-ba2163691926",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-10-01",
     "entry_type": "EMI",
@@ -2573,15 +3054,17 @@
     "principal_amount": 33397,
     "closing_balance": 4431050,
     "is_settled": true,
-    "notes": null
+    "notes": null,
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:40.042+00:00"
   },
   {
-    "id": "eff28e7c-925a-44ef-93e6-11d0ea893578",
+    "id": "77100f83-fcbd-4d0f-8617-1f1149982a9a",
     "liability_id": "00000000-0000-0000-0000-000000000010",
     "date": "2026-10-15",
     "entry_type": "RATE_CHANGE",
     "interest_rate": 7.5,
-    "days_between": 0,
+    "days_between": 14,
     "disbursed_amount": 0,
     "emi_amount": 0,
     "bulk_payment": 0,
@@ -2591,7 +3074,26 @@
     "closing_balance": 4431050,
     "is_settled": true,
     "notes": "Interest rate changed to 7.5% p.a.",
-    "created_at": "2026-10-31T18:56:41.716413+00:00",
-    "updated_at": "2026-10-31T18:56:41.716413+00:00"
+    "created_at": "2026-10-31T19:39:43.996497+00:00",
+    "updated_at": "2026-11-01T08:32:40.097+00:00"
+  },
+  {
+    "id": "0e2baa72-153d-452c-9cda-649ad7bed5ed",
+    "liability_id": "00000000-0000-0000-0000-000000000010",
+    "date": "2026-11-01",
+    "entry_type": "EMI",
+    "interest_rate": 7.5,
+    "days_between": 17,
+    "disbursed_amount": 0,
+    "emi_amount": 60000,
+    "bulk_payment": 0,
+    "opening_balance": 4431050,
+    "interest_amount": 27800,
+    "principal_amount": 32200,
+    "closing_balance": 4398850,
+    "is_settled": true,
+    "notes": "Settled EMI",
+    "created_at": "2026-11-01T08:30:56.134361+00:00",
+    "updated_at": "2026-11-01T08:32:40.163+00:00"
   }
 ]

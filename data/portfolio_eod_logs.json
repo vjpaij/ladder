@@ -160405,11 +160405,11 @@
     "date": "2026-10-31",
     "hdfc": 10382.38,
     "indusind": 16372.59,
-    "idfc": 5901102.84,
-    "rbl": 20855,
+    "idfc": 5911326.84,
+    "rbl": 20908,
     "sbi": 61367.05,
     "federal": 0,
-    "savings": 6010079.86,
+    "savings": 6020356.86,
     "mutual_funds": 4390418.22,
     "indian_stocks": 5239061.12,
     "us_stocks": 1700027.22,
@@ -160418,10 +160418,10 @@
     "loan": 4431050,
     "credits": 8102.22,
     "debt": 4439152.22,
-    "total_assets": 22700535.07,
-    "wealth": 18261382.85,
-    "total_wealth": 18261382.85,
-    "daily_pnl": 3602629.53,
-    "pnl_pct": 24.58
+    "total_assets": 22710812.07,
+    "wealth": 18271659.85,
+    "total_wealth": 18271659.85,
+    "daily_pnl": 3612906.53,
+    "pnl_pct": 24.65
   }
 ]

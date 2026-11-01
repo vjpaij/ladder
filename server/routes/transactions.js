@@ -10,6 +10,7 @@ import { deleteDividend, updateDividend } from '../services/dividendService.js';
 import { deleteStockSplit, updateStockSplit } from '../services/corporateActionService.js';
 import { supabase } from '../supabaseClient.js';
 import { scheduleAutoSyncFromPortfolio } from '../services/tradingJournalService.js';
+import { recomputeSettledAmortizationChain } from '../services/loanEngine.js';
 
 const router = express.Router();
 
@@ -60,7 +61,7 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
             .from('loan_amortization')
             .select('id, is_settled')
             .eq('liability_id', deletedTx.liability_id)
-            .like('date', `${monthPrefix}%`)
+            .gte('date', `${monthPrefix}-01`).lte('date', `${monthPrefix}-${String(new Date(Number(monthPrefix.slice(0, 4)), Number(monthPrefix.slice(5, 7)), 0).getDate()).padStart(2, '0')}`)
             .order('date', { ascending: true });
 
           if (amortRows && amortRows.length > 0 && amortRows[0].is_settled === true) {
@@ -69,6 +70,7 @@ router.delete('/transactions/:id', authenticateToken, async (req, res) => {
               .update({ is_settled: false, updated_at: new Date().toISOString() })
               .eq('id', amortRows[0].id);
             console.log(`[Delete EMI] Un-settled amortization row ${amortRows[0].id} for ${monthPrefix} after transaction deletion.`);
+            await recomputeSettledAmortizationChain(deletedTx.liability_id);
           }
         }
       } catch (amortErr) {
