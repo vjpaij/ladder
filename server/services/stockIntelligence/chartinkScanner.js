@@ -12,10 +12,24 @@
 import axios from 'axios';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ensureHistoricalPricesForSymbol } from '../historicalPriceStore.js';
+import { fetchCompanyFundamentals } from './screenerFundamentalsProvider.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const CACHE_FILE = path.join(DATA_DIR, 'chartink_scan_cache.json');
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
+
+async function autoWarmBreakoutCandidates(candidates = []) {
+  if (!Array.isArray(candidates) || candidates.length === 0) return;
+  for (const cand of candidates) {
+    const sym = cand.symbol;
+    if (!sym) continue;
+    try {
+      await ensureHistoricalPricesForSymbol(sym, 'in_stocks').catch(() => {});
+      await fetchCompanyFundamentals(sym).catch(() => {});
+    } catch (_) {}
+  }
+}
 
 export async function fetchChartinkBreakouts({ forceRefresh = false } = {}) {
   try {
@@ -83,6 +97,10 @@ export async function fetchChartinkBreakouts({ forceRefresh = false } = {}) {
     }, null, 2), 'utf8');
 
     console.log(`[Chartink] Successfully fetched & cached ${candidates.length} breakout candidates.`);
+    
+    // Asynchronously warm price history and Screener fundamentals in background so newly discovered breakouts are immediately buy-eligible
+    autoWarmBreakoutCandidates(candidates).catch(e => console.warn('[Chartink AutoWarm] Background warm error:', e.message));
+
     return candidates;
   } catch (err) {
     console.warn('[Chartink] Failed to fetch live breakout scan:', err.message);

@@ -56,8 +56,23 @@ export async function generateActionPlan({
   if (fs.existsSync(snapPath)) {
     try {
       const snap = JSON.parse(fs.readFileSync(snapPath, 'utf8'));
-      buyAnalyses = snap.analyses || [];
+      const ageMs = Date.now() - new Date(snap.generatedAt || 0).getTime();
+      // Use cached snapshot if less than 30 minutes old
+      if (ageMs < 30 * 60 * 1000 && Array.isArray(snap.analyses) && snap.analyses.length > 0) {
+        buyAnalyses = snap.analyses;
+      }
     } catch (_) {}
+  }
+
+  // If snapshot is missing or stale, dynamically generate fresh buy analyses
+  if (buyAnalyses.length === 0) {
+    try {
+      const { runBuyAnalysisEngine } = await import('../../routes/buyAnalysis.js');
+      const fresh = await runBuyAnalysisEngine({ forceRefresh: false });
+      buyAnalyses = fresh.analyses || [];
+    } catch (err) {
+      console.warn('[Action Plan] Could not trigger dynamic buy analysis run:', err.message);
+    }
   }
 
   // Compute Dynamic Sector Breadth & Group Momentum across universe
@@ -90,7 +105,7 @@ export async function generateActionPlan({
   };
 
   const strongBuys = buyAnalyses.filter(x => x.buySignal === 'STRONG_BUY' && isInstitutionalQuality(x));
-  const primeBuys = buyAnalyses.filter(x => x.buySignal === 'BUY' && x.executiveStrategy?.stance === 'PRIME_SETUP' && isInstitutionalQuality(x));
+  const qualifyingBuys = buyAnalyses.filter(x => x.buySignal === 'BUY' && isInstitutionalQuality(x));
 
   // 2. Load Portfolio Holdings and Evaluate Sell / Exit Analyses
   const [holdings, transactions, dividends, metadata, history] = await Promise.all([
@@ -229,14 +244,7 @@ export async function generateActionPlan({
     const tags = Array.isArray(item.qualitativeTags) ? item.qualitativeTags : [];
     const isTurnaround = tags.some(t => t.tag === 'TURNAROUND_CATALYST');
 
-    if (stance === 'PRE_EARNINGS') {
-      return {
-        alloc: 0,
-        tierLabel: 'Pre-Earnings Stand Aside (₹0)',
-        factors: ['Pre-Earnings Stand Aside (₹0 binary risk)'],
-        summary: 'STAND ASIDE (₹0): Earnings filing due within 15 days. Await audited results.'
-      };
-    }
+    const isPreEarnings = stance === 'PRE_EARNINGS';
 
     const mcap = Number(item.marketCapCr) || 0;
     if (cmp < 20 || (mcap > 0 && mcap < 1000)) {
@@ -353,24 +361,29 @@ export async function generateActionPlan({
       };
     }
 
-    let base = 40000;
-    let tierLabel = 'Catalyst Scout Entry (₹40k Base)';
+    let base = isPreEarnings ? 25000 : 40000;
+    let tierLabel = isPreEarnings ? 'Pre-Earnings Scout Entry (₹25k Staged)' : 'Catalyst Scout Entry (₹40k Base)';
 
     if (isPrime) {
-      base = 200000;
-      tierLabel = isTurnaround ? 'Turnaround Prime Setup (₹2L Base)' : 'Prime Ultra Conviction (₹2L Base)';
+      base = isPreEarnings ? 80000 : 200000;
+      tierLabel = isTurnaround
+        ? (isPreEarnings ? 'Turnaround Pre-Earnings Tranche 1 (₹80k Staged)' : 'Turnaround Prime Setup (₹2L Base)')
+        : (isPreEarnings ? 'Prime Pre-Earnings Tranche 1 (₹80k Staged)' : 'Prime Ultra Conviction (₹2L Base)');
     } else if (isTier2) {
-      base = 125000;
-      tierLabel = 'High Conviction Setup (₹1.25L Base)';
+      base = isPreEarnings ? 50000 : 125000;
+      tierLabel = isPreEarnings ? 'High Conviction Pre-Earnings Tranche 1 (₹50k Staged)' : 'High Conviction Setup (₹1.25L Base)';
     } else if (isStd) {
-      base = 75000;
-      tierLabel = 'Standard Momentum Setup (₹75k Base)';
+      base = isPreEarnings ? 30000 : 75000;
+      tierLabel = isPreEarnings ? 'Standard Pre-Earnings Tranche 1 (₹30k Staged)' : 'Standard Momentum Setup (₹75k Base)';
     } else if (stance === 'EXTENDED_RUNNER') {
       base = 20000;
       tierLabel = 'Scout Test Entry (₹20k Base)';
     }
 
     const factors = [tierLabel];
+    if (isPreEarnings) {
+      factors.push('Pre-Earnings Staged Entry (Tranche 1: 40% initial allocation; 60% dry powder for post-earnings confirmation)');
+    }
     let total = base;
 
     if (vcpBonus > 0) {
@@ -414,7 +427,7 @@ export async function generateActionPlan({
     }
   });
 
-  primeBuys.forEach(x => {
+  qualifyingBuys.forEach(x => {
     const sym = String(x.symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
     if (!seenSymbols.has(x.symbol) && !sellSymbolSet.has(sym)) {
       seenSymbols.add(x.symbol);
@@ -489,7 +502,9 @@ export async function generateActionPlan({
       priorityRank,
       actionType,
       sector: resolveCanonicalSector(x.fundamentals, x.name, x.symbol) || x.sector || 'Diversified & Other',
-      mcap: Number(x.marketCapCr) || 0
+      mcap: Number(x.marketCapCr) || 0,
+      market_cap: x.market_cap || (Number(x.marketCapCr) >= 500000 ? 'Mega Cap' : Number(x.marketCapCr) >= 85000 ? 'Large Cap' : Number(x.marketCapCr) >= 27500 ? 'Mid Cap' : Number(x.marketCapCr) >= 5000 ? 'Small Cap' : 'Micro Cap'),
+      market_cap_cr: Number(x.marketCapCr) || null
     };
   });
 
@@ -512,25 +527,31 @@ export async function generateActionPlan({
       return;
     }
 
-    if (cand.stance === 'PRE_EARNINGS' || cand.targetAmount <= 0 || (cand.sizing && cand.sizing.alloc <= 0)) {
+    if (cand.targetAmount <= 0 || (cand.sizing && cand.sizing.alloc <= 0)) {
       const isCoreHold = cand.isOwned && (cand.sizing?.tierLabel?.includes('Hold Core') || cand.sizing?.tierLabel?.includes('Cap Reached'));
       const isExtendedHold = cand.isOwned && cand.stance === 'EXTENDED_RUNNER';
       queuedBuys.push({
         ...cand,
-        executionStatus: isCoreHold ? 'CORE HOLD (CAP REACHED)' : isExtendedHold ? 'STAND ASIDE (AWAIT PULLBACK)' : 'STAND ASIDE (PRE-EARNINGS)',
+        executionStatus: isCoreHold ? 'CORE HOLD (CAP REACHED)' : isExtendedHold ? 'STAND ASIDE (AWAIT PULLBACK)' : 'STAND ASIDE (ZERO SIZING)',
         actionShares: 0,
         actionValue: 0,
-        note: cand.sizing?.summary || 'Pre-Earnings Stand Aside (₹0 binary risk). Await quarterly filing.'
+        note: cand.sizing?.summary || 'Stand Aside (₹0 capital allocation). Await pullback or structural reset.'
       });
       return;
     }
+
+    // For Pre-Earnings breakouts: Deploy Ladder's Staged Entry Tranche 1 (40% initial allocation) ahead of results
+    const isPreEarningsStaged = cand.stance === 'PRE_EARNINGS';
+    const effectiveTargetAmount = cand.targetAmount;
+    const effectiveTargetShares = cand.targetShares;
+    const effectiveAmount = effectiveTargetShares * cand.cmp;
 
     const candSector = cand.sector || 'Diversified';
     const currentSectorSpend = sectorSpendMap[candSector] || 0;
     const currentSectorCount = sectorCountMap[candSector] || 0;
 
     // Sector Concentration Guard: Prevent deploying >50% or >5 positions into the same sector on one day
-    if (currentSectorCount >= maxSectorBuys || (currentSectorSpend + cand.targetAmount > maxSectorSpend && currentSectorCount >= 1)) {
+    if (currentSectorCount >= maxSectorBuys || (currentSectorSpend + effectiveAmount > maxSectorSpend && currentSectorCount >= 1)) {
       queuedBuys.push({
         ...cand,
         executionStatus: 'QUEUED (SECTOR CONCENTRATION CAP)',
@@ -541,20 +562,24 @@ export async function generateActionPlan({
       return;
     }
 
-    if (remainingCapital >= cand.targetAmount) {
-      const fundedShares = cand.targetShares;
+    if (remainingCapital >= effectiveAmount) {
+      const fundedShares = effectiveTargetShares;
       const fundedValue = fundedShares * cand.cmp;
       remainingCapital -= fundedValue;
       sectorSpendMap[candSector] = currentSectorSpend + fundedValue;
       sectorCountMap[candSector] = currentSectorCount + 1;
       immediateBuys.push({
         ...cand,
-        executionStatus: 'FUNDED TODAY (IMMEDIATE EXECUTION)',
+        executionStatus: isPreEarningsStaged
+          ? 'FUNDED TODAY (PRE-EARNINGS TRANCHE 1)'
+          : 'FUNDED TODAY (IMMEDIATE EXECUTION)',
         actionShares: fundedShares,
         actionValue: fundedValue,
-        note: cand.isOwned
-          ? `Tranche Addition (Holding ${cand.heldQty} shs): ${cand.sizing.summary}. Trail stop at ₹${cand.sl.toFixed(2)}.`
-          : `New Entry: ${cand.sizing.summary}. Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}, Stop ₹${cand.sl.toFixed(2)}.`
+        note: isPreEarningsStaged
+          ? `Pre-Earnings Staged Entry (Tranche 1: 40% allocation, ₹${Math.round(fundedValue).toLocaleString('en-IN')}). Results due soon; reserve remaining 60% for post-results confirmation.`
+          : (cand.isOwned
+            ? `Tranche Addition (Holding ${cand.heldQty} shs): ${cand.sizing.summary}. Trail stop at ₹${cand.sl.toFixed(2)}.`
+            : `New Entry: ${cand.sizing.summary}. Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}, Stop ₹${cand.sl.toFixed(2)}.`)
       });
     } else if (remainingCapital >= (cand.cmp * 1) && remainingCapital >= 10000) {
       const partialShares = Math.floor(remainingCapital / cand.cmp);

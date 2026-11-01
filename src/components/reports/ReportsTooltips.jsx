@@ -24,7 +24,7 @@ export function CustomChartTooltip({ active, payload, formatMoney }) {
           {percentage !== undefined && (
             <p className="flex justify-between gap-4">
               <span className="opacity-70">Allocation:</span>
-              <span className="font-bold">{Number(percentage).toFixed(2)}%</span>
+              <span className="font-bold">{(Number(percentage) || 0).toFixed(2)}%</span>
             </p>
           )}
         </div>
@@ -42,7 +42,7 @@ export function TrajectoryTooltip({ active, payload, label, benchmark, formatMon
     const portGrowth = point.PortfolioGrowthPct;
     const benchVal = point[`${benchmark}_Normalized`];
     const benchGrowth = point[`${benchmark}_GrowthPct`];
-    const alpha = (portGrowth !== undefined && benchGrowth !== undefined) ? Number((portGrowth - benchGrowth).toFixed(2)) : 0;
+    const alpha = (portGrowth !== undefined && benchGrowth !== undefined) ? Number(((Number(portGrowth) || 0) - (Number(benchGrowth) || 0)).toFixed(2)) : 0;
 
     return (
       <div className="reports-card p-3.5 rounded-2xl shadow-xl text-xs space-y-2 z-50 pointer-events-none min-w-[220px]">

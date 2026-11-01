@@ -70,6 +70,11 @@ function loadAssetMetadata() {
   return new Map();
 }
 
+const SCREENER_SEARCH_ALIASES = {
+  'NSE': '544937',
+  'TATAMTRDVR': 'TMPV'
+};
+
 /**
  * Fetch fundamentals for a single company from Screener.in with fallback to asset_metadata
  */
@@ -86,7 +91,8 @@ export async function fetchCompanyFundamentals(symbol, { forceRefresh = false } 
   const fallbackMeta = metaMap.get(clean) || {};
 
   try {
-    const searchUrl = `https://www.screener.in/api/company/search/?q=${encodeURIComponent(clean)}`;
+    const queryTerm = SCREENER_SEARCH_ALIASES[clean] || clean;
+    const searchUrl = `https://www.screener.in/api/company/search/?q=${encodeURIComponent(queryTerm)}`;
     const searchRes = await fetch(searchUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
       signal: AbortSignal.timeout(6000)

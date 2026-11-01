@@ -4,6 +4,7 @@ import { analyzeTechnicalTrend, normalizePriceSeries, observedReturn } from './t
 import { STOCK_EXIT_RULE_VERSION } from './backtestEngine.js';
 import { fetchCompanyFundamentals } from './screenerFundamentalsProvider.js';
 import { calculateXirr } from '../xirrCalculator.js';
+import { resolveCanonicalSector } from './buyAnalysisService.js';
 
 function cleanSym(symbol) {
   return String(symbol || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
@@ -508,7 +509,19 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       holdingId: String(holding.id),
       symbol: holding.symbol,
       name: holding.name || holding.symbol,
-      sector: (holding.sector && holding.sector !== 'Unknown' ? holding.sector : meta?.sector) || null,
+      sector: (holding.sector && holding.sector !== 'Unknown')
+        ? holding.sector
+        : (meta?.sector && meta.sector !== 'Unknown')
+          ? meta.sector
+          : resolveCanonicalSector(meta || {}, holding.name, holding.symbol),
+      market_cap: (holding.market_cap && holding.market_cap !== 'Unknown')
+        ? holding.market_cap
+        : (meta?.mcap_category && meta.mcap_category !== 'Unknown')
+          ? meta.mcap_category
+          : (meta?.capitalisation && meta.capitalisation !== 'Unknown')
+            ? meta.capitalisation
+            : 'Small Cap',
+      market_cap_cr: meta?.market_cap || null,
       quantity,
       currentPrice: nativeCurrentPrice,
       currentValue: nativeCurrentValue,

@@ -715,7 +715,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
               Dividend Yield on Cost
             </span>
             <div className="text-xl sm:text-2xl font-black font-mono text-blue-600 dark:text-blue-400 mt-1 truncate">
-              {kpis.portfolioYoCPct.toFixed(2)}%
+              {(Number(kpis?.portfolioYoCPct) || 0).toFixed(2)}%
             </div>
           </div>
           <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
@@ -737,7 +737,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
           <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono flex items-center justify-between">
             <span className="opacity-60">YoY Change</span>
             <span className={`font-bold ${kpis.yoyGrowthPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {kpis.yoyGrowthPct >= 0 ? '+' : ''}{kpis.yoyGrowthPct.toFixed(1)}% vs {kpis.currentYear - 1}
+              {(Number(kpis?.yoyGrowthPct) || 0) >= 0 ? '+' : ''}{(Number(kpis?.yoyGrowthPct) || 0).toFixed(1)}% vs {kpis?.currentYear ? kpis.currentYear - 1 : 'Prior Year'}
             </span>
           </div>
         </div>

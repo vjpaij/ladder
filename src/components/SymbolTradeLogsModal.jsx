@@ -152,6 +152,16 @@ export default function SymbolTradeLogsModal({
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-[var(--border-color)] bg-white/[0.04] text-[var(--text-secondary)]">
                   {symbolData.market === 'US' ? '🇺🇸 US Equity' : '🇮🇳 Indian Equity'}
                 </span>
+                {symbolData.sector && symbolData.sector !== 'Unknown' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                    {symbolData.sector}
+                  </span>
+                )}
+                {symbolData.market_cap && symbolData.market_cap !== 'Unknown' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400">
+                    {symbolData.market_cap}
+                  </span>
+                )}
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                   isProfitable
                     ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300'

@@ -12,6 +12,7 @@ import crypto from 'node:crypto';
 import db from '../db.js';
 import { calculateTradingCharges } from './tradingChargesCalculator.js';
 import { getHistoricalFxRate, getBestFxRate } from './fxRateStore.js';
+import { resolveCanonicalSector } from './stockIntelligence/buyAnalysisService.js';
 
 import zlib from 'node:zlib';
 import { createClient } from '@supabase/supabase-js';
@@ -1044,6 +1045,23 @@ export async function getSymbolAggregatedTrades(filters = {}) {
     if (h.symbol) holdingsMap.set(h.symbol.toUpperCase().trim(), h);
   });
 
+  // Load asset metadata for sector mapping
+  const metadataMap = new Map();
+  try {
+    const metaPath = path.join(DATA_DIR, 'asset_metadata.json');
+    if (fs.existsSync(metaPath)) {
+      const metaList = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      metaList.forEach(m => {
+        if (m.symbol) {
+          metadataMap.set(m.symbol.toUpperCase().trim(), m);
+          metadataMap.set(m.symbol.replace(/\.(NS|BO)$/i, '').toUpperCase().trim(), m);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('[TradingJournal] Could not load asset_metadata for sector mapping:', err.message);
+  }
+
   // Group trades by Symbol
   const symbolMap = new Map();
 
@@ -1165,9 +1183,27 @@ export async function getSymbolAggregatedTrades(filters = {}) {
     const openQty = holding ? (Number(holding.quantity) || 0) : 0;
     const totalVolume = closedQty + openQty;
 
+    const clean = group.symbol.replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
+    const metaRow = metadataMap.get(clean) || metadataMap.get(group.symbol);
+    const sector = (holding && holding.sector && holding.sector !== 'Unknown')
+      ? holding.sector
+      : (metaRow && metaRow.sector && metaRow.sector !== 'Unknown')
+        ? metaRow.sector
+        : resolveCanonicalSector(metaRow || {}, group.name, group.symbol);
+
+    const market_cap = (holding && holding.market_cap && holding.market_cap !== 'Unknown')
+      ? holding.market_cap
+      : (metaRow && metaRow.mcap_category && metaRow.mcap_category !== 'Unknown')
+        ? metaRow.mcap_category
+        : (metaRow && metaRow.capitalisation && metaRow.capitalisation !== 'Unknown')
+          ? metaRow.capitalisation
+          : 'Small Cap';
+
     return {
       symbol: group.symbol,
       name: group.name,
+      sector,
+      market_cap,
       market: group.market,
       segment: group.segment,
       totalTrades: group.totalTrades,

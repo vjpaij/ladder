@@ -109,6 +109,16 @@ export default function HoldingTransactionLedger({
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
           <Calendar className="w-3.5 h-3.5" />
           Transaction Ledger ({sortedTxs.length} {sortedTxs.length === 1 ? 'record' : 'records'})
+          {holding?.sector && holding?.sector !== 'Unknown' && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800/80 text-emerald-400 border border-slate-700/80 normal-case tracking-normal">
+              {holding.sector}
+            </span>
+          )}
+          {holding?.market_cap && holding?.market_cap !== 'Unknown' && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-700/50 normal-case tracking-normal">
+              {holding.market_cap}
+            </span>
+          )}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">

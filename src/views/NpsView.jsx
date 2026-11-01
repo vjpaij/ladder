@@ -141,11 +141,11 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
       }
     });
 
-    const pnl = metrics ? (metrics.realizedINR + metrics.unrealizedINR) : 0;
+    const pnl = metrics ? ((metrics.realizedINR || 0) + (metrics.unrealizedINR || 0)) : 0;
     const absPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
-    const xirr = metrics ? metrics.xirrPct : 0;
-    const activeXirr = metrics ? metrics.activeXirrPct : 0;
-    const closedXirr = metrics ? metrics.closedXirrPct : 0;
+    const xirr = Number(metrics?.xirrPct) || 0;
+    const activeXirr = Number(metrics?.activeXirrPct) || 0;
+    const closedXirr = Number(metrics?.closedXirrPct) || 0;
     
     return { cost: totalCost, pnl, absPct, xirr, activeXirr, closedXirr };
   }, [rawNps, summary]);
@@ -238,8 +238,8 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                         {totalGain >= 0 ? '+' : ''}{formatMoney(totalGain, true)} ({totalGain >= 0 ? '+' : ''}{roiPct}%)
                       </span>
                       <span className="text-slate-600">•</span>
-                      <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
+                      <span className={(Number(combinedTotals?.activeXirr) || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {(Number(combinedTotals?.activeXirr) || 0) >= 0 ? '+' : ''}{(Number(combinedTotals?.activeXirr) || 0).toFixed(2)}%
                       </span>
                     </>
                   ) : (
@@ -250,8 +250,8 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                         {(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{formatMoney(closedBannerTotals?.netPnl || 0, true)} ({(closedBannerTotals?.netRoiPct || 0) >= 0 ? '+' : ''}{closedBannerTotals?.netRoiPct || 0}%)
                       </span>
                       <span className="text-slate-600">•</span>
-                      <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
+                      <span className={(Number(combinedTotals?.closedXirr) || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {(Number(combinedTotals?.closedXirr) || 0) >= 0 ? '+' : ''}{(Number(combinedTotals?.closedXirr) || 0).toFixed(2)}%
                       </span>
                     </>
                   )}

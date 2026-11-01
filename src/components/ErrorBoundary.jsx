@@ -31,6 +31,12 @@ export default class ErrorBoundary extends React.Component {
             <p className="text-xs text-slate-400 font-mono max-w-md break-words">
               {this.state.error?.message || 'An unexpected rendering error occurred.'}
             </p>
+            {this.state.error?.stack && (
+              <details className="mt-2 text-left max-w-md max-h-36 overflow-auto text-[10px] text-slate-400 font-mono bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                <summary className="cursor-pointer text-slate-300 font-semibold mb-1">Error Details</summary>
+                <div className="whitespace-pre-wrap">{this.state.error.stack}</div>
+              </details>
+            )}
           </div>
           <button
             onClick={this.handleReset}

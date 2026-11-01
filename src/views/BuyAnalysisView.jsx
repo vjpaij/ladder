@@ -292,7 +292,27 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                   </span>
                 )}
               </div>
-              <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">{analysis.name}</p>
+              <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5 flex items-center gap-1.5">
+                <span>{analysis.name}</span>
+                {analysis.sector && analysis.sector !== 'Unknown' && (
+                  <>
+                    <span className="text-[var(--text-muted)]">•</span>
+                    <span className="text-[11px] font-medium text-emerald-400/90">{analysis.sector}</span>
+                  </>
+                )}
+                {analysis.market_cap && analysis.market_cap !== 'Unknown' && (
+                  <>
+                    <span className="text-[var(--text-muted)]">•</span>
+                    <span className="text-[11px] font-medium text-blue-400/90">{analysis.market_cap}</span>
+                  </>
+                )}
+                {analysis.market_cap && analysis.market_cap !== 'Unknown' && (
+                  <>
+                    <span className="text-[var(--text-muted)]">•</span>
+                    <span className="text-[11px] font-medium text-blue-400/90">{analysis.market_cap}</span>
+                  </>
+                )}
+              </p>
               {/* Badges row */}
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <EarningsBadge earningsCatalyst={analysis.earningsCatalyst} onBadgeClick={onBadgeClick} />

@@ -573,14 +573,18 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
   // Dynamically resolve active selected market cap bucket from latest reactive marketCapData
   const currentSelectedMarketCap = useMemo(() => {
     if (!selectedMarketCap) return null;
-    const tierName = typeof selectedMarketCap === 'string' ? selectedMarketCap : (selectedMarketCap.name || selectedMarketCap.capTier);
+    const tierName = typeof selectedMarketCap === 'string' 
+      ? selectedMarketCap 
+      : (selectedMarketCap?.payload?.name || selectedMarketCap?.payload?.capTier || selectedMarketCap?.name || selectedMarketCap?.capTier);
     return marketCapData.find(m => (m.name || m.capTier) === tierName) || null;
   }, [selectedMarketCap, marketCapData]);
 
   // Dynamically resolve active selected sector from latest reactive sectorData
   const currentSelectedSector = useMemo(() => {
     if (!selectedSector) return null;
-    const secName = typeof selectedSector === 'string' ? selectedSector : (selectedSector.sector || selectedSector.name);
+    const secName = typeof selectedSector === 'string' 
+      ? selectedSector 
+      : (selectedSector?.payload?.sector || selectedSector?.payload?.name || selectedSector?.sector || selectedSector?.name);
     return sectorData.find(s => (s.sector || s.name) === secName) || null;
   }, [selectedSector, sectorData]);
 
@@ -1211,10 +1215,10 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                 </div>
                 <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono">
                   <div className="text-[9.5px] uppercase tracking-wider opacity-60">Unrealized P&L</div>
-                  <div className={`font-bold mt-0.5 truncate ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)}
+                  <div className={`font-bold mt-0.5 truncate ${(consolidatedPerformanceData.totals.activePnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {(consolidatedPerformanceData.totals.activePnl || 0) >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)}
                     <span className="text-[10px] font-medium ml-1">
-                      ({consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.activeRoiPct.toFixed(2)}%)
+                      ({(consolidatedPerformanceData.totals.activePnl || 0) >= 0 ? '+' : ''}{(Number(consolidatedPerformanceData.totals.activeRoiPct) || 0).toFixed(2)}%)
                     </span>
                   </div>
                 </div>
@@ -1248,8 +1252,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                 </div>
                 <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono">
                   <div className="text-[9.5px] uppercase tracking-wider opacity-60">Realized Profit</div>
-                  <div className={`font-bold mt-0.5 truncate ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {consolidatedPerformanceData.totals.closedPnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
+                  <div className={`font-bold mt-0.5 truncate ${(consolidatedPerformanceData.totals.closedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {(consolidatedPerformanceData.totals.closedPnl || 0) >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
                   </div>
                 </div>
               </div>
@@ -1260,14 +1264,14 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                   <span className="text-[10px] font-black uppercase tracking-wider opacity-60 block">
                     Lifetime Net Return
                   </span>
-                  <div className={`text-xl sm:text-2xl font-black font-mono mt-1 truncate ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {consolidatedPerformanceData.totals.lifetimePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
+                  <div className={`text-xl sm:text-2xl font-black font-mono mt-1 truncate ${(consolidatedPerformanceData.totals.lifetimePnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {(consolidatedPerformanceData.totals.lifetimePnl || 0) >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
                   </div>
                 </div>
                 <div className="pt-2 border-t border-inherit opacity-90 text-[11px] font-mono">
                   <div className="text-[9.5px] uppercase tracking-wider opacity-60">Annualized Return</div>
-                  <div className={`font-bold mt-0.5 truncate ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    XIRR: {consolidatedPerformanceData.totals.portfolioXirr >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.portfolioXirr.toFixed(2)}%
+                  <div className={`font-bold mt-0.5 truncate ${(consolidatedPerformanceData.totals.portfolioXirr || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    XIRR: {(consolidatedPerformanceData.totals.portfolioXirr || 0) >= 0 ? '+' : ''}{(Number(consolidatedPerformanceData.totals.portfolioXirr) || 0).toFixed(2)}%
                   </div>
                 </div>
               </div>
@@ -1332,8 +1336,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                             <div className={`font-bold whitespace-nowrap mt-1 ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                               {cat.activePnl >= 0 ? '+' : ''}{formatMoney(cat.activePnl, true)}
                             </div>
-                            <div className={`text-[10px] font-bold ${cat.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              ({cat.activePnl >= 0 ? '+' : ''}{cat.activeRoiPct.toFixed(1)}%)
+                            <div className={`text-[10px] font-bold ${(cat.activePnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              ({(cat.activePnl || 0) >= 0 ? '+' : ''}{(Number(cat.activeRoiPct) || 0).toFixed(1)}%)
                             </div>
                           </div>
                         </div>
@@ -1341,8 +1345,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                         {/* Bottom Metric Footer */}
                         <div className="pt-2.5 border-t border-inherit/60 flex items-center justify-between text-xs font-mono">
                           <span className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Annualized XIRR</span>
-                          <span className={`font-bold ${cat.activeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {cat.activeXirr >= 0 ? '+' : ''}{cat.activeXirr.toFixed(2)}%
+                          <span className={`font-bold ${(cat.activeXirr || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {(cat.activeXirr || 0) >= 0 ? '+' : ''}{(Number(cat.activeXirr) || 0).toFixed(2)}%
                           </span>
                         </div>
                       </div>
@@ -1373,11 +1377,11 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                           </div>
                           <div>
                             <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Realized P&L</div>
-                            <div className={`font-bold whitespace-nowrap mt-1 ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              {cat.closedPnl >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)}
+                            <div className={`font-bold whitespace-nowrap mt-1 ${(cat.closedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {(cat.closedPnl || 0) >= 0 ? '+' : ''}{formatMoney(cat.closedPnl, true)}
                             </div>
-                            <div className={`text-[10px] font-bold ${cat.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              ({cat.closedPnl >= 0 ? '+' : ''}{cat.closedRoiPct.toFixed(1)}%)
+                            <div className={`text-[10px] font-bold ${(cat.closedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              ({(cat.closedPnl || 0) >= 0 ? '+' : ''}{(Number(cat.closedRoiPct) || 0).toFixed(1)}%)
                             </div>
                           </div>
                         </div>
@@ -1385,8 +1389,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                         {/* Bottom Metric Footer */}
                         <div className="pt-2.5 border-t border-inherit/60 flex items-center justify-between text-xs font-mono">
                           <span className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Realized XIRR</span>
-                          <span className={`font-bold ${cat.closedXirr >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
-                            {cat.closedXirr >= 0 ? '+' : ''}{cat.closedXirr.toFixed(2)}%
+                          <span className={`font-bold ${(cat.closedXirr || 0) >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                            {(cat.closedXirr || 0) >= 0 ? '+' : ''}{(Number(cat.closedXirr) || 0).toFixed(2)}%
                           </span>
                         </div>
                       </div>
@@ -1404,8 +1408,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                           <div className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                             Net Gain / P&L
                           </div>
-                          <div className={`text-lg sm:text-xl font-black font-mono leading-tight mt-1 whitespace-nowrap ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
+                          <div className={`text-lg sm:text-xl font-black font-mono leading-tight mt-1 whitespace-nowrap ${(cat.lifetimePnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {(cat.lifetimePnl || 0) >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
                           </div>
                         </div>
 
@@ -1417,8 +1421,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                           </div>
                           <div>
                             <div className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Abs Return</div>
-                            <div className={`font-bold whitespace-nowrap mt-1 ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              {cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%
+                            <div className={`font-bold whitespace-nowrap mt-1 ${(cat.lifetimeRoiPct || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {(cat.lifetimeRoiPct || 0) >= 0 ? '+' : ''}{(Number(cat.lifetimeRoiPct) || 0).toFixed(2)}%
                             </div>
                           </div>
                         </div>
@@ -1426,8 +1430,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                         {/* Bottom Metric Footer */}
                         <div className="pt-2.5 border-t border-inherit/60 flex items-center justify-between text-xs font-mono">
                           <span className="text-[10px] font-sans font-semibold uppercase tracking-wider opacity-60">Lifetime XIRR</span>
-                          <span className={`font-bold ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
+                          <span className={`font-bold ${(cat.lifetimeXirr || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {(cat.lifetimeXirr || 0) >= 0 ? '+' : ''}{(Number(cat.lifetimeXirr) || 0).toFixed(2)}%
                           </span>
                         </div>
                       </div>
@@ -1583,13 +1587,13 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                             {formatMoney(cat.lifetimeCost, true)}
                           </td>
                           <td className={`py-3 px-3.5 text-right font-black whitespace-nowrap ${cat.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {cat.lifetimePnl >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
+                            {(cat.lifetimePnl || 0) >= 0 ? '+' : ''}{formatMoney(cat.lifetimePnl, true)}
                           </td>
-                          <td className={`py-3 px-3.5 text-right font-bold whitespace-nowrap ${cat.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {cat.lifetimeRoiPct >= 0 ? '+' : ''}{cat.lifetimeRoiPct.toFixed(2)}%
+                          <td className={`py-3 px-3.5 text-right font-bold whitespace-nowrap ${(cat.lifetimeRoiPct || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {(cat.lifetimeRoiPct || 0) >= 0 ? '+' : ''}{(Number(cat.lifetimeRoiPct) || 0).toFixed(2)}%
                           </td>
-                          <td className={`py-3 pl-3.5 pr-4 text-right font-black whitespace-nowrap ${cat.lifetimeXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {cat.lifetimeXirr >= 0 ? '+' : ''}{cat.lifetimeXirr.toFixed(2)}%
+                          <td className={`py-3 pl-3.5 pr-4 text-right font-black whitespace-nowrap ${(cat.lifetimeXirr || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {(cat.lifetimeXirr || 0) >= 0 ? '+' : ''}{(Number(cat.lifetimeXirr) || 0).toFixed(2)}%
                           </td>
                         </tr>
                       ));
@@ -1604,23 +1608,23 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                       <td className="py-3.5 px-3.5 text-right font-bold opacity-90 whitespace-nowrap">
                         {formatMoney(consolidatedPerformanceData.totals.activeCost, true)}
                       </td>
-                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.activePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {consolidatedPerformanceData.totals.activePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)}
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${(consolidatedPerformanceData.totals.activePnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(consolidatedPerformanceData.totals.activePnl || 0) >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.activePnl, true)}
                       </td>
-                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.closedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {consolidatedPerformanceData.totals.closedPnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${(consolidatedPerformanceData.totals.closedPnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(consolidatedPerformanceData.totals.closedPnl || 0) >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.closedPnl, true)}
                       </td>
                       <td className="py-3.5 px-3.5 text-right font-bold opacity-90 whitespace-nowrap">
                         {formatMoney(consolidatedPerformanceData.totals.lifetimeCost, true)}
                       </td>
-                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.lifetimePnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {consolidatedPerformanceData.totals.lifetimePnl >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${(consolidatedPerformanceData.totals.lifetimePnl || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(consolidatedPerformanceData.totals.lifetimePnl || 0) >= 0 ? '+' : ''}{formatMoney(consolidatedPerformanceData.totals.lifetimePnl, true)}
                       </td>
-                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.lifetimeRoiPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {consolidatedPerformanceData.totals.lifetimeRoiPct >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.lifetimeRoiPct.toFixed(2)}%
+                      <td className={`py-3.5 px-3.5 text-right font-black whitespace-nowrap ${(consolidatedPerformanceData.totals.lifetimeRoiPct || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(consolidatedPerformanceData.totals.lifetimeRoiPct || 0) >= 0 ? '+' : ''}{(Number(consolidatedPerformanceData.totals.lifetimeRoiPct) || 0).toFixed(2)}%
                       </td>
-                      <td className={`py-3.5 pl-3.5 pr-4 text-right font-black whitespace-nowrap ${consolidatedPerformanceData.totals.portfolioXirr >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {consolidatedPerformanceData.totals.portfolioXirr >= 0 ? '+' : ''}{consolidatedPerformanceData.totals.portfolioXirr.toFixed(2)}%
+                      <td className={`py-3.5 pl-3.5 pr-4 text-right font-black whitespace-nowrap ${(consolidatedPerformanceData.totals.portfolioXirr || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(consolidatedPerformanceData.totals.portfolioXirr || 0) >= 0 ? '+' : ''}{(Number(consolidatedPerformanceData.totals.portfolioXirr) || 0).toFixed(2)}%
                       </td>
                     </tr>
                   </tfoot>
@@ -1688,6 +1692,11 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
             {chartStyle === 'BAR' && (
               <CleanBarChartView 
                 items={allocationData} 
+                onItemClick={(item) => {
+                  const name = item?.name || item?.payload?.name;
+                  const idx = allocationData.findIndex(a => a.name === name);
+                  if (idx !== -1) setActivePieIndex(idx);
+                }}
               />
             )}
           </div>
@@ -1797,8 +1806,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                             });
                           }
                           return list.map((c, idx) => {
-                            const contribPct = currentSelectedMarketCap.value > 0 
-                              ? Number(((c.allocatedINR / currentSelectedMarketCap.value) * 100).toFixed(2)) 
+                            const contribPct = (currentSelectedMarketCap?.value || 0) > 0 
+                              ? Number((((c.allocatedINR || 0) / currentSelectedMarketCap.value) * 100).toFixed(2)) 
                               : 0;
                             return (
                               <tr 
@@ -2201,7 +2210,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
               const last = growthData.series[growthData.series.length - 1];
               const portGrowth = last?.PortfolioGrowthPct || 0;
               const idxGrowth = last?.[`${benchmark}_GrowthPct`] || 0;
-              const alpha = Number((portGrowth - idxGrowth).toFixed(2));
+              const alpha = Number(((Number(portGrowth) || 0) - (Number(idxGrowth) || 0)).toFixed(2));
 
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -2252,7 +2261,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                       <YAxis 
                         stroke="#64748B" 
                         tick={{ fill: 'currentColor', fontSize: 10 }} 
-                        tickFormatter={(v) => `₹${(v/100000).toFixed(1)}L`} 
+                        tickFormatter={(v) => `₹${((Number(v) || 0) / 100000).toFixed(1)}L`} 
                       />
                       <Tooltip content={<TrajectoryTooltip />} />
                       <Area 

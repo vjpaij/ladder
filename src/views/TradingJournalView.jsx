@@ -344,7 +344,7 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
             <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${
               winRate >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
             }`}>
-              {winRate.toFixed(1)}%
+              {(Number(winRate) || 0).toFixed(1)}%
             </span>
           </div>
           <div className="pt-2 border-t border-[var(--border-color)] text-[11px] font-mono flex items-center justify-between text-[var(--text-secondary)] min-w-0">
@@ -363,7 +363,7 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
             <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${
               profitFactor >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : profitFactor >= 1.0 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
             }`}>
-              {profitFactor.toFixed(2)}x
+              {(Number(profitFactor) || 0).toFixed(2)}x
             </span>
           </div>
           <div className="pt-2 border-t border-[var(--border-color)] text-[11px] font-mono flex items-center justify-between text-[var(--text-secondary)] min-w-0">
@@ -385,7 +385,7 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
             <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight ${
               disciplineScore >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
             }`}>
-              {disciplineScore.toFixed(0)}%
+              {(Number(disciplineScore) || 0).toFixed(0)}%
             </span>
           </div>
           <div className="pt-2 border-t border-[var(--border-color)] text-[11px] font-sans flex items-center justify-between text-[var(--text-secondary)] min-w-0">
@@ -682,6 +682,13 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
                           <div className="text-[10px] text-[var(--text-muted)] truncate max-w-[160px] font-medium">
                             {sym.name || sym.symbol}
                           </div>
+                          {(sym.sector || sym.market_cap) && (
+                            <div className="text-[9.5px] text-[var(--text-secondary)] font-medium truncate max-w-[180px] flex items-center gap-1">
+                              {sym.sector && sym.sector !== 'Unknown' && <span className="text-emerald-600 dark:text-emerald-400">{sym.sector}</span>}
+                              {sym.sector && sym.sector !== 'Unknown' && sym.market_cap && sym.market_cap !== 'Unknown' && <span>•</span>}
+                              {sym.market_cap && sym.market_cap !== 'Unknown' && <span className="text-blue-500 dark:text-blue-400 font-semibold">{sym.market_cap}</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>

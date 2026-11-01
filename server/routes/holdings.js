@@ -23,6 +23,7 @@ import { scheduleAutoSyncFromPortfolio } from '../services/tradingJournalService
 import { calculateXirr } from '../services/xirrCalculator.js';
 import { invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
 import { invalidateBuyCache } from './buyAnalysis.js';
+import { resolveCanonicalSector } from '../services/stockIntelligence/buyAnalysisService.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 import { getLoanAmortizationData, settleAmortizationForMonth } from '../services/loanEngine.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -38,6 +39,21 @@ const router = express.Router();
 // -------------------------------------------------------------
 // Holdings List API
 // -------------------------------------------------------------
+export function resolveCanonicalMarketCap(meta = {}, holding = {}) {
+  if (meta?.mcap_category && meta.mcap_category !== 'Unknown') return meta.mcap_category;
+  if (meta?.capitalisation && meta.capitalisation !== 'Unknown') return meta.capitalisation;
+  if (holding?.market_cap && holding.market_cap !== 'Unknown') return holding.market_cap;
+  const cr = Number(meta?.market_cap);
+  if (cr > 0) {
+    if (cr >= 500000) return 'Mega Cap';
+    if (cr >= 85000) return 'Large Cap';
+    if (cr >= 27500) return 'Mid Cap';
+    if (cr >= 5000) return 'Small Cap';
+    return 'Micro Cap';
+  }
+  return 'Small Cap';
+}
+
 router.get('/holdings', authenticateToken, async (req, res) => {
   try {
     const fxRate = await fetchFxRate();
@@ -93,34 +109,41 @@ router.get('/holdings', authenticateToken, async (req, res) => {
     });
 
     // Fetch Asset Metadata to map sector and capitalisation (via cached db.select to eliminate egress)
-    let metaData = null;
+    const metadataMap = {};
+
+    // 1. Preload database metadata
     try {
-      metaData = await db.select('asset_metadata');
+      const dbMeta = await db.select('asset_metadata');
+      if (Array.isArray(dbMeta)) {
+        dbMeta.forEach(m => {
+          if (m.symbol) {
+            metadataMap[m.symbol] = m;
+            metadataMap[m.symbol.toUpperCase()] = m;
+            metadataMap[m.symbol.toLowerCase()] = m;
+            metadataMap[m.symbol.replace(/\.(NS|BO)$/i, '').toUpperCase()] = m;
+          }
+        });
+      }
     } catch (e) {
       console.warn('[Holdings Route] Cached asset_metadata query failed:', e.message);
     }
 
-    // Fallback to local cache if DB was unreachable or empty
-    if (!metaData || metaData.length === 0) {
-      try {
-        const localPath = path.join(__dirname, '../../data/asset_metadata.json');
-        if (fs.existsSync(localPath)) {
-          metaData = JSON.parse(fs.readFileSync(localPath, 'utf8'));
-        }
-      } catch (e) {
-        console.warn('[Holdings Route] Local asset_metadata.json read error:', e.message);
+    // 2. Overlay authoritative local asset metadata (asset_metadata.json)
+    try {
+      const localPath = path.join(__dirname, '../../data/asset_metadata.json');
+      if (fs.existsSync(localPath)) {
+        const localMeta = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+        localMeta.forEach(m => {
+          if (m.symbol) {
+            metadataMap[m.symbol] = { ...(metadataMap[m.symbol] || {}), ...m };
+            metadataMap[m.symbol.toUpperCase()] = metadataMap[m.symbol];
+            metadataMap[m.symbol.toLowerCase()] = metadataMap[m.symbol];
+            metadataMap[m.symbol.replace(/\.(NS|BO)$/i, '').toUpperCase()] = metadataMap[m.symbol];
+          }
+        });
       }
-    }
-
-    const metadataMap = {};
-    if (metaData) {
-      metaData.forEach(m => {
-        if (m.symbol) {
-          metadataMap[m.symbol] = m;
-          metadataMap[m.symbol.toUpperCase()] = m;
-          metadataMap[m.symbol.toLowerCase()] = m;
-        }
-      });
+    } catch (e) {
+      console.warn('[Holdings Route] Local asset_metadata.json read error:', e.message);
     }
 
     const historicalPricesCache = getHistoricalPricesMap();
@@ -363,8 +386,13 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim();
       const meta = metadataMap[h.symbol] || metadataMap[cleanSym] || metadataMap[cleanSym.toUpperCase()] || {};
 
-      const finalSector = (meta.sector && meta.sector !== 'Unknown') ? meta.sector : (h.sector && h.sector !== 'Unknown' ? h.sector : 'Unknown');
-      const finalMcap = (meta.mcap_category && meta.mcap_category !== 'Unknown') ? meta.mcap_category : (meta.capitalisation && meta.capitalisation !== 'Unknown') ? meta.capitalisation : (h.market_cap && h.market_cap !== 'Unknown' ? h.market_cap : 'Unknown');
+      const rawSector = (meta.sector && meta.sector !== 'Unknown')
+        ? meta.sector
+        : (h.sector && h.sector !== 'Unknown' && h.sector !== 'US Equities' && h.sector !== 'General')
+          ? h.sector
+          : resolveCanonicalSector(meta, h.name, h.symbol);
+      const finalSector = (rawSector && rawSector !== 'Unknown') ? rawSector : 'Diversified & Other';
+      const finalMcap = resolveCanonicalMarketCap(meta, h);
 
       let finalName = h.name;
       if (h.category_id === 'us_stocks' && typeof finalName === 'string') {
@@ -1569,8 +1597,24 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const resolvedNse = (liveQuote && liveQuote.nse_price > 0) ? liveQuote.nse_price : (Number(holding.nse_price) || 0);
     const resolvedBse = (liveQuote && liveQuote.bse_price > 0) ? liveQuote.bse_price : (Number(holding.bse_price) || 0);
 
+    const cleanDetailSym = (holding.symbol || '').replace(/\.(NS|BO)$/i, '').trim();
+    let metaList = [];
+    try {
+      metaList = await db.select('asset_metadata');
+    } catch (_) {}
+    const metaRow = (metaList || []).find(m => m.symbol === holding.symbol || m.symbol === cleanDetailSym || m.symbol === cleanDetailSym.toUpperCase()) || {};
+    const detailSector = (holding.sector && holding.sector !== 'Unknown' && holding.sector !== 'US Equities')
+      ? holding.sector
+      : (metaRow.sector && metaRow.sector !== 'Unknown')
+        ? metaRow.sector
+        : resolveCanonicalSector(metaRow, holding.name, holding.symbol);
+    const detailMcap = resolveCanonicalMarketCap(metaRow, holding);
+
     const updatedHolding = {
       ...holding,
+      sector: detailSector,
+      market_cap: detailMcap,
+      market_cap_cr: metaRow.market_cap || null,
       current_price: Number(quotePrice.toFixed(quoteDigits)),
       nse_price: resolvedNse,
       bse_price: resolvedBse,

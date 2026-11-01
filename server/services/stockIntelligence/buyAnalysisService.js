@@ -38,51 +38,130 @@ const BUY_ANALYSIS_VERSION = 'buy-analysis-v1.0';
 export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = '') {
   const raw = String(fundamentals.sector || fundamentals.industry || '').trim();
   const s = raw.toLowerCase();
-  if (s.includes('tech') || s.includes('information') || s.includes('software') || s.includes('semiconductor') || s.includes('it ') || s === 'it') {
-    return 'Information Technology';
+  const n = (name + ' ' + symbol).toLowerCase();
+
+  // 1. Automobile & Auto Components
+  if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('tire') || s.includes('ancillar') || s.includes('motor') || s.includes('forging') || s.includes('two wheeler') || s.includes('electric vehicle') || s.includes('ev ') ||
+      n.includes('motor') || n.includes('auto') || n.includes('maruti') || n.includes('bajaj') || n.includes('tvs') || n.includes('lumax') || n.includes('sona') || n.includes('gabriel') || n.includes('sansera') || n.includes('ather') || n.includes('rkforge') || n.includes('dhoot') || n.includes('grpltd') || n.includes('grp ltd')) {
+    return 'Automobile & Auto Components';
   }
-  if (s.includes('bank') || s.includes('finance') || s.includes('financial') || s.includes('insurance') || s.includes('capital market') || s.includes('amc') || s.includes('credit')) {
-    return 'Financial Services';
+
+  // 2. Banking
+  if (s.includes('bank') || s.includes('banking') || s.includes('small finance bank') ||
+      n.includes('bank') || n.includes('pnb') || n.includes('sbi') || n.includes('hdfc bank') || n.includes('icici bank') || n.includes('esaf')) {
+    return 'Banking';
   }
-  if (s.includes('health') || s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('hospital') || s.includes('diagnostic') || s.includes('lab')) {
-    return 'Healthcare & Pharmaceuticals';
+
+  // 3. Financial Services & NBFC
+  if (s.includes('finance') || s.includes('financial') || s.includes('nbfc') || s.includes('wealth') || s.includes('amc') || s.includes('stock exchange') || s.includes('depository') || s.includes('rating') || s.includes('capital market') || s.includes('fintech') || s.includes('broking') || s.includes('insurance') || s.includes('credit') ||
+      n.includes('finance') || n.includes('fin ') || n.includes('finserve') || n.includes('fincorp') || n.includes('poonawalla') || n.includes('sgfin') || n.includes('360one') || n.includes('bse') || n.includes('nse') || n.includes('protean')) {
+    return 'Financial Services & NBFC';
   }
-  if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('ancillar') || s.includes('motor') || s.includes('retail') || s.includes('apparel') || s.includes('hotel')) {
-    return 'Consumer Discretionary';
+
+  // 4. Semiconductors & Hardware (EMS / Chips)
+  if (s.includes('semiconductor') || s.includes('chip') || s.includes('foundry') || s.includes('electronic manufacturing') || s.includes('ems') || s.includes('electronics hardware') ||
+      n.includes('syrma') || n.includes('avalon') || n.includes('ebgng') || n.includes('nvidia') || n.includes('tsmc') || n.includes('broadcom') || n.includes('arista')) {
+    return 'Semiconductors & Hardware';
   }
-  if (s.includes('fmcg') || s.includes('consumer good') || s.includes('food') || s.includes('beverage') || s.includes('personal care') || s.includes('staple')) {
+
+  // 5. Enterprise Cloud & Internet
+  if (s.includes('cloud') || s.includes('internet') || s.includes('e-commerce') || s.includes('ecommerce') || s.includes('search engine') || s.includes('social media') || s.includes('enterprise software') ||
+      n.includes('microsoft') || n.includes('google') || n.includes('meta') || n.includes('amazon') || n.includes('salesforce') || n.includes('palantir')) {
+    return 'Enterprise Cloud & Internet';
+  }
+
+  // 6. Consumer Electronics & Hardware
+  if (s.includes('consumer electronics') || s.includes('mobile phone') || s.includes('smartphone') || n.includes('apple')) {
+    return 'Consumer Electronics & Hardware';
+  }
+
+  // 7. Healthcare Services & Hospitals
+  if (s.includes('hospital') || s.includes('diagnostic') || s.includes('pathology') || s.includes('eyecare') || s.includes('clinic') || s.includes('healthcare service') ||
+      n.includes('artemis') || n.includes('lalpath') || n.includes('agarwal') || n.includes('apollo') || n.includes('fortis') || n.includes('max health') || n.includes('indgn') || n.includes('sagility')) {
+    return 'Healthcare Services & Hospitals';
+  }
+
+  // 8. Pharmaceuticals & Biotechnology
+  if (s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('formulation') || s.includes('api') || s.includes('cdmo') || s.includes('cro') || s.includes('active pharma') ||
+      n.includes('pharma') || n.includes('lab') || n.includes('ipca') || n.includes('solara') || n.includes('corona') || n.includes('gufic') || n.includes('sailife') || n.includes('sudeep') || n.includes('sanofi') || n.includes('pghl') || n.includes('saiparent')) {
+    return 'Pharmaceuticals & Biotechnology';
+  }
+
+  // 9. Power & Electrical Equipment
+  if (s.includes('transformer') || s.includes('electrical equipment') || s.includes('generator') || s.includes('transmission') || s.includes('power generation') || s.includes('power grid') || s.includes('hydro') || s.includes('electricals') ||
+      n.includes('tdpowersys') || n.includes('taril') || n.includes('hbl') || n.includes('enrin') || n.includes('qpower') || n.includes('marsons') || n.includes('nhpc') || n.includes('ntpc')) {
+    return 'Power & Electrical Equipment';
+  }
+
+  // 10. Capital Goods & Heavy Engineering
+  if (s.includes('capital good') || s.includes('heavy engineering') || s.includes('machinery') || s.includes('machine tool') || s.includes('cnc') || s.includes('industrial machinery') || s.includes('cryogenic') || s.includes('defense') || s.includes('defence') || s.includes('engineering') || s.includes('valves') || s.includes('hoses') ||
+      n.includes('bhel') || n.includes('aeroflex') || n.includes('inoxindia') || n.includes('macpower') || n.includes('jash') || /\b(l&t|larsen)\b/i.test(n)) {
+    return 'Capital Goods & Heavy Engineering';
+  }
+
+  // 11. Chemicals & Specialty Chemicals
+  if (s.includes('chemical') || s.includes('specialty chem') || s.includes('fluorochem') || s.includes('fertilizer') || s.includes('agrochem') || s.includes('dye') || s.includes('pigment') || s.includes('petrochem') ||
+      n.includes('fluorochem') || n.includes('neogen') || n.includes('hscl') || n.includes('igpl') || n.includes('fcl') || n.includes('fineotex') || n.includes('shreepushk') || n.includes('bodal') || n.includes('kiri') || n.includes('garware')) {
+    return 'Chemicals & Specialty Chemicals';
+  }
+
+  // 12. Metals, Mining & Materials
+  if (s.includes('metal') || s.includes('mining') || s.includes('steel') || s.includes('iron') || s.includes('aluminium') || s.includes('aluminum') || s.includes('copper') || s.includes('zinc') || s.includes('alloys') || s.includes('refractory') || s.includes('bimetal') ||
+      n.includes('vaml') || n.includes('sbcl') || n.includes('rpel') || n.includes('manakcoat') || n.includes('mmp') || n.includes('tata steel') || n.includes('jsw')) {
+    return 'Metals, Mining & Materials';
+  }
+
+  // 13. Gems, Jewellery & Luxury
+  if (s.includes('jewel') || s.includes('gem') || s.includes('diamond') || s.includes('gold') || s.includes('luxury') ||
+      n.includes('shankesh') || n.includes('igil') || n.includes('titan') || n.includes('kalyan')) {
+    return 'Gems, Jewellery & Luxury';
+  }
+
+  // 14. Logistics & Transportation
+  if (s.includes('logistics') || s.includes('transport') || s.includes('freight') || s.includes('cargo') || s.includes('courier') || s.includes('warehousing') || s.includes('port') ||
+      n.includes('vrllog') || n.includes('vrl logistics') || n.includes('concor') || n.includes('delhivery')) {
+    return 'Logistics & Transportation';
+  }
+
+  // 15. Travel, Tourism & Hospitality
+  if (s.includes('hotel') || s.includes('resort') || s.includes('travel') || s.includes('tourism') || s.includes('hospitality') || s.includes('restaurant') || s.includes('airline') || s.includes('gaming') ||
+      n.includes('tbotek') || n.includes('tbo tek') || n.includes('deltacorp') || n.includes('delta corp') || n.includes('indian hotels') || n.includes('easemytrip')) {
+    return 'Travel, Tourism & Hospitality';
+  }
+
+  // 16. Consumer Staples & FMCG
+  if (s.includes('fmcg') || s.includes('food') || s.includes('beverage') || s.includes('edible oil') || s.includes('tobacco') || s.includes('distiller') || s.includes('brewery') || s.includes('alcohol') || s.includes('personal care') || s.includes('staple') ||
+      n.includes('radico') || n.includes('modinatur') || n.includes('tastybite') || n.includes('itc') || n.includes('nestle') || n.includes('hul') || n.includes('dabur')) {
     return 'Consumer Staples & FMCG';
   }
-  if (s.includes('industrial') || s.includes('capital good') || s.includes('engineering') || s.includes('machiner') || s.includes('defence') || s.includes('equipment') || s.includes('electrical')) {
-    return 'Capital Goods & Industrials';
+
+  // 17. Consumer Discretionary & Retail
+  if (s.includes('retail') || s.includes('fashion') || s.includes('apparel') || s.includes('footwear') || s.includes('garment') || s.includes('consumer durable') || s.includes('furniture') ||
+      n.includes('trent') || n.includes('redington') || n.includes('nilkamal')) {
+    return 'Consumer Discretionary & Retail';
   }
-  if (s.includes('infra') || s.includes('construction') || s.includes('cement') || s.includes('realty') || s.includes('real estate') || s.includes('logistics') || s.includes('port')) {
-    return 'Infrastructure & Real Estate';
+
+  // 18. Information Technology & Software
+  if (s.includes('tech') || s.includes('information') || s.includes('software') || s.includes('it ') || s === 'it' || s.includes('it services') || s.includes('consulting') || s.includes('analytics') ||
+      n.includes('techm') || n.includes('eclerx') || n.includes('fractal') || n.includes('tcs') || n.includes('infy') || n.includes('wipro') || n.includes('hcl')) {
+    return 'Information Technology & Software';
   }
-  if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('petroleum') || s.includes('power') || s.includes('solar') || s.includes('renewable')) {
-    return 'Energy, Power & Utilities';
+
+  // 19. Real Estate & Construction
+  if (s.includes('realty') || s.includes('real estate') || s.includes('construction') || s.includes('cement') || s.includes('infra') || n.includes('dlf') || n.includes('godrej prop')) {
+    return 'Real Estate & Construction';
   }
-  if (s.includes('metal') || s.includes('mining') || s.includes('steel') || s.includes('aluminum') || s.includes('copper')) {
-    return 'Metals & Mining';
+
+  // 20. Oil, Gas & Energy
+  if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('petroleum') || s.includes('refin') || s.includes('renewable') || n.includes('ongc') || n.includes('reliance') || n.includes('ioc')) {
+    return 'Oil, Gas & Energy';
   }
-  if (s.includes('chemical') || s.includes('fertilizer') || s.includes('specialty chem') || s.includes('material')) {
-    return 'Chemicals & Materials';
-  }
-  if (s.includes('telecom') || s.includes('media') || s.includes('entertainment') || s.includes('communication')) {
+
+  // 21. Telecommunication & Media
+  if (s.includes('telecom') || s.includes('media') || s.includes('entertainment') || s.includes('broadcasting') || n.includes('bharti') || n.includes('airtel') || n.includes('zee') || n.includes('pvr')) {
     return 'Telecommunication & Media';
   }
 
-  // Fallback to name/symbol inference
-  const n = (name + ' ' + symbol).toLowerCase();
-  if (n.includes('bank') || n.includes('finance') || n.includes('fin ') || n.includes('capital') || n.includes('pnb') || n.includes('sbi') || n.includes('hdfc') || n.includes('icici')) return 'Financial Services';
-  if (n.includes('pharma') || n.includes('health') || n.includes('lab') || n.includes('remed') || n.includes('diagnostic') || n.includes('drreddy') || n.includes('cipla') || n.includes('sunpharma')) return 'Healthcare & Pharmaceuticals';
-  if (n.includes('motor') || n.includes('auto') || n.includes('maruti') || n.includes('bajaj') || n.includes('tvs') || n.includes('lumax') || n.includes('sona') || n.includes('gabriel')) return 'Consumer Discretionary';
-  if (n.includes('tech') || n.includes('software') || n.includes('tcs') || n.includes('infy') || n.includes('wipro') || n.includes('hcl') || n.includes('persistent') || n.includes('sagility')) return 'Information Technology';
-  if (n.includes('power') || n.includes('energy') || n.includes('solar') || n.includes('ntpc') || n.includes('ongc')) return 'Energy, Power & Utilities';
-  if (n.includes('steel') || n.includes('metal') || n.includes('tata steel') || n.includes('jsw') || n.includes('hindalco') || n.includes('vedl')) return 'Metals & Mining';
-  if (n.includes('infra') || n.includes('const') || n.includes('cement') || n.includes('ultratech') || n.includes('l&t') || n.includes('lt') || n.includes('rpel')) return 'Infrastructure & Real Estate';
-  if (n.includes('chem') || n.includes('fertiliz') || n.includes('aarti') || n.includes('deepak') || n.includes('pushkar')) return 'Chemicals & Materials';
-  
   return raw && raw !== 'Unknown' ? raw : 'Diversified & Other';
 }
 
@@ -705,6 +784,8 @@ export function buildBuyAnalyses(
         source,
         sector: resolveCanonicalSector(fundamentals, resolvedName, clean),
         industry: fundamentals.industry || 'Unknown',
+        market_cap: fundamentals.mcapCategory || (fundamentals.marketCapCr ? (fundamentals.marketCapCr >= 500000 ? 'Mega Cap' : fundamentals.marketCapCr >= 85000 ? 'Large Cap' : fundamentals.marketCapCr >= 27500 ? 'Mid Cap' : fundamentals.marketCapCr >= 5000 ? 'Small Cap' : 'Micro Cap') : 'Small Cap'),
+        market_cap_cr: fundamentals.marketCapCr || null,
         inPortfolio,
         portfolioQuantity: inPortfolio ? portfolioQuantity : 0,
         portfolioAvgPrice: inPortfolio ? portfolioAvgPrice : 0,

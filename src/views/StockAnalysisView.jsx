@@ -686,8 +686,15 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     <div className="text-[10px] text-[var(--text-muted)] flex items-center gap-1.5 font-mono">
                       <span>{item.symbol}</span>
                       <span>•</span>
-                      <span>{item.currentWeightPct.toFixed(1)}% wt</span>
+                      <span>{(Number(item?.currentWeightPct) || 0).toFixed(1)}% wt</span>
                     </div>
+                    {(item.sector || item.market_cap) && (
+                      <div className="text-[9.5px] font-medium text-[var(--text-secondary)] truncate mt-0.5 flex items-center gap-1">
+                        {item.sector && item.sector !== 'Unknown' && <span>{item.sector}</span>}
+                        {item.sector && item.sector !== 'Unknown' && item.market_cap && item.market_cap !== 'Unknown' && <span>•</span>}
+                        {item.market_cap && item.market_cap !== 'Unknown' && <span className="text-blue-400 font-semibold">{item.market_cap}</span>}
+                      </div>
+                    )}
                   </div>
                   <div className="shrink-0">
                     <StateBadge
@@ -731,11 +738,23 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)]">
                           <span>{selected.quantity.toLocaleString()} shares held</span>
                           <span>•</span>
-                          <span>{selected.currentWeightPct.toFixed(2)}% of {isUsMarket ? 'US equity' : 'Indian equity'}</span>
+                          <span>{(Number(selected?.currentWeightPct) || 0).toFixed(2)}% of {isUsMarket ? 'US equity' : 'Indian equity'}</span>
                           {selected.sector && (
                             <>
                               <span>•</span>
                               <span>{selected.sector}</span>
+                            </>
+                          )}
+                          {selected.market_cap && selected.market_cap !== 'Unknown' && (
+                            <>
+                              <span>•</span>
+                              <span className="text-blue-400 font-semibold">{selected.market_cap}</span>
+                            </>
+                          )}
+                          {selected.market_cap && selected.market_cap !== 'Unknown' && (
+                            <>
+                              <span>•</span>
+                              <span className="text-blue-400 font-semibold">{selected.market_cap}</span>
                             </>
                           )}
                           <span>•</span>
@@ -837,7 +856,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           </div>
                           <div className="mt-1 text-[10px] font-mono font-bold flex items-center gap-2">
                             <span className={isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                              Abs: {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
+                              Abs: {isPositive ? '+' : ''}{(Number(pnlPct) || 0).toFixed(2)}%
                             </span>
                             {selected.xirrPct !== undefined && selected.xirrPct !== null && (
                               <>

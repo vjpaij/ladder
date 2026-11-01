@@ -7,6 +7,7 @@ import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { normalizeSector } from '../../src/components/reports/reportsConstants.js';
+import { resolveCanonicalSector } from '../services/stockIntelligence/buyAnalysisService.js';
 import { computeHoldingValueINR } from '../services/portfolioCalculator.js';
 import { computeGrowthBenchmarks, invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -241,38 +242,59 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
         if (!isUS && !includeIndia) continue;
 
         const cleanSym = (m.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toUpperCase();
-        const sector = normalizeSector(m.sector);
+        const rawSec = (m.sector && m.sector !== 'Unknown' && m.sector !== 'Diversified & Other')
+          ? m.sector
+          : resolveCanonicalSector(m, m.name, m.symbol);
+        const sector = normalizeSector(rawSec);
         const mcapCategory = m.mcap_category || (m.market_cap ? (m.market_cap >= 500000 ? 'Mega Cap' : m.market_cap >= 85000 ? 'Large Cap' : m.market_cap >= 27500 ? 'Mid Cap' : m.market_cap >= 5000 ? 'Small Cap' : 'Micro Cap') : 'Small Cap');
 
         const series = histMap[m.symbol] || histMap[cleanSym] || histMap[`${cleanSym}.NS`] || histMap[`${cleanSym}.BO`] || {};
         const dates = Object.keys(series).sort();
-        if (dates.length < 2) continue;
 
         // End price
         const liveQuote = liveQuoteCache.get(m.symbol) || liveQuoteCache.get(cleanSym);
         const resolvedLive = liveQuote?.price || liveQuote?.currentPrice || liveQuote?.regularMarketPrice;
-        let endPrice = Number(resolvedLive) || Number(series[endDate] || series[dates[dates.length - 1]]);
-
-        // Start / Base price
+        let endPrice = Number(resolvedLive) || Number(m.current_price) || 0;
         let basePrice = null;
-        if (rangeType === 'ALL' || !startDate) {
-          basePrice = Number(series[dates[0]]);
-        } else {
-          if (series[startDate] !== undefined) {
-            basePrice = Number(series[startDate]);
+        let returnPct = 0;
+        let hasAuthenticReturn = false;
+
+        if (dates.length >= 2) {
+          if (!endPrice) {
+            endPrice = Number(series[endDate] || series[dates[dates.length - 1]]);
+          }
+
+          if (rangeType === 'ALL' || !startDate) {
+            basePrice = Number(series[dates[0]]);
           } else {
-            const priorDates = dates.filter(d => d <= startDate);
-            if (priorDates.length > 0) {
-              basePrice = Number(series[priorDates[priorDates.length - 1]]);
+            if (series[startDate] !== undefined) {
+              basePrice = Number(series[startDate]);
             } else {
-              basePrice = Number(series[dates[0]]);
+              const priorDates = dates.filter(d => d <= startDate);
+              if (priorDates.length > 0) {
+                basePrice = Number(series[priorDates[priorDates.length - 1]]);
+              } else {
+                basePrice = Number(series[dates[0]]);
+              }
             }
           }
+
+          if (basePrice && endPrice && basePrice > 0 && endPrice > 0) {
+            returnPct = ((endPrice - basePrice) / basePrice) * 100;
+            hasAuthenticReturn = true;
+          }
+        } else if (dates.length === 1) {
+          if (!endPrice) endPrice = Number(series[dates[0]]);
+          basePrice = endPrice;
         }
 
-        if (!basePrice || !endPrice || basePrice <= 0 || endPrice <= 0) continue;
+        if (!endPrice) {
+          endPrice = Number(m.current_price) || 0;
+        }
+        if (!basePrice) {
+          basePrice = endPrice;
+        }
 
-        const returnPct = ((endPrice - basePrice) / basePrice) * 100;
         const isHolding = portfolioSymbolSet.has(cleanSym);
         const holdingObj = portfolioHoldingMap.get(cleanSym);
 
@@ -293,6 +315,7 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
           currentValINR: holdingObj ? (holdingObj.currentValueINR || (Number(holdingObj.quantity) * endPrice * (isUS ? fxRate : 1))) : 0,
           gainINR: 0,
           returnPct: Math.round(returnPct * 100) / 100,
+          hasAuthenticReturn,
           isPortfolioHolding: isHolding
         });
       }
@@ -311,7 +334,12 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
         const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toUpperCase();
         const metaRow = metaMap.get(cleanSym) || metaMap.get((h.symbol || '').toUpperCase()) || {};
 
-        const sector = normalizeSector(metaRow.sector || h.sector);
+        const rawSec = (metaRow.sector && metaRow.sector !== 'Unknown')
+          ? metaRow.sector
+          : (h.sector && h.sector !== 'Unknown' && h.sector !== 'US Equities' && h.sector !== 'General')
+            ? h.sector
+            : resolveCanonicalSector(metaRow, h.name, h.symbol);
+        const sector = normalizeSector(rawSec);
         const mcapCategory = metaRow.mcap_category || (metaRow.market_cap ? (metaRow.market_cap >= 500000 ? 'Mega Cap' : metaRow.market_cap >= 85000 ? 'Large Cap' : metaRow.market_cap >= 27500 ? 'Mid Cap' : metaRow.market_cap >= 5000 ? 'Small Cap' : 'Micro Cap') : (h.market_cap || 'Small Cap'));
 
         const liveQuote = liveQuoteCache.get(h.symbol);
@@ -399,8 +427,10 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
     const sectors = Object.values(sectorMap).map(sec => {
       let returnPct = 0;
       if (isMarketScope) {
-        returnPct = sec.stocks.length > 0
-          ? Math.round((sec.stocks.reduce((acc, s) => acc + s.returnPct, 0) / sec.stocks.length) * 100) / 100
+        const authenticStocks = sec.stocks.filter(s => s.hasAuthenticReturn);
+        const evalStocks = authenticStocks.length > 0 ? authenticStocks : sec.stocks;
+        returnPct = evalStocks.length > 0
+          ? Math.round((evalStocks.reduce((acc, s) => acc + s.returnPct, 0) / evalStocks.length) * 100) / 100
           : 0;
       } else {
         returnPct = sec.startValINR > 0
@@ -414,7 +444,15 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
         gainINR: Math.round(sec.gainINR * 100) / 100,
         returnPct,
         allocationPct: totalCurrentValINR > 0 ? Math.round((sec.currentValINR / totalCurrentValINR) * 10000) / 100 : 0,
-        stocks: sec.stocks.sort((a, b) => isMarketScope ? (b.returnPct - a.returnPct) : (b.currentValINR - a.currentValINR))
+        stocks: sec.stocks.sort((a, b) => {
+          if (isMarketScope) {
+            if (a.hasAuthenticReturn && !b.hasAuthenticReturn) return -1;
+            if (!a.hasAuthenticReturn && b.hasAuthenticReturn) return 1;
+            if (a.hasAuthenticReturn && b.hasAuthenticReturn) return b.returnPct - a.returnPct;
+            return (b.marketCapCr || 0) - (a.marketCapCr || 0);
+          }
+          return b.currentValINR - a.currentValINR;
+        })
       };
     }).sort((a, b) => b.returnPct - a.returnPct);
 
@@ -444,8 +482,10 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
     const caps = Object.values(capMap).map(cap => {
       let returnPct = 0;
       if (isMarketScope) {
-        returnPct = cap.stocks.length > 0
-          ? Math.round((cap.stocks.reduce((acc, s) => acc + s.returnPct, 0) / cap.stocks.length) * 100) / 100
+        const authenticStocks = cap.stocks.filter(s => s.hasAuthenticReturn);
+        const evalStocks = authenticStocks.length > 0 ? authenticStocks : cap.stocks;
+        returnPct = evalStocks.length > 0
+          ? Math.round((evalStocks.reduce((acc, s) => acc + s.returnPct, 0) / evalStocks.length) * 100) / 100
           : 0;
       } else {
         returnPct = cap.startValINR > 0
@@ -459,7 +499,15 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
         gainINR: Math.round(cap.gainINR * 100) / 100,
         returnPct,
         allocationPct: totalCurrentValINR > 0 ? Math.round((cap.currentValINR / totalCurrentValINR) * 10000) / 100 : 0,
-        stocks: cap.stocks.sort((a, b) => isMarketScope ? (b.returnPct - a.returnPct) : (b.currentValINR - a.currentValINR))
+        stocks: cap.stocks.sort((a, b) => {
+          if (isMarketScope) {
+            if (a.hasAuthenticReturn && !b.hasAuthenticReturn) return -1;
+            if (!a.hasAuthenticReturn && b.hasAuthenticReturn) return 1;
+            if (a.hasAuthenticReturn && b.hasAuthenticReturn) return b.returnPct - a.returnPct;
+            return (b.marketCapCr || 0) - (a.marketCapCr || 0);
+          }
+          return b.currentValINR - a.currentValINR;
+        })
       };
     }).sort((a, b) => {
       const ia = capOrder.indexOf(a.name);
@@ -471,8 +519,10 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
     let totalGainINR = 0;
     let totalReturnPct = 0;
     if (isMarketScope) {
-      totalReturnPct = stockResults.length > 0
-        ? Math.round((stockResults.reduce((acc, s) => acc + s.returnPct, 0) / stockResults.length) * 100) / 100
+      const authenticStocks = stockResults.filter(s => s.hasAuthenticReturn);
+      const evalStocks = authenticStocks.length > 0 ? authenticStocks : stockResults;
+      totalReturnPct = evalStocks.length > 0
+        ? Math.round((evalStocks.reduce((acc, s) => acc + s.returnPct, 0) / evalStocks.length) * 100) / 100
         : 0;
     } else {
       totalGainINR = totalCurrentValINR - totalStartValINR;

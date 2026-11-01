@@ -12,7 +12,7 @@ import {
 import { PALETTE } from './reportsConstants';
 import { CustomChartTooltip } from './ReportsTooltips';
 
-// Crisp Institutional Bar Chart View with Clear X-Axis Values
+// Crisp Institutional Bar Chart View with Clear X-Axis Values and Unwrapped Click Handlers
 export default function CleanBarChartView({ items, onItemClick, formatMoney }) {
   return (
     <div className="h-[380px] w-full pt-2">
@@ -35,20 +35,22 @@ export default function CleanBarChartView({ items, onItemClick, formatMoney }) {
           <YAxis 
             stroke="#64748B" 
             tick={{ fill: '#94A3B8', fontSize: 10, fontWeight: 600 }} 
-            tickFormatter={(v) => `₹${(v/100000).toFixed(1)}L`} 
+            tickFormatter={(v) => `₹${((Number(v) || 0) / 100000).toFixed(1)}L`} 
           />
           <Tooltip content={<CustomChartTooltip formatMoney={formatMoney} />} />
           <Bar 
             dataKey="value" 
             radius={[8, 8, 0, 0]}
             isAnimationActive={false}
-            onClick={(entry) => onItemClick && onItemClick(entry)}
+            onClick={(entry) => onItemClick && onItemClick(entry?.payload || entry)}
+            cursor="pointer"
           >
             {items.map((entry, index) => (
               <Cell 
                 key={`bar-cell-${index}`} 
                 fill={entry.color || PALETTE[index % PALETTE.length]} 
                 style={{ cursor: 'pointer' }}
+                onClick={() => onItemClick && onItemClick(entry)}
               />
             ))}
           </Bar>

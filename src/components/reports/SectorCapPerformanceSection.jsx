@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Layers, PieChart, Calendar, Search, ArrowUpRight,
-  ArrowDownRight, ChevronRight, RefreshCw, AlertCircle, ArrowUpDown, ExternalLink
+  ArrowDownRight, ChevronRight, ChevronLeft, RefreshCw, AlertCircle, ArrowUpDown, ExternalLink
 } from 'lucide-react';
 import ChartRangeSelector, { computeRangeDates } from '../ChartRangeSelector';
 import HoldingLogo from '../HoldingLogo';
@@ -42,6 +42,8 @@ export default function SectorCapPerformanceSection({
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [stockSearch, setStockSearch] = useState('');
   const [stockSort, setStockSort] = useState({ field: 'returnPct', dir: 'desc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25); // 25, 50, 100, 'ALL'
 
   // Initialize range dates on mount
   useEffect(() => {
@@ -164,6 +166,22 @@ export default function SectorCapPerformanceSection({
     setRangeFilter(newRange);
   };
 
+  // Reset page when group or search or mode or scope changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedGroup, stockSearch, activeMode, marketScope, pageSize]);
+
+  const totalStocksInGroup = groupStocks.length;
+  const effectivePageSize = pageSize === 'ALL' ? totalStocksInGroup : Number(pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalStocksInGroup / (effectivePageSize || 1)));
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedStocks = useMemo(() => {
+    if (pageSize === 'ALL') return groupStocks;
+    const start = (validPage - 1) * effectivePageSize;
+    return groupStocks.slice(start, start + effectivePageSize);
+  }, [groupStocks, validPage, effectivePageSize, pageSize]);
+
   // Top gainer and decliner
   const bestGroup = useMemo(() => {
     if (!activeGroups.length) return null;
@@ -272,11 +290,11 @@ export default function SectorCapPerformanceSection({
               </span>
               <div className="flex items-center gap-2">
                 <span className={`text-base font-black ${
-                  data.totalReturnPct >= 0
+                  (Number(data.totalReturnPct) || 0) >= 0
                     ? 'text-emerald-500 dark:text-emerald-400'
                     : 'text-rose-500 dark:text-rose-400'
                 }`}>
-                  {data.totalReturnPct >= 0 ? '+' : ''}{data.totalReturnPct.toFixed(2)}%
+                  {(Number(data.totalReturnPct) || 0) >= 0 ? '+' : ''}{(Number(data.totalReturnPct) || 0).toFixed(2)}%
                 </span>
                 <span className="text-xs font-mono text-[var(--text-secondary)]">
                   {marketScope === 'PORTFOLIO'
@@ -296,9 +314,9 @@ export default function SectorCapPerformanceSection({
                     {bestGroup.name}
                   </span>
                   <span className={`text-xs font-bold ${
-                    bestGroup.returnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    (Number(bestGroup.returnPct) || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}>
-                    {bestGroup.returnPct >= 0 ? '+' : ''}{bestGroup.returnPct.toFixed(2)}%
+                    {(Number(bestGroup.returnPct) || 0) >= 0 ? '+' : ''}{(Number(bestGroup.returnPct) || 0).toFixed(2)}%
                   </span>
                 </div>
               ) : '—'}
@@ -314,9 +332,9 @@ export default function SectorCapPerformanceSection({
                     {worstGroup.name}
                   </span>
                   <span className={`text-xs font-bold ${
-                    worstGroup.returnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                    (Number(worstGroup.returnPct) || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}>
-                    {worstGroup.returnPct >= 0 ? '+' : ''}{worstGroup.returnPct.toFixed(2)}%
+                    {(Number(worstGroup.returnPct) || 0) >= 0 ? '+' : ''}{(Number(worstGroup.returnPct) || 0).toFixed(2)}%
                   </span>
                 </div>
               ) : '—'}
@@ -401,8 +419,8 @@ export default function SectorCapPerformanceSection({
                           <span className="font-bold text-[var(--text-primary)] block" title={item.name}>{item.name}</span>
                           <div className="flex justify-between gap-4">
                             <span className="text-[var(--text-secondary)]">Period Return:</span>
-                            <span className={`font-bold ${item.returnPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {item.returnPct >= 0 ? '+' : ''}{item.returnPct.toFixed(2)}%
+                            <span className={`font-bold ${(Number(item?.returnPct) || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {(Number(item?.returnPct) || 0) >= 0 ? '+' : ''}{(Number(item?.returnPct) || 0).toFixed(2)}%
                             </span>
                           </div>
                           {marketScope === 'PORTFOLIO' && (
@@ -428,7 +446,7 @@ export default function SectorCapPerformanceSection({
                   <Bar
                     dataKey="returnPct"
                     radius={[0, 6, 6, 0]}
-                    onClick={(entry) => setSelectedGroup(entry.name)}
+                    onClick={(entry) => { const name = entry?.payload?.name || entry?.name; if (name) setSelectedGroup(name); }}
                     cursor="pointer"
                   >
                     {activeGroups.map((entry) => {
@@ -440,6 +458,8 @@ export default function SectorCapPerformanceSection({
                           fill={isPositive ? (isSelected ? '#10B981' : '#059669') : (isSelected ? '#F43F5E' : '#E11D48')}
                           stroke={isSelected ? '#FFFFFF' : 'none'}
                           strokeWidth={isSelected ? 1.5 : 0}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setSelectedGroup(entry.name)}
                         />
                       );
                     })}
@@ -463,11 +483,11 @@ export default function SectorCapPerformanceSection({
                   </span>
                 </div>
                 <span className={`text-sm font-black px-2.5 py-1 rounded-xl ${
-                  (inspectedGroup?.returnPct || 0) >= 0
+                  (Number(inspectedGroup?.returnPct) || 0) >= 0
                     ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
                     : 'bg-rose-500/15 text-rose-500 border border-rose-500/30'
                 }`}>
-                  {(inspectedGroup?.returnPct || 0) >= 0 ? '+' : ''}{(inspectedGroup?.returnPct || 0).toFixed(2)}%
+                  {(Number(inspectedGroup?.returnPct) || 0) >= 0 ? '+' : ''}{(Number(inspectedGroup?.returnPct) || 0).toFixed(2)}%
                 </span>
               </div>
 
@@ -484,21 +504,21 @@ export default function SectorCapPerformanceSection({
               </div>
 
               {/* Constituent Stocks Table */}
-              <div className="overflow-y-auto max-h-[380px] custom-scrollbar pr-1">
+              <div className="overflow-y-auto max-h-[380px] custom-scrollbar pr-1 relative">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="sticky top-0 bg-[var(--card-bg)] text-[10px] uppercase font-bold text-[var(--text-muted)] border-b border-[var(--border-color)]">
-                    <tr>
-                      <th className="py-2 px-1">Stock</th>
+                  <thead className="sticky top-0 z-30 shadow-sm border-b border-[var(--border-color)] text-[10px] uppercase font-bold text-[var(--text-muted)]">
+                    <tr className="bg-[var(--card-bg)]">
+                      <th className="py-2.5 px-2 bg-[var(--card-bg)] backdrop-blur-md">Stock</th>
                       <th
                         onClick={() => handleStockSort(marketScope === 'PORTFOLIO' ? 'currentValINR' : 'endPrice')}
-                        className="py-2 px-2 text-right cursor-pointer hover:text-[var(--text-primary)]"
+                        className="py-2.5 px-2 text-right cursor-pointer hover:text-[var(--text-primary)] bg-[var(--card-bg)] backdrop-blur-md"
                         title={marketScope === 'PORTFOLIO' ? 'Sort by Portfolio Value' : 'Sort by Current Price'}
                       >
                         {marketScope === 'PORTFOLIO' ? 'Value' : 'Price / MCap'}
                       </th>
                       <th
                         onClick={() => handleStockSort('returnPct')}
-                        className="py-2 px-2 text-right cursor-pointer hover:text-[var(--text-primary)]"
+                        className="py-2.5 px-2 text-right cursor-pointer hover:text-[var(--text-primary)] bg-[var(--card-bg)] backdrop-blur-md"
                         title="Sort by Period Return %"
                       >
                         Return
@@ -506,13 +526,13 @@ export default function SectorCapPerformanceSection({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-color)]">
-                    {groupStocks.map((s) => {
+                    {paginatedStocks.map((s) => {
                       const isPositive = (s.returnPct || 0) >= 0;
                       return (
                         <tr
                           key={s.symbol}
                           onClick={() => onSelectHolding && onSelectHolding({ id: s.holdingId, symbol: s.symbol, name: s.name, category_id: s.category_id })}
-                          className="hover:bg-slate-800/20 cursor-pointer transition-colors"
+                          className="hover:bg-slate-800/20 cursor-pointer transition-colors relative z-0"
                         >
                           <td className="py-2.5 px-1 font-medium">
                             <div className="flex items-center gap-2">
@@ -539,6 +559,13 @@ export default function SectorCapPerformanceSection({
                                 >
                                   {s.name}
                                 </span>
+                                {(s.sector || s.mcapCategory) && (
+                                  <div className="text-[9.5px] text-[var(--text-secondary)] font-medium truncate mt-0.5 flex items-center gap-1">
+                                    {s.sector && <span className="text-emerald-500/90">{s.sector}</span>}
+                                    {s.sector && s.mcapCategory && <span>•</span>}
+                                    {s.mcapCategory && <span className="text-blue-400 font-semibold">{s.mcapCategory}</span>}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -548,7 +575,7 @@ export default function SectorCapPerformanceSection({
                             ) : (
                               <div>
                                 <div className="font-bold text-xs">
-                                  {s.currency === 'USD' ? `$${s.endPrice.toFixed(2)}` : `₹${s.endPrice.toFixed(2)}`}
+                                  {s.currency === 'USD' ? `$${(Number(s.endPrice) || 0).toFixed(2)}` : `₹${(Number(s.endPrice) || 0).toFixed(2)}`}
                                 </div>
                                 {s.marketCapCr ? (
                                   <div className="text-[10px] text-[var(--text-muted)] font-normal">
@@ -563,7 +590,7 @@ export default function SectorCapPerformanceSection({
                               isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
                             }`}>
                               {isPositive ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
-                              {isPositive ? '+' : ''}{s.returnPct.toFixed(1)}%
+                              {(Number(s.returnPct) || 0) >= 0 ? '+' : ''}{(Number(s.returnPct) || 0).toFixed(1)}%
                             </span>
                           </td>
                         </tr>
@@ -579,6 +606,57 @@ export default function SectorCapPerformanceSection({
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {totalStocksInGroup > 0 && (
+                <div className="pt-3 border-t border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-[var(--text-muted)]">
+                    <span>
+                      Showing {pageSize === 'ALL' ? `1–${totalStocksInGroup}` : `${Math.min(totalStocksInGroup, (validPage - 1) * effectivePageSize + 1)}–${Math.min(totalStocksInGroup, validPage * effectivePageSize)}`} of {totalStocksInGroup}
+                    </span>
+                    <span className="text-[var(--border-color)]">•</span>
+                    <div className="flex items-center gap-1">
+                      <span>Per page:</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => setPageSize(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                        className="bg-black/10 dark:bg-black/30 border border-[var(--border-color)] rounded-lg px-1.5 py-0.5 text-xs text-[var(--text-primary)] outline-none cursor-pointer"
+                      >
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value="ALL">All ({totalStocksInGroup})</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {pageSize !== 'ALL' && totalPages > 1 && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={validPage <= 1}
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className="p-1 rounded-lg border border-[var(--border-color)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-black/10 dark:hover:bg-white/5 transition-colors"
+                        title="Previous Page"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="px-2 text-xs font-bold text-[var(--text-primary)] font-mono">
+                        {validPage} / {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={validPage >= totalPages}
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className="p-1 rounded-lg border border-[var(--border-color)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-black/10 dark:hover:bg-white/5 transition-colors"
+                        title="Next Page"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

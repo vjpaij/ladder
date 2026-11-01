@@ -159,11 +159,11 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
       }
     });
 
-    const pnl = metrics ? (metrics.realizedINR + metrics.unrealizedINR) : 0;
+    const pnl = metrics ? ((metrics.realizedINR || 0) + (metrics.unrealizedINR || 0)) : 0;
     const absPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
-    const xirr = metrics ? metrics.xirrPct : 0;
-    const activeXirr = metrics ? metrics.activeXirrPct : 0;
-    const closedXirr = metrics ? metrics.closedXirrPct : 0;
+    const xirr = Number(metrics?.xirrPct) || 0;
+    const activeXirr = Number(metrics?.activeXirrPct) || 0;
+    const closedXirr = Number(metrics?.closedXirrPct) || 0;
     
     return { cost: totalCost, pnl, absPct, xirr, activeXirr, closedXirr };
   }, [rawIndianStocks, summary]);
@@ -258,8 +258,8 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                         {totalGain >= 0 ? '+' : ''}{formatMoney(totalGain, true)} ({totalGain >= 0 ? '+' : ''}{roiPct}%)
                       </span>
                       <span className="text-slate-600">•</span>
-                      <span className={combinedTotals.activeXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        XIRR: {combinedTotals.activeXirr >= 0 ? '+' : ''}{combinedTotals.activeXirr.toFixed(2)}%
+                      <span className={(Number(combinedTotals?.activeXirr) || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {(Number(combinedTotals?.activeXirr) || 0) >= 0 ? '+' : ''}{(Number(combinedTotals?.activeXirr) || 0).toFixed(2)}%
                       </span>
                     </>
                   ) : (
@@ -270,8 +270,8 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                         {(closedBannerTotals?.netPnl || 0) >= 0 ? '+' : ''}{formatMoney(closedBannerTotals?.netPnl || 0, true)} ({(closedBannerTotals?.netRoiPct || 0) >= 0 ? '+' : ''}{closedBannerTotals?.netRoiPct || 0}%)
                       </span>
                       <span className="text-slate-600">•</span>
-                      <span className={combinedTotals.closedXirr >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        XIRR: {combinedTotals.closedXirr >= 0 ? '+' : ''}{combinedTotals.closedXirr.toFixed(2)}%
+                      <span className={(Number(combinedTotals?.closedXirr) || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        XIRR: {(Number(combinedTotals?.closedXirr) || 0) >= 0 ? '+' : ''}{(Number(combinedTotals?.closedXirr) || 0).toFixed(2)}%
                       </span>
                     </>
                   )}
@@ -484,7 +484,7 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span className="text-[10px] text-slate-500 font-mono">{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</span>
+                                <span className="text-[10.5px] text-slate-400 font-mono font-bold">{h.symbol}</span>
                                 {h.quote_date && (() => {
                                   const status = getQuoteBadgeStatus(h.quote_date);
                                   return (
@@ -499,6 +499,23 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                                   );
                                 })()}
                               </div>
+                              {(h.sector || h.market_cap) && (
+                                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                  {h.sector && h.sector !== 'Unknown' && (
+                                    <span className="text-[9.5px] font-semibold text-slate-400 dark:text-slate-400 tracking-tight">
+                                      {h.sector}
+                                    </span>
+                                  )}
+                                  {h.sector && h.sector !== 'Unknown' && h.market_cap && h.market_cap !== 'Unknown' && (
+                                    <span className="text-[9px] text-slate-500">•</span>
+                                  )}
+                                  {h.market_cap && h.market_cap !== 'Unknown' && (
+                                    <span className="text-[9px] px-1.5 py-0.2 rounded font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                      {h.market_cap}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
