@@ -12,7 +12,8 @@ import {
   Save,
   CheckCircle2,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Zap
 } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
@@ -176,6 +177,79 @@ export default function ActionPlanModal({ isOpen, onClose }) {
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5">
+          {/* Dynamic Market Opportunity & Execution Mode Banner */}
+          {summary.marketOpportunity && (
+            <div className={`rounded-2xl border p-4 space-y-2.5 transition-all ${
+              summary.marketOpportunity.isStrikeMode
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : 'bg-amber-500/10 border-amber-500/30'
+            }`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-xl border ${
+                    summary.marketOpportunity.isStrikeMode
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-500 dark:text-emerald-400'
+                      : 'bg-amber-500/20 border-amber-500/40 text-amber-500 dark:text-amber-400'
+                  }`}>
+                    {summary.marketOpportunity.isStrikeMode ? (
+                      <Zap className="w-4 h-4" />
+                    ) : (
+                      <Clock className="w-4 h-4" />
+                    )}
+                  </div>
+                  <h4 className="text-sm font-black text-[var(--text-primary)]">
+                    {summary.marketOpportunity.headline}
+                  </h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${
+                    summary.marketOpportunity.isStrikeMode
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
+                  }`}>
+                    MOI: {summary.marketOpportunity.moi} / 100
+                  </span>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-lg bg-[var(--surface-color)] border border-[var(--border-color)] text-[var(--text-muted)]">
+                    Budget: {formatInr(summary.dailyDeploymentCap)}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                {summary.marketOpportunity.description}
+              </p>
+
+              {summary.marketOpportunity.componentScores && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-[var(--border-color)]/60 text-[11px] font-mono">
+                  <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-[var(--surface-color)]/70">
+                    <span className="text-[var(--text-muted)]">Quality Density:</span>
+                    <span className="font-bold text-[var(--text-primary)]">
+                      {summary.marketOpportunity.componentScores.qualityDensity}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-[var(--surface-color)]/70">
+                    <span className="text-[var(--text-muted)]">50-EMA Support:</span>
+                    <span className="font-bold text-[var(--text-primary)]">
+                      {summary.marketOpportunity.componentScores.ema50PullbackSupport}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-[var(--surface-color)]/70">
+                    <span className="text-[var(--text-muted)]">VCP Contraction:</span>
+                    <span className="font-bold text-[var(--text-primary)]">
+                      {summary.marketOpportunity.componentScores.vcpBaseCompression}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-[var(--surface-color)]/70">
+                    <span className="text-[var(--text-muted)]">Sector Group:</span>
+                    <span className="font-bold text-[var(--text-primary)]">
+                      {summary.marketOpportunity.componentScores.sectorGroupMomentum}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Capital Allocation & Scaling Controls */}
           <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-4 sm:p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -347,6 +421,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-base sm:text-lg font-black font-mono text-purple-600 dark:text-purple-400 mt-1 block">
                 {formatInr(summary.totalImmediateBuyValue)}
               </span>
+              <span className="text-[10px] text-purple-600/80 dark:text-purple-400/80 block mt-0.5 truncate" title={`Dynamic Deployment Budget: ${formatInr(summary.dailyDeploymentCap)}`}>
+                Budget: {formatInr(summary.dailyDeploymentCap)}
+              </span>
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3 col-span-2 sm:col-span-1">
@@ -444,6 +521,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                     ) : (
                       immediateBuys.map((b, idx) => {
                         const isAccumulate = b.actionType.includes('ACCUMULATE');
+                        const isPilot = b.actionType.includes('PILOT');
                         return (
                           <tr key={idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                             <td className="py-2.5 px-3">
@@ -451,9 +529,11 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                 <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
                                   isAccumulate
                                     ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
-                                    : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
+                                    : isPilot
+                                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
+                                      : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
                                 }`}>
-                                  {isAccumulate ? 'PYRAMID TRANCHE' : 'NEW POSITION'}
+                                  {isAccumulate ? 'PYRAMID TRANCHE' : isPilot ? 'PILOT TRANCHE (40%)' : 'NEW POSITION'}
                                 </span>
                                 {b.mps !== undefined && (
                                   <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-indigo-500/15 text-indigo-500 border border-indigo-500/30" title={`Multibagger Probability Score: ${b.mps}/100`}>
@@ -554,6 +634,14 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                               <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
                                 q.executionStatus?.includes('CORE HOLD') || q.sizing?.tierLabel?.includes('Hold Core') || q.actionType?.includes('MAXIMUM POSITION')
                                   ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
+                                  : q.executionStatus?.includes('EARNINGS')
+                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
+                                  : q.executionStatus?.includes('LOSS')
+                                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
+                                  : q.executionStatus?.includes('OPPORTUNITY BUDGET')
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
+                                  : q.executionStatus?.includes('BANDWIDTH') || q.executionStatus?.includes('DAILY')
+                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
                                   : q.executionStatus?.includes('AWAIT PULLBACK') || q.sizing?.tierLabel?.includes('Extended')
                                   ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
                                   : q.executionStatus?.includes('SECTOR')
@@ -562,7 +650,15 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                   ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
                                   : 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30'
                               }`}>
-                                {q.sizing?.tierLabel || q.stance}
+                                {q.executionStatus?.includes('EARNINGS')
+                                  ? 'Awaiting Earnings Beat'
+                                  : q.executionStatus?.includes('LOSS')
+                                  ? 'Loss Protection'
+                                  : q.executionStatus?.includes('OPPORTUNITY BUDGET')
+                                  ? 'Opportunity Budget Limit'
+                                  : q.executionStatus?.includes('BANDWIDTH') || q.executionStatus?.includes('DAILY')
+                                  ? 'Next In Line'
+                                  : (q.sizing?.tierLabel || q.stance)}
                               </span>
                               {q.mps !== undefined && (
                                 <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-indigo-500/15 text-indigo-500 border border-indigo-500/30" title={`Multibagger Probability Score: ${q.mps}/100`}>

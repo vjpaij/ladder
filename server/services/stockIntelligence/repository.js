@@ -12,6 +12,8 @@ const DEFAULT_CONFIG = {
   baseRecycledCapital: 4500000,
   recycledCapitalBaselineDate: '2026-10-31',
   recyclingMode: 'FULL_AND_TRIMS',
+  maxDailyBuys: 5,
+  dailyDeploymentCap: 350000,
   updatedAt: null
 };
 
@@ -74,6 +76,24 @@ export function saveIntelligenceConfig(userId, input) {
 
   const baselineDate = input?.recycledCapitalBaselineDate || current.recycledCapitalBaselineDate || '2026-10-31';
 
+  let maxDailyBuys = current.maxDailyBuys ?? 5;
+  if (input?.maxDailyBuys !== undefined) {
+    let val = Number(input.maxDailyBuys);
+    if (Number.isFinite(val)) {
+      val = Math.round(val);
+      val = Math.max(1, Math.min(15, val));
+      maxDailyBuys = val;
+    }
+  }
+
+  let dailyDeploymentCap = current.dailyDeploymentCap ?? 350000;
+  if (input?.dailyDeploymentCap !== undefined) {
+    const val = Number(input.dailyDeploymentCap);
+    if (Number.isFinite(val) && val >= 0) {
+      dailyDeploymentCap = Math.max(50000, Math.round(val));
+    }
+  }
+
   const config = {
     maxPositionWeightPct: targetWeight,
     externalCashBudget: externalBudget,
@@ -81,6 +101,8 @@ export function saveIntelligenceConfig(userId, input) {
     baseRecycledCapital: baseRecycled,
     recycledCapitalBaselineDate: baselineDate,
     recyclingMode: recMode,
+    maxDailyBuys,
+    dailyDeploymentCap,
     updatedAt: new Date().toISOString()
   };
   const document = readJson(CONFIG_FILE, { byUser: {} });

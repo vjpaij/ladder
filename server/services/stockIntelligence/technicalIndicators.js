@@ -169,9 +169,14 @@ export function analyzeTechnicalTrend(rawPrices, {
   // A stock in Stage 2 Bull that trades above its trailing stop has active compounding protection.
   // Standard 15% to 25% pullbacks in Indian growth stocks are recognized as normal volatility.
   const isCompoundingProtected = weinsteinStage === 2 && latest.close >= chandelierStopPrice;
-  const trailingFloorPrice = peakGainPct >= 0.25
-    ? chandelierStopPrice
-    : Number(Math.max(latestSma * 0.95, chandelierStopPrice).toFixed(2));
+  let calculatedFloor = chandelierStopPrice;
+  if (peakGainPct < 0.25) {
+    // Only apply 30w-SMA floor if it sits safely below trailing peak (guards against inverted phantom floors on turnaround entries)
+    if (latestSma * 0.95 < trailingPeak) {
+      calculatedFloor = Math.max(latestSma * 0.95, chandelierStopPrice);
+    }
+  }
+  const trailingFloorPrice = Number(calculatedFloor.toFixed(2));
   const bufferToTrailingFloorPct = latest.close > 0 && trailingFloorPrice > 0
     ? Number(((latest.close / trailingFloorPrice - 1) * 100).toFixed(2))
     : 0;

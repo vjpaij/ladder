@@ -382,11 +382,15 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
     const userConfig = getIntelligenceConfig(getUserKey(req.user));
     const externalCash = req.query.externalCash !== undefined ? Number(req.query.externalCash) : userConfig.externalCashBudget;
     const recyclingMode = req.query.recyclingMode || userConfig.recyclingMode;
+    const maxDailyBuys = req.query.maxDailyBuys !== undefined ? Number(req.query.maxDailyBuys) : undefined;
+    const dailyDeploymentCap = req.query.dailyDeploymentCap !== undefined ? Number(req.query.dailyDeploymentCap) : undefined;
 
     const plan = await generateActionPlan({
       userId: getUserKey(req.user),
       externalCashBudget: externalCash,
       recyclingMode,
+      maxDailyBuys,
+      dailyDeploymentCap,
       userConfig
     });
     res.json(plan);
@@ -401,11 +405,15 @@ router.get('/stock-intelligence/action-plan-csv', authenticateToken, async (req,
     const userConfig = getIntelligenceConfig(getUserKey(req.user));
     const externalCash = req.query.externalCash !== undefined ? Number(req.query.externalCash) : userConfig.externalCashBudget;
     const recyclingMode = req.query.recyclingMode || userConfig.recyclingMode;
+    const maxDailyBuys = req.query.maxDailyBuys !== undefined ? Number(req.query.maxDailyBuys) : undefined;
+    const dailyDeploymentCap = req.query.dailyDeploymentCap !== undefined ? Number(req.query.dailyDeploymentCap) : undefined;
 
     const plan = await generateActionPlan({
       userId: getUserKey(req.user),
       externalCashBudget: externalCash,
       recyclingMode,
+      maxDailyBuys,
+      dailyDeploymentCap,
       userConfig
     });
 
