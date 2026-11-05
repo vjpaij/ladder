@@ -559,5 +559,7 @@ export default {
   "ITI": "itiltd.in",
   "ROUTE": "routemobile.com",
   "SUNTV": "suntv.in",
-  "PVRINOX": "pvrcinemas.com"
+  "PVRINOX": "pvrcinemas.com",
+  "SHADOWFAX": "shadowfax.in",
+  "SWANDEF": "sdhi.co.in"
 };

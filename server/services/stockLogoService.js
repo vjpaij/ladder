@@ -208,7 +208,9 @@ const LOCAL_ASSET_LOGOS = {
   'SUDEEPPHRM': '/logos/sudeep.png',
   'ARTEMISMED': '/logos/artemis.png',
   'SHYAMMETL': '/logos/shyammetl.png',
-  'JBCHEPHARM': '/logos/jbchepharm.svg'
+  'JBCHEPHARM': '/logos/jbchepharm.svg',
+  'SHADOWFAX': '/logos/shadowfax.png',
+  'SWANDEF': '/logos/swandef.png'
 };
 
 /**

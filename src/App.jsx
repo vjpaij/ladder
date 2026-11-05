@@ -10,25 +10,26 @@ import HoldingDetailModal from './components/HoldingDetailModal';
 import EditProfileModal from './components/EditProfileModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoginView from './views/LoginView';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
-// Code-split: each view is loaded on demand to reduce initial bundle size
-const OverviewView = lazy(() => import('./views/OverviewView'));
-const CalendarView = lazy(() => import('./views/CalendarView'));
-const StockAnalysisView = lazy(() => import('./views/StockAnalysisView'));
-const BuyAnalysisView = lazy(() => import('./views/BuyAnalysisView'));
-const IndianStocksView = lazy(() => import('./views/IndianStocksView'));
-const UsStocksView = lazy(() => import('./views/UsStocksView'));
-const MutualFundsView = lazy(() => import('./views/MutualFundsView'));
-const NpsView = lazy(() => import('./views/NpsView'));
-const BankView = lazy(() => import('./views/BankView'));
-const EpfView = lazy(() => import('./views/EpfView'));
-const LiabilitiesView = lazy(() => import('./views/LiabilitiesView'));
-const DividendsView = lazy(() => import('./views/DividendsView'));
-const ReportsView = lazy(() => import('./components/ReportsView'));
-const DatabaseStudioView = lazy(() => import('./views/DatabaseStudioView'));
-const ExcelToolsView = lazy(() => import('./views/ExcelToolsView'));
-const AddInvestmentView = lazy(() => import('./views/AddInvestmentView'));
-const TradingJournalView = lazy(() => import('./views/TradingJournalView'));
+// Code-split: each view is loaded on demand with auto-retry and stale-bundle recovery
+const OverviewView = lazyWithRetry(() => import('./views/OverviewView'), 'OverviewView');
+const CalendarView = lazyWithRetry(() => import('./views/CalendarView'), 'CalendarView');
+const StockAnalysisView = lazyWithRetry(() => import('./views/StockAnalysisView'), 'StockAnalysisView');
+const BuyAnalysisView = lazyWithRetry(() => import('./views/BuyAnalysisView'), 'BuyAnalysisView');
+const IndianStocksView = lazyWithRetry(() => import('./views/IndianStocksView'), 'IndianStocksView');
+const UsStocksView = lazyWithRetry(() => import('./views/UsStocksView'), 'UsStocksView');
+const MutualFundsView = lazyWithRetry(() => import('./views/MutualFundsView'), 'MutualFundsView');
+const NpsView = lazyWithRetry(() => import('./views/NpsView'), 'NpsView');
+const BankView = lazyWithRetry(() => import('./views/BankView'), 'BankView');
+const EpfView = lazyWithRetry(() => import('./views/EpfView'), 'EpfView');
+const LiabilitiesView = lazyWithRetry(() => import('./views/LiabilitiesView'), 'LiabilitiesView');
+const DividendsView = lazyWithRetry(() => import('./views/DividendsView'), 'DividendsView');
+const ReportsView = lazyWithRetry(() => import('./components/ReportsView'), 'ReportsView');
+const DatabaseStudioView = lazyWithRetry(() => import('./views/DatabaseStudioView'), 'DatabaseStudioView');
+const ExcelToolsView = lazyWithRetry(() => import('./views/ExcelToolsView'), 'ExcelToolsView');
+const AddInvestmentView = lazyWithRetry(() => import('./views/AddInvestmentView'), 'AddInvestmentView');
+const TradingJournalView = lazyWithRetry(() => import('./views/TradingJournalView'), 'TradingJournalView');
 
 // Minimal loading fallback shown while a lazy chunk is fetching
 function ViewLoader() {

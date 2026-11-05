@@ -84,7 +84,9 @@ const KNOWN_STOCK_LOGOS = {
   'JBCHEPHARM': '/logos/jbchepharm.svg',
   'SBIN': '/logos/sbi.png',
   'SBI': '/logos/sbi.png',
-  'STATEBANK': '/logos/sbi.png'
+  'STATEBANK': '/logos/sbi.png',
+  'SHADOWFAX': '/logos/shadowfax.png',
+  'SWANDEF': '/logos/swandef.png'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {

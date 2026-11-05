@@ -85,11 +85,28 @@ export function getQuoteBadgeStatus(dateInput) {
   const todayFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
   const todayShort = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  // Most recent completed trading day (walking back weekend)
-  const dow = now.getDay();
-  const lastTradingDate = new Date(now);
-  if (dow === 6) lastTradingDate.setDate(lastTradingDate.getDate() - 1);
-  else if (dow === 0) lastTradingDate.setDate(lastTradingDate.getDate() - 2);
+  // Most recent completed trading day (walking back weekend and pre-market hours)
+  // In IST, before market open (09:15 AM IST), the current calendar date's session has not taken place yet,
+  // so yesterday (or Friday if Monday morning) is the authoritative completed market session.
+  const istFormatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = istFormatter.formatToParts(now);
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  const curMin = hour * 60 + minute;
+  const isPreMarket = curMin < 555; // Before 09:15 AM IST
+
+  const lastTradingDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  if (isPreMarket) {
+    lastTradingDate.setDate(lastTradingDate.getDate() - 1);
+  }
+  while (lastTradingDate.getDay() === 0 || lastTradingDate.getDay() === 6) {
+    lastTradingDate.setDate(lastTradingDate.getDate() - 1);
+  }
 
   const lastISO = lastTradingDate.toISOString().split('T')[0];
   const lastFormatted = lastTradingDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');

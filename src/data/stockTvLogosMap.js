@@ -547,5 +547,7 @@ export default {
   "ZFSTEERING": "zfsteering-gear-india-ltd",
   "ZIMLAB": "zim-laboratories-limited",
   "ZYDUSLIFE": "cadila-healthcare",
-  "SHYAMMETL": "shyam-metalics-and-energy"
+  "SHYAMMETL": "shyam-metalics-and-energy",
+  "SHADOWFAX": "shadowfax-technologies-limited",
+  "SWANDEF": "swan-defence-and-heavy-industr"
 };

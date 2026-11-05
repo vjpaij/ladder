@@ -625,7 +625,10 @@ test('Rule 9: Buy Analysis calculates 126-day Relative Strength and Multibagger 
 
 test('Rule 10: Next Day Action Plan calculates Recycled Capital starting at ₹45 Lakhs baseline and applies asymmetric conviction sizing', async () => {
   const { generateActionPlan } = await import('./actionPlanService.js');
-  const plan = await generateActionPlan({ externalCashBudget: 200000 });
+  const plan = await generateActionPlan({
+    externalCashBudget: 200000,
+    userConfig: { baseRecycledCapital: 4500000, recycledCapitalBaselineDate: '2099-01-01' }
+  });
 
   // Recycled capital should be at least ₹45 Lakhs baseline
   assert.ok(plan.summary.recycledCapital >= 4500000, `Recycled capital (${plan.summary.recycledCapital}) must be at least ₹45,00,000 baseline`);
