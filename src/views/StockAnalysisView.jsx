@@ -879,7 +879,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                     const isTrim = selected.state === 'TECHNICAL_TRIM_CANDIDATE' || selected.state === 'FUNDAMENTAL_TRIM_CANDIDATE' || selected.state === 'PORTFOLIO_RISK_TRIM';
                     const isFullExit = selected.state === 'FULL_EXIT_CANDIDATE';
                     const isWatch = selected.state === 'WATCH';
-                    const isNewListing = selected.state === 'DATA_UNAVAILABLE';
+                    const isNewListing = (selected.isIpo || selected.state === 'DATA_UNAVAILABLE') && !isTrim && !isFullExit && !selected.stopFloorBreached;
                     const isT1DoneHold = selected.stagedExitPlan?.tranche1?.status === 'COMPLETED'
                       && (selected.suggestedSellQuantity === 0 || !selected.suggestedSellQuantity)
                       && !isFullExit;
@@ -890,7 +890,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         ? 'RETEST_HOLD'
                         : isT1DoneHold
                           ? 'HOLD'
-                          : isTrim
+                          : (isTrim || selected.stopFloorBreached)
                             ? 'TRIM'
                             : isWatch
                               ? 'WATCH'
@@ -902,15 +902,17 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       ? 'ACTION: HOLD (FRESH BUY RETEST)'
                       : isT1DoneHold
                         ? 'TRANCHE 1 COMPLETED — HOLDING CORE POSITION'
-                        : (selected.stopFloorBreached && !isFullExit && (selected.suggestedSellQuantity > 0 || selected.totalActionShares > 0))
-                          ? 'ACTION: STOP FLOOR BREACHED — REVIEW TRIM'
-                          : ({
-                          EXIT: 'ACTION: FULL EXIT (SELL ALL)',
-                          TRIM: 'ACTION: TRIM POSITION',
-                          WATCH: 'ACTION: HOLD (WATCH CLOSELY)',
-                          IPO_HOLD: 'ACTION: HOLD (NEW LISTING)',
-                          HOLD: 'ACTION: HOLD (DO NOT SELL)'
-                        }[actionType]);
+                        : isFullExit
+                          ? 'ACTION: FULL EXIT (SELL ALL)'
+                          : (selected.stopFloorBreached && (selected.suggestedSellQuantity > 0 || selected.totalActionShares > 0))
+                            ? (selected.isIpo ? 'ACTION: IPO STOP FLOOR BREACHED — REVIEW TRIM' : 'ACTION: STOP FLOOR BREACHED — REVIEW TRIM')
+                            : ({
+                            EXIT: 'ACTION: FULL EXIT (SELL ALL)',
+                            TRIM: (selected.isIpo ? 'ACTION: IPO DEFENSIVE TRIM' : 'ACTION: TRIM POSITION'),
+                            WATCH: 'ACTION: HOLD (WATCH CLOSELY)',
+                            IPO_HOLD: 'ACTION: HOLD (NEW LISTING · ADAPTIVE BASE)',
+                            HOLD: 'ACTION: HOLD (DO NOT SELL)'
+                          }[actionType]);
 
                     const actionTheme = {
                       EXIT: 'border-red-500/50 bg-red-500/[0.08] text-red-600 dark:text-red-300',
@@ -944,17 +946,19 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         ? (selected.explanation || 'Fresh buy within 5-day noise corridor. Holding through initial retest volatility without premature exit.')
                         : isT1DoneHold
                           ? (selected.explanation || `Tranche 1 de-risking trim completed. Holding core position until 30-week SMA breakdown.`)
-                          : isTrim
-                            ? (selected.explanation || `Price dropped below 30-week moving average. Sell ${sellQty} shares to de-risk.`)
-                            : isWatch
-                              ? (selected.explanation || `Price is consolidating near the 30-week average (${curSymbol}${selected.sma30Week || '—'}). Continue holding.`)
-                              : isNewListing
-                                ? (selected.invalidation || 'Recently listed stock (<40 weeks history). 30-week trend baseline is establishing. Hold position.')
-                                : selected.stopFloorBreached
-                                  ? `Live price ${curSymbol}${Number(selected.currentPrice).toFixed(2)} is at or below the stop floor (${curSymbol}${stopFloor || '—'}). Review the suggested trim; no trade is placed automatically.`
-                                  : liveBufferPct !== null
-                                    ? `Live price is ${Math.abs(liveBufferPct).toFixed(2)}% ${liveBufferPct >= 0 ? 'above' : 'below'} the stop floor (${curSymbol}${stopFloor || '—'}). ${liveBufferPct >= 0 ? 'Bull thesis remains above this stop level.' : 'Review the stop-breach signal and staged exit plan.'}`
-                                    : 'Trailing stop floor is unavailable; refresh price history before relying on the sell analysis.';
+                          : (selected.stopFloorBreached && sellQty > 0)
+                            ? (selected.explanation || `Live price ${curSymbol}${Number(selected.currentPrice || 0).toFixed(2)} is at or below the stop floor (${curSymbol}${stopFloor || '—'}). Review the suggested trim; no trade is placed automatically.`)
+                            : isTrim
+                              ? (selected.explanation || `Price dropped below risk floor. Sell ${sellQty} shares to de-risk.`)
+                              : isWatch
+                                ? (selected.explanation || `Price is consolidating near the 30-week average (${curSymbol}${selected.sma30Week || '—'}). Continue holding.`)
+                                : isNewListing
+                                  ? (selected.explanation || (stopFloor > 0 ? `Adaptive IPO risk shield active. Trailing stop floor at ${curSymbol}${stopFloor} (${Math.abs(Number(liveBufferPct) || 0).toFixed(1)}% buffer). 30-week SMA baseline is establishing.` : 'Recently listed stock (<40 weeks history). 30-week trend baseline is establishing. Hold position.'))
+                                  : selected.stopFloorBreached
+                                    ? `Live price ${curSymbol}${Number(selected.currentPrice || 0).toFixed(2)} is at or below the stop floor (${curSymbol}${stopFloor || '—'}). Review the suggested trim; no trade is placed automatically.`
+                                    : (liveBufferPct !== null && liveBufferPct !== undefined)
+                                      ? `Live price is ${Math.abs(Number(liveBufferPct) || 0).toFixed(2)}% ${liveBufferPct >= 0 ? 'above' : 'below'} the stop floor (${curSymbol}${stopFloor || '—'}). ${liveBufferPct >= 0 ? 'Bull thesis remains above this stop level.' : 'Review the stop-breach signal and staged exit plan.'}`
+                                      : 'Trailing stop floor is unavailable; refresh price history before relying on the sell analysis.';
 
                     return (
                       <div className={`mt-4 rounded-2xl border p-4 ${actionTheme}`}>
@@ -1010,7 +1014,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                           <div className="rounded-xl border border-[var(--border-color)] reports-subcard p-2.5">
                             <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-bold">Safety Cushion</div>
                             <div className="mt-0.5 text-sm font-black font-mono text-cyan-500 dark:text-cyan-300">
-                              {liveBufferPct !== null ? `${liveBufferPct > 0 ? '+' : ''}${liveBufferPct.toFixed(2)}%` : '—'}
+                              {liveBufferPct !== null && liveBufferPct !== undefined ? `${liveBufferPct > 0 ? '+' : ''}${Number(liveBufferPct).toFixed(2)}%` : '—'}
                             </div>
                           </div>
                         </div>
@@ -1208,8 +1212,8 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         />
                         <Metric
                           label="30-Week Average (Trend)"
-                          value={selected.sma30Week ? money(formatMoney, selected.sma30Week, true, isUsMarket ? 'USD' : 'INR') : 'IPO (<40w)'}
-                          detail={selected.sma30WeekFourWeekSlopePct !== null ? `4w slope: ${selected.sma30WeekFourWeekSlopePct >= 0 ? '+' : ''}${selected.sma30WeekFourWeekSlopePct.toFixed(1)}%` : 'Building baseline'}
+                          value={selected.sma30Week ? money(formatMoney, selected.sma30Week, true, isUsMarket ? 'USD' : 'INR') : (selected.isIpo ? 'IPO (<40w)' : 'Building baseline')}
+                          detail={selected.sma30WeekFourWeekSlopePct !== null && selected.sma30WeekFourWeekSlopePct !== undefined ? `4w slope: ${selected.sma30WeekFourWeekSlopePct >= 0 ? '+' : ''}${Number(selected.sma30WeekFourWeekSlopePct).toFixed(1)}%` : 'Building baseline'}
                         />
                         <Metric
                           label="Trailing Stop (Exit Floor)"
@@ -1219,7 +1223,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         />
                         <Metric
                           label="20-Week Peak & Drop"
-                          value={selected.drawdownFrom20WeekHighPct !== null ? `${selected.drawdownFrom20WeekHighPct.toFixed(1)}%` : '—'}
+                          value={selected.drawdownFrom20WeekHighPct !== null && selected.drawdownFrom20WeekHighPct !== undefined ? `${Number(selected.drawdownFrom20WeekHighPct).toFixed(1)}%` : '—'}
                           tone={selected.drawdownFrom20WeekHighPct > -20 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
                           detail={`Peak: ${money(formatMoney, selected.peak20WeekPrice, true, isUsMarket ? 'USD' : 'INR')}`}
                         />
@@ -1240,7 +1244,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                         />
                         <Metric
                           label="Distance to 30w Trend"
-                          value={selected.weeklyClose && selected.sma30Week ? `${((selected.weeklyClose / selected.sma30Week - 1) * 100).toFixed(2)}%` : '—'}
+                          value={(Number(selected.weeklyClose) > 0 && Number(selected.sma30Week) > 0) ? `${((Number(selected.weeklyClose) / Number(selected.sma30Week) - 1) * 100).toFixed(2)}%` : '—'}
                           tone={selected.weeklyClose >= selected.sma30Week ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
                           detail={selected.weeklyClose >= selected.sma30Week ? 'Trading above 30w line' : `${selected.weeksBelowAverage}w below 30w line`}
                         />
@@ -1255,13 +1259,13 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Metric
                           label="30-Day Return"
-                          value={selected.observed30DayReturn ? `${selected.observed30DayReturn.pct >= 0 ? '+' : ''}${selected.observed30DayReturn.pct.toFixed(2)}%` : '—'}
+                          value={selected.observed30DayReturn?.pct !== undefined && selected.observed30DayReturn?.pct !== null ? `${selected.observed30DayReturn.pct >= 0 ? '+' : ''}${Number(selected.observed30DayReturn.pct).toFixed(2)}%` : '—'}
                           tone={returnTone(selected.observed30DayReturn?.pct)}
                           detail="Trailing 30 days"
                         />
                         <Metric
                           label="90-Day Return"
-                          value={selected.observed90DayReturn ? `${selected.observed90DayReturn.pct >= 0 ? '+' : ''}${selected.observed90DayReturn.pct.toFixed(2)}%` : '—'}
+                          value={selected.observed90DayReturn?.pct !== undefined && selected.observed90DayReturn?.pct !== null ? `${selected.observed90DayReturn.pct >= 0 ? '+' : ''}${Number(selected.observed90DayReturn.pct).toFixed(2)}%` : '—'}
                           tone={returnTone(selected.observed90DayReturn?.pct)}
                           detail="Trailing 90 days"
                         />

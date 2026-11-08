@@ -53,12 +53,56 @@ export function calculateWeeklyATR(weeklyCloses = [], period = 14) {
   return recent.reduce((sum, v) => sum + v, 0) / period;
 }
 
+/**
+ * Calculates Average True Range (ATR) across daily price candles
+ */
+export function calculateDailyATR(dailySeries = [], period = 14) {
+  if (!Array.isArray(dailySeries) || dailySeries.length < 2) return null;
+  const trueRanges = [];
+  for (let i = 1; i < dailySeries.length; i++) {
+    const cur = dailySeries[i];
+    const prev = dailySeries[i - 1];
+    let tr;
+    if (cur.high !== undefined && cur.low !== undefined && cur.high !== null && cur.low !== null) {
+      tr = Math.max(cur.high - cur.low, Math.abs(cur.high - prev.close), Math.abs(cur.low - prev.close));
+    } else {
+      tr = Math.abs(cur.close - prev.close);
+    }
+    trueRanges.push(tr);
+  }
+  const effPeriod = Math.min(period, trueRanges.length);
+  if (effPeriod <= 0) return null;
+  const recent = trueRanges.slice(-effPeriod);
+  return recent.reduce((sum, v) => sum + v, 0) / effPeriod;
+}
+
+function parseListingDays(listingDate, today) {
+  if (!listingDate) return null;
+  let parsed = null;
+  const dmyMatch = String(listingDate).match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+  if (dmyMatch) {
+    const months = { JAN:0, FEB:1, MAR:2, APR:3, MAY:4, JUN:5, JUL:6, AUG:7, SEP:8, OCT:9, NOV:10, DEC:11 };
+    const m = months[dmyMatch[2].toUpperCase()];
+    if (m !== undefined) {
+      parsed = new Date(Date.UTC(Number(dmyMatch[3]), m, Number(dmyMatch[1])));
+    }
+  } else {
+    const t = Date.parse(listingDate);
+    if (!isNaN(t)) parsed = new Date(t);
+  }
+  if (!parsed || isNaN(parsed.getTime())) return null;
+  const todayMs = Date.parse(today || new Date().toISOString().slice(0, 10));
+  return Math.floor((todayMs - parsed.getTime()) / 86400000);
+}
+
 export function analyzeTechnicalTrend(rawPrices, {
   today = new Date().toISOString().slice(0, 10),
   candleMapList = null,
   includeCurrentWeek = false,
   entryDate = null,
-  entryPrice = null
+  entryPrice = null,
+  listingDate = null,
+  isExplicitIpo = null
 } = {}) {
   const daily = normalizePriceSeries(rawPrices);
   const weekly = aggregateWeeklyCloses(daily, { today, includeCurrentWeek });
@@ -67,25 +111,165 @@ export function analyzeTechnicalTrend(rawPrices, {
   const isUsable = weekly.length >= 40 && latestSma !== null;
 
   if (!isUsable) {
+    const latestDaily = daily.at(-1);
+    const latestDailyClose = latestDaily?.close ?? latest?.close ?? null;
+    const numEntryPrice = Number(entryPrice) || 0;
+
+    // Determine whether this stock is genuinely an IPO / new listing (< 40 weeks / < 280 calendar days since listing/inception)
+    let isIpo = false;
+    if (isExplicitIpo !== null && isExplicitIpo !== undefined) {
+      isIpo = Boolean(isExplicitIpo);
+    } else if (listingDate) {
+      const daysSinceListing = parseListingDays(listingDate, today);
+      if (daysSinceListing !== null) {
+        isIpo = daysSinceListing <= 280;
+      }
+    } else if (daily.length > 0) {
+      const firstDate = daily[0]?.date;
+      const daysSinceFirstDate = firstDate ? Math.floor((Date.parse(today) - Date.parse(firstDate)) / 86400000) : null;
+      if (daysSinceFirstDate !== null && daysSinceFirstDate > 280) {
+        // Earliest price bar is older than 40 weeks: veteran stock with data gaps, strictly NOT an IPO
+        isIpo = false;
+      } else if (daily.length >= 10 && daysSinceFirstDate !== null && daysSinceFirstDate <= 280) {
+        // Daily price history strictly bounded within 40 weeks: genuine IPO candidate
+        isIpo = true;
+      }
+    }
+
+    // Adaptive IPO Crash & Risk Protection Engine (strictly for genuine IPOs with >= 10 daily observations)
+    if (isIpo && daily.length >= 10 && latestDailyClose !== null) {
+      const dailyCloses = daily.map(row => row.close);
+      const ipoHigh = Math.max(...dailyCloses);
+      const ipoLow = Math.min(...dailyCloses);
+      const drawdownFromIpoHigh = ipoHigh > 0 ? ((latestDailyClose / ipoHigh) - 1) * 100 : 0;
+      const dailyAtr = calculateDailyATR(daily, Math.min(14, daily.length - 1)) || (latestDailyClose * 0.035);
+
+      let trailingPeak = ipoHigh;
+      if (entryDate) {
+        const pricesSinceEntry = daily
+          .slice(-100)
+          .filter(row => row.date >= entryDate)
+          .map(row => row.close);
+        if (numEntryPrice > 0) {
+          pricesSinceEntry.push(numEntryPrice);
+        }
+        if (pricesSinceEntry.length > 0) {
+          trailingPeak = Math.max(...pricesSinceEntry);
+        }
+      }
+
+      const peakGainPct = (numEntryPrice > 0 && trailingPeak > 0)
+        ? (trailingPeak - numEntryPrice) / numEntryPrice
+        : 0;
+
+      let chandelierStopPrice;
+      if (peakGainPct >= 0.25) {
+        const widePctFloor = trailingPeak * 0.80; // 20% pullback allowance
+        const wideAtrFloor = trailingPeak - 3.5 * dailyAtr;
+        chandelierStopPrice = Number(Math.max(0, Math.max(widePctFloor, wideAtrFloor)).toFixed(2));
+      } else {
+        const baseAtrFloor = trailingPeak - 3.0 * dailyAtr;
+        const hardEntryFloor = numEntryPrice > 0 ? numEntryPrice * 0.92 : 0;
+        chandelierStopPrice = Number(Math.max(0, baseAtrFloor, hardEntryFloor, ipoLow * 0.95).toFixed(2));
+      }
+
+      const trailingFloorPrice = chandelierStopPrice;
+      const bufferToTrailingFloorPct = latestDailyClose > 0 && trailingFloorPrice > 0
+        ? Number(((latestDailyClose / trailingFloorPrice - 1) * 100).toFixed(2))
+        : 0;
+
+      const isNearHighs = drawdownFromIpoHigh >= -12;
+      const isConsolidating = latestDailyClose >= ipoLow * 1.02;
+      const weinsteinStage = isNearHighs ? 2 : isConsolidating ? 1 : 4;
+      const weinsteinStageLabel = isNearHighs
+        ? 'Stage 2 (Base Breakout · New Listing)'
+        : isConsolidating
+          ? 'Stage 1 (Base Consolidation · New Listing)'
+          : 'Stage 4 (Base Breakdown · New Listing)';
+
+      const daily21 = analyzeDaily21EmaPattern(daily, candleMapList);
+      const isStopBreached = trailingFloorPrice > 0 && latestDailyClose <= trailingFloorPrice;
+      const isHardRiskCut = numEntryPrice > 0 && (latestDailyClose / numEntryPrice - 1) <= -0.08;
+      const isBaseBreakdown = ipoLow > 0 && latestDailyClose < ipoLow * 0.98;
+      const isCrash = isStopBreached || isHardRiskCut || daily21.has4RedCandlesBelow21Ema || isBaseBreakdown;
+
+      // When a crash or stop breach occurs, immediately alert via TECHNICAL_TRIM_CANDIDATE
+      // When healthy, retain DATA_UNAVAILABLE for Stage 2 baseline establishing while providing full protection parameters
+      const state = isCrash ? 'TECHNICAL_TRIM_CANDIDATE' : 'DATA_UNAVAILABLE';
+      const isCompoundingProtected = weinsteinStage === 2 && !isCrash;
+
+      return {
+        state,
+        dataQuality: 'PRICE_HISTORY_ONLY',
+        isIpo: true,
+        dailyObservations: daily.length,
+        weeklyObservations: weekly.length,
+        latestPriceDate: daily.at(-1)?.date || null,
+        weeklyClose: latest?.close ?? latestDailyClose,
+        sma30Week: null,
+        sma30WeekFourWeekSlopePct: null,
+        weeksBelowAverage: 0,
+        slopeDown: null,
+        drawdownFrom20WeekHighPct: drawdownFromIpoHigh,
+        annualizedVolatility20DayPct: null,
+        weinsteinStage,
+        weinsteinStageLabel,
+        peak20WeekPrice: ipoHigh,
+        trailingPeakPrice: trailingPeak,
+        ipoHigh,
+        ipoLow,
+        chandelierStopPrice,
+        isCompoundingProtected,
+        trailingFloorPrice,
+        bufferToTrailingFloorPct,
+        stopFloorBreached: isStopBreached || isHardRiskCut,
+        peakGainPct: Number((peakGainPct * 100).toFixed(1)),
+        ...daily21,
+        evidence: [
+          { key: 'ipo_high', value: ipoHigh, observedAt: daily.at(-1)?.date },
+          { key: 'ipo_low', value: ipoLow, observedAt: daily.at(-1)?.date },
+          { key: 'chandelier_stop_price', value: chandelierStopPrice, observedAt: daily.at(-1)?.date },
+          { key: 'drawdown_from_high', value: drawdownFromIpoHigh, observedAt: daily.at(-1)?.date }
+        ],
+        invalidation: isCrash
+          ? 'Adaptive IPO risk trigger breached. Review trim/exit to preserve capital.'
+          : `Adaptive IPO protection active. Trailing stop floor anchored at ₹${trailingFloorPrice} until 40-week 30w-SMA baseline matures.`
+      };
+    }
+
+    const fallbackFloor = numEntryPrice > 0 ? Number((numEntryPrice * 0.92).toFixed(2)) : null;
+    const fallbackBreached = fallbackFloor !== null && latestDailyClose !== null && latestDailyClose <= fallbackFloor;
+
     return {
-      state: 'DATA_UNAVAILABLE',
+      state: fallbackBreached ? 'TECHNICAL_TRIM_CANDIDATE' : 'DATA_UNAVAILABLE',
       dataQuality: 'INSUFFICIENT_HISTORY',
+      isIpo: false,
       dailyObservations: daily.length,
       weeklyObservations: weekly.length,
       latestPriceDate: daily.at(-1)?.date || null,
       weeklyClose: latest?.close ?? null,
       sma30Week: latestSma,
+      sma30WeekFourWeekSlopePct: null,
       weeksBelowAverage: 0,
       slopeDown: null,
+      drawdownFrom20WeekHighPct: null,
+      annualizedVolatility20DayPct: null,
       weinsteinStage: null,
       weinsteinStageLabel: 'Insufficient History',
-      chandelierStopPrice: null,
+      peak20WeekPrice: null,
+      trailingPeakPrice: null,
+      ipoHigh: null,
+      ipoLow: null,
+      chandelierStopPrice: fallbackFloor,
       isCompoundingProtected: false,
-      trailingFloorPrice: null,
-      bufferToTrailingFloorPct: null,
+      trailingFloorPrice: fallbackFloor,
+      bufferToTrailingFloorPct: fallbackFloor && latestDailyClose ? Number(((latestDailyClose / fallbackFloor - 1) * 100).toFixed(2)) : null,
+      stopFloorBreached: fallbackBreached,
       ...analyzeDaily21EmaPattern(daily, candleMapList),
       evidence: [],
-      invalidation: 'Build at least 40 completed weekly observations before evaluating a trend.'
+      invalidation: fallbackBreached
+        ? 'Hard entry -8% circuit breaker breached. Review trim to preserve capital.'
+        : 'Build at least 40 completed weekly observations before evaluating a trend.'
     };
   }
 
@@ -194,6 +378,7 @@ export function analyzeTechnicalTrend(rawPrices, {
   return {
     state,
     dataQuality: 'PRICE_HISTORY_ONLY',
+    isIpo: false,
     dailyObservations: daily.length,
     weeklyObservations: weekly.length,
     latestPriceDate: daily.at(-1)?.date || null,

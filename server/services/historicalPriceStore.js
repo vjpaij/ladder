@@ -92,6 +92,24 @@ export async function saveHistoricalPricesToFile() {
   isSaving = true;
   const tempPath = `${HISTORICAL_PRICES_FILE}.${Date.now()}.tmp`;
   try {
+    // Monotonic disk merge: read existing disk file to ensure we never drop symbols or historical dates written by other processes
+    let diskData = {};
+    if (fs.existsSync(HISTORICAL_PRICES_FILE)) {
+      try {
+        const raw = await fs.promises.readFile(HISTORICAL_PRICES_FILE, 'utf-8');
+        diskData = JSON.parse(raw);
+      } catch (_) {}
+    }
+    // Merge: union of disk data and memory cache (memory updates matching dates, but older/extra disk dates are never lost)
+    const merged = { ...diskData };
+    for (const [sym, series] of Object.entries(historicalPricesCache)) {
+      if (!merged[sym]) {
+        merged[sym] = series;
+      } else {
+        merged[sym] = { ...merged[sym], ...series };
+      }
+    }
+    historicalPricesCache = merged;
     await fs.promises.writeFile(tempPath, JSON.stringify(historicalPricesCache, null, 2), 'utf-8');
     try {
       await fs.promises.rename(tempPath, HISTORICAL_PRICES_FILE);
@@ -151,7 +169,7 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
     }
 
     // Equity (Indian & US stocks)
-    const isIndian = category === 'in_stocks' || (!symbol.includes('.') && !['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'].includes(symbol.toUpperCase()));
+    const isIndian = category === 'in_stocks' || (category !== 'us_stocks' && !symbol.includes('.') && !['AAPL', 'MSFT', 'GOOG', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'PLTR', 'AVGO', 'ANET', 'CRM', 'TSM'].includes(symbol.toUpperCase()));
     const symbolMap = {
       'TATAMOTORS': 'TMPV.NS',
       'TATAMTRDVR': 'TMPV.NS',
@@ -167,7 +185,7 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
       fetchSym = `${fetchSym}.NS`;
     }
 
-    const startMs = startDate ? new Date(startDate).getTime() - (86400000 * 5) : Date.now() - (86400000 * 90);
+    const startMs = startDate ? new Date(startDate).getTime() - (86400000 * 5) : new Date('2024-01-01T00:00:00Z').getTime();
     const endMs = Date.now() + 86400000;
     const p1 = new Date(startMs).toISOString().split('T')[0];
     const p2 = new Date(endMs).toISOString().split('T')[0];
@@ -245,7 +263,7 @@ export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_sto
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const neededStart = startDate ? String(startDate).slice(0, 10) : '2024-01-01';
 
-  const hasCoverage = existing && existing[neededStart] !== undefined && (existing[yesterdayStr] !== undefined || Object.keys(existing).length >= 10);
+  const hasCoverage = existing && existing[neededStart] !== undefined && (existing[yesterdayStr] !== undefined || Object.keys(existing).length >= 200);
 
   if (hasCoverage) {
     return existing;

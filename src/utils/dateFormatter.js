@@ -100,11 +100,18 @@ export function getQuoteBadgeStatus(dateInput) {
   const curMin = hour * 60 + minute;
   const isPreMarket = curMin < 555; // Before 09:15 AM IST
 
+  // Known Special Weekend Trading Dates (Diwali Muhurat Trading & Disaster Recovery Sessions)
+  const SPECIAL_WEEKEND_TRADING_DATES = new Set([
+    '2024-03-02', '2024-05-18', '2024-11-01',
+    '2025-10-21', '2026-10-20', '2026-11-08',
+    '2027-10-29', '2028-10-18'
+  ]);
+
   const lastTradingDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   if (isPreMarket) {
     lastTradingDate.setDate(lastTradingDate.getDate() - 1);
   }
-  while (lastTradingDate.getDay() === 0 || lastTradingDate.getDay() === 6) {
+  while ((lastTradingDate.getDay() === 0 || lastTradingDate.getDay() === 6) && !SPECIAL_WEEKEND_TRADING_DATES.has(lastTradingDate.toISOString().split('T')[0])) {
     lastTradingDate.setDate(lastTradingDate.getDate() - 1);
   }
 

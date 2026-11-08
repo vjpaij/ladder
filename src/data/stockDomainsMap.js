@@ -561,5 +561,8 @@ export default {
   "SUNTV": "suntv.in",
   "PVRINOX": "pvrcinemas.com",
   "SHADOWFAX": "shadowfax.in",
-  "SWANDEF": "sdhi.co.in"
+  "SWANDEF": "sdhi.co.in",
+  "GROWW": "groww.in",
+  "JNPR": "junipergreenenergy.com",
+  "JNPS": "junipergreenenergy.com"
 };

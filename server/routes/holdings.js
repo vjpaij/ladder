@@ -321,8 +321,8 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       }
 
       const liveQuote = liveQuoteCache.get(h.symbol);
-      let currentPriceNum = (canonicalPriceMap && canonicalPriceMap[h.symbol] !== undefined)
-        ? canonicalPriceMap[h.symbol]
+      let currentPriceNum = (canonicalPriceMap && (canonicalPriceMap[h.id] !== undefined || canonicalPriceMap[h.symbol] !== undefined))
+        ? (canonicalPriceMap[h.id] ?? canonicalPriceMap[h.symbol])
         : resolveHoldingPrice(h, liveQuote);
       let carriedPriceDate = null;
 

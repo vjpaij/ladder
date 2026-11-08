@@ -178,7 +178,7 @@ export async function generateActionPlan({
     a.stopFloorBreached &&
     a.action !== 'ACCUMULATION_RETEST' &&
     (a.action === 'REVIEW_PARTIAL_SALE' || a.action === 'SELL_ALL' || a.state === 'TECHNICAL_TRIM_CANDIDATE') &&
-    a.state !== 'DATA_UNAVAILABLE' &&
+    (a.state !== 'DATA_UNAVAILABLE' || a.isIpo) &&
     (Number(a.suggestedSellQuantity) > 0 || calculateTriggeredStagedSell(a).quantity > 0) &&
     !fullExits.some(f => f.holdingId === a.holdingId)
   );
@@ -676,8 +676,8 @@ export async function generateActionPlan({
 
     activeSells.push({
       executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
-      actionType: 'SELL - FULL EXIT',
-      category: 'Full Exit (Structural Breakdown)',
+      actionType: a.isIpo ? 'SELL - IPO CRASH CIRCUIT-BREAKER' : 'SELL - FULL EXIT',
+      category: a.isIpo ? 'Full Exit (IPO Crash Circuit-Breaker)' : 'Full Exit (Structural Breakdown)',
       symbol: a.symbol,
       name: a.name,
       cmp,
@@ -706,8 +706,12 @@ export async function generateActionPlan({
       const trimQty = Number(a.suggestedSellQuantity) || Math.max(1, Math.round(held * 0.33));
       const amt = trimQty * cmp;
       const trigger = a.stagedExitPlan?.tranche1?.triggerPrice || a.sma30Week || 0;
-      const cat = a.state === 'TECHNICAL_TRIM_CANDIDATE' ? 'Technical Trim Candidate' : 'Fundamental Trim Candidate';
-      const actionType = a.state === 'TECHNICAL_TRIM_CANDIDATE' ? 'SELL - TECHNICAL TRIM' : 'SELL - FUNDAMENTAL TRIM';
+      const cat = a.isIpo
+        ? 'Adaptive IPO Trim Candidate'
+        : (a.state === 'TECHNICAL_TRIM_CANDIDATE' ? 'Technical Trim Candidate' : 'Fundamental Trim Candidate');
+      const actionType = a.isIpo
+        ? 'SELL - IPO DEFENSIVE TRIM'
+        : (a.state === 'TECHNICAL_TRIM_CANDIDATE' ? 'SELL - TECHNICAL TRIM' : 'SELL - FUNDAMENTAL TRIM');
 
       activeSells.push({
         executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
@@ -751,14 +755,16 @@ export async function generateActionPlan({
     const stageDescription = triggeredNames.length > 1
       ? `Missed price levels crossed (${triggeredNames.join(' + ')}); aggregate catch-up quantity is ${trimQty} shares.`
       : `Trigger calls for ${trimQty} shares in ${triggeredNames[0] || 'Tranche 1'}.`;
-    const actionType = triggeredNames.length > 1
-      ? `SELL - STAGED CATCH-UP (${triggeredNames.length} TRANCHES)`
-      : 'SELL - STOP FLOOR BREACH';
+    const actionType = a.isIpo
+      ? 'SELL - IPO STOP FLOOR BREACH'
+      : (triggeredNames.length > 1
+        ? `SELL - STAGED CATCH-UP (${triggeredNames.length} TRANCHES)`
+        : 'SELL - STOP FLOOR BREACH');
 
     activeSells.push({
       executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
       actionType,
-      category: 'Trailing Stop Floor Breach',
+      category: a.isIpo ? 'Adaptive IPO Stop Floor Breach' : 'Trailing Stop Floor Breach',
       symbol: a.symbol,
       name: a.name,
       cmp,

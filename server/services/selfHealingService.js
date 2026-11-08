@@ -816,6 +816,60 @@ export async function healDustFractionalHoldings() {
   return result;
 }
 
+/**
+ * Continuous Self-Healing for Active Holdings Multi-Year Price History
+ * Audits all active equity holdings to guarantee complete multi-year price series (>= 200 bars).
+ * Automatically backfills missing or truncated price history from 2024-01-01 in the background.
+ */
+export async function healActiveHoldingsPriceHistory() {
+  const result = { audited: 0, healed: 0, symbols: [] };
+  try {
+    const hpPath = path.join(process.cwd(), 'data', 'historical_prices.json');
+    if (!fs.existsSync(hpPath)) return result;
+    const hp = JSON.parse(fs.readFileSync(hpPath, 'utf8'));
+    const metaPath = path.join(process.cwd(), 'data', 'asset_metadata.json');
+    const metadata = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : [];
+    const metaMap = new Map((Array.isArray(metadata) ? metadata : []).map(m => [m.symbol, m]));
+
+    const holdings = await db.select('holdings');
+    const activeEquities = (holdings || []).filter(h => (h.category_id === 'in_stocks' || h.category_id === 'us_stocks') && Number(h.quantity) > 0);
+    result.audited = activeEquities.length;
+
+    for (const h of activeEquities) {
+      const cleanSym = String(h.symbol).replace(/\.(NS|BO)$/i, '');
+      const series = hp[h.symbol] || hp[cleanSym] || hp[`${cleanSym}.NS`] || hp[`${cleanSym}.BO`] || {};
+      const barCount = Object.keys(series).length;
+
+      // Check if genuine recent listing (< 365 calendar days since listing)
+      const meta = metaMap.get(h.symbol) || metaMap.get(cleanSym);
+      const listingDateStr = meta?.listing_date || h.listing_date;
+      let isRecentListing = false;
+      if (listingDateStr) {
+        const match = String(listingDateStr).match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+        if (match) {
+          const months = { JAN:0, FEB:1, MAR:2, APR:3, MAY:4, JUN:5, JUL:6, AUG:7, SEP:8, OCT:9, NOV:10, DEC:11 };
+          const m = months[match[2].toUpperCase()];
+          if (m !== undefined) {
+            const listMs = Date.UTC(Number(match[3]), m, Number(match[1]));
+            if ((Date.now() - listMs) <= 365 * 86400000) isRecentListing = true;
+          }
+        }
+      }
+
+      if (barCount < 200 && !isRecentListing) {
+        console.log(`[Self-Healing] Detected truncated price history for ${h.symbol} (${barCount} bars). Auto-healing from 2024-01-01...`);
+        const { ensureHistoricalPricesForSymbol } = await import('./historicalPriceStore.js');
+        await ensureHistoricalPricesForSymbol(h.symbol, h.category_id, '2024-01-01');
+        result.healed++;
+        result.symbols.push(h.symbol);
+      }
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] healActiveHoldingsPriceHistory error:', err.message);
+  }
+  return result;
+}
+
 export async function runComprehensiveSelfHealing() {
   console.log('[Self-Healing Service] Starting comprehensive self-healing scan...');
   const fxHeal = await healMissingHistoricalFxRates();
@@ -824,6 +878,7 @@ export async function runComprehensiveSelfHealing() {
   const npsGapHeal = await healNpsNavGaps();
   const npsEodSync = await syncRecentNpsEodValuations();
   const histPriceHeal = await healRecentHistoricalPrices({ triggerEodSync: false });
+  const holdingsPriceHistHeal = await healActiveHoldingsPriceHistory();
   const sipHeal = await healRecentSipTransactions();
   const dustHeal = await healDustFractionalHoldings();
   let navHeal = null;
@@ -833,11 +888,13 @@ export async function runComprehensiveSelfHealing() {
     console.warn('[Self-Healing Service] NAV sync warning:', err.message);
   }
 
-  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Current Prices: ${priceHeal.updated}, NPS NAV Gaps: ${npsGapHeal.updated}, Historical Asset Prices: ${histPriceHeal.updated}, Healed SIP TXs: ${sipHeal.healed}`);
+  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Current Prices: ${priceHeal.updated}, NPS NAV Gaps: ${npsGapHeal.updated}, Historical Asset Prices: ${histPriceHeal.updated}, Active Holdings Price Series: ${holdingsPriceHistHeal.healed}, Healed SIP TXs: ${sipHeal.healed}`);
   return {
     fxHealed: fxHeal,
     transactionsHealed: txHeal,
     pricesHealed: priceHeal,
+    historicalPricesHealed: histPriceHeal,
+    activeHoldingsPriceHistHealed: holdingsPriceHistHeal,
     historicalPricesHealed: histPriceHeal,
     npsGapHeal,
     npsEodSync,

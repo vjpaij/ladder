@@ -82,7 +82,7 @@ export default function HoldingMarketStats({
                 style={{ left: `${pos}%` }}
                 animate={{ scale: [1, 1.25, 1] }}
                 transition={{ duration: 2, repeat: Infinity }}
-                title={`Current: ${fmtStat(quotePriceVal)} (${pos.toFixed(0)}% of 52W range)`}
+                title={`Current: ${fmtStat(quotePriceVal)} (${Number(pos || 0).toFixed(0)}% of 52W range)`}
               />
             </div>
           </div>

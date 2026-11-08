@@ -514,8 +514,7 @@ router.get('/summary', async (req, res) => {
     let finalTotalAssetsINR = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     let finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));
 
-    const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||
-                             (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    const anyMarketTrading = Boolean(inStocksStatus.isTradingDay || usStocksStatus.isTradingDay);
     const hasAnyTxToday = todayTxs.length > 0;
 
     let dayPnlINR = Number((finalNetWorthINR - yesterdayWealth).toFixed(2));
@@ -578,6 +577,10 @@ router.get('/summary', async (req, res) => {
       dayPnlINR: Number(dayPnlINR.toFixed(2)),
       dayPnlPct,
       fxRate,
+      marketStatus: {
+        in_stocks: inStocksStatus,
+        us_stocks: usStocksStatus
+      },
       assetAllocation,
       categoryMetrics
     };

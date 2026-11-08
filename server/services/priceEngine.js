@@ -64,7 +64,7 @@ export function buildCanonicalLivePriceMap({
   });
 
   const isInStocksInvariant = !hasCategoryTransactionToday('in_stocks') &&
-    ['NON_TRADING_DAY', 'PRE_MARKET'].includes(inStocksStatus.status);
+    inStocksStatus.status === 'NON_TRADING_DAY';
   const isMfInvariant = !hasCategoryTransactionToday('mutual_funds') &&
     ['NON_TRADING_DAY', 'PRE_MARKET'].includes(mfStatus.status);
   const isNpsInvariant = !hasCategoryTransactionToday('nps') &&

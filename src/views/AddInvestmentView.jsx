@@ -813,7 +813,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
               <div className="glass-subcard p-3 rounded-xl space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-semibold">Current Active Holding:</span>
-                  <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{currentHoldingAvgPrice.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{Number(currentHoldingAvgPrice || 0).toFixed(2)}</span>
                 </div>
                 {formData.splitOldQty && formData.splitNewQty && Number(formData.splitOldQty) > 0 && (
                   <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
@@ -833,7 +833,7 @@ export default function AddInvestmentView({ onRefresh, initialPortfolio }) {
           <div className="glass-subcard p-3 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-semibold">Current Active Holding:</span>
-              <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{currentHoldingAvgPrice.toFixed(2)}</span>
+              <span className="font-mono font-bold text-white">{currentHoldingQty.toLocaleString('en-IN', { maximumFractionDigits: 9 })} shares @ {currSymbol}{Number(currentHoldingAvgPrice || 0).toFixed(2)}</span>
             </div>
             {formData.quantity && Number(formData.quantity) > 0 && (
               <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">

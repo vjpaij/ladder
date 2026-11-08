@@ -322,7 +322,7 @@ export default function GoChartingView({
               }`}>
                 {currentQuote.change >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                 <span>
-                  {currentQuote.change >= 0 ? '+' : ''}{formatPrice(currentQuote.change)} ({currentQuote.changePct >= 0 ? '+' : ''}{currentQuote.changePct.toFixed(2)}%)
+                  {currentQuote.change >= 0 ? '+' : ''}{formatPrice(currentQuote.change)} ({currentQuote.changePct >= 0 ? '+' : ''}{Number(currentQuote.changePct || 0).toFixed(2)}%)
                 </span>
               </div>
             </div>

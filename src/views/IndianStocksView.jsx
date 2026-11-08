@@ -204,6 +204,11 @@ export default function IndianStocksView({ summary, holdings, onDeleteHolding, o
                   />
                   NSE / BSE LIVE FEED
                 </span>
+                {summary?.marketStatus?.in_stocks?.specialSessionName && (
+                  <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    ✨ {summary.marketStatus.in_stocks.specialSessionName.toUpperCase()}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-xl font-black text-white flex items-center gap-2">

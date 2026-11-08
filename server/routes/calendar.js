@@ -281,8 +281,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     const prevTotalAssets = Number((lastTradingLog?.total_assets ?? lastTradingLog?.total_assets_inr ?? totalAssets).toFixed(2));
     const prevLiabilities = Number((lastTradingLog?.debt ?? lastTradingLog?.liabilities_inr ?? resolvedDebt).toFixed(2));
 
-    const anyMarketTrading = (inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET') ||
-                             (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    const anyMarketTrading = Boolean(inStocksStatus.isTradingDay || usStocksStatus.isTradingDay);
     const hasAnyTxToday = todayTxs.length > 0;
 
     let dailyPnl = Number((totalWealth - prevTotalWealth).toFixed(2));

@@ -117,7 +117,7 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
                     key={h.id}
                     style={{ width: `${Math.max(2, pct)}%` }}
                     className={`h-full rounded-sm bg-gradient-to-r ${style.color} transition-all duration-500`}
-                    title={`${h.name}: ${pct.toFixed(1)}%`}
+                    title={`${h.name}: ${Number(pct || 0).toFixed(1)}%`}
                   />
                 );
               })}
@@ -138,7 +138,7 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
                   >
                     <span className={`w-2 h-2 rounded-full bg-gradient-to-r ${style.color}`} />
                     <span className="text-slate-300 font-semibold">{cleanBankName(h.name).split(' ')[0]}</span>
-                    <span className="font-mono text-slate-500 text-[10px]">{pct.toFixed(1)}%</span>
+                    <span className="font-mono text-slate-500 text-[10px]">{Number(pct || 0).toFixed(1)}%</span>
                   </div>
                 );
               })}
@@ -215,7 +215,7 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
 
                   <div className="flex items-center justify-between text-xs text-slate-400 font-mono pt-1">
                     <span>Portfolio Share</span>
-                    <span className="font-bold text-slate-200">{sharePct.toFixed(1)}%</span>
+                    <span className="font-bold text-slate-200">{Number(sharePct || 0).toFixed(1)}%</span>
                   </div>
 
                   <button 

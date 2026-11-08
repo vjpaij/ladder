@@ -397,9 +397,6 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
                 +{formatInr(summary.recycledCapital)}
               </span>
-              <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 block mt-0.5 truncate" title="Base ₹45L + Indian stock sales - buys">
-                Base ₹45L + Net Sales
-              </span>
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">

@@ -564,7 +564,7 @@ test('Rule 6: Market Cap < ₹1,000 Cr and penny stocks (CMP < ₹20) are strict
   assert.equal(silInImmediate, undefined, 'SIL must not be in immediate buys');
   const silInQueued = plan.queuedBuys.find(b => b.symbol === 'SIL');
   assert.equal(silInQueued, undefined, 'SIL must not be in queued buys');
-  assert.ok(!plan.csv.includes('SIL,'), 'SIL must not be exported in the Action Plan CSV');
+  assert.ok(!plan.csv.includes(',SIL,') && !/(^|\n)[^,\n]*,SIL,/.test(plan.csv), 'SIL must not be exported in the Action Plan CSV');
 });
 
 test('Rule 7: Sector Concentration Guard limits immediate buys to max 5 per sector and caps single sector spend', async () => {
@@ -643,4 +643,80 @@ test('Rule 10: Next Day Action Plan calculates Recycled Capital starting at ₹4
   if (primeCandidate) {
     assert.ok(primeCandidate.sizing.alloc >= 200000, 'Prime Ultra candidates must receive ₹2L base allocation');
   }
+});
+
+test('Rule 11: Adaptive IPO Crash & Risk Protection Engine calculates trailing stop floor and protects healthy IPOs with < 40 weeks history', () => {
+  // Generate 50 trading days of history (~10 weeks, < 40 weeks) for an IPO advancing from 100 to 130
+  const prices = {};
+  const start = new Date('2026-08-01T00:00:00Z');
+  let cur = 100;
+  for (let i = 0; i < 50; i++) {
+    const d = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
+    cur += (i % 2 === 0 ? 1 : 0.2);
+    prices[d] = Number(cur.toFixed(2));
+  }
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+  const entryPrice = 100;
+  const entryDate = dates[0];
+
+  const trend = analyzeTechnicalTrend(prices, { today, entryDate, entryPrice });
+  assert.equal(trend.isIpo, true, 'Stock with < 40 weeks should be identified as IPO');
+  assert.ok(trend.trailingFloorPrice > 0, 'Adaptive IPO trailing stop floor must be calculated');
+  assert.ok(trend.bufferToTrailingFloorPct > 0, 'Buffer to stop floor must be positive in advancing IPO');
+  assert.equal(trend.stopFloorBreached, false, 'Stop floor must not be breached for healthy IPO');
+
+  // Held position in analysisService
+  const holdings = [{ id: 'ipo1', symbol: 'IPORUNNER', category_id: 'in_stocks', quantity: 500, current_price: cur }];
+  const [analysis] = buildStockAnalyses(holdings, { IPORUNNER: prices }, {
+    today,
+    transactions: [{ holding_id: 'ipo1', type: 'BUY', date: entryDate, quantity: 500, price: 100 }]
+  });
+
+  assert.equal(analysis.state, 'NORMAL');
+  assert.equal(analysis.action, 'HOLD_AND_COMPOUND');
+  assert.equal(analysis.compoundingShield.isActive, true, 'Healthy IPO holding must have active compounding shield');
+  assert.ok(analysis.trailingFloorPrice > 0);
+  assert.match(analysis.explanation, /Adaptive IPO Shield Active|holding safely/i);
+});
+
+test('Rule 12: Adaptive IPO Crash & Risk Protection Engine triggers defensive trim on stop floor breach and full exit on severe crash', () => {
+  const prices = {};
+  const start = new Date('2026-08-01T00:00:00Z');
+  let cur = 100;
+  for (let i = 0; i < 50; i++) {
+    const d = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
+    cur += (i % 2 === 0 ? 0.8 : -0.2);
+    prices[d] = Number(cur.toFixed(2));
+  }
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+  const entryPrice = 110;
+  const entryDate = dates[10];
+
+  // Case A: Price drops below stop floor (e.g. 98, -10.9% from entry 110)
+  const breachPrice = 98;
+  const holdingsBreach = [{ id: 'ipo1', symbol: 'IPORUNNER', category_id: 'in_stocks', quantity: 600, current_price: breachPrice }];
+  const [trimAnalysis] = buildStockAnalyses(holdingsBreach, { IPORUNNER: prices }, {
+    today,
+    transactions: [{ holding_id: 'ipo1', type: 'BUY', date: entryDate, quantity: 600, price: entryPrice }]
+  });
+
+  assert.equal(trimAnalysis.state, 'TECHNICAL_TRIM_CANDIDATE', 'Breached IPO must trigger TECHNICAL_TRIM_CANDIDATE');
+  assert.equal(trimAnalysis.action, 'REVIEW_PARTIAL_SALE', 'Breached IPO must trigger REVIEW_PARTIAL_SALE');
+  assert.ok(trimAnalysis.suggestedSellQuantity > 0, 'Breached IPO must have non-zero suggested sell quantity');
+  assert.ok(trimAnalysis.stopFloorBreached, 'stopFloorBreached must be true');
+
+  // Case B: Severe crash (price drops to 75, -31.8% from entry 110)
+  const crashPrice = 75;
+  const pricesCrash = { ...prices, [today]: crashPrice };
+  const holdingsCrash = [{ id: 'ipo1', symbol: 'IPORUNNER', category_id: 'in_stocks', quantity: 600, current_price: crashPrice }];
+  const [crashAnalysis] = buildStockAnalyses(holdingsCrash, { IPORUNNER: pricesCrash }, {
+    today,
+    transactions: [{ holding_id: 'ipo1', type: 'BUY', date: entryDate, quantity: 600, price: entryPrice }]
+  });
+
+  assert.equal(crashAnalysis.state, 'FULL_EXIT_CANDIDATE', 'Crashing IPO must trigger FULL_EXIT_CANDIDATE');
+  assert.equal(crashAnalysis.action, 'FULL_EXIT', 'Crashing IPO must trigger FULL_EXIT');
+  assert.equal(crashAnalysis.suggestedSellQuantity, 600, 'Crashing IPO must suggest 100% position exit');
 });

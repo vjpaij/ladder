@@ -300,9 +300,9 @@ export default function AssetDividendDetailModal({
     return Object.keys(yearsMap).sort().map(year => ({
       ...yearsMap[year],
       topGap: 0,
-      totalDisplay: isDisplayUSD ? Number(yearsMap[year].totalOriginal.toFixed(2)) : Number(yearsMap[year].totalINR.toFixed(2)),
-      totalINR: Number(yearsMap[year].totalINR.toFixed(2)),
-      totalOriginal: Number(yearsMap[year].totalOriginal.toFixed(2))
+      totalDisplay: isDisplayUSD ? Number((yearsMap[year].totalOriginal || 0).toFixed(2)) : Number((yearsMap[year].totalINR || 0).toFixed(2)),
+      totalINR: Number((yearsMap[year].totalINR || 0).toFixed(2)),
+      totalOriginal: Number((yearsMap[year].totalOriginal || 0).toFixed(2))
     }));
   }, [schemeDividends, isDisplayUSD]);
 
@@ -330,9 +330,9 @@ export default function AssetDividendDetailModal({
       return {
         date: displayDate,
         rawDate: d.raw_date,
-        cumulative: isDisplayUSD ? Number(runOriginal.toFixed(2)) : Number(runINR.toFixed(2)),
-        cumulativeINR: Number(runINR.toFixed(2)),
-        cumulativeUSD: Number(runOriginal.toFixed(2)),
+        cumulative: isDisplayUSD ? Number((runOriginal || 0).toFixed(2)) : Number((runINR || 0).toFixed(2)),
+        cumulativeINR: Number((runINR || 0).toFixed(2)),
+        cumulativeUSD: Number((runOriginal || 0).toFixed(2)),
         payout: isDisplayUSD ? Number(d.amount_original) : Number(d.amount_inr),
         index: index + 1
       };
@@ -476,13 +476,13 @@ export default function AssetDividendDetailModal({
         }`}>
           <span className={isLight ? 'text-slate-600' : 'text-slate-300'}>Calendar Year {label}</span>
           <span className="text-emerald-500 font-mono font-black">
-            {isDisplayUSD ? `$${dataRow.totalOriginal.toFixed(2)}` : `₹${dataRow.totalINR.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+            {isDisplayUSD ? `$${Number(dataRow.totalOriginal || 0).toFixed(2)}` : `₹${Number(dataRow.totalINR || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
           </span>
         </div>
         {isUS && (
           <div className={`text-[10px] font-mono flex justify-between ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
             <span>Converted Total:</span>
-            <span>{isDisplayUSD ? `₹${dataRow.totalINR.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : `$${dataRow.totalOriginal.toFixed(2)}`}</span>
+            <span>{isDisplayUSD ? `₹${Number(dataRow.totalINR || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : `$${Number(dataRow.totalOriginal || 0).toFixed(2)}`}</span>
           </div>
         )}
         <div className="space-y-1 pt-1">
@@ -560,7 +560,7 @@ export default function AssetDividendDetailModal({
                   {isUS && (
                     <>
                       <span>•</span>
-                      <span className="text-[11px] text-purple-400">FX: ₹{effectiveFx.toFixed(2)}</span>
+                      <span className="text-[11px] text-purple-400">FX: ₹{Number(effectiveFx || 0).toFixed(2)}</span>
                     </>
                   )}
                 </div>
@@ -689,7 +689,7 @@ export default function AssetDividendDetailModal({
                 </div>
                 <div className="text-lg sm:text-xl font-black font-mono text-amber-400">
                   {metrics.yieldOnCost !== null 
-                    ? `${metrics.yieldOnCost.toFixed(2)}%` 
+                    ? `${Number(metrics.yieldOnCost || 0).toFixed(2)}%` 
                     : metrics.latest 
                     ? (isDisplayUSD 
                         ? `$${Number(metrics.latest.amount_original).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 

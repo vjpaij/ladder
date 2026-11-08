@@ -363,7 +363,7 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
               <div className="p-2.5 rounded-xl border border-[var(--border-color)] bg-white/[0.02] flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
                 <span className="text-[var(--text-secondary)] font-sans text-[11px]">Trade Date FX Rates:</span>
                 <span className="text-cyan-500 dark:text-cyan-400 font-bold text-[11px]">
-                  Entry: ₹{(trade.entryFxRate || trade.fxRate || 0).toFixed(2)}/$ {trade.exitFxRate ? `| Exit: ₹${(trade.exitFxRate).toFixed(2)}/$` : ''}
+                  Entry: ₹{Number(trade.entryFxRate || trade.fxRate || 0).toFixed(2)}/$ {trade.exitFxRate ? `| Exit: ₹${Number(trade.exitFxRate || 0).toFixed(2)}/$` : ''}
                 </span>
               </div>
             )}
@@ -458,7 +458,7 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
                       <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
                         <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">P/E Ratio</span>
                         <span className="font-bold text-[var(--text-primary)]">
-                          {entrySnapshot.fundamentals.entryPe ? `${entrySnapshot.fundamentals.entryPe.toFixed(1)}x` : (entrySnapshot.fundamentals.peRatio ? `${entrySnapshot.fundamentals.peRatio.toFixed(1)}x` : '—')}
+                          {entrySnapshot.fundamentals.entryPe ? `${Number(entrySnapshot.fundamentals.entryPe).toFixed(1)}x` : (entrySnapshot.fundamentals.peRatio ? `${Number(entrySnapshot.fundamentals.peRatio).toFixed(1)}x` : '—')}
                         </span>
                       </div>
                       <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
@@ -482,19 +482,19 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
                       <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
                         <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">OPM %</span>
                         <span className="font-bold text-[var(--text-primary)]">
-                          {entrySnapshot.fundamentals.opmPct !== null && entrySnapshot.fundamentals.opmPct !== undefined ? `${entrySnapshot.fundamentals.opmPct.toFixed(1)}%` : '—'}
+                          {entrySnapshot.fundamentals.opmPct !== null && entrySnapshot.fundamentals.opmPct !== undefined ? `${Number(entrySnapshot.fundamentals.opmPct).toFixed(1)}%` : '—'}
                         </span>
                       </div>
                       <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
                         <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">ROCE %</span>
                         <span className="font-bold text-[var(--text-primary)]">
-                          {entrySnapshot.fundamentals.rocePct !== null && entrySnapshot.fundamentals.rocePct !== undefined ? `${entrySnapshot.fundamentals.rocePct.toFixed(1)}%` : '—'}
+                          {entrySnapshot.fundamentals.rocePct !== null && entrySnapshot.fundamentals.rocePct !== undefined ? `${Number(entrySnapshot.fundamentals.rocePct).toFixed(1)}%` : '—'}
                         </span>
                       </div>
                       <div className="p-2 rounded-xl reports-subcard border border-[var(--border-color)]">
                         <span className="text-[8px] text-[var(--text-muted)] uppercase block font-sans">ROE %</span>
                         <span className="font-bold text-[var(--text-primary)]">
-                          {entrySnapshot.fundamentals.roePct !== null && entrySnapshot.fundamentals.roePct !== undefined ? `${entrySnapshot.fundamentals.roePct.toFixed(1)}%` : '—'}
+                          {entrySnapshot.fundamentals.roePct !== null && entrySnapshot.fundamentals.roePct !== undefined ? `${Number(entrySnapshot.fundamentals.roePct).toFixed(1)}%` : '—'}
                         </span>
                       </div>
                     </div>

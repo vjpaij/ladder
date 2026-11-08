@@ -278,7 +278,7 @@ const SPECIAL_TRADING_SESSIONS = [
   { date: '2024-11-01', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:00', endTime: '19:00' },
   { date: '2025-10-21', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
   { date: '2026-10-20', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
-  { date: '2026-11-08', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
+  { date: '2026-11-08', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '09:15', endTime: '20:00' },
   { date: '2027-10-29', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' },
   { date: '2028-10-18', market: 'NSE', name: 'Diwali Muhurat Trading', type: 'MUHURAT', startTime: '18:15', endTime: '19:15' }
 ];
@@ -700,11 +700,13 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
 
   // 2. If the asset's exchange is actively open right now, it is undeniably MARKET_OPEN
   if (isToday && isAssetMarketOpenNow(categoryId)) {
+    const special = categoryId === 'in_stocks' ? getSpecialTradingSession(dateISO, 'NSE') : null;
     return {
       isTradingDay: true,
       isOpenNow: true,
-      sessionType: 'LIVE',
-      status: 'MARKET_OPEN'
+      sessionType: special ? special.type : 'LIVE',
+      status: 'MARKET_OPEN',
+      specialSessionName: special ? special.name : null
     };
   }
 
@@ -715,7 +717,8 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
       isTradingDay: false,
       isOpenNow: false,
       sessionType: 'NONE',
-      status: 'NON_TRADING_DAY'
+      status: 'NON_TRADING_DAY',
+      specialSessionName: null
     };
   }
 
@@ -724,7 +727,8 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
       isTradingDay: true,
       isOpenNow: false,
       sessionType: 'COMPLETED',
-      status: 'POST_MARKET'
+      status: 'POST_MARKET',
+      specialSessionName: null
     };
   }
 
@@ -745,9 +749,9 @@ export function getAssetSessionStatus(categoryId, dateISO = getTodayIST()) {
     const startMin = startH * 60 + startM;
 
     if (curMin < startMin) {
-      return { isTradingDay: true, isOpenNow: false, sessionType: special ? special.type : 'REGULAR', status: 'PRE_MARKET' };
+      return { isTradingDay: true, isOpenNow: false, sessionType: special ? special.type : 'REGULAR', status: 'PRE_MARKET', specialSessionName: special ? special.name : null };
     }
-    return { isTradingDay: true, isOpenNow: false, sessionType: special ? special.type : 'REGULAR', status: 'POST_MARKET' };
+    return { isTradingDay: true, isOpenNow: false, sessionType: special ? special.type : 'REGULAR', status: 'POST_MARKET', specialSessionName: special ? special.name : null };
   }
 
 

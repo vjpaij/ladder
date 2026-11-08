@@ -319,6 +319,36 @@ export default function TopNavbar({
           </span>
         </div>
 
+        {/* Live Market Session Status Pill */}
+        {summary?.marketStatus?.in_stocks?.isTradingDay && (
+          <div 
+            title={summary.marketStatus.in_stocks.specialSessionName || (summary.marketStatus.in_stocks.isOpenNow ? 'NSE/BSE Active Trading Session' : 'NSE/BSE Pre-Market Session')}
+            className={`hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border rounded-xl text-xs font-mono select-none shadow-sm transition-all ${
+              summary.marketStatus.in_stocks.sessionType === 'MUHURAT'
+                ? 'border-amber-500/60 bg-amber-950/20'
+                : summary.marketStatus.in_stocks.isOpenNow
+                  ? 'border-emerald-500/60'
+                  : 'border-slate-700/60'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${
+              summary.marketStatus.in_stocks.isOpenNow 
+                ? (summary.marketStatus.in_stocks.sessionType === 'MUHURAT' ? 'bg-amber-400 animate-pulse shadow-sm shadow-amber-500/50' : 'bg-emerald-400 animate-pulse shadow-sm shadow-emerald-500/50')
+                : 'bg-amber-400'
+            } shrink-0`} />
+            <span className="text-[10px] font-extrabold text-slate-400">
+              {summary.marketStatus.in_stocks.sessionType === 'MUHURAT' ? 'MUHURAT' : (summary.marketStatus.in_stocks.sessionType === 'SATURDAY_SESSION' ? 'DR SESSION' : 'NSE')}
+            </span>
+            <span className={`font-extrabold text-xs ${
+              summary.marketStatus.in_stocks.isOpenNow
+                ? (summary.marketStatus.in_stocks.sessionType === 'MUHURAT' ? 'text-amber-300' : 'text-emerald-400')
+                : 'text-amber-400'
+            }`}>
+              {summary.marketStatus.in_stocks.isOpenNow ? 'LIVE' : 'TODAY'}
+            </span>
+          </div>
+        )}
+
         {/* Sync Prices Button */}
         <motion.button
           onClick={onRefreshPrices}

@@ -86,7 +86,10 @@ const KNOWN_STOCK_LOGOS = {
   'SBI': '/logos/sbi.png',
   'STATEBANK': '/logos/sbi.png',
   'SHADOWFAX': '/logos/shadowfax.png',
-  'SWANDEF': '/logos/swandef.png'
+  'SWANDEF': '/logos/swandef.png',
+  'GROWW': '/logos/groww.png',
+  'JNPR': '/logos/jnpr.png',
+  'JNPS': '/logos/jnps.png'
 };
 
 export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => {
@@ -324,6 +327,12 @@ export const getLogoUrlsForHolding = (name = '', symbol = '', category = '') => 
   }
   if (n.includes('jb chem') || n.includes('j b chem') || n.includes('jb pharma') || s === 'JBCHEPHARM' || s === 'JBCHEM') {
     urls.push('/logos/jbchepharm.svg');
+  }
+  if (n.includes('groww') || n.includes('billionbrains') || s === 'GROWW') {
+    urls.push('/logos/groww.png');
+  }
+  if (n.includes('juniper') || s === 'JNPR' || s === 'JNPS') {
+    urls.push('/logos/jnpr.png');
   }
 
   // Priority 1: Curated Institutional Financial Brand Portals (TradingView 600px & CompaniesMarketCap 256px & Parqet)

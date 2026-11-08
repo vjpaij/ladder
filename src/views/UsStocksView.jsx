@@ -592,10 +592,10 @@ export default function UsStocksView({ summary, holdings, onDeleteHolding, onEdi
                             {Number(soldQty).toLocaleString('en-US', {maximumFractionDigits: 9})}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-slate-300 whitespace-nowrap">
-                            {isUSD ? `$${avgBuyUSD.toFixed(2)}` : formatMoney(avgBuyUSD * txRate, true)}
+                            {isUSD ? `$${Number(avgBuyUSD || 0).toFixed(2)}` : formatMoney(avgBuyUSD * txRate, true)}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-purple-400 font-bold whitespace-nowrap">
-                            {isUSD ? `$${avgSellUSD.toFixed(2)}` : formatMoney(avgSellINR, true)}
+                            {isUSD ? `$${Number(avgSellUSD || 0).toFixed(2)}` : formatMoney(avgSellINR, true)}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-slate-200 font-bold whitespace-nowrap">
                             {isUSD ? `$${investedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatMoney(investedINR, true)}

@@ -441,6 +441,7 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
 
   const interim = targetStocks.map(holding => {
     const clean = cleanSym(holding.symbol);
+    const meta = metadataBySymbol.get(clean);
     const candleList = candleCache?.[holding.symbol] || candleCache?.[clean] || null;
     const raw = priceSeriesFor(holding.symbol, historicalPriceMap);
     const prices = normalizePriceSeries(raw);
@@ -455,7 +456,8 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       today,
       candleMapList: candleList,
       entryDate: firstBuyDate,
-      entryPrice
+      entryPrice,
+      listingDate: meta?.listing_date || holding.listing_date
     });
     const quantity = Number(holding.quantity) || 0;
     const isUs = targetCategory === 'us_stocks';
@@ -500,7 +502,6 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const staleHistory = historyAgeDays === null || historyAgeDays > 10 || historyAgeDays < 0;
     const inconsistentLatestPrice = historyAgeDays !== null && historyAgeDays <= 3
       && historyQuoteGapPct !== null && historyQuoteGapPct > 45;
-    const meta = metadataBySymbol.get(cleanSym(holding.symbol));
 
     const symClean = cleanSym(holding.symbol);
     const funds = fundamentalsMap[symClean] || { status: 'UNAVAILABLE', source: null, observations: [] };
@@ -602,8 +603,38 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const isFundsDecaying = isSeverePatCollapse || isMarginDecayWithEarningsDrop || isDualContraction;
     const isGovernanceRedFlag = item.fundamentals?.promoterPledgePct > 20;
     const has4RedBreakdown = Boolean(item.has4RedCandlesBelow21Ema);
+    const isDataUnavailable = item.state === 'DATA_UNAVAILABLE' && (!item.isIpo || item.dailyObservations < 10 || item.dataQuality === 'PRICE_HISTORY_QUOTE_MISMATCH' || item.dataQuality === 'INSUFFICIENT_HISTORY');
+    const isIpoHolding = Boolean(!isDataUnavailable && item.isIpo && item.dailyObservations >= 10 && item.dataQuality !== 'PRICE_HISTORY_QUOTE_MISMATCH');
 
-    if (item.state !== 'DATA_UNAVAILABLE') {
+    // 2. Confluence Decision State Evaluation
+    if (isDataUnavailable) {
+      state = 'DATA_UNAVAILABLE';
+      action = 'NO_RECOMMENDATION';
+    } else if (isIpoHolding) {
+      // Adaptive IPO Crash & Risk Protection Engine
+      if (pnlFromLatestBuyPct <= -20.0 || (item.ipoLow > 0 && item.currentPrice < item.ipoLow * 0.85)) {
+        // Severe crash circuit-breaker (loss >= 20% or severe break below post-listing low) = Full Exit
+        state = 'FULL_EXIT_CANDIDATE';
+        action = 'FULL_EXIT';
+      } else if (pnlFromLatestBuyPct <= -8.0) {
+        // Universal hard risk circuit-breaker: Loss exceeds 8% tolerance threshold from entry
+        state = 'TECHNICAL_TRIM_CANDIDATE';
+        action = 'REVIEW_PARTIAL_SALE';
+      } else if (isRecentBuy && (isStopFloorBreached || item.stopFloorBreached || has4RedBreakdown || isTechBreakdown)) {
+        // Fresh buy noise buffer: Within initial 5 trading days with loss < 8%, allow normal breakout retests without panic sell-offs
+        state = 'NORMAL';
+        action = 'ACCUMULATION_RETEST';
+      } else if (isStopFloorBreached || item.stopFloorBreached || has4RedBreakdown) {
+        // Adaptive stop floor breach or 4-red breakdown
+        state = 'TECHNICAL_TRIM_CANDIDATE';
+        action = 'REVIEW_PARTIAL_SALE';
+      } else {
+        // Healthy Adaptive IPO Base: Holding safely above adaptive trailing floor and circuit breaker
+        state = 'NORMAL';
+        action = 'HOLD_AND_COMPOUND';
+      }
+    } else {
+      // Standard Weinstein 30-Week SMA & Fundamental Confluence Engine
       if ((isTechBreakdown || isStage4Bear) && (isFundsDecaying || isGovernanceRedFlag)) {
         // Confluence of structural bear/breakdown and fundamental deterioration = Full Exit
         state = 'FULL_EXIT_CANDIDATE';
@@ -630,7 +661,6 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
         action = 'REVIEW_PARTIAL_SALE';
       } else if (isStage2Bull && !isGovernanceRedFlag && !isStopFloorBreached && !has4RedBreakdown && !isSeverePatCollapse) {
         // Multi-Bagger Compounding Guard Active: healthy Stage 2 trading safely above safety corridor.
-        // Minor quarterly margin fluctuations (e.g. SONACOMS / INDEGENE) do NOT override compounding when sales/PAT expand.
         state = 'NORMAL';
         action = 'HOLD_AND_COMPOUND';
       } else if (isFundsDecaying) {
@@ -642,8 +672,6 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
         state = 'NORMAL';
         action = 'HOLD';
       }
-    } else {
-      action = 'NO_RECOMMENDATION';
     }
 
     // 3. Dynamic Logical Sizing & Staged Exit Plan Construction
@@ -702,6 +730,9 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
         // Hard risk circuit-breaker for fresh buy
         suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
         sizingMethod = `Fresh position hard risk cut: Dropped ${pnlFromLatestBuyPct}% below entry price ₹${latestBuyPrice.toFixed(2)} (exceeded 8% maximum loss threshold). De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
+      } else if (isIpoHolding && (pnlFromLatestBuyPct <= -8.0 || isStopFloorBreached)) {
+        suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
+        sizingMethod = `Adaptive IPO risk cut: Live CMP ₹${item.currentPrice.toFixed(2)} (entry ₹${latestBuyPrice.toFixed(2)}, P&L ${pnlFromLatestBuyPct}%) breached adaptive stop floor ₹${(stopFloorPrice || item.currentPrice).toFixed(2)}. De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
       } else if (isT1Done && !isT2Ready) {
         // Tranche 1 is already completed and 30-week SMA (Tranche 2) has not broken:
         // Hold remaining core position! Do NOT re-divide remaining shares into fresh trims!
@@ -736,9 +767,11 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
 
     // 6. Anti-Early-Exit Compounding Shield
     const compoundingShield = {
-      isActive: (state === 'NORMAL' && isStage2Bull && !isStopFloorBreached && !has4RedBreakdown),
-      title: 'Compounding Active (Stage 2 Bull)',
-      message: 'This holding is in a healthy Stage 2 structural uptrend trading above its trailing safety corridor. Standard bull market consolidations (-15% to -25%) are normal volatility in high-growth Indian compounders. Do not cut early.',
+      isActive: (state === 'NORMAL' && (isStage2Bull || (isIpoHolding && !isStopFloorBreached && !has4RedBreakdown))),
+      title: isIpoHolding ? 'Compounding Active (Adaptive IPO Base)' : 'Compounding Active (Stage 2 Bull)',
+      message: isIpoHolding
+        ? 'This holding is in a healthy post-listing adaptive base trading safely above its trailing stop floor. Trailing stop protection is active.'
+        : 'This holding is in a healthy Stage 2 structural uptrend trading above its trailing safety corridor. Standard bull market consolidations (-15% to -25%) are normal volatility in high-growth Indian compounders. Do not cut early.',
       trailingFloorPrice: item.trailingFloorPrice,
       bufferToTrailingFloorPct: item.bufferToTrailingFloorPct
     };
@@ -749,8 +782,8 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       explanation = item.invalidation || 'Insufficient price history to evaluate trend.';
     } else if (action === 'ACCUMULATION_RETEST') {
       explanation = `Fresh buy within 5-day noise corridor (P&L ${pnlFromLatestBuyPct >= 0 ? '+' : ''}${pnlFromLatestBuyPct}%). Holding through initial retest volatility without premature exit.`;
-    } else if (isRecentBuy && pnlFromLatestBuyPct <= -8.0 && state === 'TECHNICAL_TRIM_CANDIDATE') {
-      explanation = `Fresh entry circuit-breaker: Position is down ${Math.abs(pnlFromLatestBuyPct)}% from recent entry (CMP ₹${item.currentPrice.toFixed(2)} vs entry ₹${latestBuyPrice.toFixed(2)}), exceeding the 8.0% risk buffer. Review defensive Tranche 1 trim (${suggestedSellQuantity} shares).`;
+    } else if (pnlFromLatestBuyPct <= -8.0 && state === 'TECHNICAL_TRIM_CANDIDATE') {
+      explanation = `Hard risk circuit-breaker: Position is down ${Math.abs(pnlFromLatestBuyPct)}% from entry (CMP ₹${item.currentPrice.toFixed(2)} vs entry ₹${latestBuyPrice.toFixed(2)}), exceeding the 8.0% risk buffer. Review defensive Tranche 1 trim (${suggestedSellQuantity} shares).`;
     } else if (state === 'PORTFOLIO_RISK_TRIM') {
       explanation = `Position weight is ${currentWeightPct.toFixed(2)}%, above your ${config.maxPositionWeightPct}% risk ceiling. The system calculates trimming ${suggestedSellQuantity} shares to return allocation to target ceiling.`;
     } else if (isStopFloorBreached && state === 'TECHNICAL_TRIM_CANDIDATE') {
@@ -765,7 +798,9 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     } else if (has4RedBreakdown && state === 'TECHNICAL_TRIM_CANDIDATE') {
       explanation = `Short-term breakdown: 4 consecutive daily red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review trimming Tranche 1 (${suggestedSellQuantity} shares) to de-risk.`;
     } else if (compoundingShield.isActive) {
-      explanation = `Compounding Active: Weekly closes remain intact above the 30-week average (+${item.bufferToTrailingFloorPct}% buffer to trailing stop ₹${item.trailingFloorPrice}). The system advises letting this winner run without premature profit-taking.`;
+      explanation = isIpoHolding
+        ? `Adaptive IPO Shield Active: Trading safely above adaptive trailing floor (+${item.bufferToTrailingFloorPct}% buffer to stop ₹${item.trailingFloorPrice}). 30-week SMA baseline is establishing.`
+        : `Compounding Active: Weekly closes remain intact above the 30-week average (+${item.bufferToTrailingFloorPct}% buffer to trailing stop ₹${item.trailingFloorPrice}). The system advises letting this winner run without premature profit-taking.`;
     } else if (state === 'TECHNICAL_TRIM_CANDIDATE') {
       explanation = `Three completed weekly closes are below a falling 30-week average (CMP ₹${item.currentPrice} vs SMA ₹${item.sma30Week?.toFixed(1)}). Review trimming Tranche 1 (${suggestedSellQuantity} shares) while letting core position ride.`;
     } else if (state === 'FUNDAMENTAL_TRIM_CANDIDATE') {

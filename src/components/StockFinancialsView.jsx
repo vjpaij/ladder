@@ -262,7 +262,7 @@ export default function StockFinancialsView({
                 (data?.yoySalesGrowthPct ?? 0) >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
               }`}>
                 {data?.yoySalesGrowthPct !== undefined && data?.yoySalesGrowthPct !== null
-                  ? `${data.yoySalesGrowthPct >= 0 ? '+' : ''}${data.yoySalesGrowthPct.toFixed(1)}%`
+                  ? `${data.yoySalesGrowthPct >= 0 ? '+' : ''}${Number(data.yoySalesGrowthPct || 0).toFixed(1)}%`
                   : '—'}
               </span>
             </div>

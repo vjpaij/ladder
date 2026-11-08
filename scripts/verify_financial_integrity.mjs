@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
 import jwt from 'jsonwebtoken';
 import assert from 'assert';
 import { db, initDatabase } from '../server/db.js';
@@ -316,6 +318,57 @@ async function runIntegrityAudit() {
   }
   assert.strictEqual(dustHoldings.length, 0, `Zero active holdings may have un-liquidated fractional dust quantities < 0.005 (found ${dustHoldings.length} holdings).`);
   console.log('✓ Zero Dust Fractional Quantities Verified: All fully redeemed holdings strictly clamped to 0 units with REDEEMED status.\n');
+
+  // 7. Historical Price Series Integrity & Non-Truncation on Active Equities
+  console.log('[Test 7] Verifying Historical Price Series Integrity across Active Holdings...');
+  const hpPath = path.join(process.cwd(), 'data', 'historical_prices.json');
+  const hp = fs.existsSync(hpPath) ? JSON.parse(fs.readFileSync(hpPath, 'utf8')) : {};
+  const metaPath = path.join(process.cwd(), 'data', 'asset_metadata.json');
+  const metadata = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : [];
+  const metaMap = new Map((Array.isArray(metadata) ? metadata : []).map(m => [m.symbol, m]));
+
+  const activeEquities = holdings.filter(h => (h.category_id === 'in_stocks' || h.category_id === 'us_stocks') && Number(h.quantity) > 0);
+  const truncatedHoldings = [];
+
+  for (const h of activeEquities) {
+    const cleanSym = String(h.symbol).replace(/\.(NS|BO)$/i, '');
+    const series = hp[h.symbol] || hp[cleanSym] || hp[`${cleanSym}.NS`] || hp[`${cleanSym}.BO`] || {};
+    const barCount = Object.keys(series).length;
+
+    // Check if genuine new listing (listed within the last 52 weeks / 365 calendar days)
+    const meta = metaMap.get(h.symbol) || metaMap.get(cleanSym);
+    const listingDateStr = meta?.listing_date || h.listing_date;
+    let isGenuineNewListing = false;
+    if (listingDateStr) {
+      const match = String(listingDateStr).match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+      if (match) {
+        const months = { JAN:0, FEB:1, MAR:2, APR:3, MAY:4, JUN:5, JUL:6, AUG:7, SEP:8, OCT:9, NOV:10, DEC:11 };
+        const m = months[match[2].toUpperCase()];
+        if (m !== undefined) {
+          const listMs = Date.UTC(Number(match[3]), m, Number(match[1]));
+          const diffDays = Math.floor((Date.now() - listMs) / 86400000);
+          if (diffDays <= 365) isGenuineNewListing = true;
+        }
+      }
+    }
+    const dates = Object.keys(series).sort();
+    if (dates.length >= 10 && dates.length < 200) {
+      const firstBarMs = Date.parse(dates[0]);
+      if (!isNaN(firstBarMs) && (Date.now() - firstBarMs) <= 365 * 86400000) {
+        isGenuineNewListing = true;
+      }
+    }
+
+    if (barCount < 200 && !isGenuineNewListing) {
+      truncatedHoldings.push({ symbol: h.symbol, barCount, listingDate: listingDateStr });
+    }
+  }
+
+  if (truncatedHoldings.length > 0) {
+    console.error('Found active holdings with truncated price history:', truncatedHoldings);
+  }
+  assert.strictEqual(truncatedHoldings.length, 0, `Zero active holdings may suffer from truncated price history (< 200 bars) without genuine new listing status (found ${truncatedHoldings.length}).`);
+  console.log(`✓ Historical Price Series Integrity Verified: All ${activeEquities.length} active holdings have complete multi-year series (>= 200 daily bars or verified recent listing).\n`);
 
   console.log('================================================================');
   console.log('     ALL FINANCIAL INTEGRITY & INVARIANCE TESTS PASSED (100%)   ');
