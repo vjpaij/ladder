@@ -159,16 +159,82 @@ export function ThemeAuthProvider({ children }) {
       response => response,
       error => {
         if (error.response?.status === 401 && token) {
-          localStorage.removeItem('ladder_token');
-          localStorage.removeItem('ladder_user');
-          setToken(null);
-          setUser(null);
+          const isSuperseded = error.response?.data?.code === 'SESSION_SUPERSEDED';
+          logout(isSuperseded 
+            ? 'Session terminated: This account has logged in from another device.' 
+            : 'Session expired. Please sign in again.');
         }
         return Promise.reject(error);
       }
     );
     return () => axios.interceptors.response.eject(interceptorId);
-  }, [token]);
+  }, [token, logout]);
+
+  // 1-Hour Inactivity Auto-Logoff & Cross-Device Session Heartbeat
+  const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour (3,600,000 ms)
+
+  useEffect(() => {
+    if (!token) return;
+
+    if (!localStorage.getItem('ladder_last_activity')) {
+      localStorage.setItem('ladder_last_activity', String(Date.now()));
+    }
+
+    let lastThrottledWrite = Date.now();
+    const recordActivity = () => {
+      const now = Date.now();
+      // Throttle localStorage updates to every 15 seconds to minimize storage churn
+      if (now - lastThrottledWrite > 15000) {
+        lastThrottledWrite = now;
+        localStorage.setItem('ladder_last_activity', String(now));
+      }
+    };
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    activityEvents.forEach(evt => window.addEventListener(evt, recordActivity, { passive: true }));
+
+    // Inactivity watchdog running every 30 seconds
+    const inactivityInterval = setInterval(() => {
+      const lastActStr = localStorage.getItem('ladder_last_activity');
+      const lastAct = lastActStr ? Number(lastActStr) : Date.now();
+      if (Date.now() - lastAct >= INACTIVITY_TIMEOUT_MS) {
+        logout('Session expired due to 1 hour of inactivity. Please sign in again.');
+      }
+    }, 30000);
+
+    // Cross-device concurrency heartbeat: ping server every 30 seconds to catch logins from other devices
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/auth/session-check');
+        if (res.status === 401) {
+          const data = await res.json().catch(() => ({}));
+          const isSuperseded = data?.code === 'SESSION_SUPERSEDED';
+          logout(isSuperseded 
+            ? 'Session terminated: This account has logged in from another device.' 
+            : 'Session expired. Please sign in again.');
+        }
+      } catch (e) {
+        // Suppress transient network drops
+      }
+    }, 30000);
+
+    // Multi-tab sync: if another tab cleared ladder_token, log out immediately
+    const onStorageChange = (e) => {
+      if (e.key === 'ladder_token' && !e.newValue) {
+        setToken(null);
+        setUser(null);
+      }
+    };
+    window.addEventListener('storage', onStorageChange);
+
+    return () => {
+      activityEvents.forEach(evt => window.removeEventListener(evt, recordActivity));
+      clearInterval(inactivityInterval);
+      clearInterval(heartbeatInterval);
+      window.removeEventListener('storage', onStorageChange);
+    };
+  }, [token, logout]);
+
 
   // Live real-time USD/INR Forex stream
   useEffect(() => {
@@ -198,17 +264,22 @@ export function ThemeAuthProvider({ children }) {
 
   const toggleCurrency = () => setCurrency(prev => prev === 'INR' ? 'USD' : 'INR');
 
-  const logout = () => {
+  const logout = useCallback((reason) => {
     localStorage.removeItem('ladder_token');
     localStorage.removeItem('ladder_user');
+    localStorage.removeItem('ladder_last_activity');
     delete axios.defaults.headers.common.Authorization;
     setToken(null);
     setUser(null);
-  };
+    if (reason && typeof reason === 'string') {
+      showError(reason);
+    }
+  }, []);
 
   const login = (newToken, userData) => {
     localStorage.setItem('ladder_token', newToken);
     localStorage.setItem('ladder_user', JSON.stringify(userData));
+    localStorage.setItem('ladder_last_activity', String(Date.now()));
     if (newToken) {
       axios.defaults.headers.common.Authorization = `Bearer ${newToken}`;
     }

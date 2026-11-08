@@ -443,7 +443,7 @@ export default function TopNavbar({
                         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       </div>
                       <span className="text-[11px] text-slate-400 font-mono block truncate">
-                        {user?.email || 'admin@ladder.com'}
+                        {user?.email || 'vijaypaij@gmail.com'}
                       </span>
                     </div>
                   </div>

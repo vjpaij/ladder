@@ -102,7 +102,7 @@ async function runIntegrityAudit() {
     let authHeaders = {};
     try {
       const jwtSecret = process.env.JWT_SECRET || '96c24c9ef352a71aecf5fcdc7227f752339475bf5190167985951bd95d8b5884';
-      const token = jwt.sign({ id: 1, email: 'admin@ladder.com', role: 'authenticated' }, jwtSecret, { expiresIn: '1h' });
+      const token = jwt.sign({ id: 1, email: 'vijaypaij@gmail.com', role: 'authenticated' }, jwtSecret, { expiresIn: '1h' });
       authHeaders = { Authorization: `Bearer ${token}` };
     } catch (authErr) {
       // Proceed without token if auth not configured
@@ -261,7 +261,7 @@ async function runIntegrityAudit() {
     let authHeaders = {};
     try {
       const jwtSecret = process.env.JWT_SECRET || 'ladder-secret-jwt-key-2026';
-      const token = jwt.sign({ id: 1, email: 'admin@ladder.com', role: 'authenticated' }, jwtSecret, { expiresIn: '1h' });
+      const token = jwt.sign({ id: 1, email: 'vijaypaij@gmail.com', role: 'authenticated' }, jwtSecret, { expiresIn: '1h' });
       authHeaders = { Authorization: `Bearer ${token}` };
     } catch (e) {
       console.warn('[Integrity Audit] Local test token warning:', e.message);

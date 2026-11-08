@@ -5,28 +5,67 @@ import logoImg from '../assets/logo.png';
 
 export default function LoginView() {
   const { login } = useThemeAuth();
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState('login'); // 'login' | 'change_password' | 'register'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const isRegistering = mode === 'register';
+  const isChangingPassword = mode === 'change_password';
+
+  const switchMode = (newMode) => {
+    setMode(newMode);
+    setError('');
+    setSuccess('');
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setError('');
+    setSuccess('');
+
     if (isRegistering && password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
+
+    if (isChangingPassword) {
+      if (password !== confirmPassword) {
+        setError('New passwords do not match.');
+        return;
+      }
+      if (password.length < 8) {
+        setError('New password must be at least 8 characters.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
-    setError('');
     try {
-      const endpoint = `/api/auth/${isRegistering ? 'register' : 'login'}`;
-      const payload = isRegistering ? { name: name.trim(), email, password } : { email, password };
-      const response = await axios.post(endpoint, payload);
-      login(response.data.token, response.data.user);
+      if (isChangingPassword) {
+        const payload = {
+          email: email.trim(),
+          currentPassword,
+          newPassword: password
+        };
+        const response = await axios.post('/api/auth/change-password', payload);
+        setSuccess('Password updated successfully! Logging you in...');
+        setTimeout(() => {
+          login(response.data.token, response.data.user);
+        }, 600);
+      } else {
+        const endpoint = `/api/auth/${isRegistering ? 'register' : 'login'}`;
+        const payload = isRegistering 
+          ? { name: name.trim(), email: email.trim(), password } 
+          : { email: email.trim(), password };
+        const response = await axios.post(endpoint, payload);
+        login(response.data.token, response.data.user);
+      }
     } catch (err) {
       if (!err.response) {
         setError('Unable to connect to server. Please verify the backend is running.');
@@ -64,21 +103,27 @@ export default function LoginView() {
           </div>
           <div className="max-w-md w-full mx-auto">
             <div className="mb-6">
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{isRegistering ? 'Register' : 'Sign in'}</h2>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                {isRegistering ? 'Register' : isChangingPassword ? 'Change Password' : 'Sign in'}
+              </h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/[0.06] border border-white/[0.06] mb-6">
-              {['login', 'register'].map(option => (
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white/[0.06] border border-white/[0.06] mb-6">
+              {[
+                { id: 'login', label: 'Sign in' },
+                { id: 'change_password', label: 'Change Password' },
+                { id: 'register', label: 'Register' }
+              ].map(option => (
                 <button
-                  key={option}
+                  key={option.id}
                   type="button"
                   disabled={isSubmitting}
-                  onClick={() => { setMode(option); setError(''); }}
-                  className={`py-2.5 rounded-lg text-xs font-bold transition-colors ${
-                    mode === option ? 'bg-white/10 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                  onClick={() => switchMode(option.id)}
+                  className={`py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-colors ${
+                    mode === option.id ? 'bg-white/10 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {option === 'login' ? 'Sign in' : 'Register'}
+                  {option.label}
                 </button>
               ))}
             </div>
@@ -87,6 +132,12 @@ export default function LoginView() {
               {error && (
                 <div className="rounded-xl border border-rose-500/25 bg-rose-500/10 px-3.5 py-3 text-sm text-rose-200">
                   {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-3 text-sm text-emerald-200">
+                  {success}
                 </div>
               )}
 
@@ -112,9 +163,23 @@ export default function LoginView() {
                 autoComplete="username"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="Email address"
+                placeholder="Email address (e.g. vijaypaij@gmail.com)"
                 className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
               />
+
+              {isChangingPassword && (
+                <input
+                  required
+                  disabled={isSubmitting}
+                  minLength={1}
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  placeholder="Current password"
+                  className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
+                />
+              )}
 
               <input
                 required
@@ -122,14 +187,14 @@ export default function LoginView() {
                 minLength={8}
                 maxLength={128}
                 type="password"
-                autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                autoComplete={isRegistering || isChangingPassword ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="Password"
+                placeholder={isChangingPassword ? 'New password (min 8 chars)' : 'Password'}
                 className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
               />
 
-              {isRegistering && (
+              {(isRegistering || isChangingPassword) && (
                 <input
                   required
                   disabled={isSubmitting}
@@ -139,7 +204,7 @@ export default function LoginView() {
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
+                  placeholder={isChangingPassword ? 'Confirm new password' : 'Confirm password'}
                   className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
                 />
               )}
@@ -149,8 +214,22 @@ export default function LoginView() {
                 type="submit"
                 className="w-full rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black py-3 text-sm shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer"
               >
-                {isSubmitting ? (isRegistering ? 'Creating workspace...' : 'Signing in...') : (isRegistering ? 'Create account' : 'Enter Ladder')}
+                {isSubmitting 
+                  ? (isRegistering ? 'Creating workspace...' : isChangingPassword ? 'Updating password...' : 'Signing in...') 
+                  : (isRegistering ? 'Create account' : isChangingPassword ? 'Update Password & Sign In' : 'Enter Ladder')}
               </button>
+
+              {mode === 'login' && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => switchMode('change_password')}
+                    className="text-xs text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+                  >
+                    Change password?
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </section>
