@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import YF from 'yahoo-finance2';
+import { resolveCanonicalTicker, getCleanSymbol } from './stockIntelligence/symbolAliasService.js';
 
 const yahooFinance = new YF();
 const __filename = fileURLToPath(import.meta.url);
@@ -177,10 +178,12 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
       'RINFRA': 'RELINFRA.NS',
       'GMRINFRA': 'GMRAIRPORT.NS',
       'BARBEQUE': '543283.BO',
-      'DRONEACHARYA': 'DRONACHARYA.BO'
+      'DRONEACHARYA': 'DRONACHARYA.BO',
+      'ADORWELD': 'ADOR.NS'
     };
 
-    let fetchSym = symbolMap[symbol] || symbol;
+    const resolved = resolveCanonicalTicker(symbol);
+    let fetchSym = (resolved && resolved !== symbol) ? resolved : (symbolMap[symbol] || symbol);
     if (isIndian && !fetchSym.endsWith('.NS') && !fetchSym.endsWith('.BO')) {
       fetchSym = `${fetchSym}.NS`;
     }
@@ -257,7 +260,10 @@ export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_sto
   await loadHistoricalPricesAsync();
 
   const cleanSym = symbol.replace(/\.(NS|BO)$/i, '');
-  const existingKey = [symbol, cleanSym, `${cleanSym}.NS`, `${cleanSym}.BO`].find(k => historicalPricesCache[k] && Object.keys(historicalPricesCache[k]).length > 0);
+  const canonicalTicker = resolveCanonicalTicker(symbol);
+  const cleanCanonical = getCleanSymbol(canonicalTicker);
+
+  const existingKey = [symbol, cleanSym, `${cleanSym}.NS`, `${cleanSym}.BO`, canonicalTicker, cleanCanonical, `${cleanCanonical}.NS`, `${cleanCanonical}.BO`].find(k => k && historicalPricesCache[k] && Object.keys(historicalPricesCache[k]).length > 0);
   const existing = existingKey ? historicalPricesCache[existingKey] : {};
 
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
@@ -278,6 +284,9 @@ export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_sto
     if (symbol !== targetKey) {
       historicalPricesCache[symbol] = historicalPricesCache[targetKey];
     }
+    if (cleanCanonical && cleanCanonical !== targetKey) {
+      historicalPricesCache[cleanCanonical] = { ...(historicalPricesCache[cleanCanonical] || {}), ...fresh };
+    }
     console.log(`[Historical Pricing] Auto-populated ${Object.keys(fresh).length} historical quotes for ${symbol}.`);
     // Save to disk atomically
     await saveHistoricalPricesToFile();
@@ -293,10 +302,14 @@ export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_sto
 export function getHistoricalPrice(symbol, dateStr) {
   if (!symbol || !dateStr) return null;
   const cleanSym = symbol.replace(/\.(NS|BO)$/i, '');
+  const canonicalTicker = resolveCanonicalTicker(symbol);
+  const cleanCanonical = getCleanSymbol(canonicalTicker);
   const hist = historicalPricesCache[symbol] || 
                historicalPricesCache[cleanSym] || 
                historicalPricesCache[`${cleanSym}.NS`] || 
-               historicalPricesCache[`${cleanSym}.BO`] || {};
+               historicalPricesCache[`${cleanSym}.BO`] ||
+               (cleanCanonical && historicalPricesCache[cleanCanonical]) ||
+               {};
   return hist[dateStr] ?? null;
 }
 

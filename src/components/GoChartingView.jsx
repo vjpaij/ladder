@@ -45,6 +45,7 @@ export default function GoChartingView({
 
   const [seriesData, setSeriesData] = useState([]);
   const [indicators, setIndicators] = useState(null);
+  const [canonicalSymbol, setCanonicalSymbol] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rangeFilter, setRangeFilter] = useState({
@@ -101,6 +102,9 @@ export default function GoChartingView({
       if (res.data?.success && Array.isArray(res.data.series)) {
         setSeriesData(res.data.series);
         setIndicators(res.data.indicators || null);
+        if (res.data.canonicalSymbol) {
+          setCanonicalSymbol(res.data.canonicalSymbol);
+        }
       } else {
         setError('No technical chart data available for this ticker.');
       }
@@ -172,13 +176,14 @@ export default function GoChartingView({
   const latestRsi10 = indicators?.rsi10 ?? filteredData[filteredData.length - 1]?.rsi10;
 
   // External Terminal Links
+  const activeTicker = canonicalSymbol || cleanSymbol;
   const goChartingUrl = isUs
-    ? `https://gocharting.com/terminal?ticker=NASDAQ:${cleanSymbol}`
-    : `https://gocharting.com/terminal?ticker=NSE:${cleanSymbol}`;
+    ? `https://gocharting.com/terminal?ticker=NASDAQ:${activeTicker}`
+    : `https://gocharting.com/terminal?ticker=NSE:${activeTicker}`;
 
   const tradingViewUrl = isUs
-    ? `https://www.tradingview.com/chart/?symbol=NASDAQ:${cleanSymbol}`
-    : `https://www.tradingview.com/chart/?symbol=NSE:${cleanSymbol}`;
+    ? `https://www.tradingview.com/chart/?symbol=NASDAQ:${activeTicker}`
+    : `https://www.tradingview.com/chart/?symbol=NSE:${activeTicker}`;
 
   // Indicator Colors matching user specification
   const ema21Color = '#3B82F6'; // Blue

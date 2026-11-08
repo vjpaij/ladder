@@ -28,6 +28,7 @@ import path from 'node:path';
 import { getHistoricalPricesMap, ensureHistoricalPricesForSymbol, loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { fetchCompanyFundamentals } from '../services/stockIntelligence/screenerFundamentalsProvider.js';
 import { loadAllCachedUsFundamentals } from '../services/stockIntelligence/usFundamentalsProvider.js';
+import { resolveCanonicalTicker, getCleanSymbol } from '../services/stockIntelligence/symbolAliasService.js';
 import YF from 'yahoo-finance2';
 
 const yahooFinance = new YF();
@@ -302,6 +303,8 @@ router.get('/trading-journal/technical-chart/:symbol', async (req, res) => {
   try {
     const rawSym = req.params.symbol;
     const cleanSym = String(rawSym || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const canonicalTicker = resolveCanonicalTicker(cleanSym);
+    const cleanCanonical = getCleanSymbol(canonicalTicker);
     const isUs = req.query.market === 'US' || ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA'].includes(cleanSym);
     const market = isUs ? 'US' : 'IN';
 
@@ -310,17 +313,24 @@ router.get('/trading-journal/technical-chart/:symbol', async (req, res) => {
     let symbolPrices = histMap[rawSym.toUpperCase()] ||
                        histMap[cleanSym] || 
                        histMap[`${cleanSym}.NS`] || 
-                       histMap[`${cleanSym}.BO`] || {};
+                       histMap[`${cleanSym}.BO`] ||
+                       (cleanCanonical && (histMap[cleanCanonical] || histMap[`${cleanCanonical}.NS`] || histMap[`${cleanCanonical}.BO`])) ||
+                       {};
 
     // Auto-fetch from free provider if missing or too few quotes
     if (Object.keys(symbolPrices).length < 20) {
       try {
         await ensureHistoricalPricesForSymbol(cleanSym, isUs ? 'us_stocks' : 'in_stocks');
+        if (cleanCanonical && cleanCanonical !== cleanSym) {
+          await ensureHistoricalPricesForSymbol(cleanCanonical, isUs ? 'us_stocks' : 'in_stocks');
+        }
         const reloaded = await loadHistoricalPricesAsync(true);
         symbolPrices = reloaded[rawSym.toUpperCase()] ||
                        reloaded[cleanSym] || 
                        reloaded[`${cleanSym}.NS`] || 
-                       reloaded[`${cleanSym}.BO`] || symbolPrices;
+                       reloaded[`${cleanSym}.BO`] ||
+                       (cleanCanonical && (reloaded[cleanCanonical] || reloaded[`${cleanCanonical}.NS`] || reloaded[`${cleanCanonical}.BO`])) ||
+                       symbolPrices;
       } catch (ensureErr) {
         console.warn(`[TechnicalChart] ensureHistoricalPricesForSymbol fallback failed for ${cleanSym}:`, ensureErr.message);
       }
@@ -369,6 +379,7 @@ router.get('/trading-journal/technical-chart/:symbol', async (req, res) => {
     res.json({
       success: true,
       symbol: cleanSym,
+      canonicalSymbol: cleanCanonical || cleanSym,
       market,
       timeframe: '1D',
       data,
@@ -389,6 +400,8 @@ router.get('/trading-journal/entry-snapshot/:symbol', async (req, res) => {
   try {
     const rawSym = req.params.symbol;
     const cleanSym = String(rawSym || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const canonicalTicker = resolveCanonicalTicker(cleanSym);
+    const cleanCanonical = getCleanSymbol(canonicalTicker);
     const entryDate = req.query.date ? String(req.query.date).split('T')[0] : null;
     const entryPrice = req.query.price ? Number(req.query.price) : null;
     const txQty = req.query.quantity ? Number(req.query.quantity) : null;
@@ -401,16 +414,23 @@ router.get('/trading-journal/entry-snapshot/:symbol', async (req, res) => {
     let symbolPrices = histMap[rawSym.toUpperCase()] ||
                        histMap[cleanSym] || 
                        histMap[`${cleanSym}.NS`] || 
-                       histMap[`${cleanSym}.BO`] || {};
+                       histMap[`${cleanSym}.BO`] ||
+                       (cleanCanonical && (histMap[cleanCanonical] || histMap[`${cleanCanonical}.NS`] || histMap[`${cleanCanonical}.BO`])) ||
+                       {};
 
     if (Object.keys(symbolPrices).length < 20) {
       try {
         await ensureHistoricalPricesForSymbol(cleanSym, isUs ? 'us_stocks' : 'in_stocks');
+        if (cleanCanonical && cleanCanonical !== cleanSym) {
+          await ensureHistoricalPricesForSymbol(cleanCanonical, isUs ? 'us_stocks' : 'in_stocks');
+        }
         const reloaded = await loadHistoricalPricesAsync(true);
         symbolPrices = reloaded[rawSym.toUpperCase()] ||
                        reloaded[cleanSym] || 
                        reloaded[`${cleanSym}.NS`] || 
-                       reloaded[`${cleanSym}.BO`] || symbolPrices;
+                       reloaded[`${cleanSym}.BO`] ||
+                       (cleanCanonical && (reloaded[cleanCanonical] || reloaded[`${cleanCanonical}.NS`] || reloaded[`${cleanCanonical}.BO`])) ||
+                       symbolPrices;
       } catch (_) {}
     }
 
@@ -459,7 +479,11 @@ router.get('/trading-journal/entry-snapshot/:symbol', async (req, res) => {
 
     // 2. Load cached Screener / Finviz fundamentals
     const cacheDir = path.join(process.cwd(), 'data', 'screener_cache');
-    const cachePath = path.join(cacheDir, `${cleanSym}.json`);
+    let cachePath = path.join(cacheDir, `${cleanSym}.json`);
+    if (!fs.existsSync(cachePath) && cleanCanonical) {
+      const canonicalPath = path.join(cacheDir, `${cleanCanonical}.json`);
+      if (fs.existsSync(canonicalPath)) cachePath = canonicalPath;
+    }
     let rawFund = null;
     if (fs.existsSync(cachePath)) {
       try {
@@ -621,6 +645,7 @@ router.get('/trading-journal/entry-snapshot/:symbol', async (req, res) => {
     res.json({
       success: true,
       symbol: cleanSym,
+      canonicalSymbol: cleanCanonical || cleanSym,
       entryDate: entryDate || candle?.date,
       technicals,
       fundamentals
@@ -639,6 +664,8 @@ router.get('/trading-journal/fundamentals/:symbol', async (req, res) => {
   try {
     const rawSym = req.params.symbol;
     const cleanSym = String(rawSym || '').trim().toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const canonicalTicker = resolveCanonicalTicker(cleanSym);
+    const cleanCanonical = getCleanSymbol(canonicalTicker);
     if (!cleanSym) {
       return res.status(400).json({ error: 'Valid stock symbol is required.' });
     }
@@ -647,7 +674,11 @@ router.get('/trading-journal/fundamentals/:symbol', async (req, res) => {
 
     // 1. Check local disk cache in data/screener_cache/<SYMBOL>.json (0 KB Supabase Storage)
     const cacheDir = path.join(process.cwd(), 'data', 'screener_cache');
-    const cachePath = path.join(cacheDir, `${cleanSym}.json`);
+    let cachePath = path.join(cacheDir, `${cleanSym}.json`);
+    if (!fs.existsSync(cachePath) && cleanCanonical) {
+      const canonicalPath = path.join(cacheDir, `${cleanCanonical}.json`);
+      if (fs.existsSync(canonicalPath)) cachePath = canonicalPath;
+    }
     let rawData = null;
 
     if (fs.existsSync(cachePath)) {
@@ -658,19 +689,20 @@ router.get('/trading-journal/fundamentals/:symbol', async (req, res) => {
       }
     }
 
-    // 2. If not cached, call fetchCompanyFundamentals(clean)
+    // 2. If not cached, call fetchCompanyFundamentals(cleanCanonical || cleanSym)
     if (!rawData || rawData.status === 'UNAVAILABLE' || !rawData.quarterRows) {
       if (isUs) {
         const usData = loadAllCachedUsFundamentals([cleanSym]);
         rawData = usData[cleanSym] || {
           status: 'AVAILABLE',
           symbol: cleanSym,
+          canonicalSymbol: cleanCanonical || cleanSym,
           source: 'Finviz Institutional',
           screenerUrl: `https://finviz.com/quote.ashx?t=${cleanSym}`
         };
       } else {
         try {
-          rawData = await fetchCompanyFundamentals(cleanSym);
+          rawData = await fetchCompanyFundamentals(cleanCanonical || cleanSym);
         } catch (fetchErr) {
           console.warn(`[Fundamentals API] fetchCompanyFundamentals failed for ${cleanSym}:`, fetchErr.message);
         }
@@ -719,6 +751,7 @@ router.get('/trading-journal/fundamentals/:symbol', async (req, res) => {
     res.json({
       success: true,
       symbol: cleanSym,
+      canonicalSymbol: cleanCanonical || cleanSym,
       market: isUs ? 'US' : 'IN',
       fundamentals,
       data: fundamentals

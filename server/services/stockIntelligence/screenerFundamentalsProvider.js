@@ -72,7 +72,13 @@ function loadAssetMetadata() {
 
 const SCREENER_SEARCH_ALIASES = {
   'NSE': '544937',
-  'TATAMTRDVR': 'TMPV'
+  'TATAMTRDVR': 'TMPV',
+  'ADORWELD': 'ADOR',
+  'GANESHHOUC': 'GANESHHOU',
+  'SWANENERGY': 'SWANCORP',
+  'SEQUENT': 'VIYASH',
+  'ISEC': 'ICICIBANK',
+  'JBCHEPHARM': 'TORNTPHARM'
 };
 
 /**

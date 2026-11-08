@@ -28,10 +28,27 @@ export const KNOWN_SYMBOL_ALIASES = {
   // IDFC First Bank historical alias
   'IDFCBANK': 'IDFCFIRSTB.NS',
 
+  // Ador Welding NSE symbol rename (April 2025)
+  'ADORWELD': 'ADOR.NS',
+
+  // Ganesh Housing NSE symbol rename (Sep 2025)
+  'GANESHHOUC': 'GANESHHOU.NS',
+
+  // Swan Energy -> Swan Corp NSE symbol rename (Sep 2025)
+  'SWANENERGY': 'SWANCORP.NS',
+
+  // Sequent Scientific -> Viyash Scientific NSE symbol rename (Jan 2026)
+  'SEQUENT': 'VIYASH.NS',
+
+  // ICICI Securities merger into ICICI Bank (March 2025)
+  'ISEC': 'ICICIBANK.NS',
+
+  // J.B. Chemicals & Pharmaceuticals merger into Torrent Pharma (July 2026)
+  'JBCHEPHARM': 'TORNTPHARM.NS',
+
   // BSE-only or BSE Scrip-mapped listings
   'NSE': 'NSE.BO',
   '544937': 'NSE.BO',
-  'SWANENERGY': '503310.BO',
   'BARBEQUE': '543283.BO',
   'DRONEACHARYA': 'DRONACHARYA.BO'
 };
