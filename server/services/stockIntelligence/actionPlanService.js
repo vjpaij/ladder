@@ -170,13 +170,19 @@ export async function generateActionPlan({
   });
 
   const fullExits = heldAnalyses.filter(a => a.state === 'FULL_EXIT_CANDIDATE' && a.action !== 'ACCUMULATION_RETEST');
-  const trims = heldAnalyses.filter(a => (a.state === 'TECHNICAL_TRIM_CANDIDATE' || a.state === 'FUNDAMENTAL_TRIM_CANDIDATE') && a.action !== 'ACCUMULATION_RETEST');
+  const trims = heldAnalyses.filter(a =>
+    (a.state === 'TECHNICAL_TRIM_CANDIDATE' || a.state === 'FUNDAMENTAL_TRIM_CANDIDATE') &&
+    a.action !== 'ACCUMULATION_RETEST' &&
+    a.action !== 'HOLD' &&
+    (Number(a.suggestedSellQuantity) > 0 || calculateTriggeredStagedSell(a).quantity > 0)
+  );
 
   // Chandelier-breach sells: stocks where live CMP has broken below their chandelier stop floor.
   // Only positions that are genuinely marked for trim/exit (not compounding-protected winners or already completed tranches) are included.
   const chandelierBreachSells = heldAnalyses.filter(a =>
     a.stopFloorBreached &&
     a.action !== 'ACCUMULATION_RETEST' &&
+    a.action !== 'HOLD' &&
     (a.action === 'REVIEW_PARTIAL_SALE' || a.action === 'SELL_ALL' || a.state === 'TECHNICAL_TRIM_CANDIDATE') &&
     (a.state !== 'DATA_UNAVAILABLE' || a.isIpo) &&
     (Number(a.suggestedSellQuantity) > 0 || calculateTriggeredStagedSell(a).quantity > 0) &&
@@ -185,10 +191,13 @@ export async function generateActionPlan({
   const regularTrims = trims.filter(a => !a.stopFloorBreached);
 
   const fullExitProceeds = fullExits.reduce((acc, a) => acc + (Number(a.quantity || 0) * (Number(a.currentPrice) || 0)), 0);
-  const trimProceeds = regularTrims.reduce((acc, a) => acc + (Number(a.suggestedSellQuantity || 0) * (Number(a.currentPrice) || 0)), 0);
+  const trimProceeds = regularTrims.reduce((acc, a) => {
+    const qty = Number(a.suggestedSellQuantity) || 0;
+    return acc + (qty * (Number(a.currentPrice) || 0));
+  }, 0);
   const chandelierBreachProceeds = chandelierBreachSells.reduce((acc, a) => {
     const triggered = calculateTriggeredStagedSell(a);
-    const trimQty = triggered.quantity || Number(a.suggestedSellQuantity) || Math.max(1, Math.round((Number(a.quantity) || 0) * 0.33));
+    const trimQty = triggered.quantity > 0 ? triggered.quantity : (Number(a.suggestedSellQuantity) || 0);
     return acc + (trimQty * (Number(a.currentPrice) || 0));
   }, 0);
 
@@ -283,11 +292,11 @@ export async function generateActionPlan({
     // Factor A: Institutional Base Compression & Volatility Contraction Pattern (VCP)
     const riskPct = cmp > 0 && sl > 0 ? Math.abs((cmp - sl) / cmp * 100) : 10;
     const isVcp = riskPct <= 8.5 && Math.abs(item.pctFromHigh52w || 0) <= 14.0;
-    const vcpBonus = isVcp ? (isPrime ? 15000 : 10000) : 0;
+    const vcpBonus = isVcp ? Math.round(totalIndianEquityValuation * (isPrime ? 0.003 : 0.002)) : 0; // Dynamic 0.2% - 0.3% of portfolio
 
     // Factor B: Sector Breadth & Group Rank Momentum
     const isTopSector = topSectors.includes(item.sector);
-    const sectorBonus = isTopSector ? (isPrime ? 15000 : 10000) : 0;
+    const sectorBonus = isTopSector ? Math.round(totalIndianEquityValuation * (isPrime ? 0.003 : 0.002)) : 0; // Dynamic 0.2% - 0.3% of portfolio
 
     // Sizing for Existing Portfolio Holdings (Pyramiding / Staged Accumulation)
     if (isOwned && heldQty > 0) {
@@ -327,27 +336,29 @@ export async function generateActionPlan({
         };
       }
 
-      // Subordinate Pyramid Tranche (Asymmetric Conviction Sizing for Winners in Profit)
-      // Prime / High MPS >= 75: ₹50k base tranche | Standard: ₹35k
-      const pyramidTranche = mps >= 75 ? 50000 : 35000;
-      const trancheTierLabel = `Pyramid Tranche (${mps >= 75 ? '₹50k' : '₹35k'} Addition)`;
+      // Dynamic Subordinate Pyramid Tranche (Calibrated to portfolio size and conviction tier)
+      // Prime / High MPS >= 75: 1.5% of equity portfolio | Standard: 1.0% of equity portfolio
+      const pyramidPct = mps >= 75 ? 0.015 : 0.010;
+      const pyramidTranche = Math.max(35000, Math.round(totalIndianEquityValuation * pyramidPct));
+      const trancheTierLabel = `Pyramid Tranche (${(pyramidPct * 100).toFixed(1)}% · ₹${Math.round(pyramidTranche/1000)}k Addition)`;
 
       const trancheFactors = [trancheTierLabel];
       let trancheTotal = pyramidTranche;
 
       if (vcpBonus > 0) {
         trancheTotal += vcpBonus;
-        trancheFactors.push(`VCP (+₹${vcpBonus/1000}k)`);
+        trancheFactors.push(`VCP (+₹${Math.round(vcpBonus/1000)}k)`);
       }
       if (sectorBonus > 0) {
         trancheTotal += sectorBonus;
-        trancheFactors.push(`Sector Tailwind (+₹${sectorBonus/1000}k)`);
+        trancheFactors.push(`Sector Tailwind (+₹${Math.round(sectorBonus/1000)}k)`);
       }
       trancheFactors.push(`Scaling into strength (+${gainPct}% in profit)`);
 
-      // Tranche cannot exceed remaining headroom to maxPositionCap or single tranche ceiling (₹75k)
+      // Dynamic Tranche Ceiling: 2.5% (Prime) or 2.0% (Standard) of total equity valuation (capped at remaining headroom)
+      const maxTranchePct = isPrime ? 0.025 : 0.020;
+      const trancheCeiling = Math.max(75000, Math.round(totalIndianEquityValuation * maxTranchePct));
       const remainingHeadroom = Math.max(0, maxPositionCap - currentHeldValue);
-      const trancheCeiling = 75000;
       const finalTrancheAlloc = Math.min(trancheTotal, remainingHeadroom, trancheCeiling);
 
       if (finalTrancheAlloc < trancheTotal) {
@@ -372,23 +383,32 @@ export async function generateActionPlan({
       };
     }
 
-    let base = isPreEarnings ? 25000 : 40000;
-    let tierLabel = isPreEarnings ? 'Pre-Earnings Scout Entry (₹25k Staged)' : 'Catalyst Scout Entry (₹40k Base)';
+    // Dynamic Base Allocation for Brand-New Entries (Calibrated to portfolio weight tiers):
+    // Prime: 2.5% initial starter (building to 10% max)
+    // Tier 2: 1.8% initial starter (building to 7% max)
+    // Standard: 1.2% initial starter (building to 5% max)
+    const primeBase = Math.max(100000, Math.round(totalIndianEquityValuation * 0.025));
+    const tier2Base = Math.max(60000, Math.round(totalIndianEquityValuation * 0.018));
+    const stdBase = Math.max(40000, Math.round(totalIndianEquityValuation * 0.012));
+    const preEarningsFactor = 0.40;
+
+    let base = isPreEarnings ? Math.round(stdBase * preEarningsFactor) : stdBase;
+    let tierLabel = isPreEarnings ? `Pre-Earnings Scout Entry (₹${Math.round(base/1000)}k Staged)` : `Catalyst Scout Entry (₹${Math.round(base/1000)}k Base)`;
 
     if (isPrime) {
-      base = isPreEarnings ? 80000 : 200000;
+      base = isPreEarnings ? Math.round(primeBase * preEarningsFactor) : primeBase;
       tierLabel = isTurnaround
-        ? (isPreEarnings ? 'Turnaround Pre-Earnings Tranche 1 (₹80k Staged)' : 'Turnaround Prime Setup (₹2L Base)')
-        : (isPreEarnings ? 'Prime Pre-Earnings Tranche 1 (₹80k Staged)' : 'Prime Ultra Conviction (₹2L Base)');
+        ? (isPreEarnings ? `Turnaround Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Turnaround Prime Setup (₹${Math.round(base/1000)}k Base)`)
+        : (isPreEarnings ? `Prime Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Prime Ultra Conviction (₹${Math.round(base/1000)}k Base)`);
     } else if (isTier2) {
-      base = isPreEarnings ? 50000 : 125000;
-      tierLabel = isPreEarnings ? 'High Conviction Pre-Earnings Tranche 1 (₹50k Staged)' : 'High Conviction Setup (₹1.25L Base)';
+      base = isPreEarnings ? Math.round(tier2Base * preEarningsFactor) : tier2Base;
+      tierLabel = isPreEarnings ? `High Conviction Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `High Conviction Setup (₹${Math.round(base/1000)}k Base)`;
     } else if (isStd) {
-      base = isPreEarnings ? 30000 : 75000;
-      tierLabel = isPreEarnings ? 'Standard Pre-Earnings Tranche 1 (₹30k Staged)' : 'Standard Momentum Setup (₹75k Base)';
+      base = isPreEarnings ? Math.round(stdBase * preEarningsFactor) : stdBase;
+      tierLabel = isPreEarnings ? `Standard Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Standard Momentum Setup (₹${Math.round(base/1000)}k Base)`;
     } else if (stance === 'EXTENDED_RUNNER') {
-      base = 20000;
-      tierLabel = 'Scout Test Entry (₹20k Base)';
+      base = Math.max(20000, Math.round(totalIndianEquityValuation * 0.005));
+      tierLabel = `Scout Test Entry (₹${Math.round(base/1000)}k Base)`;
     }
 
     const factors = [tierLabel];
@@ -399,16 +419,16 @@ export async function generateActionPlan({
 
     if (vcpBonus > 0) {
       total += vcpBonus;
-      factors.push(`VCP Base Compression (+₹${vcpBonus/1000}k)`);
+      factors.push(`VCP Base Compression (+₹${Math.round(vcpBonus/1000)}k)`);
     }
 
     if (sectorBonus > 0) {
       total += sectorBonus;
-      factors.push(`Sector Tailwind [${item.sector}] (+₹${sectorBonus/1000}k)`);
+      factors.push(`Sector Tailwind [${item.sector}] (+₹${Math.round(sectorBonus/1000)}k)`);
     }
 
     return {
-      alloc: total,
+      alloc: Math.min(total, maxPositionCap),
       tierLabel,
       factors,
       summary: factors.join(' + ')
@@ -469,17 +489,29 @@ export async function generateActionPlan({
       : 0;
     const targetAmount = targetShares * cmp;
 
-    // Priority Rank Score (Optimized Multibagger Probability Engine):
-    // 1. Pyramiding into existing owned winners in profit (+1000 pts)
-    // 2. Turnaround Inflection Multibagger (+800 pts)
-    // 3. Prime Ultra Conviction (MPS >= 80) (+500 pts)
-    // 4. Strong Buy (+400 pts)
-    // 5. Multibagger Probability Score (MPS)
+    // Priority Rank Score (Balanced Multibagger Probability Engine):
+    // Prevents existing positions from creating a starvation blockade against fresh high-MPS explosive breakouts.
+    // 1. Prime Turnaround Inflection (+800 pts)
+    // 2. High-Conviction Proven Winners Pyramiding (MPS >= 80 & in profit) (+750 pts)
+    // 3. Fresh Ultra-Leader Breakouts (MPS >= 90) (+650 pts)
+    // 4. Fresh Prime Leaders (MPS >= 80) (+500 pts)
+    // 5. Secondary Winner Pyramiding (MPS < 80 & in profit) (+350 pts)
+    // 6. Strong Buy Fresh Breakouts (+300 pts)
+    // 7. Base MPS (0-100 pts)
     let priorityRank = mps;
-    if (isInProfit) priorityRank += 1000;
-    else if (isTurnaround) priorityRank += 800;
-    else if (mps >= 80) priorityRank += 500;
-    else if (x.sourceSignal === 'STRONG_BUY') priorityRank += 400;
+    if (isTurnaround) {
+      priorityRank += 800;
+    } else if (isInProfit && mps >= 80) {
+      priorityRank += 750;
+    } else if (!isOwned && mps >= 90) {
+      priorityRank += 650;
+    } else if (!isOwned && mps >= 80) {
+      priorityRank += 500;
+    } else if (isInProfit) {
+      priorityRank += 350;
+    } else if (x.sourceSignal === 'STRONG_BUY') {
+      priorityRank += 300;
+    }
 
     let actionType = isOwned ? 'BUY - ACCUMULATE (ADD TRANCHE)' : 'BUY - NEW POSITION';
     if (stance === 'PRE_EARNINGS') {
@@ -703,7 +735,12 @@ export async function generateActionPlan({
     regularTrims.forEach(a => {
       const cmp = Number(a.currentPrice) || 0;
       const held = Number(a.quantity) || 0;
-      const trimQty = Number(a.suggestedSellQuantity) || Math.max(1, Math.round(held * 0.33));
+      const trimQty = Number(a.suggestedSellQuantity) || 0;
+      if (trimQty <= 0) return;
+      const t1Status = a.stagedExitPlan?.tranche1?.status || 'READY';
+      const t2Status = a.stagedExitPlan?.tranche2?.status || 'PENDING';
+      if (t1Status === 'COMPLETED' && t2Status !== 'READY') return;
+
       const amt = trimQty * cmp;
       const trigger = a.stagedExitPlan?.tranche1?.triggerPrice || a.sma30Week || 0;
       const cat = a.isIpo
@@ -728,10 +765,10 @@ export async function generateActionPlan({
         heldShares: held,
         tranche1Shares: a.tranche1Shares || a.stagedExitPlan?.tranche1?.targetShares || trimQty,
         tranche1Trigger: a.tranche1Trigger || a.stagedExitPlan?.tranche1?.triggerPrice || trigger,
-        tranche1Status: a.stagedExitPlan?.tranche1?.status || 'READY',
+        tranche1Status: t1Status,
         tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || 0,
         tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || 0,
-        tranche2Status: a.stagedExitPlan?.tranche2?.status || 'PENDING',
+        tranche2Status: t2Status,
         breachedTranchesSummary: a.stagedExitPlan?.tranche1?.name || 'Tranche 1 Trim',
         reason: a.sizingMethod || `Tranche 1 defensive de-risk trim: Sell ${trimQty} shares; keep core ${held - trimQty} shares riding.`,
         isFullExit: false
@@ -749,40 +786,47 @@ export async function generateActionPlan({
       ? ((stopFloor - cmp) / stopFloor * 100).toFixed(1)
       : '—';
     const triggered = calculateTriggeredStagedSell(a);
-    const trimQty = triggered.quantity || Number(a.suggestedSellQuantity) || Math.max(1, Math.round(held * 0.33));
+    const trimQty = triggered.quantity > 0 ? triggered.quantity : (Number(a.suggestedSellQuantity) || 0);
+    if (trimQty <= 0) return;
+    const t1Status = a.stagedExitPlan?.tranche1?.status || 'PENDING';
+    const t2Status = a.stagedExitPlan?.tranche2?.status || 'PENDING';
+    if (t1Status === 'COMPLETED' && t2Status !== 'READY') return;
+
     const amt = trimQty * cmp;
     const triggeredNames = triggered.triggeredTranches.map(tranche => tranche.name);
     const stageDescription = triggeredNames.length > 1
       ? `Missed price levels crossed (${triggeredNames.join(' + ')}); aggregate catch-up quantity is ${trimQty} shares.`
-      : `Trigger calls for ${trimQty} shares in ${triggeredNames[0] || 'Tranche 1'}.`;
+      : `Trigger calls for ${trimQty} shares in ${triggeredNames[0] || (t2Status === 'READY' ? 'Tranche 2 (Structural Trend Breakdown)' : 'Tranche 1')}.`;
     const actionType = a.isIpo
       ? 'SELL - IPO STOP FLOOR BREACH'
-      : (triggeredNames.length > 1
-        ? `SELL - STAGED CATCH-UP (${triggeredNames.length} TRANCHES)`
-        : 'SELL - STOP FLOOR BREACH');
+      : (t2Status === 'READY'
+        ? 'SELL - STRUCTURAL TREND BREAKDOWN'
+        : (triggeredNames.length > 1
+          ? `SELL - STAGED CATCH-UP (${triggeredNames.length} TRANCHES)`
+          : 'SELL - STOP FLOOR BREACH'));
 
     activeSells.push({
       executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
       actionType,
-      category: a.isIpo ? 'Adaptive IPO Stop Floor Breach' : 'Trailing Stop Floor Breach',
+      category: a.isIpo ? 'Adaptive IPO Stop Floor Breach' : (t2Status === 'READY' ? 'Structural Trend Breakdown' : 'Trailing Stop Floor Breach'),
       symbol: a.symbol,
       name: a.name,
       cmp,
       state: a.state,
       quantity: trimQty,
       actionValue: amt,
-      triggerPrice: stopFloor,
+      triggerPrice: t2Status === 'READY' ? (a.stagedExitPlan?.tranche2?.triggerPrice || stopFloor) : stopFloor,
       targetPrice: 0,
       heldShares: held,
       tranche1Shares: a.tranche1Shares || a.stagedExitPlan?.tranche1?.targetShares || 0,
       tranche1Trigger: a.tranche1Trigger || a.stagedExitPlan?.tranche1?.triggerPrice || 0,
-      tranche1Status: a.stagedExitPlan?.tranche1?.status || 'PENDING',
+      tranche1Status: t1Status,
       tranche2Shares: a.tranche2Shares || a.stagedExitPlan?.tranche2?.targetShares || 0,
       tranche2Trigger: a.tranche2Trigger || a.stagedExitPlan?.tranche2?.triggerPrice || 0,
-      tranche2Status: a.stagedExitPlan?.tranche2?.status || 'PENDING',
-      breachedTranchesSummary: triggeredNames.length > 0 ? triggeredNames.join(' + ') : 'Tranche 1 (Stop Floor)',
+      tranche2Status: t2Status,
+      breachedTranchesSummary: triggeredNames.length > 0 ? triggeredNames.join(' + ') : (t2Status === 'READY' ? 'Tranche 2 (Structural Trend Breakdown)' : 'Tranche 1 (Stop Floor)'),
       reason: `Live CMP ₹${cmp.toFixed(2)} has breached trailing stop floor ₹${stopFloor.toFixed(2)} (${breachPct}% below stop). ${stageDescription} Review sale; no order placed automatically.`,
-      isFullExit: false,
+      isFullExit: t2Status === 'READY' && trimQty >= held,
       isChandelierBreach: true
     });
   });

@@ -255,9 +255,11 @@ async function runIntegrityAudit() {
   const todayStr = getTodayIST();
   const isTradingTodayNSE = isTradingDay(todayStr, 'NSE');
   const anyMarketOpen = isAnyMarketOpen();
-  const isOffMarketOrPreMarket = !isTradingTodayNSE && !anyMarketOpen;
+  const isTradingTodayNYSE = isTradingDay(todayStr, 'NYSE');
+  const anyMarketTradingDay = isTradingTodayNSE || isTradingTodayNYSE;
+  const isNonTradingDay = !anyMarketTradingDay && !anyMarketOpen;
 
-  if (isOffMarketOrPreMarket) {
+  if (isNonTradingDay) {
     let authHeaders = {};
     try {
       const jwtSecret = process.env.JWT_SECRET || 'ladder-secret-jwt-key-2026';

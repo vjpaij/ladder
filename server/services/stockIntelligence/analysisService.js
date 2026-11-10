@@ -708,6 +708,9 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     let suggestedSellQuantity = null;
     let sizingMethod = baseSizing.method;
 
+    const isT1Done = stagedExitPlan.tranche1?.status === 'COMPLETED';
+    const isT2Ready = stagedExitPlan.tranche2?.status === 'READY';
+
     if (action === 'ACCUMULATION_RETEST') {
       suggestedSellQuantity = 0;
       sizingMethod = `Fresh buy within 5-day noise corridor (P&L ${pnlFromLatestBuyPct >= 0 ? '+' : ''}${pnlFromLatestBuyPct}%). Holding through initial retest volatility without premature exit.`;
@@ -719,46 +722,49 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       action = 'REVIEW_RISK_TRIM';
       suggestedSellQuantity = baseSizing.quantity;
       sizingMethod = baseSizing.method;
+    } else if (isT1Done && !isT2Ready) {
+      // Tranche 1 is already completed in ledger and 30-week SMA (Tranche 2) has not broken:
+      // Hold remaining core position! Zero additional sales today.
+      suggestedSellQuantity = 0;
+      action = 'HOLD';
+      sizingMethod = `Tranche 1 completed (${ledgerAudit.recentSharesSold} shares sold). Holding core position (${item.quantity} shares) until 30-week SMA breakdown.`;
+    } else if (isT1Done && isT2Ready) {
+      // Tranche 1 was completed, and now Tranche 2 is triggered: Structural exit of all remaining shares!
+      suggestedSellQuantity = stagedExitPlan.tranche2?.targetShares || item.quantity;
+      action = 'SELL_ALL';
+      sizingMethod = `Structural trend breakdown: Live CMP ₹${item.currentPrice.toFixed(2)} is below 30-week SMA ₹${stagedExitPlan.tranche2?.triggerPrice}. Final Tranche 2 exit of remaining ${suggestedSellQuantity} shares.`;
+    } else if (isRecentBuy && pnlFromLatestBuyPct <= -8.0) {
+      // Hard risk circuit-breaker for fresh buy (Tranche 1 not yet completed)
+      suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
+      action = 'REVIEW_PARTIAL_SALE';
+      sizingMethod = `Fresh position hard risk cut: Dropped ${pnlFromLatestBuyPct}% below entry price ₹${latestBuyPrice.toFixed(2)} (exceeded 8% maximum loss threshold). De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
+    } else if (isIpoHolding && (pnlFromLatestBuyPct <= -8.0 || isStopFloorBreached)) {
+      // Adaptive IPO risk cut (Tranche 1 not yet completed)
+      suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
+      action = 'REVIEW_PARTIAL_SALE';
+      sizingMethod = `Adaptive IPO risk cut: Live CMP ₹${item.currentPrice.toFixed(2)} (entry ₹${latestBuyPrice.toFixed(2)}, P&L ${pnlFromLatestBuyPct}%) breached adaptive stop floor ₹${(stopFloorPrice || item.currentPrice).toFixed(2)}. De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
+    } else if (isT2Ready && !isIpoHolding && !isRecentBuy) {
+      // Deep breach below both stop floor and 30-week SMA before Tranche 1 was recorded: full thesis exit!
+      suggestedSellQuantity = item.quantity;
+      action = 'SELL_ALL';
+      sizingMethod = `Structural trend breakdown: Live CMP ₹${item.currentPrice.toFixed(2)} is below 30-week SMA ₹${stagedExitPlan.tranche2?.triggerPrice}. Full exit of ${suggestedSellQuantity} shares.`;
     } else if (state === 'FUNDAMENTAL_TRIM_CANDIDATE') {
-      suggestedSellQuantity = baseSizing.quantity;
+      // Tranche 1 fundamental trim
+      suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || baseSizing.quantity;
       sizingMethod = baseSizing.method;
     } else if (state === 'TECHNICAL_TRIM_CANDIDATE') {
-      const isT1Done = stagedExitPlan.tranche1?.status === 'COMPLETED';
-      const isT2Ready = stagedExitPlan.tranche2?.status === 'READY';
+      const planShares = stagedExitPlan.totalActionShares > 0
+        ? stagedExitPlan.totalActionShares
+        : (baseSizing.quantity > 0 ? baseSizing.quantity : Math.max(1, Math.round(item.quantity * 0.33)));
+      suggestedSellQuantity = Math.min(item.quantity, planShares);
 
-      if (isRecentBuy && pnlFromLatestBuyPct <= -8.0) {
-        // Hard risk circuit-breaker for fresh buy
-        suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
-        sizingMethod = `Fresh position hard risk cut: Dropped ${pnlFromLatestBuyPct}% below entry price ₹${latestBuyPrice.toFixed(2)} (exceeded 8% maximum loss threshold). De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
-      } else if (isIpoHolding && (pnlFromLatestBuyPct <= -8.0 || isStopFloorBreached)) {
-        suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
-        sizingMethod = `Adaptive IPO risk cut: Live CMP ₹${item.currentPrice.toFixed(2)} (entry ₹${latestBuyPrice.toFixed(2)}, P&L ${pnlFromLatestBuyPct}%) breached adaptive stop floor ₹${(stopFloorPrice || item.currentPrice).toFixed(2)}. De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
-      } else if (isT1Done && !isT2Ready) {
-        // Tranche 1 is already completed and 30-week SMA (Tranche 2) has not broken:
-        // Hold remaining core position! Do NOT re-divide remaining shares into fresh trims!
-        suggestedSellQuantity = 0;
-        action = 'HOLD';
-        sizingMethod = `Tranche 1 completed (${ledgerAudit.recentSharesSold} shares sold). Holding core position (${item.quantity} shares) until 30-week SMA breakdown.`;
-      } else if (isT2Ready) {
-        // Tranche 2 is triggered: Structural exit of all remaining shares!
-        suggestedSellQuantity = item.quantity;
-        action = 'SELL_ALL';
-        sizingMethod = `Structural trend breakdown: Live CMP ₹${item.currentPrice.toFixed(2)} is below 30-week SMA ₹${stagedExitPlan.tranche2?.triggerPrice}. Final Tranche 2 exit of remaining ${suggestedSellQuantity} shares.`;
-      } else {
-        // Tranche 1 is pending/ready
-        const planShares = stagedExitPlan.totalActionShares > 0
-          ? stagedExitPlan.totalActionShares
-          : (baseSizing.quantity > 0 ? baseSizing.quantity : Math.max(1, Math.round(item.quantity * 0.33)));
-        suggestedSellQuantity = Math.min(item.quantity, planShares);
-
-        if (isStopFloorBreached) {
-          const breachFloorStr = stopFloorPrice ? stopFloorPrice.toFixed(2) : '—';
-          sizingMethod = stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares
-            ? `Multiple triggers breached below ₹${breachFloorStr}. Staged catch-up: Sell ${suggestedSellQuantity} shares across breached tranches.`
-            : `Trailing stop floor breached at ₹${item.currentPrice.toFixed(2)} (floor ₹${breachFloorStr}). Review Tranche 1 staged trim of ${suggestedSellQuantity} shares.`;
-        } else if (has4RedBreakdown) {
-          sizingMethod = `4 consecutive red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review defensive Tranche 1 trim of ${suggestedSellQuantity} shares.`;
-        }
+      if (isStopFloorBreached) {
+        const breachFloorStr = stopFloorPrice ? stopFloorPrice.toFixed(2) : '—';
+        sizingMethod = stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares
+          ? `Multiple triggers breached below ₹${breachFloorStr}. Staged catch-up: Sell ${suggestedSellQuantity} shares across breached tranches.`
+          : `Trailing stop floor breached at ₹${item.currentPrice.toFixed(2)} (floor ₹${breachFloorStr}). Review Tranche 1 staged trim of ${suggestedSellQuantity} shares.`;
+      } else if (has4RedBreakdown) {
+        sizingMethod = `4 consecutive red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review defensive Tranche 1 trim of ${suggestedSellQuantity} shares.`;
       }
     }
 
@@ -782,19 +788,17 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       explanation = item.invalidation || 'Insufficient price history to evaluate trend.';
     } else if (action === 'ACCUMULATION_RETEST') {
       explanation = `Fresh buy within 5-day noise corridor (P&L ${pnlFromLatestBuyPct >= 0 ? '+' : ''}${pnlFromLatestBuyPct}%). Holding through initial retest volatility without premature exit.`;
+    } else if (isT1Done && !isT2Ready && suggestedSellQuantity === 0) {
+      explanation = `Tranche 1 trim completed (${ledgerAudit.recentSharesSold} shares sold). Holding core balance of ${item.quantity} shares; final Tranche 2 exit triggers if price breaches 30-week SMA at ₹${stagedExitPlan.tranche2?.triggerPrice}.`;
+    } else if (isT2Ready) {
+      explanation = `Structural trend breakdown below 30-week SMA (CMP ₹${item.currentPrice.toFixed(2)} vs SMA ₹${stagedExitPlan.tranche2?.triggerPrice}). Review final Tranche 2 exit of remaining ${suggestedSellQuantity} shares.`;
     } else if (pnlFromLatestBuyPct <= -8.0 && state === 'TECHNICAL_TRIM_CANDIDATE') {
       explanation = `Hard risk circuit-breaker: Position is down ${Math.abs(pnlFromLatestBuyPct)}% from entry (CMP ₹${item.currentPrice.toFixed(2)} vs entry ₹${latestBuyPrice.toFixed(2)}), exceeding the 8.0% risk buffer. Review defensive Tranche 1 trim (${suggestedSellQuantity} shares).`;
     } else if (state === 'PORTFOLIO_RISK_TRIM') {
       explanation = `Position weight is ${currentWeightPct.toFixed(2)}%, above your ${config.maxPositionWeightPct}% risk ceiling. The system calculates trimming ${suggestedSellQuantity} shares to return allocation to target ceiling.`;
     } else if (isStopFloorBreached && state === 'TECHNICAL_TRIM_CANDIDATE') {
-      if (stagedExitPlan.tranche1?.status === 'COMPLETED' && suggestedSellQuantity === 0) {
-        explanation = `Tranche 1 trim completed (${ledgerAudit.recentSharesSold} shares sold). Holding core balance of ${item.quantity} shares; final Tranche 2 exit triggers if price breaches 30-week SMA at ₹${stagedExitPlan.tranche2?.triggerPrice}.`;
-      } else if (stagedExitPlan.tranche2?.status === 'READY') {
-        explanation = `Structural trend breakdown below 30-week SMA (CMP ₹${item.currentPrice.toFixed(2)} vs SMA ₹${stagedExitPlan.tranche2?.triggerPrice}). Review final Tranche 2 exit of remaining ${suggestedSellQuantity} shares.`;
-      } else {
-        const dropPct = stopFloorPrice > 0 ? (((stopFloorPrice - item.currentPrice) / stopFloorPrice) * 100).toFixed(1) : '—';
-        explanation = `Trailing stop floor breached! Live CMP ₹${item.currentPrice.toFixed(2)} is ${dropPct}% below stop floor ₹${stopFloorPrice.toFixed(2)}. Review selling ${suggestedSellQuantity} shares (${stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares ? 'staged multi-tranche catch-up' : 'Tranche 1 trim'}); no order is placed automatically.`;
-      }
+      const dropPct = stopFloorPrice > 0 ? (((stopFloorPrice - item.currentPrice) / stopFloorPrice) * 100).toFixed(1) : '—';
+      explanation = `Trailing stop floor breached! Live CMP ₹${item.currentPrice.toFixed(2)} is ${dropPct}% below stop floor ₹${stopFloorPrice.toFixed(2)}. Review selling ${suggestedSellQuantity} shares (${stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares ? 'staged multi-tranche catch-up' : 'Tranche 1 trim'}); no order is placed automatically.`;
     } else if (has4RedBreakdown && state === 'TECHNICAL_TRIM_CANDIDATE') {
       explanation = `Short-term breakdown: 4 consecutive daily red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review trimming Tranche 1 (${suggestedSellQuantity} shares) to de-risk.`;
     } else if (compoundingShield.isActive) {
