@@ -832,12 +832,13 @@
     "isin": "INE849A01020",
     "listing_date": "07-JUN-2004",
     "series": "EQ",
-    "sector": "Information Technology & Software",
+    "sector": "Consumer Discretionary & Retail",
     "industry": "Apparel & Lifestyle Retail (Westside / Zudio)",
     "market_cap": 149433,
     "mcap_category": "Large Cap",
     "capitalisation": "Large Cap",
-    "sebi_rank": 56
+    "sebi_rank": 56,
+    "last_updated": "2026-11-10T18:01:49.511Z"
   },
   {
     "symbol": "TMCV",
@@ -927,7 +928,8 @@
     "market_cap": 136517,
     "mcap_category": "Large Cap",
     "capitalisation": "Large Cap",
-    "sebi_rank": 62
+    "sebi_rank": 62,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "UNIONBANK",
@@ -1132,12 +1134,13 @@
     "isin": "INE0HOQ01053",
     "listing_date": "12-NOV-2025",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 120152,
+    "sector": "Financial Services & NBFC",
+    "industry": "Digital Investment Platform, Stock Broking & Wealth Tech",
+    "market_cap": 139286,
     "mcap_category": "Large Cap",
     "capitalisation": "Large Cap",
-    "sebi_rank": 76
+    "sebi_rank": 76,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "PNB",
@@ -1522,12 +1525,13 @@
     "isin": "INE053A01029",
     "listing_date": "03-JUL-1996",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Lodging",
-    "market_cap": 103939,
-    "mcap_category": "Mid Cap",
-    "capitalisation": "Mid Cap",
-    "sebi_rank": 102
+    "sector": "Travel, Tourism & Hospitality",
+    "industry": "Iconic Luxury Hospitality (Taj Group)",
+    "market_cap": 110000,
+    "mcap_category": "Large Cap",
+    "capitalisation": "Large Cap",
+    "sebi_rank": 102,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "MEESHO",
@@ -1613,11 +1617,12 @@
     "listing_date": "28-JUN-2002",
     "series": "EQ",
     "sector": "Information Technology & Software",
-    "industry": "Software - Infrastructure",
-    "market_cap": 102436,
-    "mcap_category": "Mid Cap",
-    "capitalisation": "Mid Cap",
-    "sebi_rank": 108
+    "industry": "Banking & Financial Software Solutions",
+    "market_cap": 104500,
+    "mcap_category": "Large Cap",
+    "capitalisation": "Large Cap",
+    "sebi_rank": 108,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "INDUSTOWER",
@@ -2467,12 +2472,13 @@
     "isin": "INE457A01014",
     "listing_date": "12-APR-2004",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 62578,
+    "sector": "Banking",
+    "industry": "Public Sector Commercial Banking",
+    "market_cap": 67440,
     "mcap_category": "Mid Cap",
     "capitalisation": "Mid Cap",
-    "sebi_rank": 165
+    "sebi_rank": 165,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "UNOMINDA",
@@ -3007,12 +3013,13 @@
     "isin": "INE01EA01019",
     "listing_date": "18-DEC-2024",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Department Stores",
-    "market_cap": 47649,
-    "mcap_category": "Mid Cap",
-    "capitalisation": "Mid Cap",
-    "sebi_rank": 201
+    "sector": "Consumer Discretionary & Retail",
+    "industry": "Value Retail Hypermarkets & Supermarkets",
+    "market_cap": 90000,
+    "mcap_category": "Large Cap",
+    "capitalisation": "Large Cap",
+    "sebi_rank": 201,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "YESBANK",
@@ -3187,12 +3194,13 @@
     "isin": "INE031B01049",
     "listing_date": "29-MAY-2000",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 43846,
+    "sector": "Pharmaceuticals & Biotechnology",
+    "industry": "Formulations & Specialty Pharmaceuticals",
+    "market_cap": 41786,
     "mcap_category": "Mid Cap",
     "capitalisation": "Mid Cap",
-    "sebi_rank": 213
+    "sebi_rank": 213,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "KEI",
@@ -3757,12 +3765,13 @@
     "isin": "INE036D01028",
     "listing_date": "26-JUL-2000",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 34419,
-    "mcap_category": "Small Cap",
-    "capitalisation": "Small Cap",
-    "sebi_rank": 251
+    "sector": "Banking",
+    "industry": "Private Commercial Banking",
+    "market_cap": 35763,
+    "mcap_category": "Mid Cap",
+    "capitalisation": "Mid Cap",
+    "sebi_rank": 251,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "PIIND",
@@ -5257,12 +5266,13 @@
     "isin": "INE0AQ201015",
     "listing_date": "02-JUN-2025",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Travel, Tourism & Hospitality",
+    "industry": "Luxury Palaces, Hotels & Hospitality",
     "market_cap": 21181,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 351
+    "sebi_rank": 351,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "SAGILITY",
@@ -5272,12 +5282,13 @@
     "isin": "INE0W2G01015",
     "listing_date": "12-NOV-2024",
     "series": "EQ",
-    "sector": "Information Technology & Software",
+    "sector": "Healthcare Services & Hospitals",
     "industry": "Healthcare Process Management & Tech Solutions",
     "market_cap": 21160,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 352
+    "sebi_rank": 352,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "KAYNES",
@@ -5422,12 +5433,13 @@
     "isin": "INE526E01018",
     "listing_date": "02-JUN-2016",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Automobile & Auto Components",
+    "industry": "Pistons, Engine Pins & Auto Precision Components",
     "market_cap": 20288,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 362
+    "sebi_rank": 362,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "CUBEINVIT",
@@ -5722,12 +5734,13 @@
     "isin": "INE230A01023",
     "listing_date": "08-FEB-1995",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Lodging",
-    "market_cap": 17976,
-    "mcap_category": "Small Cap",
-    "capitalisation": "Small Cap",
-    "sebi_rank": 382
+    "sector": "Travel, Tourism & Hospitality",
+    "industry": "Luxury Hospitality (Oberoi & Trident Hotels)",
+    "market_cap": 28000,
+    "mcap_category": "Mid Cap",
+    "capitalisation": "Mid Cap",
+    "sebi_rank": 382,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "TBOTEK",
@@ -5842,12 +5855,13 @@
     "isin": "INE933B01012",
     "listing_date": "19-JUL-2007",
     "series": "BE",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Capital Goods & Heavy Engineering",
+    "industry": "Defence Electronics & Heavy Systems",
     "market_cap": 17194,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 390
+    "sebi_rank": 390,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "RAMCOCEM",
@@ -6127,12 +6141,13 @@
     "isin": "INE12UN01015",
     "listing_date": "28-JAN-2026",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Logistics & Transportation",
+    "industry": "Hyperlocal & Last-Mile Express Logistics",
     "market_cap": 15956,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 409
+    "sebi_rank": 409,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "ASTRAZEN",
@@ -6607,12 +6622,13 @@
     "isin": "INE191H01014",
     "listing_date": "04-JAN-2006",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Telecommunication & Media",
+    "industry": "Multiplex Cinema Exhibition",
     "market_cap": 14682,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 441
+    "sebi_rank": 441,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "BAYERCROP",
@@ -6922,12 +6938,13 @@
     "isin": "INE05C901015",
     "listing_date": "06-AUG-2026",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 14054,
+    "sector": "Power & Electrical Equipment",
+    "industry": "Renewable Power Generation, Solar & Wind EPC",
+    "market_cap": 14840,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 462
+    "sebi_rank": 462,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "INDGN",
@@ -6937,12 +6954,13 @@
     "isin": "INE065X01017",
     "listing_date": "13-MAY-2024",
     "series": "EQ",
-    "sector": "Information Technology & Software",
+    "sector": "Healthcare Services & Hospitals",
     "industry": "Life Sciences Commercialization Tech",
     "market_cap": 13976,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 463
+    "sebi_rank": 463,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "KSB",
@@ -6997,12 +7015,13 @@
     "isin": "INE542F01020",
     "listing_date": "20-JAN-2025",
     "series": "BE",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Capital Goods & Heavy Engineering",
+    "industry": "Naval Shipbuilding, Ship Repair & Heavy Engineering",
     "market_cap": 13861,
     "mcap_category": "Small Cap",
     "capitalisation": "Small Cap",
-    "sebi_rank": 467
+    "sebi_rank": 467,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "THANGAMAYL",
@@ -8257,12 +8276,13 @@
     "isin": "INE255Z01027",
     "listing_date": "12-APR-2022",
     "series": "BE",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Enterprise Cloud & Internet",
+    "industry": "AI Cloud GPU Infrastructure & Cloud Hosting",
     "market_cap": 10698,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 551
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 551,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "IRCON",
@@ -9472,12 +9492,13 @@
     "isin": "INE804L01022",
     "listing_date": "23-DEC-2021",
     "series": "EQ",
-    "sector": "Information Technology & Software",
-    "industry": "Pharmaceutical Retailers",
-    "market_cap": 7931,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 632
+    "sector": "Consumer Discretionary & Retail",
+    "industry": "Pharmaceutical & Healthcare Retail",
+    "market_cap": 8900,
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 632,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "SUDARSCHEM",
@@ -10522,12 +10543,13 @@
     "isin": "INE416D01022",
     "listing_date": "26-JUL-2010",
     "series": "BE",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 6853,
+    "sector": "Pharmaceuticals & Biotechnology",
+    "industry": "Suppositories & Formulations",
+    "market_cap": 1400,
     "mcap_category": "Micro Cap",
     "capitalisation": "Micro Cap",
-    "sebi_rank": 702
+    "sebi_rank": 702,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "RBA",
@@ -11332,12 +11354,13 @@
     "isin": "INE955V01021",
     "listing_date": "08-MAR-2019",
     "series": "EQ",
-    "sector": "Information Technology & Software",
-    "industry": "Apparel Retail",
-    "market_cap": 5936,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 756
+    "sector": "Consumer Discretionary & Retail",
+    "industry": "Branded Apparel & Lifestyle Retail",
+    "market_cap": 6500,
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 756,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "PRAJIND",
@@ -12307,12 +12330,13 @@
     "isin": null,
     "listing_date": null,
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified",
-    "market_cap": 5000,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 821
+    "sector": "Capital Goods & Heavy Engineering",
+    "industry": "Welding Equipment & Consumables",
+    "market_cap": 7500,
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 821,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "AIAENG",
@@ -12352,12 +12376,13 @@
     "isin": "INE427F01016",
     "listing_date": "07-FEB-2019",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Lodging",
-    "market_cap": 5000,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 824
+    "sector": "Travel, Tourism & Hospitality",
+    "industry": "High-End Hotel & Resort Ownership",
+    "market_cap": 16000,
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 824,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "GANESHHOUC",
@@ -12367,12 +12392,13 @@
     "isin": null,
     "listing_date": null,
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified",
-    "market_cap": 5000,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 825
+    "sector": "Real Estate & Construction",
+    "industry": "Residential & Commercial Real Estate",
+    "market_cap": 7200,
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 825,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "IOC",
@@ -12427,12 +12453,13 @@
     "isin": null,
     "listing_date": null,
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 5000,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 829
+    "sector": "Financial Services & NBFC",
+    "industry": "Exchange Traded Fund (Liquid Cash Equivalent)",
+    "market_cap": 15000,
+    "mcap_category": "Large Cap",
+    "capitalisation": "Large Cap",
+    "sebi_rank": 829,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "NEWJAISA",
@@ -12517,12 +12544,13 @@
     "isin": null,
     "listing_date": null,
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified",
-    "market_cap": 5000,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 835
+    "sector": "Automobile & Auto Components",
+    "industry": "Passenger Vehicles & Commercial Vehicles OEM",
+    "market_cap": 310000,
+    "mcap_category": "Large Cap",
+    "capitalisation": "Large Cap",
+    "sebi_rank": 835,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "TATAMTRDVR",
@@ -12562,12 +12590,13 @@
     "isin": null,
     "listing_date": null,
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified",
-    "market_cap": 5000,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 838
+    "sector": "Oil, Gas & Energy",
+    "industry": "LNG Port Infrastructure & Energy",
+    "market_cap": 29000,
+    "mcap_category": "Mid Cap",
+    "capitalisation": "Mid Cap",
+    "sebi_rank": 838,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "SEQUENT",
@@ -12577,12 +12606,13 @@
     "isin": null,
     "listing_date": null,
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified",
-    "market_cap": 5000,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 839
+    "sector": "Pharmaceuticals & Biotechnology",
+    "industry": "Animal Health & Veterinary Pharmaceuticals",
+    "market_cap": 5800,
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 839,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "CARERATING",
@@ -12987,7 +13017,8 @@
     "market_cap": 4540,
     "mcap_category": "Micro Cap",
     "capitalisation": "Micro Cap",
-    "sebi_rank": 866
+    "sebi_rank": 866,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "HAPPSTMNDS",
@@ -14407,12 +14438,13 @@
     "isin": "INE818A01017",
     "listing_date": "26-SEP-2006",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
-    "market_cap": 3727,
+    "sector": "Oil, Gas & Energy",
+    "industry": "Upstream Oil & Gas Exploration",
+    "market_cap": 1200,
     "mcap_category": "Micro Cap",
     "capitalisation": "Micro Cap",
-    "sebi_rank": 961
+    "sebi_rank": 961,
+    "last_updated": "2026-11-10T18:01:49.514Z"
   },
   {
     "symbol": "RENUKA",
@@ -14512,12 +14544,13 @@
     "isin": "INE552U01010",
     "listing_date": "20-APR-2026",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Pharmaceuticals & Biotechnology",
+    "industry": "Injectables & Finished Dosage Formulations",
     "market_cap": 3606,
     "mcap_category": "Micro Cap",
     "capitalisation": "Micro Cap",
-    "sebi_rank": 968
+    "sebi_rank": 968,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "INDIQUBE",
@@ -14857,12 +14890,13 @@
     "isin": "INE495A01022",
     "listing_date": "17-JAN-1996",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Confectioners",
-    "market_cap": 3388,
-    "mcap_category": "Micro Cap",
-    "capitalisation": "Micro Cap",
-    "sebi_rank": 991
+    "sector": "Consumer Staples & FMCG",
+    "industry": "Sugar Manufacturing & Distilleries",
+    "market_cap": 5400,
+    "mcap_category": "Small Cap",
+    "capitalisation": "Small Cap",
+    "sebi_rank": 991,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "ASHIANA",
@@ -15007,12 +15041,13 @@
     "isin": "INE551C01044",
     "listing_date": "14-AUG-2026",
     "series": "EQ",
-    "sector": "Diversified & Other",
-    "industry": "Diversified & Other",
+    "sector": "Pharmaceuticals & Biotechnology",
+    "industry": "Diagnostic Kits & Medical Formulations",
     "market_cap": 3313,
     "mcap_category": "Micro Cap",
     "capitalisation": "Micro Cap",
-    "sebi_rank": 1001
+    "sebi_rank": 1001,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "KIRLOSIND",
@@ -18397,12 +18432,13 @@
     "isin": "INE124G01033",
     "listing_date": "02-NOV-2007",
     "series": "EQ",
-    "sector": "Information Technology & Software",
+    "sector": "Travel, Tourism & Hospitality",
     "industry": "Hospitality, Gaming & Entertainment",
-    "market_cap": 1986,
+    "market_cap": 3200,
     "mcap_category": "Micro Cap",
     "capitalisation": "Micro Cap",
-    "sebi_rank": 1227
+    "sebi_rank": 1227,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "HESTERBIO",
@@ -18444,10 +18480,11 @@
     "series": "BE",
     "sector": "Chemicals & Specialty Chemicals",
     "industry": "Dyestuffs & Basic Chemicals",
-    "market_cap": 1976,
+    "market_cap": 2037,
     "mcap_category": "Micro Cap",
     "capitalisation": "Micro Cap",
-    "sebi_rank": 1230
+    "sebi_rank": 1230,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   },
   {
     "symbol": "REPCOHOME",

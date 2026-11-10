@@ -34,6 +34,10 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   // Plan data
   const [plan, setPlan] = useState(null);
 
+  const sells = useMemo(() => {
+    return (plan?.sells || []).filter(s => Number(s.quantity) > 0 && (s.isFullExit || s.tranche1Status === 'READY' || s.tranche2Status === 'READY'));
+  }, [plan?.sells]);
+
   const fetchPlan = useCallback(async (cash = externalCash, mode = recyclingMode) => {
     setLoading(true);
     setError(null);
@@ -128,7 +132,6 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   const summary = plan?.summary || {};
   const immediateBuys = plan?.immediateBuys || [];
   const queuedBuys = plan?.queuedBuys || [];
-  const sells = useMemo(() => (plan?.sells || []).filter(s => Number(s.quantity) > 0 && (s.isFullExit || s.tranche1Status === 'READY' || s.tranche2Status === 'READY')), [plan?.sells]);
 
   const formatInr = (val) => {
     const num = Number(val) || 0;

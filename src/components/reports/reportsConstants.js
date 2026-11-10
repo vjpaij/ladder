@@ -67,10 +67,51 @@ export function normalizeSector(raw) {
   const trimmed = String(raw).trim();
   if (CANONICAL_SECTORS.includes(trimmed)) return trimmed;
 
+  // Direct canonical alias mapping
+  if (trimmed === 'Retail & Consumer Discretionary' || trimmed === 'Consumer Discretionary' || trimmed === 'Retail') {
+    return 'Consumer Discretionary & Retail';
+  }
+  if (trimmed === 'Banking & Financials') {
+    return 'Banking';
+  }
+  if (trimmed === 'IT' || trimmed === 'Technology' || trimmed === 'Info Tech') {
+    return 'Information Technology & Software';
+  }
+  if (trimmed === 'Auto' || trimmed === 'Automobile' || trimmed === 'Automotive') {
+    return 'Automobile & Auto Components';
+  }
+  if (trimmed === 'Pharma' || trimmed === 'Healthcare & Pharma') {
+    return 'Pharmaceuticals & Biotechnology';
+  }
+  if (trimmed === 'Hospital' || trimmed === 'Hospitals' || trimmed === 'Healthcare Services') {
+    return 'Healthcare Services & Hospitals';
+  }
+  if (trimmed === 'Financials' || trimmed === 'Financial' || trimmed === 'NBFC') {
+    return 'Financial Services & NBFC';
+  }
+  if (trimmed === 'Metals' || trimmed === 'Mining' || trimmed === 'Materials') {
+    return 'Metals, Mining & Materials';
+  }
+  if (trimmed === 'Chemicals' || trimmed === 'Specialty Chemicals') {
+    return 'Chemicals & Specialty Chemicals';
+  }
+  if (trimmed === 'Power' || trimmed === 'Electrical Equipment') {
+    return 'Power & Electrical Equipment';
+  }
+  if (trimmed === 'Real Estate' || trimmed === 'Realty') {
+    return 'Real Estate & Construction';
+  }
+  if (trimmed === 'Oil & Gas' || trimmed === 'Energy') {
+    return 'Oil, Gas & Energy';
+  }
+  if (trimmed === 'FMCG' || trimmed === 'Consumer Staples') {
+    return 'Consumer Staples & FMCG';
+  }
+
   const s = trimmed.toLowerCase();
 
   // 1. Automobile & Components
-  if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('tire') || s.includes('ancillar') || s.includes('motor') || s.includes('two wheeler') || s.includes('four wheeler') || s.includes('commercial vehicle') || s.includes('electric vehicle') || s.includes('ev ') || s.includes('bearing') || s.includes('forging') || s.includes('powertrain')) {
+  if (s.includes('auto') || s.includes('vehicle') || /\b(tyre|tyres|tire|tires)\b/i.test(s) || s.includes('ancillar') || s.includes('motor') || s.includes('two wheeler') || s.includes('four wheeler') || s.includes('commercial vehicle') || s.includes('electric vehicle') || /\bev\b/i.test(s) || s.includes('bearing') || s.includes('forging') || s.includes('powertrain')) {
     return 'Automobile & Auto Components';
   }
 
@@ -99,64 +140,64 @@ export function normalizeSector(raw) {
     return 'Consumer Electronics & Hardware';
   }
 
-  // 7. Information Technology & Software
-  if (s.includes('tech') || s.includes('information') || s.includes('software') || s.includes('it ') || s === 'it' || s.includes('it services') || s.includes('consulting') || s.includes('analytics') || s.includes('artificial intelligence') || s.includes('ai') || s.includes('data')) {
-    return 'Information Technology & Software';
+  // 7. Consumer Discretionary & Retail (Evaluated before IT to avoid 'retail' matching 'ai' or 'tech')
+  if (s.includes('retail') || s.includes('fashion') || s.includes('apparel') || s.includes('footwear') || s.includes('garment') || s.includes('consumer durable') || s.includes('textile') || s.includes('furnish') || s.includes('home appliance') || s.includes('consumer disc') || s.includes('zudio') || s.includes('westside')) {
+    return 'Consumer Discretionary & Retail';
   }
 
-  // 8. Healthcare Services & Hospitals
-  if (s.includes('hospital') || s.includes('diagnostic') || s.includes('pathology') || s.includes('eyecare') || s.includes('clinic') || s.includes('healthcare service') || s.includes('medical equipment') || s.includes('medical device')) {
+  // 8. Healthcare Services & Hospitals (Evaluated before IT to prevent Health-tech / Life sciences matching IT)
+  if ((s.includes('hospital') && !s.includes('hospitality')) || s.includes('diagnostic') || s.includes('pathology') || s.includes('eyecare') || s.includes('clinic') || s.includes('healthcare service') || s.includes('healthcare process') || s.includes('medical equipment') || s.includes('medical device') || s.includes('life sciences commercialization') || s.includes('health information')) {
     return 'Healthcare Services & Hospitals';
   }
 
-  // 9. Pharmaceuticals & Biotechnology
+  // 9. Pharmaceuticals & Biotechnology (Evaluated before IT to prevent biotech matching IT)
   if (s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('formulation') || s.includes('api') || s.includes('cdmo') || s.includes('cro') || s.includes('lyophilized') || s.includes('active pharma') || s.includes('vaccine') || s.includes('therapeutics')) {
     return 'Pharmaceuticals & Biotechnology';
   }
 
-  // 10. Power & Electrical Equipment
+  // 10. Information Technology & Software (Word-boundary guarded against 'ai' in retail/paint/daily)
+  if (s.includes('information technology') || s.includes('software') || /\bit\b/i.test(s) || s.includes('it services') || s.includes('consulting') || s.includes('analytics') || s.includes('artificial intelligence') || /\b(ai|genai)\b/i.test(s) || (s.includes('tech') && !s.includes('biotech') && !s.includes('fintech') && !s.includes('medtech')) || s.includes('data analytics') || s.includes('decision sciences')) {
+    return 'Information Technology & Software';
+  }
+
+  // 11. Power & Electrical Equipment
   if (s.includes('transformer') || s.includes('electrical equipment') || s.includes('generator') || s.includes('transmission') || s.includes('power generation') || s.includes('power grid') || s.includes('hydro') || s.includes('solar equipment') || s.includes('wind equipment') || s.includes('electricals') || s.includes('switchgear') || s.includes('cables') || s.includes('wire')) {
     return 'Power & Electrical Equipment';
   }
 
-  // 11. Capital Goods & Heavy Engineering
-  if (s.includes('capital good') || s.includes('heavy engineering') || s.includes('machinery') || s.includes('machine tool') || s.includes('cnc') || s.includes('industrial machinery') || s.includes('cryogenic') || s.includes('defense') || s.includes('defence') || s.includes('aerospace') || s.includes('engineering') || s.includes('industrial') || s.includes('pumps') || s.includes('valves') || s.includes('hoses')) {
+  // 12. Capital Goods & Heavy Engineering
+  if (s.includes('capital good') || s.includes('heavy engineering') || s.includes('machinery') || s.includes('machine tool') || s.includes('cnc') || s.includes('industrial machinery') || s.includes('cryogenic') || s.includes('defense') || s.includes('defence') || s.includes('aerospace') || s.includes('engineering') || s.includes('industrial') || s.includes('pumps') || s.includes('valves') || s.includes('hoses') || s.includes('shipbuilding') || s.includes('ship repair')) {
     return 'Capital Goods & Heavy Engineering';
   }
 
-  // 12. Chemicals & Specialty Chemicals
+  // 13. Chemicals & Specialty Chemicals
   if (s.includes('chemical') || s.includes('specialty chem') || s.includes('fluorochem') || s.includes('fertilizer') || s.includes('agrochem') || s.includes('dye') || s.includes('pigment') || s.includes('petrochem') || s.includes('polymer') || s.includes('resin') || s.includes('bromine')) {
     return 'Chemicals & Specialty Chemicals';
   }
 
-  // 13. Metals, Mining & Materials
+  // 14. Metals, Mining & Materials
   if (s.includes('metal') || s.includes('mining') || s.includes('steel') || s.includes('iron') || s.includes('aluminium') || s.includes('aluminum') || s.includes('copper') || s.includes('zinc') || s.includes('alloys') || s.includes('refractory') || s.includes('bimetal') || s.includes('materials') || s.includes('minerals') || s.includes('foundry')) {
     return 'Metals, Mining & Materials';
   }
 
-  // 14. Gems, Jewellery & Luxury
+  // 15. Gems, Jewellery & Luxury
   if (s.includes('jewel') || s.includes('gem') || s.includes('diamond') || s.includes('gold') || s.includes('luxury') || s.includes('precious')) {
     return 'Gems, Jewellery & Luxury';
   }
 
-  // 15. Logistics & Transportation
+  // 16. Logistics & Transportation
   if (s.includes('logistics') || s.includes('transport') || s.includes('freight') || s.includes('cargo') || s.includes('courier') || s.includes('warehousing') || s.includes('supply chain') || s.includes('shipping') || s.includes('port')) {
     return 'Logistics & Transportation';
   }
 
-  // 16. Travel, Tourism & Hospitality
+  // 17. Travel, Tourism & Hospitality
   if (s.includes('hotel') || s.includes('resort') || s.includes('travel') || s.includes('tourism') || s.includes('hospitality') || s.includes('restaurant') || s.includes('airline') || s.includes('aviation') || s.includes('gaming') || s.includes('casino')) {
     return 'Travel, Tourism & Hospitality';
   }
 
-  // 17. Consumer Staples & FMCG
+  // 18. Consumer Staples & FMCG
   if (s.includes('fmcg') || s.includes('food') || s.includes('beverage') || s.includes('edible oil') || s.includes('tobacco') || s.includes('distiller') || s.includes('brewery') || s.includes('alcohol') || s.includes('liquor') || s.includes('personal care') || s.includes('household') || s.includes('staple') || s.includes('dairy') || s.includes('sugar') || s.includes('tea') || s.includes('coffee')) {
     return 'Consumer Staples & FMCG';
-  }
-
-  // 18. Consumer Discretionary & Retail
-  if (s.includes('retail') || s.includes('fashion') || s.includes('apparel') || s.includes('footwear') || s.includes('garment') || s.includes('consumer durable') || s.includes('textile') || s.includes('furnish') || s.includes('home appliance') || s.includes('consumer disc')) {
-    return 'Consumer Discretionary & Retail';
   }
 
   // 19. Real Estate & Construction
@@ -170,7 +211,7 @@ export function normalizeSector(raw) {
   }
 
   // 21. Telecommunication & Media
-  if (s.includes('telecom') || s.includes('media') || s.includes('entertainment') || s.includes('broadcasting') || s.includes('communication') || s.includes('publishing') || s.includes('television') || s.includes('multiplex')) {
+  if (s.includes('telecom') || s.includes('media') || s.includes('entertainment') || s.includes('broadcasting') || s.includes('communication') || s.includes('publishing') || s.includes('television') || s.includes('multiplex') || s.includes('cinema')) {
     return 'Telecommunication & Media';
   }
 

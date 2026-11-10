@@ -40,6 +40,10 @@ const router = express.Router();
 // Holdings List API
 // -------------------------------------------------------------
 export function resolveCanonicalMarketCap(meta = {}, holding = {}) {
+  const categoryId = String(holding?.category_id || meta?.category_id || '').toLowerCase();
+  const isEquity = categoryId === 'in_stocks' || categoryId === 'us_stocks' || categoryId.includes('stock') || categoryId.includes('equity');
+  if (!isEquity) return null;
+
   if (meta?.mcap_category && meta.mcap_category !== 'Unknown') return meta.mcap_category;
   if (meta?.capitalisation && meta.capitalisation !== 'Unknown') return meta.capitalisation;
   if (holding?.market_cap && holding.market_cap !== 'Unknown') return holding.market_cap;
@@ -414,7 +418,7 @@ router.get('/holdings', authenticateToken, async (req, res) => {
         bse_price: (liveQuote && liveQuote.bse_price > 0) ? liveQuote.bse_price : (Number(h.bse_price) || 0),
         sector: finalSector,
         market_cap: finalMcap,
-        market_cap_cr: meta.market_cap || null,
+        market_cap_cr: finalMcap ? (meta.market_cap || null) : null,
         industry: meta.industry || null,
         category_name: catMap[h.category_id] ? catMap[h.category_id].name : h.category_id,
         category_color: catMap[h.category_id] ? catMap[h.category_id].color : '#3B82F6',
@@ -1614,7 +1618,7 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       ...holding,
       sector: detailSector,
       market_cap: detailMcap,
-      market_cap_cr: metaRow.market_cap || null,
+      market_cap_cr: detailMcap ? (metaRow.market_cap || null) : null,
       current_price: Number(quotePrice.toFixed(quoteDigits)),
       nse_price: resolvedNse,
       bse_price: resolvedBse,

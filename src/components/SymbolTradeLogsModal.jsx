@@ -68,11 +68,15 @@ export default function SymbolTradeLogsModal({
     if (!symbolData?.trades || !Array.isArray(symbolData.trades)) return [];
     let list = [...symbolData.trades];
 
-    // Filter by tradeStatusFilter: 'ALL' | 'CLOSED' | 'BUY'
+    // Filter by tradeStatusFilter: 'ALL' | 'CLOSED' | 'BUY' | 'LONG' | 'SHORT'
     if (tradeStatusFilter === 'CLOSED') {
       list = list.filter(t => t.status === 'CLOSED');
     } else if (tradeStatusFilter === 'BUY' || tradeStatusFilter === 'OPEN') {
       list = list.filter(t => t.tradeType === 'BUY' || t.status === 'OPEN');
+    } else if (tradeStatusFilter === 'LTCG') {
+      list = list.filter(t => t.taxTerm === 'LTCG' || (t.holdingDays !== undefined && t.holdingDays >= 365));
+    } else if (tradeStatusFilter === 'STCG') {
+      list = list.filter(t => t.taxTerm !== 'LTCG' && (t.holdingDays === undefined || t.holdingDays < 365));
     }
 
     list.sort((a, b) => {
@@ -105,6 +109,18 @@ export default function SymbolTradeLogsModal({
 
   const buyTradesCount = useMemo(() => {
     return Array.isArray(symbolData?.trades) ? symbolData.trades.filter(t => t.tradeType === 'BUY').length : 0;
+  }, [symbolData?.trades]);
+
+  const ltcgCount = useMemo(() => {
+    return Array.isArray(symbolData?.trades)
+      ? symbolData.trades.filter(t => t.taxTerm === 'LTCG' || (t.holdingDays !== undefined && t.holdingDays >= 365)).length
+      : 0;
+  }, [symbolData?.trades]);
+
+  const stcgCount = useMemo(() => {
+    return Array.isArray(symbolData?.trades)
+      ? symbolData.trades.filter(t => t.taxTerm !== 'LTCG' && (t.holdingDays === undefined || t.holdingDays < 365)).length
+      : 0;
   }, [symbolData?.trades]);
 
   if (!symbolData) return null;
@@ -401,7 +417,7 @@ export default function SymbolTradeLogsModal({
             </div>
 
             {/* Filter Pills */}
-            <div className="flex items-center p-0.5 rounded-xl reports-subcard border border-[var(--border-color)]">
+            <div className="flex items-center p-0.5 rounded-xl reports-subcard border border-[var(--border-color)] flex-wrap gap-0.5">
               <button
                 type="button"
                 onClick={() => setTradeStatusFilter('ALL')}
@@ -434,6 +450,28 @@ export default function SymbolTradeLogsModal({
                 }`}
               >
                 Buy Entries ({buyTradesCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTradeStatusFilter('LTCG')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  tradeStatusFilter === 'LTCG'
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                LTCG ≥1y ({ltcgCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTradeStatusFilter('STCG')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  tradeStatusFilter === 'STCG'
+                    ? 'bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/30'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                STCG &lt;1y ({stcgCount})
               </button>
             </div>
           </div>
@@ -533,27 +571,40 @@ export default function SymbolTradeLogsModal({
                       >
                         <td className="py-2.5 px-3 text-[var(--text-secondary)] font-sans whitespace-nowrap">{trade.date || trade.entryDate}</td>
                         <td className="py-2.5 px-3 font-sans whitespace-nowrap">
-                          {trade.tradeType === 'BONUS' ? (
-                            <span className="px-1.5 py-0.5 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-400 text-[10px] font-bold font-mono">
-                              BONUS ISSUE
-                            </span>
-                          ) : trade.tradeType === 'SPLIT' ? (
-                            <span className="px-1.5 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] font-bold font-mono">
-                              STOCK SPLIT
-                            </span>
-                          ) : isBuy || trade.status === 'OPEN' ? (
-                            <span className="px-1.5 py-0.5 rounded-md border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-bold font-mono">
-                              BUY ENTRY
-                            </span>
-                          ) : isClosed ? (
-                            <span className="px-1.5 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 text-[10px] font-bold font-mono">
-                              CLOSED EXIT
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded-md border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-bold font-mono">
-                              BUY ENTRY
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {trade.status === 'CLOSED' || trade.exitPrice ? (
+                              <span className={`px-1.5 py-0.5 rounded-md border text-[9.5px] font-bold font-mono ${
+                                trade.taxTerm === 'LTCG' || (trade.holdingDays !== undefined && trade.holdingDays >= 365)
+                                  ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                  : 'border-sky-500/40 bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                              }`}>
+                                {trade.taxTerm === 'LTCG' || (trade.holdingDays !== undefined && trade.holdingDays >= 365)
+                                  ? `LTCG (${trade.holdingDays || 0}d)`
+                                  : `STCG (${trade.holdingDays || 0}d)`}
+                              </span>
+                            ) : null}
+                            {trade.tradeType === 'BONUS' ? (
+                              <span className="px-1.5 py-0.5 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-400 text-[10px] font-bold font-mono">
+                                BONUS ISSUE
+                              </span>
+                            ) : trade.tradeType === 'SPLIT' ? (
+                              <span className="px-1.5 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] font-bold font-mono">
+                                STOCK SPLIT
+                              </span>
+                            ) : isBuy || trade.status === 'OPEN' ? (
+                              <span className="px-1.5 py-0.5 rounded-md border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-bold font-mono">
+                                BUY ENTRY
+                              </span>
+                            ) : isClosed ? (
+                              <span className="px-1.5 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 text-[10px] font-bold font-mono">
+                                CLOSED EXIT
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-md border border-sky-500/30 bg-sky-500/10 text-sky-400 text-[10px] font-bold font-mono">
+                                BUY ENTRY
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2.5 px-3 font-sans whitespace-nowrap">
                           {isCorporateAction ? (

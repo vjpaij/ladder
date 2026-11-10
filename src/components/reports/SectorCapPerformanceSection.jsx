@@ -383,7 +383,7 @@ export default function SectorCapPerformanceSection({
                 {activeMode === 'SECTORS' ? 'Sectors' : 'Market Cap Tiers'} Ranked by Period Return %
               </span>
               <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                Click bar to inspect stocks
+                Click row or bar to inspect stocks
               </span>
             </div>
 
@@ -393,6 +393,11 @@ export default function SectorCapPerformanceSection({
                   data={activeGroups}
                   layout="vertical"
                   margin={{ top: 10, right: 25, left: 10, bottom: 5 }}
+                  onClick={(state) => {
+                    const name = state?.activePayload?.[0]?.payload?.name || state?.activeLabel;
+                    if (name) setSelectedGroup(name);
+                  }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
                   <XAxis

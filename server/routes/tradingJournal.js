@@ -97,13 +97,21 @@ function computeSeriesRSI(prices, period = 10) {
  */
 router.get('/trading-journal/symbols', async (req, res) => {
   try {
-    const { market, segment, status, outcome, query, sortField, sortOrder } = req.query;
+    const { market, segment, status, outcome, query, direction, term, sector, marketCap, horizon, month, startDate, endDate, sortField, sortOrder } = req.query;
     const symbols = await getSymbolAggregatedTrades({
       market,
       segment,
       status,
       outcome,
       query,
+      direction,
+      term,
+      sector,
+      marketCap,
+      horizon,
+      month,
+      startDate,
+      endDate,
       sortField,
       sortOrder
     });
@@ -120,8 +128,8 @@ router.get('/trading-journal/symbols', async (req, res) => {
  */
 router.get('/trading-journal', (req, res) => {
   try {
-    const { market, segment, status, outcome, query } = req.query;
-    const trades = getAllTrades({ market, segment, status, outcome, query });
+    const { market, segment, status, outcome, query, direction, term, sector, marketCap, horizon, month, startDate, endDate } = req.query;
+    const trades = getAllTrades({ market, segment, status, outcome, query, direction, term, sector, marketCap, horizon, month, startDate, endDate });
     res.json({ success: true, trades });
   } catch (err) {
     console.error('[TradingJournal] Error fetching trades:', err);
@@ -135,8 +143,8 @@ router.get('/trading-journal', (req, res) => {
  */
 router.get('/trading-journal/stats', (req, res) => {
   try {
-    const { market, segment } = req.query;
-    const stats = computeJournalStats({ market, segment });
+    const { market, segment, direction, term, sector, marketCap, horizon, month, startDate, endDate } = req.query;
+    const stats = computeJournalStats({ market, segment, direction, term, sector, marketCap, horizon, month, startDate, endDate });
     res.json({ success: true, stats });
   } catch (err) {
     console.error('[TradingJournal] Error computing stats:', err);

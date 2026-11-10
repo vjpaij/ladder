@@ -50,12 +50,12 @@ export default function HoldingDetailHeader({
             )}
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {holding.sector && holding.sector !== 'Unknown' && (
+            {['in_stocks', 'us_stocks'].includes(holding.category_id) && holding.sector && holding.sector !== 'Unknown' && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
                 {holding.sector}
               </span>
             )}
-            {holding.market_cap && holding.market_cap !== 'Unknown' && (
+            {['in_stocks', 'us_stocks'].includes(holding.category_id) && holding.market_cap && holding.market_cap !== 'Unknown' && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300 border border-blue-700/50">
                 {holding.market_cap}
               </span>

@@ -206,6 +206,15 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-[var(--border-color)] reports-subcard text-[var(--text-secondary)]">
                   {trade.segment?.replace('IN_', '')?.replace('US_', '')}
                 </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  trade.taxTerm === 'LTCG' || (trade.holdingDays !== undefined && trade.holdingDays >= 365)
+                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                    : 'border-sky-500/40 bg-sky-500/15 text-sky-600 dark:text-sky-400'
+                }`}>
+                  {trade.taxTerm === 'LTCG' || (trade.holdingDays !== undefined && trade.holdingDays >= 365)
+                    ? `LTCG (${trade.holdingDays ? trade.holdingDays + 'd' : '≥1y'})`
+                    : `STCG (${trade.holdingDays ? trade.holdingDays + 'd' : '<1y'})`}
+                </span>
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                   trade.status === 'CLOSED'
                     ? isWinner

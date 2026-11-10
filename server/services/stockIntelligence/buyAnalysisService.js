@@ -37,24 +37,28 @@ const BUY_ANALYSIS_VERSION = 'buy-analysis-v1.0';
  */
 export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = '') {
   const raw = String(fundamentals.sector || fundamentals.industry || '').trim();
+  if (raw === 'Retail & Consumer Discretionary' || raw === 'Consumer Discretionary') {
+    return 'Consumer Discretionary & Retail';
+  }
+
   const s = raw.toLowerCase();
   const n = (name + ' ' + symbol).toLowerCase();
 
   // 1. Automobile & Auto Components
   if (s.includes('auto') || s.includes('vehicle') || s.includes('tyre') || s.includes('tire') || s.includes('ancillar') || s.includes('motor') || s.includes('forging') || s.includes('two wheeler') || s.includes('electric vehicle') || s.includes('ev ') ||
-      n.includes('motor') || n.includes('auto') || n.includes('maruti') || n.includes('bajaj') || n.includes('tvs') || n.includes('lumax') || n.includes('sona') || n.includes('gabriel') || n.includes('sansera') || n.includes('ather') || n.includes('rkforge') || n.includes('dhoot') || n.includes('grpltd') || n.includes('grp ltd')) {
+      n.includes('motor') || n.includes('auto') || n.includes('maruti') || n.includes('bajaj') || n.includes('tvs') || n.includes('lumax') || n.includes('sona') || n.includes('gabriel') || n.includes('sansera') || n.includes('ather') || n.includes('rkforge') || n.includes('dhoot') || n.includes('grpltd') || n.includes('grp ltd') || n.includes('shripiston') || n.includes('shriram piston') || n.includes('tatamotors') || n.includes('tata motors')) {
     return 'Automobile & Auto Components';
   }
 
   // 2. Banking
   if (s.includes('bank') || s.includes('banking') || s.includes('small finance bank') ||
-      n.includes('bank') || n.includes('pnb') || n.includes('sbi') || n.includes('hdfc bank') || n.includes('icici bank') || n.includes('esaf')) {
+      n.includes('bank') || n.includes('pnb') || n.includes('sbi') || n.includes('hdfc bank') || n.includes('icici bank') || n.includes('esaf') || n.includes('mahabank') || n.includes('bank of maharashtra') || n.includes('karurvysya') || n.includes('karur vysya')) {
     return 'Banking';
   }
 
   // 3. Financial Services & NBFC
   if (s.includes('finance') || s.includes('financial') || s.includes('nbfc') || s.includes('wealth') || s.includes('amc') || s.includes('stock exchange') || s.includes('depository') || s.includes('rating') || s.includes('capital market') || s.includes('fintech') || s.includes('broking') || s.includes('insurance') || s.includes('credit') ||
-      n.includes('finance') || n.includes('fin ') || n.includes('finserve') || n.includes('fincorp') || n.includes('poonawalla') || n.includes('sgfin') || n.includes('360one') || n.includes('bse') || n.includes('nse') || n.includes('protean')) {
+      n.includes('finance') || n.includes('fin ') || n.includes('finserve') || n.includes('fincorp') || n.includes('poonawalla') || n.includes('sgfin') || n.includes('360one') || n.includes('bse') || n.includes('nse') || n.includes('protean') || n.includes('groww') || n.includes('billionbrains') || n.includes('liquidbees')) {
     return 'Financial Services & NBFC';
   }
 
@@ -66,7 +70,7 @@ export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = ''
 
   // 5. Enterprise Cloud & Internet
   if (s.includes('cloud') || s.includes('internet') || s.includes('e-commerce') || s.includes('ecommerce') || s.includes('search engine') || s.includes('social media') || s.includes('enterprise software') ||
-      n.includes('microsoft') || n.includes('google') || n.includes('meta') || n.includes('amazon') || n.includes('salesforce') || n.includes('palantir')) {
+      n.includes('microsoft') || n.includes('google') || n.includes('meta') || n.includes('amazon') || n.includes('salesforce') || n.includes('palantir') || n.includes('e2e networks') || n.includes('e2e')) {
     return 'Enterprise Cloud & Internet';
   }
 
@@ -76,26 +80,26 @@ export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = ''
   }
 
   // 7. Healthcare Services & Hospitals
-  if (s.includes('hospital') || s.includes('diagnostic') || s.includes('pathology') || s.includes('eyecare') || s.includes('clinic') || s.includes('healthcare service') ||
-      n.includes('artemis') || n.includes('lalpath') || n.includes('agarwal') || n.includes('apollo') || n.includes('fortis') || n.includes('max health') || n.includes('indgn') || n.includes('sagility')) {
+  if ((s.includes('hospital') && !s.includes('hospitality')) || s.includes('diagnostic') || s.includes('pathology') || s.includes('eyecare') || s.includes('clinic') || s.includes('healthcare service') || s.includes('healthcare process') ||
+      n.includes('artemis') || n.includes('lalpath') || n.includes('agarwal') || n.includes('apollo') || n.includes('fortis') || n.includes('max health') || n.includes('indgn') || n.includes('indegene') || n.includes('sagility')) {
     return 'Healthcare Services & Hospitals';
   }
 
   // 8. Pharmaceuticals & Biotechnology
   if (s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('formulation') || s.includes('api') || s.includes('cdmo') || s.includes('cro') || s.includes('active pharma') ||
-      n.includes('pharma') || n.includes('lab') || n.includes('ipca') || n.includes('solara') || n.includes('corona') || n.includes('gufic') || n.includes('sailife') || n.includes('sudeep') || n.includes('sanofi') || n.includes('pghl') || n.includes('saiparent')) {
+      n.includes('pharma') || n.includes('lab') || n.includes('ipca') || n.includes('solara') || n.includes('corona') || n.includes('gufic') || n.includes('sailife') || n.includes('sudeep') || n.includes('sanofi') || n.includes('pghl') || n.includes('saiparent') || n.includes('ajantpharm') || n.includes('ajanta pharma') || n.includes('blissgvs') || n.includes('bliss gvs') || n.includes('kpl') || n.includes('kwality') || n.includes('shukra') || n.includes('sequent')) {
     return 'Pharmaceuticals & Biotechnology';
   }
 
   // 9. Power & Electrical Equipment
   if (s.includes('transformer') || s.includes('electrical equipment') || s.includes('generator') || s.includes('transmission') || s.includes('power generation') || s.includes('power grid') || s.includes('hydro') || s.includes('electricals') ||
-      n.includes('tdpowersys') || n.includes('taril') || n.includes('hbl') || n.includes('enrin') || n.includes('qpower') || n.includes('marsons') || n.includes('nhpc') || n.includes('ntpc')) {
+      n.includes('tdpowersys') || n.includes('taril') || n.includes('hbl') || n.includes('enrin') || n.includes('qpower') || n.includes('marsons') || n.includes('nhpc') || n.includes('ntpc') || n.includes('jnpr') || n.includes('juniper green')) {
     return 'Power & Electrical Equipment';
   }
 
   // 10. Capital Goods & Heavy Engineering
-  if (s.includes('capital good') || s.includes('heavy engineering') || s.includes('machinery') || s.includes('machine tool') || s.includes('cnc') || s.includes('industrial machinery') || s.includes('cryogenic') || s.includes('defense') || s.includes('defence') || s.includes('engineering') || s.includes('valves') || s.includes('hoses') ||
-      n.includes('bhel') || n.includes('aeroflex') || n.includes('inoxindia') || n.includes('macpower') || n.includes('jash') || /\b(l&t|larsen)\b/i.test(n)) {
+  if (s.includes('capital good') || s.includes('heavy engineering') || s.includes('machinery') || s.includes('machine tool') || s.includes('cnc') || s.includes('industrial machinery') || s.includes('cryogenic') || s.includes('defense') || s.includes('defence') || s.includes('engineering') || s.includes('valves') || s.includes('hoses') || s.includes('shipbuilding') ||
+      n.includes('bhel') || n.includes('aeroflex') || n.includes('inoxindia') || n.includes('macpower') || n.includes('jash') || /\b(l&t|larsen)\b/i.test(n) || n.includes('sigmaadv') || n.includes('sigma advanced') || n.includes('swandef') || n.includes('swan defence') || n.includes('adorweld') || n.includes('ador')) {
     return 'Capital Goods & Heavy Engineering';
   }
 
@@ -119,41 +123,41 @@ export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = ''
 
   // 14. Logistics & Transportation
   if (s.includes('logistics') || s.includes('transport') || s.includes('freight') || s.includes('cargo') || s.includes('courier') || s.includes('warehousing') || s.includes('port') ||
-      n.includes('vrllog') || n.includes('vrl logistics') || n.includes('concor') || n.includes('delhivery')) {
+      n.includes('vrllog') || n.includes('vrl logistics') || n.includes('concor') || n.includes('delhivery') || n.includes('shadowfax')) {
     return 'Logistics & Transportation';
   }
 
   // 15. Travel, Tourism & Hospitality
   if (s.includes('hotel') || s.includes('resort') || s.includes('travel') || s.includes('tourism') || s.includes('hospitality') || s.includes('restaurant') || s.includes('airline') || s.includes('gaming') ||
-      n.includes('tbotek') || n.includes('tbo tek') || n.includes('deltacorp') || n.includes('delta corp') || n.includes('indian hotels') || n.includes('easemytrip')) {
+      n.includes('tbotek') || n.includes('tbo tek') || n.includes('deltacorp') || n.includes('delta corp') || n.includes('indian hotels') || n.includes('indhotel') || n.includes('chalet') || n.includes('eihotel') || n.includes('theleela') || n.includes('leela palaces') || n.includes('easemytrip')) {
     return 'Travel, Tourism & Hospitality';
   }
 
   // 16. Consumer Staples & FMCG
   if (s.includes('fmcg') || s.includes('food') || s.includes('beverage') || s.includes('edible oil') || s.includes('tobacco') || s.includes('distiller') || s.includes('brewery') || s.includes('alcohol') || s.includes('personal care') || s.includes('staple') ||
-      n.includes('radico') || n.includes('modinatur') || n.includes('tastybite') || n.includes('itc') || n.includes('nestle') || n.includes('hul') || n.includes('dabur')) {
+      n.includes('radico') || n.includes('modinatur') || n.includes('tastybite') || n.includes('itc') || n.includes('nestle') || n.includes('hul') || n.includes('dabur') || n.includes('dalmiasug')) {
     return 'Consumer Staples & FMCG';
   }
 
   // 17. Consumer Discretionary & Retail
   if (s.includes('retail') || s.includes('fashion') || s.includes('apparel') || s.includes('footwear') || s.includes('garment') || s.includes('consumer durable') || s.includes('furniture') ||
-      n.includes('trent') || n.includes('redington') || n.includes('nilkamal')) {
+      n.includes('trent') || n.includes('redington') || n.includes('nilkamal') || n.includes('vmm') || n.includes('vishal mega') || n.includes('medplus') || n.includes('arvindfasn')) {
     return 'Consumer Discretionary & Retail';
   }
 
   // 18. Information Technology & Software
-  if (s.includes('tech') || s.includes('information') || s.includes('software') || s.includes('it ') || s === 'it' || s.includes('it services') || s.includes('consulting') || s.includes('analytics') ||
-      n.includes('techm') || n.includes('eclerx') || n.includes('fractal') || n.includes('tcs') || n.includes('infy') || n.includes('wipro') || n.includes('hcl')) {
+  if (s.includes('information technology') || s.includes('software') || /\bit\b/i.test(s) || s.includes('it services') || s.includes('consulting') || s.includes('analytics') ||
+      n.includes('techm') || n.includes('eclerx') || n.includes('fractal') || n.includes('tcs') || n.includes('infy') || n.includes('wipro') || n.includes('hcl') || n.includes('ofss') || n.includes('oracle fin')) {
     return 'Information Technology & Software';
   }
 
   // 19. Real Estate & Construction
-  if (s.includes('realty') || s.includes('real estate') || s.includes('construction') || s.includes('cement') || s.includes('infra') || n.includes('dlf') || n.includes('godrej prop')) {
+  if (s.includes('realty') || s.includes('real estate') || s.includes('construction') || s.includes('cement') || s.includes('infra') || n.includes('dlf') || n.includes('godrej prop') || n.includes('ganeshhou') || n.includes('ganesh housing')) {
     return 'Real Estate & Construction';
   }
 
   // 20. Oil, Gas & Energy
-  if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('petroleum') || s.includes('refin') || s.includes('renewable') || n.includes('ongc') || n.includes('reliance') || n.includes('ioc')) {
+  if (s.includes('energy') || s.includes('oil') || s.includes('gas') || s.includes('petroleum') || s.includes('refin') || s.includes('renewable') || n.includes('ongc') || n.includes('reliance') || n.includes('ioc') || n.includes('swanenergy') || n.includes('antelopus')) {
     return 'Oil, Gas & Energy';
   }
 

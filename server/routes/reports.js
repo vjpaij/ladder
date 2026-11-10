@@ -334,13 +334,15 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
         const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toUpperCase();
         const metaRow = metaMap.get(cleanSym) || metaMap.get((h.symbol || '').toUpperCase()) || {};
 
-        const rawSec = (metaRow.sector && metaRow.sector !== 'Unknown')
-          ? metaRow.sector
-          : (h.sector && h.sector !== 'Unknown' && h.sector !== 'US Equities' && h.sector !== 'General')
-            ? h.sector
+        const rawSec = (h.sector && h.sector !== 'Unknown' && h.sector !== 'US Equities' && h.sector !== 'General' && h.sector !== 'Diversified & Other')
+          ? h.sector
+          : (metaRow.sector && metaRow.sector !== 'Unknown' && metaRow.sector !== 'Diversified & Other')
+            ? metaRow.sector
             : resolveCanonicalSector(metaRow, h.name, h.symbol);
         const sector = normalizeSector(rawSec);
-        const mcapCategory = metaRow.mcap_category || (metaRow.market_cap ? (metaRow.market_cap >= 500000 ? 'Mega Cap' : metaRow.market_cap >= 85000 ? 'Large Cap' : metaRow.market_cap >= 27500 ? 'Mid Cap' : metaRow.market_cap >= 5000 ? 'Small Cap' : 'Micro Cap') : (h.market_cap || 'Small Cap'));
+        const mcapCategory = (h.market_cap && h.market_cap !== 'Unknown')
+          ? h.market_cap
+          : (metaRow.mcap_category || (metaRow.market_cap ? (metaRow.market_cap >= 500000 ? 'Mega Cap' : metaRow.market_cap >= 85000 ? 'Large Cap' : metaRow.market_cap >= 27500 ? 'Mid Cap' : metaRow.market_cap >= 5000 ? 'Small Cap' : 'Micro Cap') : 'Small Cap'));
 
         const liveQuote = liveQuoteCache.get(h.symbol);
         const endPrice = resolveHoldingPrice(h, liveQuote) || Number(h.current_price) || 0;

@@ -135,6 +135,30 @@ export function ThemeAuthProvider({ children }) {
     setPromptState(null);
   };
 
+  const logout = useCallback((reason) => {
+    localStorage.removeItem('ladder_token');
+    localStorage.removeItem('ladder_user');
+    localStorage.removeItem('ladder_last_activity');
+    delete axios.defaults.headers.common.Authorization;
+    setToken(null);
+    setUser(null);
+    if (reason && typeof reason === 'string') {
+      showError(reason);
+    }
+  }, []);
+
+  const login = (newToken, userData) => {
+    localStorage.setItem('ladder_token', newToken);
+    localStorage.setItem('ladder_user', JSON.stringify(userData));
+    localStorage.setItem('ladder_last_activity', String(Date.now()));
+    if (newToken) {
+      axios.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+    }
+    setToken(newToken);
+    setUser(userData);
+  };
+
+
   useEffect(() => {
     localStorage.setItem('ladder_theme', theme);
     // Remove all previous theme classes
@@ -263,29 +287,6 @@ export function ThemeAuthProvider({ children }) {
   };
 
   const toggleCurrency = () => setCurrency(prev => prev === 'INR' ? 'USD' : 'INR');
-
-  const logout = useCallback((reason) => {
-    localStorage.removeItem('ladder_token');
-    localStorage.removeItem('ladder_user');
-    localStorage.removeItem('ladder_last_activity');
-    delete axios.defaults.headers.common.Authorization;
-    setToken(null);
-    setUser(null);
-    if (reason && typeof reason === 'string') {
-      showError(reason);
-    }
-  }, []);
-
-  const login = (newToken, userData) => {
-    localStorage.setItem('ladder_token', newToken);
-    localStorage.setItem('ladder_user', JSON.stringify(userData));
-    localStorage.setItem('ladder_last_activity', String(Date.now()));
-    if (newToken) {
-      axios.defaults.headers.common.Authorization = `Bearer ${newToken}`;
-    }
-    setToken(newToken);
-    setUser(userData);
-  };
 
   const updateUserAvatar = (avatarUrl) => {
     const updated = { ...(user || {}), avatarUrl };

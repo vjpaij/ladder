@@ -25,6 +25,27 @@ const JOURNAL_FILE = path.join(DATA_DIR, 'trading_journal.json');
 let cachedJournal = null;
 let adminClient = null;
 
+let cachedMetadataMap = null;
+function getMetadataMap() {
+  if (cachedMetadataMap) return cachedMetadataMap;
+  cachedMetadataMap = new Map();
+  try {
+    const metaPath = path.join(DATA_DIR, 'asset_metadata.json');
+    if (fs.existsSync(metaPath)) {
+      const metaList = JSON.parse(fs.readFileSync(metaPath, 'utf8') || '[]');
+      metaList.forEach(m => {
+        if (m.symbol) {
+          cachedMetadataMap.set(m.symbol.toUpperCase().trim(), m);
+          cachedMetadataMap.set(m.symbol.replace(/\.(NS|BO)$/i, '').toUpperCase().trim(), m);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('[TradingJournal] Could not load asset_metadata for sector mapping:', err.message);
+  }
+  return cachedMetadataMap;
+}
+
 function getAdminClient() {
   if (!adminClient) {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -141,8 +162,8 @@ function loadJournalFromDisk() {
     }
     if (fs.existsSync(JOURNAL_FILE)) {
       const content = fs.readFileSync(JOURNAL_FILE, 'utf-8');
-      cachedJournal = JSON.parse(content || '[]');
-      if (!Array.isArray(cachedJournal)) cachedJournal = [];
+      const raw = JSON.parse(content || '[]');
+      cachedJournal = Array.isArray(raw) ? raw.map(t => enrichTrade(t)) : [];
       return cachedJournal;
     }
   } catch (err) {
@@ -186,10 +207,10 @@ function enrichTrade(trade) {
 
   if (exitDate && entryDate) {
     holdingDays = Math.max(0, Math.round((new Date(exitDate) - new Date(entryDate)) / (1000 * 60 * 60 * 24)));
-    taxTerm = holdingDays > 365 ? 'LTCG' : 'STCG';
+    taxTerm = holdingDays >= 365 ? 'LTCG' : 'STCG';
   } else if (entryDate) {
     holdingDays = Math.max(0, Math.round((new Date() - new Date(entryDate)) / (1000 * 60 * 60 * 24)));
-    taxTerm = holdingDays > 365 ? 'LTCG' : 'STCG';
+    taxTerm = holdingDays >= 365 ? 'LTCG' : 'STCG';
   }
 
   const isClosed = (trade.exitPrice !== null && trade.exitPrice !== undefined && trade.exitPrice > 0);
@@ -293,8 +314,16 @@ function enrichTrade(trade) {
     roiPctInr = roiPct;
   }
 
+  const metaMap = getMetadataMap();
+  const cleanSym = (trade.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
+  const metaRow = metaMap.get(cleanSym) || metaMap.get((trade.symbol || '').toUpperCase().trim());
+  const sector = trade.sector || (metaRow && metaRow.sector && metaRow.sector !== 'Unknown' ? metaRow.sector : resolveCanonicalSector(metaRow || {}, trade.name, trade.symbol));
+  const market_cap = trade.market_cap || metaRow?.mcap_category || metaRow?.capitalisation || 'Small Cap';
+
   return {
     ...trade,
+    sector,
+    market_cap,
     holdingDays,
     taxTerm,
     buyTurnover: charges.buyTurnover,
@@ -362,6 +391,52 @@ export function getAllTrades(filters = {}) {
     if (filters.outcome === 'WIN') result = result.filter(t => t.status === 'CLOSED' && t.netPnl > 0);
     if (filters.outcome === 'LOSS') result = result.filter(t => t.status === 'CLOSED' && t.netPnl < 0);
     if (filters.outcome === 'BE') result = result.filter(t => t.status === 'CLOSED' && t.netPnl === 0);
+  }
+  if (filters.term && filters.term !== 'ALL') {
+    const isLtcg = filters.term === 'LTCG' || filters.term === 'LONG_TERM' || filters.term === 'LONG';
+    result = result.filter(t => (t.taxTerm === 'LTCG' || (t.holdingDays !== undefined && t.holdingDays >= 365)) === isLtcg);
+  }
+  if (filters.direction && filters.direction !== 'ALL') {
+    if (filters.direction === 'LTCG' || filters.direction === 'LONG' || filters.direction === 'LONG_TERM') {
+      result = result.filter(t => t.taxTerm === 'LTCG' || (t.holdingDays !== undefined && t.holdingDays >= 365));
+    } else if (filters.direction === 'STCG' || filters.direction === 'SHORT' || filters.direction === 'SHORT_TERM') {
+      result = result.filter(t => t.taxTerm !== 'LTCG' && (t.holdingDays === undefined || t.holdingDays < 365));
+    }
+  }
+  if (filters.sector && filters.sector !== 'ALL') {
+    result = result.filter(t => t.sector === filters.sector);
+  }
+  if (filters.marketCap && filters.marketCap !== 'ALL') {
+    result = result.filter(t => t.market_cap === filters.marketCap);
+  }
+  if (filters.horizon && filters.horizon !== 'ALL') {
+    result = result.filter(t => {
+      const days = t.holdingDays ?? 0;
+      if (filters.horizon === 'QUICK') return days < 15;
+      if (filters.horizon === 'SWING_SHORT') return days >= 15 && days <= 60;
+      if (filters.horizon === 'SWING_MED') return days > 60 && days <= 180;
+      if (filters.horizon === 'PRE_LTCG') return days > 180 && days < 365;
+      if (filters.horizon === 'LTCG') return days >= 365;
+      return true;
+    });
+  }
+  if (filters.month && filters.month !== 'ALL') {
+    result = result.filter(t => {
+      const d = t.exitDate || t.date || t.entryDate;
+      return d && d.startsWith(filters.month);
+    });
+  }
+  if (filters.startDate) {
+    result = result.filter(t => {
+      const d = t.exitDate || t.date || t.entryDate;
+      return d && d >= filters.startDate;
+    });
+  }
+  if (filters.endDate) {
+    result = result.filter(t => {
+      const d = t.exitDate || t.date || t.entryDate;
+      return d && d <= filters.endDate;
+    });
   }
 
   // Sort by entryDate desc by default
@@ -600,8 +675,264 @@ export function computeJournalStats(filters = {}) {
     };
   });
 
+  // Long-Term (LTCG >= 365 days) vs Short-Term (STCG < 365 days) Capital Gains metrics
+  const isLtcgTrade = (t) => t.taxTerm === 'LTCG' || (t.holdingDays !== undefined && t.holdingDays >= 365);
+  const closedLtcg = closedTrades.filter(t => isLtcgTrade(t));
+  const closedStcg = closedTrades.filter(t => !isLtcgTrade(t));
+
+  const ltcgWinners = closedLtcg.filter(t => t.netPnl > 0);
+  const ltcgLosers = closedLtcg.filter(t => t.netPnl < 0);
+  const stcgWinners = closedStcg.filter(t => t.netPnl > 0);
+  const stcgLosers = closedStcg.filter(t => t.netPnl < 0);
+
+  const ltcgDaysSum = closedLtcg.reduce((sum, t) => sum + (t.holdingDays || 0), 0);
+  const stcgDaysSum = closedStcg.reduce((sum, t) => sum + (t.holdingDays || 0), 0);
+
+  const ltcgNetPnlInr = closedLtcg.reduce((sum, t) => sum + (t.netPnlInr ?? t.netPnl ?? 0), 0);
+  const stcgNetPnlInr = closedStcg.reduce((sum, t) => sum + (t.netPnlInr ?? t.netPnl ?? 0), 0);
+  const ltcgCostBasisInr = closedLtcg.reduce((sum, t) => sum + (t.costBasisInr ?? ((t.entryPriceInr ?? t.entryPrice ?? 0) * (t.quantity || 0))), 0);
+  const stcgCostBasisInr = closedStcg.reduce((sum, t) => sum + (t.costBasisInr ?? ((t.entryPriceInr ?? t.entryPrice ?? 0) * (t.quantity || 0))), 0);
+
+  const ltcgTrades = {
+    count: closedLtcg.length,
+    winCount: ltcgWinners.length,
+    lossCount: ltcgLosers.length,
+    breakevenCount: closedLtcg.filter(t => t.netPnl === 0).length,
+    winRatePct: closedLtcg.length > 0 ? Math.round((ltcgWinners.length / closedLtcg.length) * 1000) / 10 : 0,
+    grossPnl: Math.round(closedLtcg.reduce((sum, t) => sum + (t.grossPnl || 0), 0) * 100) / 100,
+    grossPnlInr: Math.round(closedLtcg.reduce((sum, t) => sum + (t.grossPnlInr ?? t.grossPnl ?? 0), 0) * 100) / 100,
+    totalCharges: Math.round(closedLtcg.reduce((sum, t) => sum + (t.totalCharges || 0), 0) * 100) / 100,
+    totalChargesInr: Math.round(closedLtcg.reduce((sum, t) => sum + (t.totalChargesInr ?? t.totalCharges ?? 0), 0) * 100) / 100,
+    netPnl: Math.round(closedLtcg.reduce((sum, t) => sum + (t.netPnl || 0), 0) * 100) / 100,
+    netPnlInr: Math.round(ltcgNetPnlInr * 100) / 100,
+    totalCapital: Math.round(closedLtcg.reduce((sum, t) => sum + ((t.entryPrice || 0) * (t.quantity || 0)), 0) * 100) / 100,
+    totalCapitalInr: Math.round(ltcgCostBasisInr * 100) / 100,
+    roiPct: ltcgCostBasisInr > 0 ? Math.round((ltcgNetPnlInr / ltcgCostBasisInr) * 1000) / 10 : 0,
+    avgHoldingDays: closedLtcg.length > 0 ? Math.round(ltcgDaysSum / closedLtcg.length) : 0,
+    taxRatePct: 12.5,
+    estimatedTaxInr: Math.round(Math.max(0, ltcgNetPnlInr - 125000) * 0.125 * 100) / 100
+  };
+
+  const stcgTrades = {
+    count: closedStcg.length,
+    winCount: stcgWinners.length,
+    lossCount: stcgLosers.length,
+    breakevenCount: closedStcg.filter(t => t.netPnl === 0).length,
+    winRatePct: closedStcg.length > 0 ? Math.round((stcgWinners.length / closedStcg.length) * 1000) / 10 : 0,
+    grossPnl: Math.round(closedStcg.reduce((sum, t) => sum + (t.grossPnl || 0), 0) * 100) / 100,
+    grossPnlInr: Math.round(closedStcg.reduce((sum, t) => sum + (t.grossPnlInr ?? t.grossPnl ?? 0), 0) * 100) / 100,
+    totalCharges: Math.round(closedStcg.reduce((sum, t) => sum + (t.totalCharges || 0), 0) * 100) / 100,
+    totalChargesInr: Math.round(closedStcg.reduce((sum, t) => sum + (t.totalChargesInr ?? t.totalCharges ?? 0), 0) * 100) / 100,
+    netPnl: Math.round(closedStcg.reduce((sum, t) => sum + (t.netPnl || 0), 0) * 100) / 100,
+    netPnlInr: Math.round(stcgNetPnlInr * 100) / 100,
+    totalCapital: Math.round(closedStcg.reduce((sum, t) => sum + ((t.entryPrice || 0) * (t.quantity || 0)), 0) * 100) / 100,
+    totalCapitalInr: Math.round(stcgCostBasisInr * 100) / 100,
+    roiPct: stcgCostBasisInr > 0 ? Math.round((stcgNetPnlInr / stcgCostBasisInr) * 1000) / 10 : 0,
+    avgHoldingDays: closedStcg.length > 0 ? Math.round(stcgDaysSum / closedStcg.length) : 0,
+    taxRatePct: 20.0,
+    estimatedTaxInr: Math.round(Math.max(0, stcgNetPnlInr) * 0.20 * 100) / 100
+  };
+
+  // Monthly Realized P&L timeline
+  const monthMap = {};
+  chronologicalClosed.forEach(t => {
+    const d = t.exitDate || t.date;
+    if (!d) return;
+    const m = d.substring(0, 7);
+    if (!monthMap[m]) {
+      monthMap[m] = {
+        month: m,
+        label: new Date(m + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+        netPnl: 0,
+        netPnlInr: 0,
+        grossPnlInr: 0,
+        totalChargesInr: 0,
+        trades: 0,
+        winCount: 0,
+        lossCount: 0
+      };
+    }
+    monthMap[m].trades++;
+    monthMap[m].netPnl += (t.netPnl || 0);
+    monthMap[m].netPnlInr += (t.netPnlInr ?? t.netPnl ?? 0);
+    monthMap[m].grossPnlInr += (t.grossPnlInr ?? t.grossPnl ?? 0);
+    monthMap[m].totalChargesInr += (t.totalChargesInr ?? t.totalCharges ?? 0);
+    if ((t.netPnl || 0) > 0) monthMap[m].winCount++;
+    else if ((t.netPnl || 0) < 0) monthMap[m].lossCount++;
+  });
+
+  const monthlyPnlTimeline = Object.values(monthMap)
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map(m => ({
+      ...m,
+      netPnl: Math.round(m.netPnl * 100) / 100,
+      netPnlInr: Math.round(m.netPnlInr * 100) / 100,
+      grossPnlInr: Math.round(m.grossPnlInr * 100) / 100,
+      totalChargesInr: Math.round(m.totalChargesInr * 100) / 100,
+      winRatePct: m.trades > 0 ? Math.round((m.winCount / m.trades) * 1000) / 10 : 0
+    }));
+
+  // Sector Performance Breakdown
+  const metaMap = getMetadataMap();
+  const sectorMap = {};
+  closedTrades.forEach(t => {
+    const cleanSym = (t.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
+    const metaRow = metaMap.get(cleanSym) || metaMap.get((t.symbol || '').toUpperCase().trim());
+    const sec = t.sector && t.sector !== 'Unknown' && t.sector !== 'Diversified & Other' 
+      ? t.sector 
+      : (metaRow?.sector && metaRow.sector !== 'Unknown' ? metaRow.sector : resolveCanonicalSector(metaRow || {}, t.name, t.symbol)) || 'Diversified & Other';
+    if (!sectorMap[sec]) {
+      sectorMap[sec] = {
+        sector: sec,
+        trades: 0,
+        winCount: 0,
+        lossCount: 0,
+        netPnl: 0,
+        netPnlInr: 0,
+        grossPnlInr: 0,
+        totalChargesInr: 0,
+        totalCapital: 0,
+        totalCapitalInr: 0
+      };
+    }
+    sectorMap[sec].trades++;
+    sectorMap[sec].netPnl += (t.netPnl || 0);
+    sectorMap[sec].netPnlInr += (t.netPnlInr ?? t.netPnl ?? 0);
+    sectorMap[sec].grossPnlInr += (t.grossPnlInr ?? t.grossPnl ?? 0);
+    sectorMap[sec].totalChargesInr += (t.totalChargesInr ?? t.totalCharges ?? 0);
+    sectorMap[sec].totalCapital += (t.costBasis ?? ((t.entryPrice || 0) * (t.quantity || 0)));
+    sectorMap[sec].totalCapitalInr += (t.costBasisInr ?? ((t.entryPriceInr ?? t.entryPrice ?? 0) * (t.quantity || 0)));
+    if ((t.netPnl || 0) > 0) sectorMap[sec].winCount++;
+    else if ((t.netPnl || 0) < 0) sectorMap[sec].lossCount++;
+  });
+
+  const sectorBreakdown = Object.values(sectorMap)
+    .map(s => ({
+      ...s,
+      netPnl: Math.round(s.netPnl * 100) / 100,
+      netPnlInr: Math.round(s.netPnlInr * 100) / 100,
+      grossPnlInr: Math.round(s.grossPnlInr * 100) / 100,
+      totalChargesInr: Math.round(s.totalChargesInr * 100) / 100,
+      totalCapital: Math.round((s.totalCapital || 0) * 100) / 100,
+      totalCapitalInr: Math.round(s.totalCapitalInr * 100) / 100,
+      winRatePct: s.trades > 0 ? Math.round((s.winCount / s.trades) * 1000) / 10 : 0,
+      roiPct: s.totalCapitalInr > 0 ? Math.round((s.netPnlInr / s.totalCapitalInr) * 1000) / 10 : 0
+    }))
+    .sort((a, b) => b.netPnlInr - a.netPnlInr);
+
+  // Market Cap Performance Breakdown
+  const mcapOrder = ['Large Cap', 'Mid Cap', 'Small Cap', 'Micro Cap'];
+  const mcapMap = {};
+  mcapOrder.forEach(mc => {
+    mcapMap[mc] = {
+      marketCap: mc,
+      trades: 0,
+      winCount: 0,
+      lossCount: 0,
+      netPnl: 0,
+      netPnlInr: 0,
+      grossPnlInr: 0,
+      totalChargesInr: 0,
+      totalCapital: 0,
+      totalCapitalInr: 0
+    };
+  });
+
+  closedTrades.forEach(t => {
+    let mc = t.market_cap || 'Small Cap';
+    if (mc === 'Mega Cap') mc = 'Large Cap';
+    if (!mcapMap[mc]) mc = 'Small Cap';
+    mcapMap[mc].trades++;
+    mcapMap[mc].netPnl += (t.netPnl || 0);
+    mcapMap[mc].netPnlInr += (t.netPnlInr ?? t.netPnl ?? 0);
+    mcapMap[mc].grossPnlInr += (t.grossPnlInr ?? t.grossPnl ?? 0);
+    mcapMap[mc].totalChargesInr += (t.totalChargesInr ?? t.totalCharges ?? 0);
+    mcapMap[mc].totalCapital += (t.costBasis ?? ((t.entryPrice || 0) * (t.quantity || 0)));
+    mcapMap[mc].totalCapitalInr += (t.costBasisInr ?? ((t.entryPriceInr ?? t.entryPrice ?? 0) * (t.quantity || 0)));
+    if ((t.netPnl || 0) > 0) mcapMap[mc].winCount++;
+    else if ((t.netPnl || 0) < 0) mcapMap[mc].lossCount++;
+  });
+
+  const marketCapBreakdown = mcapOrder.map(mc => {
+    const data = mcapMap[mc];
+    return {
+      ...data,
+      netPnl: Math.round(data.netPnl * 100) / 100,
+      netPnlInr: Math.round(data.netPnlInr * 100) / 100,
+      grossPnlInr: Math.round(data.grossPnlInr * 100) / 100,
+      totalChargesInr: Math.round(data.totalChargesInr * 100) / 100,
+      totalCapital: Math.round((data.totalCapital || 0) * 100) / 100,
+      totalCapitalInr: Math.round(data.totalCapitalInr * 100) / 100,
+      winRatePct: data.trades > 0 ? Math.round((data.winCount / data.trades) * 1000) / 10 : 0,
+      roiPct: data.totalCapitalInr > 0 ? Math.round((data.netPnlInr / data.totalCapitalInr) * 1000) / 10 : 0
+    };
+  });
+
+  // Holding Horizon Sweet Spot Breakdown
+  const horizonBrackets = [
+    { id: 'QUICK', label: '< 15 Days', min: 0, max: 14 },
+    { id: 'SWING_SHORT', label: '15 – 60 Days', min: 15, max: 60 },
+    { id: 'SWING_MED', label: '60 – 180 Days', min: 61, max: 180 },
+    { id: 'PRE_LTCG', label: '180 – 365 Days', min: 181, max: 365 },
+    { id: 'LTCG', label: '> 365 Days (LTCG)', min: 366, max: Infinity }
+  ].map(b => ({
+    ...b,
+    trades: 0,
+    winCount: 0,
+    lossCount: 0,
+    netPnl: 0,
+    netPnlInr: 0,
+    grossPnlInr: 0,
+    totalChargesInr: 0,
+    totalCapital: 0,
+    totalCapitalInr: 0,
+    daysSum: 0
+  }));
+
+  closedTrades.forEach(t => {
+    const days = t.holdingDays || 0;
+    const b = horizonBrackets.find(br => days >= br.min && days <= br.max) || horizonBrackets[horizonBrackets.length - 1];
+    b.trades++;
+    b.daysSum += days;
+    b.netPnl += (t.netPnl || 0);
+    b.netPnlInr += (t.netPnlInr ?? t.netPnl ?? 0);
+    b.grossPnlInr += (t.grossPnlInr ?? t.grossPnl ?? 0);
+    b.totalChargesInr += (t.totalChargesInr ?? t.totalCharges ?? 0);
+    b.totalCapital += (t.costBasis ?? ((t.entryPrice || 0) * (t.quantity || 0)));
+    b.totalCapitalInr += (t.costBasisInr ?? ((t.entryPriceInr ?? t.entryPrice ?? 0) * (t.quantity || 0)));
+    if ((t.netPnl || 0) > 0) b.winCount++;
+    else if ((t.netPnl || 0) < 0) b.lossCount++;
+  });
+
+  const holdingHorizonBreakdown = horizonBrackets.map(b => ({
+    id: b.id,
+    label: b.label,
+    trades: b.trades,
+    winCount: b.winCount,
+    lossCount: b.lossCount,
+    netPnl: Math.round(b.netPnl * 100) / 100,
+    netPnlInr: Math.round(b.netPnlInr * 100) / 100,
+    grossPnlInr: Math.round(b.grossPnlInr * 100) / 100,
+    totalChargesInr: Math.round(b.totalChargesInr * 100) / 100,
+    totalCapital: Math.round((b.totalCapital || 0) * 100) / 100,
+    totalCapitalInr: Math.round(b.totalCapitalInr * 100) / 100,
+    winRatePct: b.trades > 0 ? Math.round((b.winCount / b.trades) * 1000) / 10 : 0,
+    roiPct: b.totalCapitalInr > 0 ? Math.round((b.netPnlInr / b.totalCapitalInr) * 1000) / 10 : 0,
+    avgHoldingDays: b.trades > 0 ? Math.round(b.daysSum / b.trades) : 0
+  }));
+
   return {
     totalTrades: trades.length,
+    openTradesCount: openTrades.length,
+    closedTradesCount: totalClosed,
+    winCount,
+    lossCount,
+    breakevenCount: breakevens.length,
+    winRatePct: Math.round(winRatePct * 100) / 100,
+    ltcgTrades,
+    stcgTrades,
+    longTrades: ltcgTrades,
+    shortTrades: stcgTrades,
     openTradesCount: openTrades.length,
     closedTradesCount: totalClosed,
     winCount,
@@ -633,7 +964,11 @@ export function computeJournalStats(filters = {}) {
     maxLossStreak,
     mistakeBreakdown,
     setupBreakdown,
-    pnlTimeline
+    pnlTimeline,
+    monthlyPnlTimeline,
+    sectorBreakdown,
+    marketCapBreakdown,
+    holdingHorizonBreakdown
   };
 }
 
@@ -1136,6 +1471,30 @@ export async function getSymbolAggregatedTrades(filters = {}) {
       if (trade.netPnl > 0) group.winCount++;
       else if (trade.netPnl < 0) group.lossCount++;
       else group.breakevenCount++;
+      const isLtcg = trade.taxTerm === 'LTCG' || (trade.holdingDays !== undefined && trade.holdingDays >= 365);
+      if (isLtcg) {
+        group.ltcgTradesCount = (group.ltcgTradesCount || 0) + 1;
+        group.ltcgNetPnl = (group.ltcgNetPnl || 0) + (trade.netPnl || 0);
+        group.ltcgNetPnlInr = (group.ltcgNetPnlInr || 0) + (trade.netPnlInr ?? trade.netPnl ?? 0);
+        if (trade.netPnl > 0) group.ltcgWinCount = (group.ltcgWinCount || 0) + 1;
+        else if (trade.netPnl < 0) group.ltcgLossCount = (group.ltcgLossCount || 0) + 1;
+      } else {
+        group.stcgTradesCount = (group.stcgTradesCount || 0) + 1;
+        group.stcgNetPnl = (group.stcgNetPnl || 0) + (trade.netPnl || 0);
+        group.stcgNetPnlInr = (group.stcgNetPnlInr || 0) + (trade.netPnlInr ?? trade.netPnl ?? 0);
+        if (trade.netPnl > 0) group.stcgWinCount = (group.stcgWinCount || 0) + 1;
+        else if (trade.netPnl < 0) group.stcgLossCount = (group.stcgLossCount || 0) + 1;
+      }
+      group.longTradesCount = group.ltcgTradesCount || 0;
+      group.shortTradesCount = group.stcgTradesCount || 0;
+      group.longNetPnl = group.ltcgNetPnl || 0;
+      group.shortNetPnl = group.stcgNetPnl || 0;
+      group.longNetPnlInr = group.ltcgNetPnlInr || 0;
+      group.shortNetPnlInr = group.stcgNetPnlInr || 0;
+      group.longWinCount = group.ltcgWinCount || 0;
+      group.longLossCount = group.ltcgLossCount || 0;
+      group.shortWinCount = group.stcgWinCount || 0;
+      group.shortLossCount = group.stcgLossCount || 0;
     } else if (trade.tradeType === 'BUY') {
       group.buyTrades = (group.buyTrades || 0) + 1;
       group.buyTradesQty = (group.buyTradesQty || 0) + (trade.quantity || 0);
@@ -1216,6 +1575,22 @@ export async function getSymbolAggregatedTrades(filters = {}) {
       lossCount: group.lossCount,
       breakevenCount: group.breakevenCount,
       winRatePct: Math.round(winRatePct * 10) / 10,
+      ltcgTradesCount: group.ltcgTradesCount || 0,
+      stcgTradesCount: group.stcgTradesCount || 0,
+      ltcgWinCount: group.ltcgWinCount || 0,
+      ltcgLossCount: group.ltcgLossCount || 0,
+      stcgWinCount: group.stcgWinCount || 0,
+      stcgLossCount: group.stcgLossCount || 0,
+      ltcgNetPnl: Math.round((group.ltcgNetPnl || 0) * 100) / 100,
+      stcgNetPnl: Math.round((group.stcgNetPnl || 0) * 100) / 100,
+      ltcgNetPnlInr: Math.round((group.ltcgNetPnlInr || 0) * 100) / 100,
+      stcgNetPnlInr: Math.round((group.stcgNetPnlInr || 0) * 100) / 100,
+      longTradesCount: group.ltcgTradesCount || 0,
+      shortTradesCount: group.stcgTradesCount || 0,
+      longNetPnl: Math.round((group.ltcgNetPnl || 0) * 100) / 100,
+      shortNetPnl: Math.round((group.stcgNetPnl || 0) * 100) / 100,
+      longNetPnlInr: Math.round((group.ltcgNetPnlInr || 0) * 100) / 100,
+      shortNetPnlInr: Math.round((group.stcgNetPnlInr || 0) * 100) / 100,
       totalQuantity: group.totalQuantity,
       totalCapital: Math.round(group.totalCapital * 100) / 100,
       totalCharges: Math.round(group.totalCharges * 100) / 100,
