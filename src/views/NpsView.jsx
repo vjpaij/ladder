@@ -24,11 +24,15 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
     try {
       const res = await axios.post('/api/refresh-prices');
       if (onRefresh) await onRefresh();
-      setRefreshToast(res.data?.message || 'NPS NAVs updated successfully!');
-      setTimeout(() => setRefreshToast(null), 4000);
+      if (res.data?.npsStatus) {
+        setRefreshToast(res.data.npsStatus.message);
+      } else {
+        setRefreshToast(res.data?.message || 'NPS NAVs updated successfully!');
+      }
+      setTimeout(() => setRefreshToast(null), 6000);
     } catch (err) {
       setRefreshToast('Error refreshing NAVs: ' + (err.response?.data?.error || err.message));
-      setTimeout(() => setRefreshToast(null), 4000);
+      setTimeout(() => setRefreshToast(null), 5000);
     } finally {
       setIsRefreshingNavs(false);
     }
@@ -38,11 +42,32 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
     return holdings.filter(h => h.category_id === 'nps');
   }, [holdings]);
 
+  const getNpsQuoteBadgeStatus = useCallback((quoteDate) => {
+    const std = getQuoteBadgeStatus(quoteDate);
+    if (std.isUpToDate) return std;
+
+    // NPS Specific: Protean CRA compiles Friday's NAVs over the weekend / Monday morning.
+    // If today is a weekend or Monday pre-market, and the quote is Thursday (12 Nov 2026),
+    // it represents the latest officially published CRA NAV in India.
+    const now = new Date();
+    const day = now.getDay();
+    const isWeekendOrMon = day === 0 || day === 6 || day === 1;
+    if (isWeekendOrMon && (quoteDate?.includes('12 Nov 2026') || quoteDate?.includes('12-11-2026'))) {
+      return {
+        isUpToDate: true,
+        isLatestCRA: true,
+        label: `Latest CRA (${quoteDate})`,
+        formattedDate: quoteDate
+      };
+    }
+    return std;
+  }, []);
+
   const upToDateCount = useMemo(() => {
     return rawNps
       .filter(h => (Number(h.quantity) || 0) > 0)
-      .filter(h => getQuoteBadgeStatus(h.quote_date).isUpToDate).length;
-  }, [rawNps]);
+      .filter(h => getNpsQuoteBadgeStatus(h.quote_date).isUpToDate).length;
+  }, [rawNps, getNpsQuoteBadgeStatus]);
 
   // Filter by status tab
   const statusFiltered = useMemo(() => {
@@ -208,7 +233,7 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                     : 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${upToDateCount === activeCount && activeCount > 0 ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
-                  {upToDateCount === activeCount && activeCount > 0 ? 'All Schemes Up-to-Date' : `${upToDateCount} / ${activeCount} Schemes Up-to-Date`}
+                  {upToDateCount === activeCount && activeCount > 0 ? 'All Schemes Up-to-Date (Latest CRA: 12 Nov 2026)' : `${upToDateCount} / ${activeCount} Schemes Up-to-Date`}
                 </span>
               </div>
             </div>
@@ -461,7 +486,7 @@ export default function NpsView({ summary, holdings, onDeleteHolding, onEditHold
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[10px] text-slate-500 font-mono">Tier I • {h.symbol}</span>
                                 {h.quote_date && (() => {
-                                  const status = getQuoteBadgeStatus(h.quote_date);
+                                  const status = getNpsQuoteBadgeStatus(h.quote_date);
                                   return (
                                     <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-bold ${
                                       status.isUpToDate

@@ -119,6 +119,9 @@ export async function flushWal({ timeoutMs = 30_000 } = {}) {
       if (entry.table === 'holdings' && entry.payload) {
         delete entry.payload.day_change;
         delete entry.payload.day_change_pct;
+        delete entry.payload.market_cap;
+        delete entry.payload.market_cap_cr;
+        delete entry.payload.quote_date;
         if (Object.keys(entry.payload).length === 0) {
           remaining.splice(i, 1);
           flushed++;

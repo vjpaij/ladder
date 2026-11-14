@@ -35,12 +35,14 @@ import {
   ArrowUpRight, 
   Check, 
   ChevronRight,
+  ChevronDown,
   Sparkles,
   Award
 } from 'lucide-react';
 import { useThemeAuth } from '../../context/ThemeAuthContext';
 import HoldingLogo from '../HoldingLogo';
 import AssetDividendDetailModal from '../AssetDividendDetailModal';
+import ChartRangeSelector from '../ChartRangeSelector';
 import { PALETTE } from './reportsConstants';
 import { formatDateDDMMYYYY } from '../../utils/dateFormatter';
 
@@ -140,6 +142,46 @@ export default function DividendReportView({ summary, holdings = [], registerBac
     return map;
   }, [holdings]);
 
+  // Financial Year & Custom Calendar State
+  const fyPresets = useMemo(() => {
+    const curYear = new Date().getFullYear();
+    const curMonth = new Date().getMonth(); // 0-indexed: 3 = April
+    const currentFyStart = curMonth >= 3 ? curYear : curYear - 1;
+    const presets = [];
+    for (let y = currentFyStart; y >= 2019; y--) {
+      const next2 = String(y + 1).slice(-2);
+      presets.push({
+        id: `${y}-${next2}`,
+        label: `FY ${y}-${next2}${y === currentFyStart ? ' (Current)' : ''}`,
+        start: `${y}-04-01`,
+        end: `${y + 1}-03-31`
+      });
+    }
+    presets.push({
+      id: 'ALL',
+      label: 'All Time (Inception)',
+      start: null,
+      end: null
+    });
+    return presets;
+  }, []);
+
+  const [activeFy, setActiveFy] = useState('ALL');
+  const [customRange, setCustomRange] = useState({ startDate: null, endDate: null, isCustom: false });
+
+  const { activeRangeStart, activeRangeEnd } = useMemo(() => {
+    if (customRange.isCustom && customRange.startDate && customRange.endDate) {
+      return { activeRangeStart: customRange.startDate, activeRangeEnd: customRange.endDate };
+    }
+    if (activeFy && activeFy !== 'ALL') {
+      const preset = fyPresets.find(p => p.id === activeFy);
+      if (preset && preset.start && preset.end) {
+        return { activeRangeStart: preset.start, activeRangeEnd: preset.end };
+      }
+    }
+    return { activeRangeStart: null, activeRangeEnd: null };
+  }, [customRange, activeFy, fyPresets]);
+
   // Raw history with normalized dates
   const rawHistory = useMemo(() => {
     if (!dividendData?.history) return [];
@@ -162,12 +204,25 @@ export default function DividendReportView({ summary, holdings = [], registerBac
     });
   }, [dividendData]);
 
+  // Filtered history by active Financial Year or Calendar Range
+  const activeHistory = useMemo(() => {
+    if (!rawHistory || rawHistory.length === 0) return [];
+    if (!activeRangeStart && !activeRangeEnd) return rawHistory;
+    return rawHistory.filter(d => {
+      const dt = d.isoDate;
+      if (!dt) return true;
+      if (activeRangeStart && dt < activeRangeStart) return false;
+      if (activeRangeEnd && dt > activeRangeEnd) return false;
+      return true;
+    });
+  }, [rawHistory, activeRangeStart, activeRangeEnd]);
+
   // Aggregated Schemes by Asset
   const aggregatedSchemes = useMemo(() => {
-    if (!rawHistory || rawHistory.length === 0) return [];
+    if (!activeHistory || activeHistory.length === 0) return [];
     const schemeMap = new Map();
 
-    rawHistory.forEach(d => {
+    activeHistory.forEach(d => {
       const isUS = d.currency === 'USD';
       const key = d.holding_id ? String(d.holding_id) : `${(d.symbol || '').toUpperCase()}_${d.currency}`;
       
@@ -223,7 +278,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
         yocPct
       };
     });
-  }, [rawHistory, holdingMap]);
+  }, [activeHistory, holdingMap]);
 
   // Grand Totals & KPI Metrics
   const kpis = useMemo(() => {
@@ -231,7 +286,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
     const totalIndiaInr = aggregatedSchemes.filter(s => s.currency !== 'USD').reduce((sum, s) => sum + s.total_amount_inr, 0);
     const totalUsUsd = aggregatedSchemes.filter(s => s.currency === 'USD').reduce((sum, s) => sum + s.total_amount_original, 0);
     const totalUsConvertedInr = aggregatedSchemes.filter(s => s.currency === 'USD').reduce((sum, s) => sum + s.total_amount_inr, 0);
-    const totalPayouts = rawHistory.length;
+    const totalPayouts = activeHistory.length;
 
     // Total invested cost in active equity holdings
     const activeEquityCost = holdings
@@ -244,11 +299,11 @@ export default function DividendReportView({ summary, holdings = [], registerBac
     const currentYear = new Date().getFullYear();
     const prevYear = currentYear - 1;
 
-    const cyInr = rawHistory
+    const cyInr = activeHistory
       .filter(d => d.year === currentYear)
       .reduce((sum, d) => sum + (Number(d.amount_inr) || 0), 0);
 
-    const pyInr = rawHistory
+    const pyInr = activeHistory
       .filter(d => d.year === prevYear)
       .reduce((sum, d) => sum + (Number(d.amount_inr) || 0), 0);
 
@@ -272,14 +327,14 @@ export default function DividendReportView({ summary, holdings = [], registerBac
       yoyGrowthPct,
       topPayer
     };
-  }, [aggregatedSchemes, rawHistory, holdings]);
+  }, [aggregatedSchemes, activeHistory, holdings]);
 
   // ─── 1. ANNUAL GROWTH DATA ──────────────────────────────────────────
   const annualGrowthData = useMemo(() => {
-    if (!rawHistory || rawHistory.length === 0) return [];
+    if (!activeHistory || activeHistory.length === 0) return [];
     const yearMap = {};
 
-    rawHistory.forEach(d => {
+    activeHistory.forEach(d => {
       const y = d.year;
       if (!y) return;
       if (!yearMap[y]) {
@@ -319,11 +374,11 @@ export default function DividendReportView({ summary, holdings = [], registerBac
         growthPct
       };
     });
-  }, [rawHistory]);
+  }, [activeHistory]);
 
   // ─── 1.1. SELECTED YEAR MONTHLY DRILLDOWN DATA ──────────────────────
   const selectedYearMonthlyData = useMemo(() => {
-    if (!selectedYear || !rawHistory || rawHistory.length === 0) return [];
+    if (!selectedYear || !activeHistory || activeHistory.length === 0) return [];
     const yrNum = Number(selectedYear);
     const months = Array.from({ length: 12 }, (_, i) => ({
       monthIdx: i,
@@ -336,7 +391,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
       color: MONTH_COLORS[i]
     }));
 
-    rawHistory
+    activeHistory
       .filter(d => d.year === yrNum)
       .forEach(d => {
         const m = d.month;
@@ -360,13 +415,13 @@ export default function DividendReportView({ summary, holdings = [], registerBac
       usConvertedInr: Math.round(m.usConvertedInr),
       totalInr: Math.round(m.totalInr)
     }));
-  }, [selectedYear, rawHistory]);
+  }, [selectedYear, activeHistory]);
 
   // ─── 1.2. SELECTED YEAR PAYOUTS / DISTRIBUTION LEDGER ────────────────
   const selectedYearPayouts = useMemo(() => {
-    if (!selectedYear || !rawHistory || rawHistory.length === 0) return [];
+    if (!selectedYear || !activeHistory || activeHistory.length === 0) return [];
     const yrNum = Number(selectedYear);
-    let list = rawHistory
+    let list = activeHistory
       .filter(d => d.year === yrNum)
       .map(d => {
         const matchedScheme = aggregatedSchemes.find(s => 
@@ -418,18 +473,18 @@ export default function DividendReportView({ summary, holdings = [], registerBac
     }
 
     return list;
-  }, [selectedYear, rawHistory, aggregatedSchemes, holdingMap, yearSearchQuery, yearTableSort]);
+  }, [selectedYear, activeHistory, aggregatedSchemes, holdingMap, yearSearchQuery, yearTableSort]);
 
   const selectedYearTotals = useMemo(() => {
-    if (!selectedYear || !rawHistory) return { totalInr: 0, indiaInr: 0, usUsd: 0, usConvertedInr: 0, count: 0 };
+    if (!selectedYear || !activeHistory) return { totalInr: 0, indiaInr: 0, usUsd: 0, usConvertedInr: 0, count: 0 };
     const yrNum = Number(selectedYear);
-    const yrRows = rawHistory.filter(d => d.year === yrNum);
+    const yrRows = activeHistory.filter(d => d.year === yrNum);
     const totalInr = yrRows.reduce((sum, d) => sum + (Number(d.amount_inr) || 0), 0);
     const indiaInr = yrRows.filter(d => d.currency !== 'USD').reduce((sum, d) => sum + (Number(d.amount_inr) || 0), 0);
     const usUsd = yrRows.filter(d => d.currency === 'USD').reduce((sum, d) => sum + (Number(d.amount_original) || 0), 0);
     const usConvertedInr = yrRows.filter(d => d.currency === 'USD').reduce((sum, d) => sum + (Number(d.amount_inr) || 0), 0);
     return { totalInr, indiaInr, usUsd, usConvertedInr, count: yrRows.length };
-  }, [selectedYear, rawHistory]);
+  }, [selectedYear, activeHistory]);
 
   const handleYearSortClick = (field) => {
     setYearTableSort(prev => {
@@ -449,7 +504,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
 
   // ─── 2. MONTHLY SEASONALITY DATA ────────────────────────────────────
   const monthlySeasonalityData = useMemo(() => {
-    if (!rawHistory || rawHistory.length === 0) return [];
+    if (!activeHistory || activeHistory.length === 0) return [];
     const months = Array.from({ length: 12 }, (_, i) => ({
       monthIdx: i,
       monthName: MONTH_LABELS[i],
@@ -460,7 +515,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
       color: MONTH_COLORS[i]
     }));
 
-    rawHistory.forEach(d => {
+    activeHistory.forEach(d => {
       const m = d.month;
       if (m >= 0 && m < 12) {
         const inrAmt = Number(d.amount_inr) || 0;
@@ -483,12 +538,12 @@ export default function DividendReportView({ summary, holdings = [], registerBac
       totalInr: Math.round(m.totalInr),
       percentage: totalSum > 0 ? Number(((m.totalInr / totalSum) * 100).toFixed(1)) : 0
     }));
-  }, [rawHistory]);
+  }, [activeHistory]);
 
   // ─── 3. CUMULATIVE TRAJECTORY DATA ──────────────────────────────────
   const cumulativeTrajectoryData = useMemo(() => {
-    if (!rawHistory || rawHistory.length === 0) return [];
-    const sorted = [...rawHistory].sort((a, b) => a.isoDate.localeCompare(b.isoDate));
+    if (!activeHistory || activeHistory.length === 0) return [];
+    const sorted = [...activeHistory].sort((a, b) => a.isoDate.localeCompare(b.isoDate));
     
     let runningTotal = 0;
     const dateMap = {};
@@ -507,7 +562,7 @@ export default function DividendReportView({ summary, holdings = [], registerBac
     });
 
     return Object.values(dateMap);
-  }, [rawHistory]);
+  }, [activeHistory]);
 
   // ─── 4. ASSET CONTRIBUTION DATA (Donut / Top 8 + Other) ─────────────
   const assetContributionData = useMemo(() => {
@@ -686,6 +741,89 @@ export default function DividendReportView({ summary, holdings = [], registerBac
   return (
     <div className="space-y-6">
       
+      {/* ─── Period Selection Controls: Financial Year & Calendar ───────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-inherit">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Financial Year Dropdown */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider opacity-60">Financial Year:</span>
+            <div className="relative">
+              <select
+                value={customRange.isCustom ? 'CUSTOM' : activeFy}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'CUSTOM') {
+                    setCustomRange(prev => ({ ...prev, isCustom: true }));
+                  } else {
+                    setCustomRange({ startDate: null, endDate: null, isCustom: false });
+                    setActiveFy(val);
+                    setSelectedYear(null);
+                  }
+                }}
+                className="reports-subcard border border-inherit px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer pr-8 outline-none appearance-none font-mono"
+              >
+                {fyPresets.map(p => (
+                  <option key={p.id} value={p.id} className="bg-[var(--bg-card)] text-[var(--text-primary)]">
+                    {p.label}
+                  </option>
+                ))}
+                {customRange.isCustom && (
+                  <option value="CUSTOM" className="bg-[var(--bg-card)] text-[var(--text-primary)]">
+                    Custom Range
+                  </option>
+                )}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 opacity-60" />
+            </div>
+          </div>
+
+          {/* Standard ChartRangeSelector */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider opacity-60">Calendar:</span>
+            <ChartRangeSelector
+              initialRange="ALL"
+              onChange={(range) => {
+                if (range.type === 'ALL') {
+                  setCustomRange({ startDate: null, endDate: null, isCustom: false });
+                  setActiveFy('ALL');
+                  setSelectedYear(null);
+                } else if (range.startDate && range.endDate) {
+                  setCustomRange({
+                    startDate: range.startDate,
+                    endDate: range.endDate,
+                    isCustom: true
+                  });
+                  setSelectedYear(null);
+                }
+              }}
+            />
+          </div>
+
+          {/* Active Period Badge */}
+          {(activeFy !== 'ALL' || customRange.isCustom) && (
+            <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold flex items-center gap-1.5">
+              <span>{customRange.isCustom ? `${customRange.startDate} to ${customRange.endDate}` : fyPresets.find(p => p.id === activeFy)?.label}</span>
+              <button
+                onClick={() => {
+                  setActiveFy('ALL');
+                  setCustomRange({ startDate: null, endDate: null, isCustom: false });
+                  setSelectedYear(null);
+                }}
+                className="hover:opacity-100 opacity-60 ml-1 cursor-pointer"
+                title="Reset to All Time"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+        </div>
+
+        {/* Payout count summary */}
+        <div className="text-[11px] font-mono opacity-60">
+          Showing {activeHistory.length} of {rawHistory.length} dividend payouts
+        </div>
+      </div>
+
       {/* ─── Top KPI Metric Cards ───────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         

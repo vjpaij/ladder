@@ -537,6 +537,8 @@ export const db = {
       if (sTable === 'holdings') {
         delete supaUpdates.day_change;
         delete supaUpdates.day_change_pct;
+        delete supaUpdates.market_cap;
+        delete supaUpdates.market_cap_cr;
         delete supaUpdates.quote_date;
       }
       if (sTable === 'transactions' && supaUpdates.type) {

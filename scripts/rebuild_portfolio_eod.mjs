@@ -682,7 +682,8 @@ async function rebuildEod() {
         } else if (h.category_id === 'mutual_funds') {
           prices = mfHistoricalPrices[h.symbol] || historicalPrices[h.symbol] || {};
         } else {
-          prices = historicalPrices[h.symbol] || {};
+          const clean = (h.symbol || '').replace(/\.(NS|BO)$/i, '');
+          prices = historicalPrices[h.symbol] || historicalPrices[clean] || historicalPrices[clean + '.NS'] || {};
         }
 
         let p = prices[dateStr];

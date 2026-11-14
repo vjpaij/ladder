@@ -32,7 +32,7 @@ import {
 import { createCloudBackup } from '../scripts/backup_manager.mjs';
 import { JWT_SECRET } from './middleware/auth.js';
 import { triggerEodRebuildIfPastDate, checkAndTriggerMissedEodRebuild } from './services/eodSync.js';
-import { runComprehensiveSelfHealing } from './services/selfHealingService.js';
+import { runComprehensiveSelfHealing, syncRecentNpsEodValuations } from './services/selfHealingService.js';
 import { processDueSips } from './services/sipEngine.js';
 import { initWalFlusher, flushWal, getWalStatus } from './services/walFlusherService.js';
 import { authenticateToken } from './middleware/auth.js';
@@ -440,7 +440,16 @@ app.listen(PORT, async () => {
       const anyOpen = isAnyMarketOpen();
       const isTodayTrading = isTradingDay(today, 'NSE') || isTradingDay(today, 'NYSE');
       if (!anyOpen && !isTodayTrading) {
-        return; // Non-trading day and markets closed; prices cannot change.
+        // Non-trading day or markets closed. Equity prices cannot change,
+        // but check for newly published NPS / Mutual Fund NAVs (e.g. Saturday Protean publication of Friday's NAV).
+        try {
+          const syncRes = await syncAllMissingNavs({ persistToDb: true });
+          if (syncRes && syncRes.npsUpdated > 0) {
+            console.log(`[FullPriceSync] Daytime/weekend NPS NAV publication detected: ${syncRes.npsUpdated} schemes updated. Syncing EOD valuations...`);
+            await syncRecentNpsEodValuations();
+          }
+        } catch (_) {}
+        return;
       }
       await refreshAllHoldingsPrices({ persistToDb: false });
     } catch (err) {
@@ -537,6 +546,9 @@ app.listen(PORT, async () => {
       const now = new Date();
       const targets = [
         { hour: 1, minute: 30, label: '07:00 AM IST' },
+        { hour: 5, minute: 0, label: '10:30 AM IST' },
+        { hour: 8, minute: 0, label: '01:30 PM IST' },
+        { hour: 11, minute: 0, label: '04:30 PM IST' },
         { hour: 13, minute: 0, label: '06:30 PM IST' },
         { hour: 18, minute: 15, label: '11:45 PM IST' },
         { hour: 18, minute: 35, label: '00:05 AM IST' }

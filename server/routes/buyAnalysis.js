@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import db from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { getTodayIST } from '../services/marketCalendar.js';
+import { getTodayIST, getLastTradingDay } from '../services/marketCalendar.js';
 import { loadHistoricalPricesAsync, ensureHistoricalPricesForSymbol } from '../services/historicalPriceStore.js';
 import { fetchChartinkBreakouts } from '../services/stockIntelligence/chartinkScanner.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
@@ -107,7 +107,7 @@ async function processNextWarmingItem() {
       const sym = candidate.symbol;
       _attemptedWarmingSymbols.add(sym);
       try {
-        await ensureHistoricalPricesForSymbol(sym, 'in_stocks');
+        await ensureHistoricalPricesForSymbol(sym, 'in_stocks', { forceRefresh: true });
       } catch (_) {}
       try {
         const f = await fetchCompanyFundamentals(sym);
@@ -201,16 +201,20 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
   // Build candidate universe (active portfolio + recently sold in past 90d / crash exits + NSE500 + watchlist)
   const candidates = buildCandidateUniverse(enrichedHoldings, chartinkCandidates, transactions, { asOfDate: today });
 
-  // For portfolio stocks, use live prices from enriched holdings
+  // For portfolio stocks, use live prices from enriched holdings; for all candidates, check liveQuoteCache
   const enrichedCandidates = candidates.map(c => {
     if (c.inPortfolio) {
       const holding = enrichedHoldings.find(h =>
         h.category_id === 'in_stocks' &&
         String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '') === c.symbol
       );
-      if (holding) {
-        return { ...c, currentPrice: Number(holding.current_price) || 0 };
+      if (holding && Number(holding.current_price) > 0) {
+        return { ...c, currentPrice: Number(holding.current_price) };
       }
+    }
+    const quote = liveQuoteCache?.get(c.symbol) || liveQuoteCache?.get(`${c.symbol}.NS`);
+    if (quote && Number(quote.price) > 0) {
+      return { ...c, currentPrice: Number(quote.price) };
     }
     return c;
   });
@@ -219,13 +223,17 @@ export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
   const symbols = enrichedCandidates.map(c => c.symbol);
   const fundamentalsMap = loadCachedFundamentalsForSymbols(symbols);
 
-  // Non-blocking background warming: prioritize portfolio stocks and breakout candidates with incomplete data
+  // Non-blocking background warming: prioritize portfolio stocks and breakout candidates with incomplete or stale data
+  const lastTradingDay = getLastTradingDay(today, 'NSE');
   const candidatesNeedingData = enrichedCandidates.filter(c => {
     if (_attemptedWarmingSymbols.has(c.symbol)) return false;
-    const hasPrice = history[c.symbol] || history[`${c.symbol}.NS`];
+    const series = history[c.symbol] || history[`${c.symbol}.NS`];
+    const dates = series ? Object.keys(series).sort() : [];
+    const latestDate = dates.length > 0 ? dates[dates.length - 1] : null;
+    const isPriceStale = !latestDate || latestDate < lastTradingDay;
     const f = fundamentalsMap[c.symbol];
     const hasCompleteFund = f && Array.isArray(f.annualSales) && f.annualSales.length >= 4;
-    return !hasPrice || !hasCompleteFund;
+    return isPriceStale || !hasCompleteFund;
   });
   candidatesNeedingData.sort((a, b) => {
     if (a.inPortfolio && !b.inPortfolio) return -1;
@@ -361,7 +369,7 @@ router.post('/buy-analysis/refresh-fundamentals', authenticateToken, async (req,
     const symbol = req.body?.symbol;
     if (symbol) {
       const clean = String(symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
-      await ensureHistoricalPricesForSymbol(clean, 'in_stocks').catch(() => {});
+      await ensureHistoricalPricesForSymbol(clean, 'in_stocks', { forceRefresh: true }).catch(() => {});
       const fund = await fetchCompanyFundamentals(clean, { forceRefresh: true });
       if (_fundamentalsCacheMap) {
         _fundamentalsCacheMap[clean] = fund;
@@ -372,23 +380,29 @@ router.post('/buy-analysis/refresh-fundamentals', authenticateToken, async (req,
       return res.json({ symbol: clean, fundamentals: fund, analysis: updatedAnalysis, summary: freshResult.summary });
     }
 
-    // Background refresh for top candidates (portfolio + watchlist)
+    // Background refresh for top candidates (portfolio + watchlist + leading buy setups)
     const [holdings] = await Promise.all([db.select('holdings')]);
     const watchlist = loadWatchlist();
     const portfolioSymbols = holdings
       .filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0)
       .map(h => String(h.symbol).replace(/\.(NS|BO)$/i, '').toUpperCase());
-    const allSymbols = [...new Set([...portfolioSymbols, ...watchlist])];
+    const topBuySymbols = (_buyAnalysisCache?.analyses || [])
+      .filter(a => ['STRONG_BUY', 'BUY'].includes(a.buySignal))
+      .slice(0, 30)
+      .map(a => a.symbol);
+    const allSymbols = [...new Set([...portfolioSymbols, ...watchlist, ...topBuySymbols])];
 
     // Async background refresh (don't block response)
     (async () => {
       for (const sym of allSymbols.slice(0, 50)) {
         try {
+          await ensureHistoricalPricesForSymbol(sym, 'in_stocks', { forceRefresh: true });
           await fetchCompanyFundamentals(sym, { forceRefresh: true });
-          await new Promise(r => setTimeout(r, 600));
+          await new Promise(r => setTimeout(r, 400));
         } catch { /* ignore */ }
       }
       invalidateBuyCache();
+      await runBuyAnalysisEngine({ forceRefresh: true }).catch(() => {});
     })().catch(err => console.warn('[Buy Analysis] Fundamentals refresh error:', err.message));
 
     res.json({ message: `Refreshing fundamentals for ${allSymbols.length} symbols in background.`, symbols: allSymbols.slice(0, 10) });

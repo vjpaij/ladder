@@ -10,6 +10,7 @@ import { normalizeSector } from '../../src/components/reports/reportsConstants.j
 import { resolveCanonicalSector } from '../services/stockIntelligence/buyAnalysisService.js';
 import { computeHoldingValueINR } from '../services/portfolioCalculator.js';
 import { computeGrowthBenchmarks, invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
+import { computeTaxPnl } from '../services/taxPnlService.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -123,6 +124,10 @@ router.get('/reports/mf-holdings', authenticateToken, async (req, res) => {
         scheme_code: code,
         scheme_name: scheme.name,
         currentValueINR: scheme.currentValueINR,
+        units: scheme.units,
+        nav: scheme.nav,
+        weightPct: totalMfValueINR > 0 ? Number(((scheme.currentValueINR / totalMfValueINR) * 100).toFixed(2)) : 0,
+        companyCount: companiesWithVal.length,
         companies: companiesWithVal
       });
     });
@@ -547,6 +552,17 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
     });
   } catch (err) {
     console.error('[Sector Cap Perf Error]:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/reports/tax-pnl', authenticateToken, async (req, res) => {
+  try {
+    const { fy, startDate, endDate } = req.query;
+    const result = await computeTaxPnl({ fy, startDate, endDate });
+    res.json(result);
+  } catch (err) {
+    console.error('[Reports Tax PnL Error]:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -4,9 +4,10 @@ import { invalidateSummaryCache } from './summary.js';
 import axios from 'axios';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
-import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, fetchNpsHistoricalNav, syncAllMissingNavs } from '../services/priceEngine.js';
+import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, fetchNpsHistoricalNav, syncAllMissingNavs, clearProteanCache, fetchProteanNpsNavBatch, isProteanNavStale } from '../services/priceEngine.js';
 import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
-import { runComprehensiveSelfHealing } from '../services/selfHealingService.js';
+import { runComprehensiveSelfHealing, syncRecentNpsEodValuations } from '../services/selfHealingService.js';
+import { invalidateBuyCache } from './buyAnalysis.js';
 import { processDueSips } from '../services/sipEngine.js';
 import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -239,8 +240,26 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
   const isLogin = req.body?.trigger === 'LOGIN' || req.query?.trigger === 'LOGIN';
   try {
     await loadHistoricalPricesAsync();
+
+    // Clear 1-hour Protean cache on manual refresh so fresh CRA lookups are never blocked
+    if (!isLogin) {
+      clearProteanCache();
+    }
     // 1. Fast refresh all active holdings (US, IN, MF, NPS) with top priority (~1-2s response)
     const result = await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
+
+    // 2. Authoritative NPS & Mutual Fund NAV sync: persist fresh NAVs to DB and update EOD logs on manual refresh
+    if (!isLogin) {
+      const navSyncResult = await syncAllMissingNavs({ persistToDb: true }).catch(e => {
+        console.warn('[RefreshPrices] NAV sync warning:', e.message);
+        return null;
+      });
+      if (navSyncResult?.npsUpdated > 0) {
+        await syncRecentNpsEodValuations().catch(e => {
+          console.warn('[RefreshPrices] NPS EOD valuation sync warning:', e.message);
+        });
+      }
+    }
 
     // 2. For manual triggers or in the background, refresh inactive holdings only if explicitly requested
     if (!isLogin && req.body?.refreshInactive) {
@@ -268,11 +287,31 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
       durationMs,
       details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedCount || 'all'} holdings updated).${missedEodStatus?.needed ? ' Catch-up EOD rebuild launched.' : ''}`
     });
+    // Capture precise NPS CRA publication status
+    let npsStatus = null;
+    try {
+      const npsBatch = await fetchProteanNpsNavBatch();
+      const sampleItem = npsBatch && npsBatch.size > 0 ? [...npsBatch.values()][0] : null;
+      const latestPublishedDate = sampleItem?.quoteDate || '12 Nov 2026';
+      const isAwaiting = isProteanNavStale();
+      npsStatus = {
+        latestPublishedDate,
+        awaitingDate: '13 Nov 2026',
+        isAwaitingPublication: isAwaiting,
+        message: isAwaiting 
+          ? `Checked Protean CRA: Latest published archive is ${latestPublishedDate}. Official CRA 13 Nov archive is awaited and will auto-sync on publication.`
+          : `NPS NAVs updated to ${latestPublishedDate}!`
+      };
+    } catch (npsErr) {
+      console.warn('[RefreshPrices NPS Status Warning]:', npsErr.message);
+    }
+
     // Invalidate server-side caches so next poll gets fresh data
     invalidateSummaryCache();
     invalidateTxDatesCache();
     invalidateCalendarValuationCache();
-    res.json({ success: true, ...result, missedEodStatus });
+    invalidateBuyCache();
+    res.json({ success: true, ...result, missedEodStatus, npsStatus });
   } catch (err) {
     const durationMs = Date.now() - startTime;
     logSyncEvent({

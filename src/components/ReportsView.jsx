@@ -68,6 +68,7 @@ import HoldingLogo from './HoldingLogo';
 import CompanyMfBreakdownModal from './reports/CompanyMfBreakdownModal';
 import DividendReportView from './reports/DividendReportView';
 import SectorCapPerformanceSection from './reports/SectorCapPerformanceSection';
+import TaxPnlReportSection from './reports/TaxPnlReportSection';
 import HoldingDetailModal from './HoldingDetailModal';
 
 export default function ReportsView({ summary, holdings, registerBackHandler }) {
@@ -729,17 +730,36 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
   // Mutual Fund Breakdown Finder for a clicked Company
   const companyMfBreakdown = useMemo(() => {
     if (!companyDetailTarget || !mfData?.schemes) return null;
-    const targetName = (companyDetailTarget.name || companyDetailTarget.company || '').trim().toLowerCase();
-    const targetSym = (companyDetailTarget.symbol || '').trim().toLowerCase();
+    const rawTargetName = (companyDetailTarget.name || companyDetailTarget.company || '').trim();
+    const targetSym = (companyDetailTarget.symbol || '').trim().toLowerCase().replace(/\.(ns|bo)$/i, '');
+
+    const normalizeCompanyName = (str) => {
+      return (str || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\b(ltd|limited|corp|corporation|inc|incorporated|pvt|private|ind|india|holdings|group)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const cleanTargetName = normalizeCompanyName(rawTargetName);
 
     const schemeMatches = [];
     let totalMfAllocated = 0;
 
     mfData.schemes.forEach(scheme => {
       const match = scheme.companies?.find(c => {
-        const cName = (c.company || c.name || '').trim().toLowerCase();
-        const cSym = (c.symbol || '').trim().toLowerCase();
-        return (targetSym && cSym && targetSym === cSym) || (cName && (cName === targetName || cName.includes(targetName) || targetName.includes(cName)));
+        const rawCName = (c.company || c.name || '').trim();
+        const cSym = (c.symbol || '').trim().toLowerCase().replace(/\.(ns|bo)$/i, '');
+        if (targetSym && cSym && targetSym === cSym) return true;
+
+        const cleanCName = normalizeCompanyName(rawCName);
+        if (cleanTargetName && cleanCName) {
+          if (cleanTargetName === cleanCName) return true;
+          if (cleanTargetName.length >= 4 && cleanCName.includes(cleanTargetName)) return true;
+          if (cleanCName.length >= 4 && cleanTargetName.includes(cleanCName)) return true;
+        }
+        return false;
       });
 
       if (match) {
@@ -750,7 +770,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
           scheme_name: scheme.scheme_name,
           fund_weight_pct: match.allocation_pct || match.percentage || 0,
           allocatedINR: alloc,
-          scheme_total_val: scheme.currentValueINR
+          scheme_total_val: scheme.currentValueINR,
+          isHeld: true
         });
       }
     });
@@ -759,17 +780,16 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
     const directHolding = holdings.find(h => {
       const isDirectEquity = (h.category_id === 'in_stocks' || h.category_id === 'us_stocks') && Number(h.quantity) > 0;
       if (!isDirectEquity) return false;
-      const hName = (h.name || '').trim().toLowerCase();
       const hSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim().toLowerCase();
-      const cleanTargetSym = targetSym.replace(/\.(NS|BO)$/i, '');
-      return (cleanTargetSym && hSym && hSym === cleanTargetSym) ||
-             (hName && targetName && hName === targetName);
+      if (targetSym && hSym && hSym === targetSym) return true;
+      const cleanHName = normalizeCompanyName(h.name);
+      return cleanTargetName && cleanHName && (cleanHName === cleanTargetName || cleanHName.includes(cleanTargetName) || cleanTargetName.includes(cleanHName));
     });
 
     const directVal = (directHolding && Number(directHolding.quantity) > 0) ? (Number(directHolding.currentValueINR) || 0) : 0;
     const totalGrandVal = totalMfAllocated + directVal;
 
-    // Calculate share of total for each scheme
+    // Calculate share of total for each scheme that holds this company
     const enrichedSchemes = schemeMatches.map(s => ({
       ...s,
       shareOfStockPct: totalGrandVal > 0 ? Number(((s.allocatedINR / totalGrandVal) * 100).toFixed(2)) : 0
@@ -784,7 +804,10 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
       directVal,
       directHolding,
       totalGrandVal: totalGrandVal > 0 ? totalGrandVal : (companyDetailTarget.allocatedINR || 0),
-      schemes: enrichedSchemes
+      totalMfPortfolioVal: mfData.totalMfValueINR || 0,
+      schemes: enrichedSchemes,
+      totalOwnedCount: mfData.schemes.length,
+      heldCount: enrichedSchemes.length
     };
   }, [companyDetailTarget, mfData, holdings]);
 
@@ -812,14 +835,15 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
           </div>
 
           {/* Master Navigation Tabs */}
-          <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl shrink-0">
+          <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl shrink-0 overflow-x-auto">
             {[
               { key: 'CONSOLIDATED', label: 'Consolidated' },
               { key: 'EQUITY', label: 'Equity Hub' },
               { key: 'MF_COMPOSITION', label: 'MF Composition' },
               { key: 'DIVIDENDS', label: 'Dividends' },
               { key: 'FIXED_INCOME', label: 'Fixed Income' },
-              { key: 'NPS', label: 'NPS' }
+              { key: 'NPS', label: 'NPS' },
+              { key: 'TAX_PNL', label: 'Tax & FY' }
             ].map(tab => (
               <button
                 key={tab.key}
@@ -833,11 +857,13 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                     setReportType('PERFORMANCE');
                   } else if (tab.key === 'DIVIDENDS') {
                     setReportType('DIVIDENDS');
+                  } else if (tab.key === 'TAX_PNL') {
+                    setReportType('TAX_PNL');
                   } else {
                     setReportType('ALLOCATION');
                   }
                 }}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === tab.key 
                     ? 'bg-emerald-500 text-slate-950 shadow-md' 
                     : 'opacity-70 hover:opacity-100'
@@ -887,7 +913,7 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
         ) : <div />}
 
         {/* Global Chart Style Switcher (Shown ONLY for Allocation, Market Cap, and Sector) */}
-        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) && activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && !currentSelectedSector && !currentSelectedMarketCap ? (
+        {['ALLOCATION', 'MARKET_CAP', 'SECTOR'].includes(reportType) && activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && activeTab !== 'TAX_PNL' && !currentSelectedSector && !currentSelectedMarketCap ? (
           <div className="flex items-center gap-1 reports-pill p-1 rounded-2xl shadow-sm">
             <button
               onClick={() => setChartStyle('PIE')}
@@ -918,8 +944,8 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
       {/* ─── Main Content Container ─────────────────────────────────── */}
       <div className="reports-card rounded-3xl p-5 md:p-6 shadow-sm space-y-6">
         
-        {/* Navigation Tabs Bar (Hidden in dedicated MF_COMPOSITION and DIVIDENDS tabs) */}
-        {activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && (
+        {/* Navigation Tabs Bar (Hidden in dedicated MF_COMPOSITION, DIVIDENDS, and TAX_PNL tabs) */}
+        {activeTab !== 'MF_COMPOSITION' && activeTab !== 'DIVIDENDS' && activeTab !== 'TAX_PNL' && (
           <div className="flex items-center gap-2 border-b border-inherit opacity-95 pb-3 overflow-x-auto">
             {[
               { key: 'PERFORMANCE', label: 'Consolidated Performance' },
@@ -1014,12 +1040,90 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
                 </AnimatePresence>
               </div>
 
-              {selectedMfDetails && (
-                <div className="font-mono text-sm text-emerald-600 dark:text-emerald-400 font-black">
-                  {formatMoney(selectedMfDetails.currentValueINR)}
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                {selectedMfScheme !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMfScheme('ALL')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-500/10 hover:bg-slate-500/20 border border-inherit transition-all cursor-pointer"
+                  >
+                    &larr; View All Schemes ({mfData?.schemes?.length || 0})
+                  </button>
+                )}
+
+                {selectedMfDetails && (
+                  <div className="font-mono text-sm text-emerald-600 dark:text-emerald-400 font-black">
+                    {formatMoney(selectedMfDetails.currentValueINR)}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Master Table of All Owned Schemes (When Consolidated is selected) */}
+            {selectedMfScheme === 'ALL' && mfData?.schemes?.length > 0 && (
+              <div className="reports-subcard p-4 rounded-3xl border border-inherit space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider opacity-80">
+                    All Owned Mutual Fund Schemes ({mfData.schemes.length})
+                  </span>
+                  <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    {formatMoney(mfData.totalMfValueINR)} Total Value
+                  </span>
+                </div>
+                <div className="overflow-x-auto rounded-2xl reports-table-container border border-inherit">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="reports-table-head shadow-sm select-none">
+                      <tr className="reports-table-head font-bold uppercase text-[10px]">
+                        <th className="py-3 pl-4 pr-3 border-r border-inherit">Scheme Name</th>
+                        <th className="py-3 px-3 text-right">Units Held</th>
+                        <th className="py-3 px-3 text-right">Current NAV</th>
+                        <th className="py-3 px-3 text-right">Portfolio Value</th>
+                        <th className="py-3 px-3 text-right">Weight</th>
+                        <th className="py-3 px-3 text-center">Underlying Stocks</th>
+                        <th className="py-3 pr-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-inherit font-mono">
+                      {mfData.schemes.map(s => (
+                        <tr key={s.scheme_code} className="reports-table-row transition-colors">
+                          <td className="py-3 pl-4 pr-3 font-sans font-bold border-r border-inherit">
+                            <div className="flex items-center gap-2">
+                              <HoldingLogo 
+                                name={s.scheme_name} 
+                                symbol={s.scheme_code} 
+                                category_id="mutual_funds" 
+                                className="w-6 h-6 rounded-lg text-[9px] shrink-0" 
+                              />
+                              <span className="truncate">{s.scheme_name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-right opacity-80 font-bold">{Number(s.units || 0).toFixed(3)}</td>
+                          <td className="py-3 px-3 text-right opacity-80 font-bold">{formatMoney(s.nav || 0)}</td>
+                          <td className="py-3 px-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                            {formatMoney(s.currentValueINR)}
+                          </td>
+                          <td className="py-3 px-3 text-right opacity-80 font-bold">
+                            {Number(s.weightPct || 0).toFixed(2)}%
+                          </td>
+                          <td className="py-3 px-3 text-center opacity-80">
+                            {s.companyCount || s.companies?.length || 0} Companies
+                          </td>
+                          <td className="py-3 pr-4 text-center font-sans">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedMfScheme(s.scheme_code)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-slate-950 transition-all cursor-pointer"
+                            >
+                              View Holdings
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {selectedMfDetails && selectedMfDetails.companies?.length > 0 ? (
               <div className="space-y-3">
@@ -2296,6 +2400,15 @@ export default function ReportsView({ summary, holdings, registerBackHandler }) 
             summary={summary}
             holdings={holdings}
             registerBackHandler={registerBackHandler}
+          />
+        )}
+
+        {/* ─── DEDICATED MASTER TAB: TAX & FISCAL YEAR ANALYTICS ──────── */}
+        {activeTab === 'TAX_PNL' && (
+          <TaxPnlReportSection
+            formatMoney={formatMoney}
+            isUSD={isUSD}
+            theme={theme}
           />
         )}
 

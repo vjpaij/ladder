@@ -286,7 +286,12 @@ export async function generateActionPlan({
 
     const maxPositionCap = isPrime ? primeCap : isTier2 ? tier2Cap : standardCap;
     const currentHeldValue = heldQty * cmp;
-    const pctEma50 = Number(item.pctFromEma50) || 0;
+    const pctEma50 = Number(
+      item.pctFromEma50 ??
+      item.pctAboveEma50 ??
+      item.executiveStrategy?.extAbove50e ??
+      (item.ema50 > 0 && cmp > 0 ? ((cmp - item.ema50) / item.ema50) * 100 : 0)
+    ) || 0;
     const isExtended = stance === 'EXTENDED_RUNNER' || pctEma50 > 16.0;
 
     // Factor A: Institutional Base Compression & Volatility Contraction Pattern (VCP)
@@ -373,16 +378,6 @@ export async function generateActionPlan({
       };
     }
 
-    // Sizing for Brand-New Entries (Zero Existing Exposure)
-    if (isExtended) {
-      return {
-        alloc: 0,
-        tierLabel: 'Extended Runner (Await Pullback)',
-        factors: [`Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA)`],
-        summary: `STAND ASIDE (AWAIT PULLBACK): Price is extended +${pctEma50.toFixed(1)}% above 50-day EMA. Await healthy base consolidation or pullback toward 50-EMA support before initiating initial position.`
-      };
-    }
-
     // Dynamic Base Allocation for Brand-New Entries (Calibrated to portfolio weight tiers):
     // Prime: 2.5% initial starter (building to 10% max)
     // Tier 2: 1.8% initial starter (building to 7% max)
@@ -391,6 +386,37 @@ export async function generateActionPlan({
     const tier2Base = Math.max(60000, Math.round(totalIndianEquityValuation * 0.018));
     const stdBase = Math.max(40000, Math.round(totalIndianEquityValuation * 0.012));
     const preEarningsFactor = 0.40;
+
+    // Sizing for Brand-New Entries (Zero Existing Exposure)
+    if (isExtended) {
+      if (isPrime || isTier2) {
+        // High-conviction extended leader (MPS >= 70 or Strong Buy, like PANACHE MPS 100):
+        // Deploy Ladder 3-tranche disciplined starter: 25% pilot test tranche at CMP to establish initial exposure,
+        // while strictly keeping 75% dry powder reserved for the 50-EMA support pullback.
+        const pilotFactor = 0.25;
+        const targetBase = isPrime ? primeBase : tier2Base;
+        const pilotAlloc = Math.max(25000, Math.round(targetBase * pilotFactor));
+        const tierLabel = isPrime 
+          ? `Prime Extended Runner Pilot Tranche (25% Starter, ₹${Math.round(pilotAlloc / 1000)}k Staged)`
+          : `High Conviction Extended Runner Pilot Tranche (25% Starter, ₹${Math.round(pilotAlloc / 1000)}k Staged)`;
+        const factors = [
+          tierLabel,
+          `Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA) — 25% pilot entry to capture momentum; 75% dry powder reserved for 50-EMA pullback`
+        ];
+        return {
+          alloc: pilotAlloc,
+          tierLabel,
+          factors,
+          summary: `PILOT STARTER (25% TRANCHE): Price is extended +${pctEma50.toFixed(1)}% above 50-day EMA, but multi-bagger momentum (MPS ${mps}/100) warrants initiating a 25% pilot position (₹${Math.round(pilotAlloc).toLocaleString('en-IN')}) at CMP ₹${cmp}. Keep remaining 75% dry powder for the 50-EMA pullback.`
+        };
+      }
+      return {
+        alloc: 0,
+        tierLabel: 'Extended Runner (Await Pullback)',
+        factors: [`Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA)`],
+        summary: `STAND ASIDE (AWAIT PULLBACK): Price is extended +${pctEma50.toFixed(1)}% above 50-day EMA. Await healthy base consolidation or pullback toward 50-EMA support before initiating initial position.`
+      };
+    }
 
     let base = isPreEarnings ? Math.round(stdBase * preEarningsFactor) : stdBase;
     let tierLabel = isPreEarnings ? `Pre-Earnings Scout Entry (₹${Math.round(base/1000)}k Staged)` : `Catalyst Scout Entry (₹${Math.round(base/1000)}k Base)`;
@@ -516,6 +542,8 @@ export async function generateActionPlan({
     let actionType = isOwned ? 'BUY - ACCUMULATE (ADD TRANCHE)' : 'BUY - NEW POSITION';
     if (stance === 'PRE_EARNINGS') {
       actionType = isPrime ? 'BUY - PRE-EARNINGS PILOT TRANCHE (40%)' : 'STAND ASIDE (PRE-EARNINGS)';
+    } else if (sizing.tierLabel?.includes('Extended Runner Pilot Tranche')) {
+      actionType = 'BUY - PILOT TEST TRANCHE (25% - EXTENDED)';
     }
     if (isOwned && sizing.alloc <= 0) {
       if (sizing.tierLabel?.includes('Hold Core') || sizing.tierLabel?.includes('Cap Reached')) {

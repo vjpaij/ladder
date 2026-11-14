@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 import YF from 'yahoo-finance2';
 import { resolveCanonicalTicker, getCleanSymbol } from './stockIntelligence/symbolAliasService.js';
+import { getLastTradingDay, getTodayIST } from './marketCalendar.js';
 
 const yahooFinance = new YF();
 const __filename = fileURLToPath(import.meta.url);
@@ -209,7 +210,17 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
           const offsetDate = new Date(quote.date.getTime() - (quote.date.getTimezoneOffset() * 60000));
           const dStr = offsetDate.toISOString().split('T')[0];
           // Always prioritize actual market closing price (quote.close) matching GoCharting, TradingView, and exchange executions
-          const val = quote.close !== null && quote.close !== undefined ? quote.close : quote.adjclose;
+          // If close/adjclose is null (e.g. circuit freeze or post-market), gracefully fall back to open, high, or regularMarketPrice
+          const val = (quote.close !== null && quote.close !== undefined && !isNaN(quote.close) && quote.close > 0)
+            ? quote.close
+            : (quote.adjclose !== null && quote.adjclose !== undefined && !isNaN(quote.adjclose) && quote.adjclose > 0)
+              ? quote.adjclose
+              : (quote.open !== null && quote.open !== undefined && !isNaN(quote.open) && quote.open > 0)
+                ? quote.open
+                : (quote.high !== null && quote.high !== undefined && !isNaN(quote.high) && quote.high > 0)
+                  ? quote.high
+                  : (Number(result?.meta?.regularMarketPrice) > 0 ? Number(result.meta.regularMarketPrice) : null);
+
           if (val !== null && val !== undefined && !isNaN(val) && val > 0) {
             if (!prices[dStr]) prices[dStr] = Number(Number(val).toFixed(2));
             const qTime = quote.date.getTime();
@@ -254,10 +265,17 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
 
 /**
  * Ensure historical prices exist for a symbol, automatically fetching and caching if missing.
+ * Supports options object { forceRefresh: boolean, startDate: string } or startDate string for backwards compatibility.
  */
-export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_stocks', startDate = null) {
+export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_stocks', optionsOrStartDate = null) {
   if (!symbol) return {};
   await loadHistoricalPricesAsync();
+
+  const options = typeof optionsOrStartDate === 'object' && optionsOrStartDate !== null
+    ? optionsOrStartDate
+    : { startDate: optionsOrStartDate, forceRefresh: false };
+  const forceRefresh = Boolean(options.forceRefresh);
+  const startDate = options.startDate || null;
 
   const cleanSym = symbol.replace(/\.(NS|BO)$/i, '');
   const canonicalTicker = resolveCanonicalTicker(symbol);
@@ -266,17 +284,33 @@ export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_sto
   const existingKey = [symbol, cleanSym, `${cleanSym}.NS`, `${cleanSym}.BO`, canonicalTicker, cleanCanonical, `${cleanCanonical}.NS`, `${cleanCanonical}.BO`].find(k => k && historicalPricesCache[k] && Object.keys(historicalPricesCache[k]).length > 0);
   const existing = existingKey ? historicalPricesCache[existingKey] : {};
 
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const isIndian = category === 'in_stocks' || (category !== 'us_stocks' && !symbol.includes('.') && !['AAPL', 'MSFT', 'GOOG', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'PLTR', 'AVGO', 'ANET', 'CRM', 'TSM'].includes(symbol.toUpperCase()));
+  const lastTradingDay = getLastTradingDay(getTodayIST(), isIndian ? 'NSE' : 'NYSE');
   const neededStart = startDate ? String(startDate).slice(0, 10) : '2024-01-01';
 
-  const hasCoverage = existing && existing[neededStart] !== undefined && (existing[yesterdayStr] !== undefined || Object.keys(existing).length >= 200);
+  const dates = Object.keys(existing).sort();
+  const latestDate = dates.length > 0 ? dates[dates.length - 1] : null;
+  const earliestDate = dates.length > 0 ? dates[0] : null;
+
+  const isUpToDate = Boolean(latestDate && latestDate >= lastTradingDay);
+  const hasHistoryBaseline = Boolean((earliestDate && earliestDate <= neededStart) || dates.length >= 200);
+
+  const hasCoverage = !forceRefresh && isUpToDate && hasHistoryBaseline;
 
   if (hasCoverage) {
     return existing;
   }
 
-  console.log(`[Historical Pricing] Auto-fetching historical prices for ${symbol} (${category}) from ${neededStart}...`);
-  const fresh = await fetchHistoricalPricesForSymbol(symbol, category, neededStart);
+  // If we already have a long baseline history, we only need to fetch from a few days before latestDate to bridge the gap
+  let fetchStart = neededStart;
+  if (!forceRefresh && hasHistoryBaseline && latestDate) {
+    const fetchStartDateObj = new Date(`${latestDate}T00:00:00Z`);
+    fetchStartDateObj.setUTCDate(fetchStartDateObj.getUTCDate() - 5);
+    fetchStart = fetchStartDateObj.toISOString().slice(0, 10);
+  }
+
+  console.log(`[Historical Pricing] Auto-fetching historical prices for ${symbol} (${category}) from ${fetchStart} (forceRefresh=${forceRefresh}, latestCached=${latestDate || 'none'}, lastTradingDay=${lastTradingDay})...`);
+  const fresh = await fetchHistoricalPricesForSymbol(symbol, category, fetchStart);
 
   if (Object.keys(fresh).length > 0) {
     const targetKey = cleanSym;
@@ -287,7 +321,8 @@ export async function ensureHistoricalPricesForSymbol(symbol, category = 'in_sto
     if (cleanCanonical && cleanCanonical !== targetKey) {
       historicalPricesCache[cleanCanonical] = { ...(historicalPricesCache[cleanCanonical] || {}), ...fresh };
     }
-    console.log(`[Historical Pricing] Auto-populated ${Object.keys(fresh).length} historical quotes for ${symbol}.`);
+    const freshDates = Object.keys(fresh).sort();
+    console.log(`[Historical Pricing] Auto-populated ${freshDates.length} historical quotes for ${symbol}. Latest: ${freshDates[freshDates.length - 1]}`);
     // Save to disk atomically
     await saveHistoricalPricesToFile();
     return historicalPricesCache[targetKey];
