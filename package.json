@@ -10,7 +10,7 @@
     "start": "npm run dev:all",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server/index.js",
+    "server": "node --watch --watch-path=server server/index.js",
     "test:stock-intelligence": "node --test server/services/stockIntelligence/stockIntelligence.test.js",
     "backtest:stock-intelligence": "node scripts/backtest_stock_intelligence.mjs"
   },

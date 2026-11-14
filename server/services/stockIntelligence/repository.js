@@ -90,7 +90,7 @@ export function saveIntelligenceConfig(userId, input) {
   if (input?.dailyDeploymentCap !== undefined) {
     const val = Number(input.dailyDeploymentCap);
     if (Number.isFinite(val) && val >= 0) {
-      dailyDeploymentCap = Math.max(50000, Math.round(val));
+      dailyDeploymentCap = Math.round(val);
     }
   }
 

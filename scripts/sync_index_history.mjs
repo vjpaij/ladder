@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 const DATA_FILE = path.join(__dirname, '../data/index_history.json');
 
 export const BENCHMARK_INDICES = [
+  { key: 'NIFTY_500', ticker: '^CRSLDX', name: 'Nifty 500' },
   { key: 'NIFTY_50', ticker: '^NSEI', name: 'Nifty 50' },
   { key: 'NIFTY_MIDCAP_150', ticker: 'NIFTYMIDCAP150.NS', name: 'Nifty Midcap 150' },
   { key: 'NIFTY_SMALLCAP_250', ticker: 'HDFCSML250.NS', name: 'Nifty Smallcap 250' },

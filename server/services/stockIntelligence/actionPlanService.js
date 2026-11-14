@@ -56,7 +56,7 @@ export async function generateActionPlan({
     ? Math.max(1, Math.min(15, Math.round(Number(paramMaxDailyBuys))))
     : (userConfig.maxDailyBuys ?? 5);
   const dailyDeploymentCap = paramDailyDeploymentCap !== undefined && paramDailyDeploymentCap !== null
-    ? Math.max(50000, Math.round(Number(paramDailyDeploymentCap)))
+    ? Math.max(0, Math.round(Number(paramDailyDeploymentCap)))
     : (userConfig.dailyDeploymentCap ?? 350000);
 
   // 1. Load Buy Analyses from snapshot or service
@@ -103,12 +103,68 @@ export async function generateActionPlan({
     .slice(0, 5)
     .map(([s]) => s);
 
-  // Filter institutional quality: strictly exclude penny stocks (< ₹20), microcaps (< ₹1000 Cr), and AVOID signals
+  // 1b. Nifty 500 Market Regime Gate
+  // Evaluates whether the broader market (Nifty 500 covering ~96% of Indian equity market cap) is in Bull Expansion (above 50-EMA) or Correction Defensive (below 50-EMA)
+  let marketRegime = {
+    isBullRegime: true,
+    regimeName: 'BULL_EXPANSION',
+    indexName: 'Nifty 500',
+    ticker: '^CRSLDX',
+    latestClose: 0,
+    ema50: 0,
+    diffPct: 0,
+    headline: 'NIFTY 500 BULL EXPANSION (Above 50-EMA)',
+    description: 'Nifty 500 (96% of market cap) is trading above its 50-day EMA. Standard momentum breakouts and pyramid additions are fully operational.'
+  };
+
+  try {
+    const indexHistoryPath = path.join(projectRoot, 'data', 'index_history.json');
+    if (fs.existsSync(indexHistoryPath)) {
+      const indexData = JSON.parse(fs.readFileSync(indexHistoryPath, 'utf8'));
+      const closes = indexData.NIFTY_500?.closes || indexData.NIFTY_50?.closes || {};
+      const dates = Object.keys(closes).sort();
+      const n = dates.length;
+      if (n >= 50) {
+        const k50 = 2 / 51;
+        let ema50 = 0;
+        for (let i = 0; i < 50; i++) ema50 += closes[dates[i]];
+        ema50 /= 50;
+        for (let i = 50; i < n; i++) {
+          ema50 = closes[dates[i]] * k50 + ema50 * (1 - k50);
+        }
+        const latestClose = closes[dates.at(-1)];
+        const diffPct = round2(((latestClose - ema50) / ema50) * 100);
+        const isBull = latestClose >= ema50;
+        marketRegime = {
+          isBullRegime: isBull,
+          regimeName: isBull ? 'BULL_EXPANSION' : 'CORRECTION_DEFENSIVE',
+          indexName: 'Nifty 500',
+          ticker: '^CRSLDX',
+          latestClose: round2(latestClose),
+          ema50: round2(ema50),
+          diffPct,
+          headline: isBull
+            ? `NIFTY 500 BULL EXPANSION (+${diffPct}% Above 50-EMA)`
+            : `NIFTY 500 CORRECTION DEFENSIVE (${diffPct}% Below 50-EMA)`,
+          description: isBull
+            ? 'Nifty 500 (96% of total market cap) is trading above its 50-day EMA. Broad market breadth is healthy; full buy capacity and staged additions are operational.'
+            : 'Nifty 500 is trading below its 50-day EMA. Standard buys are queued to protect dry powder; 25% pilot test tranches strictly reserved for elite leaders (MPS >= 90) to prevent choppy whipsaws.'
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Action Plan] Market regime calculation warning:', err.message);
+  }
+
+  // Filter institutional quality: strictly exclude penny stocks (< ₹20), microcaps (< ₹1000 Cr hard floor, < ₹2,500 Cr institutional floor unless MPS >= 90 or IPO), and AVOID signals
+  const minMcapFloor = Number(userConfig?.minMarketCapCr ?? 2500);
   const isInstitutionalQuality = (x) => {
     const cmp = Number(x.currentPrice) || 0;
     const mcap = Number(x.marketCapCr) || 0;
+    const mps = Number(x.mps ?? x.multibaggerProbabilityScore ?? x.compositeScore ?? 50);
     if (cmp < 20.00) return false;
     if (mcap > 0 && mcap < 1000) return false;
+    if (mcap > 0 && mcap < minMcapFloor && mps < 90 && !x.isIpo) return false;
     if (x.buySignal === 'AVOID') return false;
     return true;
   };
@@ -265,16 +321,16 @@ export async function generateActionPlan({
     const isPreEarnings = stance === 'PRE_EARNINGS';
 
     const mcap = Number(item.marketCapCr) || 0;
-    if (cmp < 20 || (mcap > 0 && mcap < 1000)) {
+    const mps = Number(item.mps ?? item.multibaggerProbabilityScore ?? item.compositeScore ?? composite);
+    if (cmp < 20 || (mcap > 0 && mcap < 1000) || (mcap > 0 && mcap < minMcapFloor && mps < 90 && !item.isIpo)) {
       return {
         alloc: 0,
         tierLabel: 'Sub-Institutional Microcap (₹0)',
-        factors: [`Market Cap < ₹1,000 Cr (₹${mcap} Cr) or Price < ₹20`],
-        summary: `AVOID (₹0): Market Cap ₹${mcap} Cr < ₹1,000 Cr or CMP ₹${cmp} < ₹20. Disqualified to protect from illiquid circuit freeze and operator manipulation.`
+        factors: [`Market Cap < ₹${mcap < 1000 ? '1,000' : '2,500'} Cr (₹${mcap} Cr) or Price < ₹20`],
+        summary: `AVOID (₹0): Market Cap ₹${mcap} Cr < ₹${mcap < 1000 ? '1,000' : '2,500'} Cr or CMP ₹${cmp} < ₹20. Disqualified to protect from illiquid circuit freeze and operator manipulation.`
       };
     }
 
-    const mps = Number(item.mps ?? item.multibaggerProbabilityScore ?? item.compositeScore ?? composite);
     const isPrime = (mps >= 80) || isTurnaround;
     const isTier2 = (mps >= 70 || item.buySignal === 'STRONG_BUY');
     const isStd = (mps >= 60 || item.buySignal === 'BUY');
@@ -382,9 +438,10 @@ export async function generateActionPlan({
     // Prime: 2.5% initial starter (building to 10% max)
     // Tier 2: 1.8% initial starter (building to 7% max)
     // Standard: 1.2% initial starter (building to 5% max)
-    const primeBase = Math.max(100000, Math.round(totalIndianEquityValuation * 0.025));
-    const tier2Base = Math.max(60000, Math.round(totalIndianEquityValuation * 0.018));
-    const stdBase = Math.max(40000, Math.round(totalIndianEquityValuation * 0.012));
+    const baseValuation = totalIndianEquityValuation > 0 ? totalIndianEquityValuation : 1000000;
+    const primeBase = Math.round(baseValuation * 0.025);
+    const tier2Base = Math.round(baseValuation * 0.018);
+    const stdBase = Math.round(baseValuation * 0.012);
     const preEarningsFactor = 0.40;
 
     // Sizing for Brand-New Entries (Zero Existing Exposure)
@@ -395,7 +452,7 @@ export async function generateActionPlan({
         // while strictly keeping 75% dry powder reserved for the 50-EMA support pullback.
         const pilotFactor = 0.25;
         const targetBase = isPrime ? primeBase : tier2Base;
-        const pilotAlloc = Math.max(25000, Math.round(targetBase * pilotFactor));
+        const pilotAlloc = Math.round(targetBase * pilotFactor);
         const tierLabel = isPrime 
           ? `Prime Extended Runner Pilot Tranche (25% Starter, ₹${Math.round(pilotAlloc / 1000)}k Staged)`
           : `High Conviction Extended Runner Pilot Tranche (25% Starter, ₹${Math.round(pilotAlloc / 1000)}k Staged)`;
@@ -415,6 +472,33 @@ export async function generateActionPlan({
         tierLabel: 'Extended Runner (Await Pullback)',
         factors: [`Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA)`],
         summary: `STAND ASIDE (AWAIT PULLBACK): Price is extended +${pctEma50.toFixed(1)}% above 50-day EMA. Await healthy base consolidation or pullback toward 50-EMA support before initiating initial position.`
+      };
+    }
+
+    // Guard 3: Nifty 500 Market Regime Gate — In a correction regime (Nifty 500 < 50-EMA),
+    // throttle standard entries to protect dry powder and allocate 25% pilot tranches strictly for elite leaders (MPS >= 80)
+    if (!marketRegime.isBullRegime && !isOwned) {
+      if (isPrime || isTier2) {
+        const pilotFactor = 0.25;
+        const targetBase = isPrime ? primeBase : tier2Base;
+        const pilotAlloc = Math.round(targetBase * pilotFactor);
+        const tierLabel = `Regime-Gated Pilot Tranche (25% Starter, Nifty 500 < 50-EMA)`;
+        const factors = [
+          tierLabel,
+          `Market Regime Defensive (Nifty 500 < 50-EMA at ₹${marketRegime.latestClose}) — 25% pilot entry to capture high-MPS (${mps}) momentum; 75% dry powder reserved for market confirmation`
+        ];
+        return {
+          alloc: pilotAlloc,
+          tierLabel,
+          factors,
+          summary: `REGIME-GATED PILOT (25% TRANCHE): Nifty 500 is below its 50-day EMA, but top-tier momentum (MPS ${mps}/100) justifies a 25% pilot position (₹${Math.round(pilotAlloc).toLocaleString('en-IN')}) at CMP ₹${cmp}. Keep 75% dry powder until broader market reclaims 50-EMA.`
+        };
+      }
+      return {
+        alloc: 0,
+        tierLabel: 'Market Regime Gate (Nifty 500 < 50-EMA)',
+        factors: [`Market Regime Defensive (Nifty 500 < 50-EMA at ₹${marketRegime.latestClose})`],
+        summary: `STAND ASIDE (REGIME DEFENSIVE): Nifty 500 is below its 50-day EMA. Standard momentum entry paused to prevent choppy whipsaws; dry powder preserved.`
       };
     }
 
@@ -601,7 +685,7 @@ export async function generateActionPlan({
 
   // Dynamic Deployment Budget replaces arbitrary static ceilings unless explicitly overridden
   const effectiveDeploymentCap = paramDailyDeploymentCap !== undefined && paramDailyDeploymentCap !== null
-    ? Math.max(50000, Math.round(Number(paramDailyDeploymentCap)))
+    ? Math.max(0, Math.round(Number(paramDailyDeploymentCap)))
     : (isStrikeMode ? marketOpportunity.dynamicDeploymentBudget : (userConfig.dailyDeploymentCap ?? 350000));
 
   // In Opportunity Strike mode, buy capacity expands dynamically to fund ALL qualifying Prime compounders
@@ -621,8 +705,8 @@ export async function generateActionPlan({
   const maxSectorBuys = 5; // Max 5 immediate funded buys in the same sector on the same day
 
   candidateEvaluations.forEach(cand => {
-    // Disqualified microcaps (< ₹1,000 Cr) and penny stocks (CMP < ₹20) are strictly excluded from all Action Plan buckets (never queued or exported in CSV)
-    const isMicrocapOrPenny = cand.cmp < 20 || (cand.mcap > 0 && cand.mcap < 1000) || cand.sizing?.tierLabel?.includes('Microcap');
+    // Disqualified microcaps (< ₹1,000 Cr hard floor, < ₹2,500 Cr unless MPS >= 90 or IPO) and penny stocks (CMP < ₹20) are strictly excluded from all Action Plan buckets (never queued or exported in CSV)
+    const isMicrocapOrPenny = cand.cmp < 20 || (cand.mcap > 0 && cand.mcap < 1000) || (cand.mcap > 0 && cand.mcap < minMcapFloor && cand.mps < 90 && !cand.isIpo) || cand.sizing?.tierLabel?.includes('Microcap');
     if (isMicrocapOrPenny) {
       return;
     }
@@ -859,7 +943,197 @@ export async function generateActionPlan({
     });
   });
 
-  // 4. Construct Unified CSV Rows with Multi-Tranche Breakdown Columns
+  // 3b. Algorithmic Portfolio Pruning (Disciplined Deadwood Elimination)
+  // Strictly protects Stage 2 winners, pilot entries, and multibaggers riding on house money.
+  // ONLY prunes confirmed Stage 3/4 breakdowns below 30w-SMA or stagnant sub-50 MPS laggards in loss.
+  const pruningSells = [];
+  const enablePruning = userConfig?.enablePortfolioPruning ?? true;
+  if (enablePruning && recyclingMode !== 'EXTERNAL_ONLY') {
+    heldAnalyses.forEach(a => {
+      const cmp = Number(a.currentPrice) || 0;
+      const qty = Number(a.quantity) || 0;
+      const amt = qty * cmp;
+      if (qty <= 0 || amt <= 0) return;
+      // Skip if already flagged in activeSells (e.g. in chandelier breach or full exit)
+      if (activeSells.some(s => s.symbol === a.symbol)) return;
+
+      const sma30 = Number(a.sma30Week) || 0;
+      const isBelow30wSma = sma30 > 0 && cmp < sma30;
+      const isStage2 = (a.weinsteinStage === 2 || (sma30 > 0 && cmp >= sma30));
+      const isInProfit = Number(a.pnlPct || 0) >= 0;
+      const isCompoundingShield = a.compoundingShield?.active;
+
+      // IRONCLAD CAPITAL PRESERVATION TENET:
+      // NEVER prune a Stage 2 compounder, a profitable runner, or a healthy pilot entry just because position size is small (< ₹1 Lakh).
+      // High-momentum pilot starters and post-trim runners riding on house money belong in the Core Portfolio to be PYRAMIDED (scaled up).
+      if ((isStage2 || isInProfit || isCompoundingShield) && !isBelow30wSma && a.action !== 'SELL_ALL') {
+        return; // Retained and protected in Core Focus Portfolio!
+      }
+
+      const isBreakdown = isBelow30wSma || a.weinsteinStage >= 3 || a.action === 'SELL_ALL';
+      const isDormantLag = (a.compositeScore < 50 || a.mps < 50) && Number(a.pnlPct || 0) < -5.0 && amt < 150000;
+
+      if (isBreakdown || isDormantLag) {
+        const reason = isBreakdown
+          ? `Structural Breakdown Pruning: Price (₹${cmp.toFixed(2)}) is trading below 30-week SMA (₹${sma30.toFixed(2)}) in Stage ${a.weinsteinStage}. Liquidate 100% (${qty} shs) to cut losses and recycle capital into Stage 2 leaders.`
+          : `Portfolio Deadwood Pruning: Stagnant laggard in loss (MPS ${a.compositeScore || 50}, ${a.pnlPct}% P&L). Liquidate 100% (${qty} shs) to eliminate portfolio drag.`;
+
+        const pItem = {
+          executionGroup: '2b. ALGORITHMIC PRUNING (ELIMINATE CONFIRMED DEADWOOD)',
+          actionType: 'SELL - PORTFOLIO PRUNING',
+          category: isBreakdown ? 'Structural Breakdown (< 30W-SMA)' : 'Dormant Laggard Pruning (MPS < 50)',
+          symbol: a.symbol,
+          name: a.name,
+          cmp,
+          state: a.state || 'PORTFOLIO_PRUNING',
+          quantity: qty,
+          actionValue: amt,
+          triggerPrice: cmp,
+          targetPrice: 0,
+          heldShares: qty,
+          tranche1Shares: qty,
+          tranche1Trigger: cmp,
+          tranche1Status: 'READY',
+          tranche2Shares: 0,
+          tranche2Trigger: 0,
+          tranche2Status: 'N/A',
+          breachedTranchesSummary: '100% Position Pruning',
+          reason,
+          isFullExit: true,
+          isPruning: true
+        };
+        pruningSells.push(pItem);
+        activeSells.push(pItem);
+      }
+    });
+  }
+
+  // 3c. Core Focus Portfolio (20–25 Compounders Model)
+  // Maps all retained non-pruned, non-exited active holdings with their current and target allocations
+  const coreFocusHoldings = heldAnalyses
+    .filter(a => Number(a.quantity) > 0 && !pruningSells.some(p => p.symbol === a.symbol) && !activeSells.some(s => s.symbol === a.symbol && s.isFullExit))
+    .map(a => {
+      const cmp = Number(a.currentPrice) || 0;
+      const qty = Number(a.quantity) || 0;
+      const val = qty * cmp;
+      const mps = Number(a.mps ?? a.compositeScore ?? 50);
+      const weightPct = totalIndianEquityValuation > 0 ? Number(((val / totalIndianEquityValuation) * 100).toFixed(2)) : 0;
+      const targetAllocation = round2(totalIndianEquityValuation * 0.045);
+      const sma30 = Number(a.sma30Week) || 0;
+      // Dynamic pilot identification: Position is a pilot starter if below 35% of full 4.5% target allocation (or < 1.5% portfolio weight)
+      const isPilotTranche = targetAllocation > 0 ? val < (targetAllocation * 0.35) : weightPct < 1.5;
+      return {
+        symbol: a.symbol,
+        name: a.name,
+        cmp,
+        qty,
+        val: round2(val),
+        weightPct,
+        targetWeightPct: 4.5,
+        targetAllocation,
+        headroom: round2(Math.max(0, targetAllocation - val)),
+        mps,
+        stage: a.weinsteinStage || 2,
+        sma30: round2(sma30),
+        pnlPct: Number((a.pnlPct || 0).toFixed(2)),
+        sector: a.sector || 'Diversified',
+        statusTag: isPilotTranche ? 'PILOT / POST-TRIM RUNNER (SCALE UP)' : (weightPct >= 4.0 ? 'CORE POSITION' : 'ACCUMULATION CANDIDATE')
+      };
+    })
+    .sort((a, b) => b.mps - a.mps || b.val - a.val);
+
+  // 3d. Stop Loss & GTT Execution Engine for Open Holdings
+  // Determines exact GTT stop-loss trigger price for every held position:
+  // - Tier 1: Fresh / Minor Gain (< +15% Gain) -> Hard -8.0% Initial Entry Protection
+  // - Tier 2: Established Profit (+15% to +30% Gain) -> Breakeven Capital Lock (Entry + 1% statutory cushion)
+  // - Tier 3: Strong Compounder (+30% to +50% Gain) -> Trailing 50-EMA / 30w-SMA (Lock >= +15% profit floor)
+  // - Tier 4: Multibagger Runner (+50%+ Gain / Doubler) -> Trailing 50-EMA / 30w-SMA (Ride on House Money)
+  const stopLossActions = heldAnalyses
+    .filter(a => Number(a.quantity) > 0 && !activeSells.some(s => s.symbol === a.symbol && s.isFullExit))
+    .map(a => {
+      const cmp = Number(a.currentPrice) || 0;
+      const avg = Number(a.avgBuyPrice || a.portfolioAvgPrice || a.avg_buy_price) || cmp;
+      const qty = Number(a.quantity) || 0;
+      const val = round2(qty * cmp);
+      const pnlPct = avg > 0 ? Number((((cmp - avg) / avg) * 100).toFixed(2)) : 0;
+      const ema50 = round2(Number(a.ema50 || a.dailyEma21) || 0);
+      const sma30 = round2(Number(a.sma30Week) || 0);
+      const atrFloor = round2(Number(a.trailingFloorPrice || a.stopLoss || a.chandelierStopPrice) || 0);
+      const weinsteinStage = a.weinsteinStage || 2;
+
+      let action = 'MAINTAIN GTT SL';
+      let actionType = 'MAINTAIN';
+      let targetSlPrice = 0;
+      let tier = 'INITIAL_8PCT';
+      let reason = '';
+      let badgeColor = 'blue';
+
+      if (pnlPct < 15) {
+        targetSlPrice = round2(avg * 0.92);
+        tier = 'INITIAL_8PCT';
+        action = 'SET / MAINTAIN GTT SL (-8%)';
+        actionType = 'SET_INITIAL';
+        badgeColor = 'amber';
+        reason = `Initial capital defense: Place GTT SL at ₹${targetSlPrice.toFixed(2)} (-8.0% from cost basis ₹${avg.toFixed(2)}).`;
+      } else if (pnlPct >= 15 && pnlPct < 30) {
+        targetSlPrice = round2(avg * 1.01);
+        tier = 'BREAKEVEN_LOCK';
+        action = 'AMEND GTT SL -> BREAKEVEN';
+        actionType = 'AMEND_BREAKEVEN';
+        badgeColor = 'emerald';
+        reason = `Breakeven Lock: Position is up +${pnlPct.toFixed(1)}%. Protect principal and statutory charges at ₹${targetSlPrice.toFixed(2)}.`;
+      } else if (pnlPct >= 30 && pnlPct < 50) {
+        const profitLockFloor = round2(avg * 1.15);
+        targetSlPrice = Math.max(profitLockFloor, ema50, sma30, atrFloor);
+        tier = 'TRAILING_EMA';
+        action = 'AMEND GTT SL -> TRAILING FLOOR';
+        actionType = 'AMEND_TRAILING';
+        badgeColor = 'purple';
+        const floorRef = targetSlPrice === ema50 ? '50-day EMA' : targetSlPrice === sma30 ? '30-week SMA' : 'Trailing ATR Floor';
+        reason = `Trailing Profit Lock: Up +${pnlPct.toFixed(1)}%. Amend GTT SL to ₹${targetSlPrice.toFixed(2)} (${floorRef}). Minimum +15% profit locked.`;
+      } else {
+        targetSlPrice = Math.max(ema50, sma30, atrFloor, round2(avg * 1.25));
+        tier = 'MULTIBAGGER_RIDER';
+        action = 'AMEND GTT SL -> 50-EMA / 30W-SMA';
+        actionType = 'AMEND_MULTIBAGGER';
+        badgeColor = 'cyan';
+        const floorRef = targetSlPrice === ema50 ? '50-day EMA' : targetSlPrice === sma30 ? '30-week SMA' : 'ATR Trailing Floor';
+        reason = `Multibagger Compounder: Up +${pnlPct.toFixed(1)}% (Riding on house money). Trail GTT SL along ${floorRef} at ₹${targetSlPrice.toFixed(2)}.`;
+      }
+
+      // Broker GTT Validation: Stop loss trigger price must strictly be below live CMP
+      if (cmp > 0 && targetSlPrice >= cmp) {
+        targetSlPrice = round2(cmp * 0.95);
+      }
+
+      const distanceToSlPct = cmp > 0 && targetSlPrice > 0 ? Number((((cmp - targetSlPrice) / cmp) * 100).toFixed(2)) : 0;
+      const isNearSl = distanceToSlPct <= 3.0 && distanceToSlPct >= 0;
+
+      return {
+        symbol: a.symbol,
+        name: a.name,
+        qty,
+        cmp,
+        avgBuyPrice: round2(avg),
+        val,
+        pnlPct,
+        targetSlPrice,
+        tier,
+        action,
+        actionType,
+        distanceToSlPct,
+        isNearSl,
+        badgeColor,
+        reason,
+        ema50,
+        sma30,
+        weinsteinStage,
+        sector: a.sector || 'Diversified'
+      };
+    })
+    .sort((a, b) => b.pnlPct - a.pnlPct);
+
+  // 4. Construct Unified CSV Rows with Multi-Tranche Breakdown & Stop Loss Actions
   const rows = [];
   const header = [
     'Execution Group',
@@ -870,18 +1144,19 @@ export async function generateActionPlan({
     'Current Price (INR)',
     'Action Quantity (Shares)',
     'Action Value (INR)',
-    'Primary Trigger (INR)',
-    'Tranche 1 Shares',
-    'Tranche 1 Trigger (INR)',
-    'Tranche 2 Shares',
-    'Tranche 2 Trigger (INR)',
+    'Stop Loss Action',
+    'Stop Loss Trigger (INR)',
+    'Stop Loss Buffer %',
+    'Stop Loss Strategy Tier',
+    'Tranche / Staged Breakdown',
     'Current Held Shares',
-    'Capital Source & Execution Rationale'
+    'Action Rationale & Strategy Guidance'
   ];
   rows.push(header);
 
   // Section 1: Immediate Buys (Funded Today)
   immediateBuys.forEach(b => {
+    const initialSl = round2(b.sl > 0 ? Math.min(b.sl, b.cmp * 0.92) : b.cmp * 0.92);
     rows.push([
       '1. IMMEDIATE BUY (FUNDED TODAY)',
       b.actionType,
@@ -891,18 +1166,24 @@ export async function generateActionPlan({
       b.cmp.toFixed(2),
       b.actionShares,
       b.actionValue.toFixed(2),
-      b.sl > 0 ? b.sl.toFixed(2) : '—',
-      '—', // Tranche 1 shares (N/A for buy)
-      '—',
-      '—',
-      '—',
+      'ADD GTT SL AT ENTRY',
+      initialSl.toFixed(2),
+      '8.0%',
+      'INITIAL_8PCT_DEFENSE',
+      'Initial Position Tranche',
       b.heldQty,
-      b.note
+      `MPS ${b.mps} | ${b.note} | Place mandatory GTT Stop Loss at ₹${initialSl.toFixed(2)} (-8.0%) immediately upon order execution.`
     ]);
   });
 
   // Section 2: Algorithmic Sells (Performance Decay)
   activeSells.forEach(s => {
+    const trancheInfo = s.isFullExit
+      ? 'Full Exit (100%)'
+      : (s.tranche1Shares > 0 && s.tranche2Shares > 0
+          ? `T1: ${s.tranche1Shares} shs @ ₹${s.tranche1Trigger > 0 ? s.tranche1Trigger.toFixed(2) : '—'} | T2: ${s.tranche2Shares} shs @ ₹${s.tranche2Trigger > 0 ? s.tranche2Trigger.toFixed(2) : '—'}`
+          : (s.tranche1Shares > 0 ? `Tranche 1: ${s.tranche1Shares} shs` : 'Partial Trim'));
+
     rows.push([
       '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
       s.actionType,
@@ -912,20 +1193,42 @@ export async function generateActionPlan({
       s.cmp.toFixed(2),
       s.quantity,
       s.actionValue.toFixed(2),
+      'CANCEL GTT SL / EXECUTED',
       s.triggerPrice > 0 ? s.triggerPrice.toFixed(2) : '—',
-      s.tranche1Shares || '—',
-      s.tranche1Trigger > 0 ? s.tranche1Trigger.toFixed(2) : '—',
-      s.tranche2Shares || '—',
-      s.tranche2Trigger > 0 ? s.tranche2Trigger.toFixed(2) : '—',
+      '0.0% (Trigger Breached)',
+      'EXIT_TRIGGERED',
+      trancheInfo,
       s.heldShares,
       s.reason
     ]);
   });
 
-  // Section 3: Queued Candidates (For Next Periodic Infusion)
-  queuedBuys.forEach(q => {
+  // Section 3: Stop Loss Management & GTT Updates for Open Holdings
+  stopLossActions.forEach(a => {
     rows.push([
-      '3. QUEUED BUY (NEXT PERIODIC INFUSION)',
+      '3. STOP LOSS & GTT UPDATES (OPEN HOLDINGS)',
+      a.action,
+      a.tier,
+      a.symbol,
+      a.name,
+      a.cmp.toFixed(2),
+      a.qty,
+      a.val.toFixed(2),
+      a.action,
+      a.targetSlPrice.toFixed(2),
+      `+${a.distanceToSlPct.toFixed(1)}%`,
+      a.tier,
+      'Open Portfolio Holding',
+      a.qty,
+      `P&L: ${a.pnlPct >= 0 ? '+' : ''}${a.pnlPct.toFixed(1)}% (Cost ₹${a.avgBuyPrice}) | ${a.reason}`
+    ]);
+  });
+
+  // Section 4: Queued Candidates (For Next Periodic Infusion)
+  queuedBuys.forEach(q => {
+    const initialSl = round2(q.sl > 0 ? Math.min(q.sl, q.cmp * 0.92) : q.cmp * 0.92);
+    rows.push([
+      '4. QUEUED BUY (NEXT PERIODIC INFUSION)',
       q.actionType,
       q.sizing?.tierLabel || q.stance,
       q.symbol,
@@ -933,13 +1236,13 @@ export async function generateActionPlan({
       q.cmp.toFixed(2),
       q.targetShares,
       q.targetAmount.toFixed(2),
-      q.sl > 0 ? q.sl.toFixed(2) : '—',
-      '—', // Tranche 1 shares (N/A for queued buy)
-      '—', // Tranche 1 trigger
-      '—', // Tranche 2 shares
-      '—', // Tranche 2 trigger
+      'PLAN GTT SL AT ENTRY',
+      initialSl.toFixed(2),
+      '8.0%',
+      'INITIAL_8PCT_DEFENSE',
+      'Awaiting Fresh Infusion',
       q.heldQty,
-      q.note
+      `MPS ${q.mps} | ${q.note}`
     ]);
   });
 
@@ -973,6 +1276,25 @@ export async function generateActionPlan({
     queuedBuysCount: queuedBuys.length,
     sellsCount: activeSells.length,
     chandelierBreachCount: chandelierBreachSells.length,
+    pruningCandidatesCount: pruningSells.length,
+    pruningProceeds: round2(pruningSells.reduce((sum, p) => sum + p.actionValue, 0)),
+    marketRegime,
+    pruningSummary: {
+      pruningCount: pruningSells.length,
+      pruningProceeds: round2(pruningSells.reduce((sum, p) => sum + p.actionValue, 0)),
+      targetPortfolioSize: '20–25 Focus Leaders'
+    },
+    strategyRoadmap: {
+      targetPortfolioCount: '20–25 Focus Leaders',
+      targetPositionWeight: '4.0% – 5.0% (~₹3.5L – ₹4.5L each)',
+      activeCoreCount: coreFocusHoldings.length,
+      pruningCount: pruningSells.length,
+      pruningProceeds: round2(pruningSells.reduce((sum, p) => sum + p.actionValue, 0)),
+      marketRegime,
+      minMarketCapFloorCr: minMcapFloor,
+      hardStopLossPct: 8.0,
+      holdingHorizonMonths: '9–18 Months (LTCG Sweet Spot)'
+    },
     marketOpportunity: {
       moi: marketOpportunity.moi,
       deploymentMode: marketOpportunity.deploymentMode,
@@ -984,6 +1306,13 @@ export async function generateActionPlan({
       trigger: marketOpportunity.trigger,
       componentScores: marketOpportunity.componentScores,
       componentDetails: marketOpportunity.componentDetails
+    },
+    stopLossSummary: {
+      totalPositions: stopLossActions.length,
+      breakevenLocksCount: stopLossActions.filter(a => a.actionType === 'AMEND_BREAKEVEN').length,
+      trailingRunnersCount: stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER').length,
+      initialStopsCount: stopLossActions.filter(a => a.actionType === 'SET_INITIAL').length,
+      nearStopCount: stopLossActions.filter(a => a.isNearSl).length
     }
   };
 
@@ -993,6 +1322,9 @@ export async function generateActionPlan({
     immediateBuys,
     queuedBuys,
     sells: activeSells,
+    stopLossActions,
+    coreFocusHoldings,
+    pruningSells,
     allBuys: [...immediateBuys, ...queuedBuys],
     totalActions: rows.length - 1,
     rows,

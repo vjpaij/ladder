@@ -7,13 +7,21 @@ import {
   Sparkles,
   TrendingUp,
   ShieldAlert,
+  ShieldCheck,
   Wallet,
   RotateCw,
   Save,
   CheckCircle2,
   Clock,
   ArrowRight,
-  Zap
+  Zap,
+  Target,
+  Layers,
+  Award,
+  BarChart3,
+  Filter,
+  ChevronRight,
+  TrendingDown
 } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
@@ -29,7 +37,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   // Configuration state
   const [externalCash, setExternalCash] = useState(200000);
   const [recyclingMode, setRecyclingMode] = useState('FULL_AND_TRIMS');
-  const [activeTab, setActiveTab] = useState('BUYS'); // 'BUYS' | 'QUEUED' | 'SELLS'
+  const [activeTab, setActiveTab] = useState('BUYS'); // 'BUYS' | 'QUEUED' | 'SELLS' | 'STOP_LOSSES'
+  const [sellFilter, setSellFilter] = useState('ALL'); // 'ALL' | 'STRUCTURAL' | 'PRUNING'
+  const [stopLossFilter, setStopLossFilter] = useState('ALL'); // 'ALL' | 'BREAKEVEN' | 'TRAILING' | 'INITIAL' | 'NEAR_SL'
 
   // Plan data
   const [plan, setPlan] = useState(null);
@@ -37,6 +47,32 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   const sells = useMemo(() => {
     return (plan?.sells || []).filter(s => Number(s.quantity) > 0 && (s.isFullExit || s.tranche1Status === 'READY' || s.tranche2Status === 'READY'));
   }, [plan?.sells]);
+
+  const filteredSells = useMemo(() => {
+    if (sellFilter === 'PRUNING') return sells.filter(s => s.isPruning);
+    if (sellFilter === 'STRUCTURAL') return sells.filter(s => !s.isPruning);
+    return sells;
+  }, [sells, sellFilter]);
+
+  const stopLossActions = useMemo(() => {
+    return plan?.stopLossActions || [];
+  }, [plan?.stopLossActions]);
+
+  const filteredStopLossActions = useMemo(() => {
+    if (stopLossFilter === 'BREAKEVEN') return stopLossActions.filter(a => a.actionType === 'AMEND_BREAKEVEN');
+    if (stopLossFilter === 'TRAILING') return stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER');
+    if (stopLossFilter === 'INITIAL') return stopLossActions.filter(a => a.actionType === 'SET_INITIAL');
+    if (stopLossFilter === 'NEAR_SL') return stopLossActions.filter(a => a.isNearSl);
+    return stopLossActions;
+  }, [stopLossActions, stopLossFilter]);
+
+  const coreFocusHoldings = useMemo(() => {
+    return plan?.coreFocusHoldings || [];
+  }, [plan?.coreFocusHoldings]);
+
+  const pruningSells = useMemo(() => {
+    return plan?.pruningSells || (plan?.sells || []).filter(s => s.isPruning);
+  }, [plan?.pruningSells, plan?.sells]);
 
   const fetchPlan = useCallback(async (cash = externalCash, mode = recyclingMode) => {
     setLoading(true);
@@ -379,6 +415,30 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             </div>
           </div>
 
+          {/* Market Regime & High-Alpha Concentration Banner */}
+          {summary.marketRegime && (
+            <div className={`p-3 rounded-2xl border flex flex-wrap items-center justify-between gap-2.5 text-xs ${
+              summary.marketRegime.isBullRegime
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+                : 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${summary.marketRegime.isBullRegime ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span className="font-bold tracking-wide">{summary.marketRegime.headline}</span>
+                <span className="text-[11px] font-normal text-[var(--text-muted)] hidden md:inline">
+                  — {summary.marketRegime.description}
+                </span>
+              </div>
+              {summary.pruningSummary?.pruningCount > 0 && (
+                <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-[var(--surface-color)] border border-[var(--border-color)] text-[var(--text-primary)]">
+                  <span>Tail Pruning: {summary.pruningSummary.pruningCount} positions</span>
+                  <span>•</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">+{formatInr(summary.pruningSummary.pruningProceeds)} to recycle</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Capital Flow Strip (5 KPIs) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
@@ -436,19 +496,19 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             </div>
           </div>
 
-          {/* Master View Tabs: Immediate Buys, Queued, Sells */}
-          <div className="flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
+          {/* Master View Tabs: Immediate Buys, Queued, Sells, Strategy */}
+          <div className="flex items-center gap-2 border-b border-[var(--border-color)] pb-3 overflow-x-auto">
             <button
               type="button"
               onClick={() => setActiveTab('BUYS')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'BUYS'
                   ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               <TrendingUp className="w-4 h-4" />
-              <span>Immediate Buys (Funded Today)</span>
+              <span>Immediate Buys</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/40">
                 {immediateBuys.length}
               </span>
@@ -457,14 +517,14 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             <button
               type="button"
               onClick={() => setActiveTab('QUEUED')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'QUEUED'
                   ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-sm'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               <Clock className="w-4 h-4" />
-              <span>Queued for Next Increment</span>
+              <span>Queued Candidates</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40">
                 {queuedBuys.length}
               </span>
@@ -473,17 +533,35 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             <button
               type="button"
               onClick={() => setActiveTab('SELLS')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'SELLS'
                   ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/40 shadow-sm'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
               <ShieldAlert className="w-4 h-4" />
-              <span>Algorithmic Sells & Trims</span>
+              <span>Algorithmic Sells</span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/40">
                 {sells.length}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('STOP_LOSSES')}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'STOP_LOSSES'
+                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Stop Loss & GTT Updates</span>
+              {stopLossActions.length > 0 && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40">
+                  {stopLossActions.length} Holdings
+                </span>
+              )}
             </button>
           </div>
 
@@ -506,7 +584,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                       <th className="py-2.5 px-3 text-right">CMP</th>
                       <th className="py-2.5 px-3 text-right">Shares</th>
                       <th className="py-2.5 px-3 text-right">Value (INR)</th>
-                      <th className="py-2.5 px-3 text-right">Stop-Loss</th>
+                      <th className="py-2.5 px-3 text-right text-amber-500 dark:text-amber-400">GTT Stop-Loss (-8%)</th>
                       <th className="py-2.5 px-3 text-right">Target</th>
                       <th className="py-2.5 px-3">Execution & Conviction Rationale</th>
                     </tr>
@@ -533,7 +611,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                       ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
                                       : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
                                 }`}>
-                                  {isAccumulate ? 'PYRAMID TRANCHE' : isPilot ? 'PILOT TRANCHE (40%)' : 'NEW POSITION'}
+                                  {isAccumulate ? 'PYRAMID TRANCHE' : isPilot ? 'PILOT TRANCHE (25%)' : 'NEW POSITION'}
                                 </span>
                                 {b.mps !== undefined && (
                                   <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-indigo-500/15 text-indigo-500 border border-indigo-500/30" title={`Multibagger Probability Score: ${b.mps}/100`}>
@@ -564,8 +642,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
                               {formatInr2(b.actionValue)}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-rose-500 dark:text-rose-400">
-                              {b.sl > 0 ? formatInr2(b.sl) : '—'}
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-500 dark:text-amber-400">
+                              {b.sl > 0 ? formatInr2(b.sl) : formatInr2(b.cmp * 0.92)}
+                              <div className="text-[9px] text-[var(--text-muted)] font-normal">-8.0% Initial GTT</div>
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono text-cyan-600 dark:text-cyan-400">
                               {b.tgt > 0 ? formatInr2(b.tgt) : '—'}
@@ -677,20 +756,57 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 </table>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'SELLS' ? (
             /* Tab 3: Algorithmic Sells */
             <div className="space-y-3">
               {sells.length > 0 && (
                 <div className="p-3 rounded-2xl border border-rose-500/40 bg-rose-500/10 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 text-rose-500 dark:text-rose-300 font-bold">
                     <ShieldAlert className="w-4 h-4 shrink-0" />
-                    <span>{sells.length} positions triggered for exit / trim based on live market price triggers.</span>
+                    <span>{sells.length} positions triggered for exit / trim based on live market triggers and portfolio tail pruning.</span>
                   </div>
                   <div className="text-[11px] font-mono font-bold text-rose-400 dark:text-rose-200">
                     Total Liquidation / Recycled Pool: {formatInr(sells.reduce((acc, x) => acc + (x.actionValue || 0), 0))}
                   </div>
                 </div>
               )}
+
+              {/* Sub-Filters for Sells: All, Structural Breakdown, Tail Pruning */}
+              <div className="flex items-center gap-2 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setSellFilter('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    sellFilter === 'ALL'
+                      ? 'bg-[var(--surface-color)] text-[var(--text-primary)] border border-[var(--border-color)] shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  All Sells ({sells.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSellFilter('STRUCTURAL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    sellFilter === 'STRUCTURAL'
+                      ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Structural / Technical ({sells.filter(s => !s.isPruning).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSellFilter('PRUNING')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    sellFilter === 'PRUNING'
+                      ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Tail Pruning ({sells.filter(s => s.isPruning).length})
+                </button>
+              </div>
 
               <div className="overflow-x-auto rounded-2xl border border-[var(--border-color)]">
                 <table className="w-full text-left text-xs border-collapse">
@@ -707,22 +823,24 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-color)]">
-                    {sells.length === 0 ? (
+                    {filteredSells.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="py-8 text-center text-[var(--text-muted)]">
-                          Zero performance-decayed sells triggered. All active holdings are performing cleanly!
+                          No sells matching the selected filter.
                         </td>
                       </tr>
                     ) : (
-                      sells.map((s, idx) => (
+                      filteredSells.map((s, idx) => (
                         <tr key={idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                           <td className="py-2.5 px-3">
                             <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md whitespace-nowrap ${
-                              s.isFullExit
-                                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
-                                : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
+                              s.isPruning
+                                ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30'
+                                : s.isFullExit
+                                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
+                                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
                             }`}>
-                              {s.actionType.replace('SELL - ', '')}
+                              {s.isPruning ? 'PRUNING (20-25 CORE)' : s.actionType.replace('SELL - ', '')}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)]">
@@ -780,13 +898,257 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 </table>
               </div>
             </div>
+          ) : (
+            /* Tab 4: Stop Loss & GTT Updates */
+            <div className="space-y-4">
+              {/* 4 KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
+                  <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
+                    Monitored Holdings
+                  </span>
+                  <span className="text-base sm:text-lg font-black font-mono text-[var(--text-primary)] mt-1 block">
+                    {summary.stopLossSummary?.totalPositions ?? stopLossActions.length}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
+                    Active portfolio positions
+                  </span>
+                </div>
+
+                <div className="reports-subcard rounded-2xl border border-emerald-500/30 p-3 bg-emerald-500/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                      Breakeven Locked
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
+                      0% Risk
+                    </span>
+                  </div>
+                  <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
+                    {summary.stopLossSummary?.breakevenLocksCount ?? 0}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
+                    GTT amended to +1% cost
+                  </span>
+                </div>
+
+                <div className="reports-subcard rounded-2xl border border-cyan-500/30 p-3 bg-cyan-500/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider block">
+                      Trailing 50-EMA
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-300">
+                      Runners
+                    </span>
+                  </div>
+                  <span className="text-base sm:text-lg font-black font-mono text-cyan-600 dark:text-cyan-400 mt-1 block">
+                    {summary.stopLossSummary?.trailingRunnersCount ?? 0}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
+                    Riding +30% & multibaggers
+                  </span>
+                </div>
+
+                <div className="reports-subcard rounded-2xl border border-amber-500/30 p-3 bg-amber-500/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
+                      Initial -8% Stops
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300">
+                      Defense
+                    </span>
+                  </div>
+                  <span className="text-base sm:text-lg font-black font-mono text-amber-600 dark:text-amber-400 mt-1 block">
+                    {summary.stopLossSummary?.initialStopsCount ?? 0}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
+                    Downside defense on new buys
+                  </span>
+                </div>
+              </div>
+
+              {/* Strategy Rules Explanation Strip */}
+              <div className="p-3.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 text-[var(--text-primary)] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold tracking-wide">
+                      Automated GTT Stop Loss Protocol — Capital Preservation & Profit Locking
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
+                    Broker GTT Ready
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-[11px] text-[var(--text-muted)]">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-amber-600 dark:text-amber-400 block">Tier 1: Initial -8% Entry Stop</span>
+                    <span>Placed on order execution. Caps any loss at -8.0% to prevent bad setups from draining capital.</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 block">Tier 2: Breakeven Lock (+15% to +30%)</span>
+                    <span>Once stock gains +15%, move GTT SL to +1% above cost basis. Guarantees zero risk forever.</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-cyan-600 dark:text-cyan-400 block">Tier 3 & 4: Trailing Floor (+30% & Multibaggers)</span>
+                    <span>Trail stop above 50-EMA, 30w-SMA, or +15%/+25% gain floor. Lets multibaggers run while locking profit.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-Filters */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'ALL'
+                      ? 'bg-[var(--surface-color)] text-[var(--text-primary)] border border-[var(--border-color)] shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  All Positions ({stopLossActions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('BREAKEVEN')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'BREAKEVEN'
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Breakeven Locks ({summary.stopLossSummary?.breakevenLocksCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('TRAILING')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'TRAILING'
+                      ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Trailing 50-EMA ({summary.stopLossSummary?.trailingRunnersCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('INITIAL')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'INITIAL'
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Initial -8% Stops ({summary.stopLossSummary?.initialStopsCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('NEAR_SL')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'NEAR_SL'
+                      ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Near SL (≤3%) ({summary.stopLossSummary?.nearStopCount ?? 0})
+                </button>
+              </div>
+
+              {/* Master Execution Table */}
+              <div className="overflow-x-auto rounded-2xl border border-[var(--border-color)]">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-[var(--border-color)] reports-subcard text-[var(--text-muted)] font-bold">
+                      <th className="py-2.5 px-3">GTT Action</th>
+                      <th className="py-2.5 px-3">Symbol</th>
+                      <th className="py-2.5 px-3">Company Name</th>
+                      <th className="py-2.5 px-3 text-right">CMP</th>
+                      <th className="py-2.5 px-3 text-right">Cost Basis</th>
+                      <th className="py-2.5 px-3 text-right">P&L %</th>
+                      <th className="py-2.5 px-3 text-right text-amber-500 dark:text-amber-400">Target GTT SL</th>
+                      <th className="py-2.5 px-3 text-right">Buffer to SL</th>
+                      <th className="py-2.5 px-3">Execution Guidance & Rationale</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-color)]">
+                    {filteredStopLossActions.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-[var(--text-muted)]">
+                          No positions match the selected filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStopLossActions.map((sla, idx) => {
+                        const isBreakeven = sla.actionType === 'AMEND_BREAKEVEN';
+                        const isTrailing = sla.actionType === 'AMEND_TRAILING' || sla.actionType === 'AMEND_MULTIBAGGER';
+                        const isInitial = sla.actionType === 'SET_INITIAL';
+                        const isNear = sla.isNearSl;
+
+                        return (
+                          <tr key={sla.symbol + '-' + idx} className="hover:bg-[var(--hover-bg)] transition-colors">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                                  isNear
+                                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40 animate-pulse'
+                                    : isBreakeven
+                                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40'
+                                    : isTrailing
+                                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500/40'
+                                    : 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
+                                }`}
+                              >
+                                {sla.actionLabel}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)] whitespace-nowrap">
+                              {sla.symbol}
+                            </td>
+                            <td className="py-2.5 px-3 text-[var(--text-muted)] max-w-[140px] truncate" title={sla.name}>
+                              {sla.name}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
+                              {formatInr2(sla.cmp)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-[var(--text-muted)]">
+                              {formatInr2(sla.avgBuyPrice)}
+                            </td>
+                            <td className={`py-2.5 px-3 text-right font-mono font-bold ${
+                              sla.pnlPct >= 0
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-rose-600 dark:text-rose-400'
+                            }`}>
+                              {sla.pnlPct >= 0 ? '+' : ''}{sla.pnlPct.toFixed(2)}%
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-black text-amber-600 dark:text-amber-400">
+                              {formatInr2(sla.targetSlPrice)}
+                            </td>
+                            <td className={`py-2.5 px-3 text-right font-mono font-bold ${
+                              isNear
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-[var(--text-muted)]'
+                            }`}>
+                              {sla.slBufferPct.toFixed(2)}%
+                            </td>
+                            <td className="py-2.5 px-3 text-[11px] text-[var(--text-muted)] max-w-sm leading-relaxed">
+                              {sla.rationale}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--border-color)] reports-subcard">
           <div className="text-xs text-[var(--text-muted)] font-mono font-bold">
-            {immediateBuys.length} Buys Funded • {queuedBuys.length} Queued • {sells.length} Sells
+            {immediateBuys.length} Buys Funded • {queuedBuys.length} Queued • {sells.length} Sells • {stopLossActions.length} GTT Stop Updates
           </div>
 
           <div className="flex items-center gap-3">
