@@ -1099,7 +1099,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                     : 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
                                 }`}
                               >
-                                {sla.actionLabel}
+                                {sla.actionLabel || sla.action}
                               </span>
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)] whitespace-nowrap">
@@ -1115,11 +1115,11 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                               {formatInr2(sla.avgBuyPrice)}
                             </td>
                             <td className={`py-2.5 px-3 text-right font-mono font-bold ${
-                              sla.pnlPct >= 0
+                              (Number(sla.pnlPct) || 0) >= 0
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : 'text-rose-600 dark:text-rose-400'
                             }`}>
-                              {sla.pnlPct >= 0 ? '+' : ''}{sla.pnlPct.toFixed(2)}%
+                              {(Number(sla.pnlPct) || 0) >= 0 ? '+' : ''}{(Number(sla.pnlPct) || 0).toFixed(2)}%
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-black text-amber-600 dark:text-amber-400">
                               {formatInr2(sla.targetSlPrice)}
@@ -1129,10 +1129,10 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                 ? 'text-rose-600 dark:text-rose-400'
                                 : 'text-[var(--text-muted)]'
                             }`}>
-                              {sla.slBufferPct.toFixed(2)}%
+                              {(Number(sla.distanceToSlPct ?? sla.slBufferPct ?? 0)).toFixed(2)}%
                             </td>
                             <td className="py-2.5 px-3 text-[11px] text-[var(--text-muted)] max-w-sm leading-relaxed">
-                              {sla.rationale}
+                              {sla.rationale || sla.reason}
                             </td>
                           </tr>
                         );
