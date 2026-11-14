@@ -600,23 +600,32 @@ export async function generateActionPlan({
     const targetAmount = targetShares * cmp;
 
     // Priority Rank Score (Balanced Multibagger Probability Engine):
-    // Prevents existing positions from creating a starvation blockade against fresh high-MPS explosive breakouts.
-    // 1. Prime Turnaround Inflection (+800 pts)
-    // 2. High-Conviction Proven Winners Pyramiding (MPS >= 80 & in profit) (+750 pts)
-    // 3. Fresh Ultra-Leader Breakouts (MPS >= 90) (+650 pts)
-    // 4. Fresh Prime Leaders (MPS >= 80) (+500 pts)
-    // 5. Secondary Winner Pyramiding (MPS < 80 & in profit) (+350 pts)
-    // 6. Strong Buy Fresh Breakouts (+300 pts)
-    // 7. Base MPS (0-100 pts)
+    // Prevents existing positions or speculative turnarounds from blockading explosive MPS 95+ leaders.
+    // 1. Elite Multibagger Breakouts (MPS >= 95) (+1000 pts)
+    // 2. High-Conviction Proven Winners Pyramiding (MPS >= 85 & in profit) (+850 pts)
+    // 3. High-Conviction Turnarounds (isTurnaround & MPS >= 80) (+800 pts)
+    // 4. Fresh Ultra-Leader Breakouts (MPS >= 90) (+750 pts)
+    // 5. Solid Winners Pyramiding (MPS >= 75 & in profit) (+650 pts)
+    // 6. Fresh Prime Leaders (MPS >= 80) (+550 pts)
+    // 7. Speculative Turnarounds (isTurnaround & MPS < 80) (+400 pts)
+    // 8. Secondary Winner Pyramiding (in profit) (+350 pts)
+    // 9. Strong Buy Fresh Breakouts (+300 pts)
+    // 10. Base MPS (0-100 pts)
     let priorityRank = mps;
-    if (isTurnaround) {
+    if (mps >= 95) {
+      priorityRank += 1000;
+    } else if (isInProfit && mps >= 85) {
+      priorityRank += 850;
+    } else if (isTurnaround && mps >= 80) {
       priorityRank += 800;
-    } else if (isInProfit && mps >= 80) {
-      priorityRank += 750;
     } else if (!isOwned && mps >= 90) {
+      priorityRank += 750;
+    } else if (isInProfit && mps >= 75) {
       priorityRank += 650;
     } else if (!isOwned && mps >= 80) {
-      priorityRank += 500;
+      priorityRank += 550;
+    } else if (isTurnaround) {
+      priorityRank += 400;
     } else if (isInProfit) {
       priorityRank += 350;
     } else if (x.sourceSignal === 'STRONG_BUY') {

@@ -1,5 +1,93 @@
 [
   {
+    "id": "log_1794687320115_m9i4k",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:15:20.113Z",
+    "status": "SUCCESS",
+    "durationMs": 862,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1794687245652_jc8mo",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:14:05.649Z",
+    "status": "SUCCESS",
+    "durationMs": 1201,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1794687204246_jzo6g",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:13:24.242Z",
+    "status": "SUCCESS",
+    "durationMs": 1260,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1794687198129_b3f0n",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:13:18.126Z",
+    "status": "SUCCESS",
+    "durationMs": 937,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1794687186086_zdf6e",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:13:06.083Z",
+    "status": "SUCCESS",
+    "durationMs": 1118,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1794687087575_992pt",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:11:27.572Z",
+    "status": "SUCCESS",
+    "durationMs": 1726,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1794687042357_0ht8h",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:10:42.355Z",
+    "status": "SUCCESS",
+    "durationMs": 1153,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1794686771918_ihj86",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-14T20:06:11.914Z",
+    "status": "SUCCESS",
+    "durationMs": 1756,
+    "details": "Evaluated 69 active Indian equity holdings. 56 in Stage 2 Compounding, 7 technical trim, 3 on watch. Data integrity: 97.1% (2 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
     "id": "log_1794686348439_kuxp2",
     "jobType": "STOCK_ANALYSIS_EOD",
     "jobName": "Daily Stock Analysis Audit (BOOT)",
@@ -5409,94 +5497,6 @@
     "status": "SUCCESS",
     "durationMs": 5949,
     "details": "Evaluated 89 active Indian equity holdings. 46 in Stage 2 Compounding, 37 technical trim, 0 on watch. Data integrity: 77.5% (20 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792838652631_s5kfk",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (BOOT)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-24T10:44:12.630Z",
-    "status": "SUCCESS",
-    "durationMs": 5708,
-    "details": "Evaluated 89 active Indian equity holdings. 46 in Stage 2 Compounding, 37 technical trim, 0 on watch. Data integrity: 77.5% (20 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792838563142_cph9d",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (BOOT)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-24T10:42:43.140Z",
-    "status": "SUCCESS",
-    "durationMs": 5525,
-    "details": "Evaluated 89 active Indian equity holdings. 46 in Stage 2 Compounding, 37 technical trim, 0 on watch. Data integrity: 77.5% (20 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792838371943_qs842",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (BOOT)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-24T10:39:31.941Z",
-    "status": "SUCCESS",
-    "durationMs": 5233,
-    "details": "Evaluated 89 active Indian equity holdings. 46 in Stage 2 Compounding, 37 technical trim, 0 on watch. Data integrity: 77.5% (20 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792838315187_fh7lu",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (BOOT)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-24T10:38:35.185Z",
-    "status": "SUCCESS",
-    "durationMs": 5794,
-    "details": "Evaluated 89 active Indian equity holdings. 46 in Stage 2 Compounding, 37 technical trim, 0 on watch. Data integrity: 77.5% (20 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792837855406_bden5",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (BOOT)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-24T10:30:55.402Z",
-    "status": "SUCCESS",
-    "durationMs": 5573,
-    "details": "Evaluated 89 active Indian equity holdings. 46 in Stage 2 Compounding, 37 technical trim, 0 on watch. Data integrity: 77.5% (20 anomalies). Recorded 33 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1792836224740_k6kbe",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-24T10:03:44.740Z",
-    "status": "SUCCESS",
-    "durationMs": 3913,
-    "details": "Refreshed live quotes and NAVs across all asset classes (114 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792836223714_f9weh",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-24T10:03:43.714Z",
-    "status": "SUCCESS",
-    "durationMs": 2892,
-    "details": "Refreshed live quotes and NAVs across all asset classes (114 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1792836119002_4v7h7",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-10-24T10:01:59.002Z",
-    "status": "SUCCESS",
-    "durationMs": 4883,
-    "details": "Refreshed live quotes and NAVs across all asset classes (114 holdings updated).",
     "error": null
   }
 ]
