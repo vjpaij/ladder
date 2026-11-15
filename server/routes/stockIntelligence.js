@@ -7,7 +7,15 @@ import { getTodayIST } from '../services/marketCalendar.js';
 import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { runWalkForwardBacktest } from '../services/stockIntelligence/backtestEngine.js';
 import { buildPortfolioSummary, buildStockAnalyses } from '../services/stockIntelligence/analysisService.js';
-import { getIntelligenceConfig, getStateHistory, recordStateTransitions, saveIntelligenceConfig } from '../services/stockIntelligence/repository.js';
+import {
+  deleteActiveStopLoss,
+  getIntelligenceConfig,
+  getStateHistory,
+  recordStateTransitions,
+  saveActiveStopLoss,
+  saveBulkActiveStopLosses,
+  saveIntelligenceConfig
+} from '../services/stockIntelligence/repository.js';
 import { fetchCompanyFundamentals, preloadAllHeldFundamentals } from '../services/stockIntelligence/screenerFundamentalsProvider.js';
 import { loadAllCachedUsFundamentals } from '../services/stockIntelligence/usFundamentalsProvider.js';
 import { logSyncEvent } from '../services/syncLogService.js';
@@ -23,7 +31,7 @@ let cachedOverviewTimestamp = 0;
 const OVERVIEW_TTL_MS = 60 * 1000; // 60 seconds fast in-memory cache
 
 function getUserKey(user) {
-  return String(user?.id || user?.email || '1');
+  return String(user?.email || user?.userId || user?.id || 'vijaypaij@gmail.com');
 }
 
 export function invalidateStockIntelligenceCache() {
@@ -376,11 +384,43 @@ router.post('/stock-intelligence/config', authenticateToken, (req, res) => {
   }
 });
 
+router.post('/stock-intelligence/active-stop-loss', authenticateToken, (req, res) => {
+  try {
+    const userId = getUserKey(req.user);
+    const { symbol, triggerPrice, tier, rationale, entries } = req.body || {};
+    let updated;
+    if (Array.isArray(entries) && entries.length > 0) {
+      updated = saveBulkActiveStopLosses(userId, entries);
+    } else if (symbol && triggerPrice) {
+      updated = saveActiveStopLoss(userId, symbol, triggerPrice, { tier, rationale });
+    } else {
+      return res.status(400).json({ error: 'symbol and triggerPrice (or entries array) required.' });
+    }
+    invalidateStockIntelligenceCache();
+    res.json({ success: true, activeStopLosses: updated });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete('/stock-intelligence/active-stop-loss/:symbol', authenticateToken, (req, res) => {
+  try {
+    const userId = getUserKey(req.user);
+    const updated = deleteActiveStopLoss(userId, req.params.symbol);
+    invalidateStockIntelligenceCache();
+    res.json({ success: true, activeStopLosses: updated });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 
 router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res) => {
   try {
     const userConfig = getIntelligenceConfig(getUserKey(req.user));
-    const externalCash = req.query.externalCash !== undefined ? Number(req.query.externalCash) : userConfig.externalCashBudget;
+    const externalCash = (req.query.externalCash !== undefined && req.query.externalCash !== '' && req.query.externalCash !== 'null')
+      ? Number(req.query.externalCash)
+      : userConfig.externalCashBudget;
     const recyclingMode = req.query.recyclingMode || userConfig.recyclingMode;
     const maxDailyBuys = req.query.maxDailyBuys !== undefined ? Number(req.query.maxDailyBuys) : undefined;
     const dailyDeploymentCap = req.query.dailyDeploymentCap !== undefined ? Number(req.query.dailyDeploymentCap) : undefined;
@@ -403,7 +443,9 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
 router.get('/stock-intelligence/action-plan-csv', authenticateToken, async (req, res) => {
   try {
     const userConfig = getIntelligenceConfig(getUserKey(req.user));
-    const externalCash = req.query.externalCash !== undefined ? Number(req.query.externalCash) : userConfig.externalCashBudget;
+    const externalCash = (req.query.externalCash !== undefined && req.query.externalCash !== '' && req.query.externalCash !== 'null')
+      ? Number(req.query.externalCash)
+      : userConfig.externalCashBudget;
     const recyclingMode = req.query.recyclingMode || userConfig.recyclingMode;
     const maxDailyBuys = req.query.maxDailyBuys !== undefined ? Number(req.query.maxDailyBuys) : undefined;
     const dailyDeploymentCap = req.query.dailyDeploymentCap !== undefined ? Number(req.query.dailyDeploymentCap) : undefined;

@@ -1115,6 +1115,43 @@ export async function generateActionPlan({
         targetSlPrice = round2(cmp * 0.95);
       }
 
+      // GTT State Tracking & Delta Engine
+      const activeGtt = userConfig?.activeStopLosses?.[a.symbol] || null;
+      const activeGttPrice = activeGtt && Number(activeGtt.triggerPrice) > 0 ? round2(Number(activeGtt.triggerPrice)) : null;
+
+      // Ratchet Rule: Stop loss trigger in trend following never moves down
+      if (activeGttPrice !== null && targetSlPrice < activeGttPrice) {
+        targetSlPrice = activeGttPrice;
+      }
+
+      let gttStatus = 'ACTION_REQUIRED_NEW';
+      let gttStatusLabel = 'ACTION: SET NEW GTT';
+      let gttStatusBadge = 'amber';
+      let slDelta = 0;
+      let slDeltaPct = 0;
+      let isActionRequired = true;
+
+      if (!activeGttPrice) {
+        gttStatus = 'ACTION_REQUIRED_NEW';
+        gttStatusLabel = 'ACTION: SET NEW GTT';
+        gttStatusBadge = 'amber';
+        isActionRequired = true;
+      } else if (targetSlPrice >= round2(activeGttPrice * 1.005)) { // Advanced by >= 0.5%
+        slDelta = round2(targetSlPrice - activeGttPrice);
+        slDeltaPct = round2(((targetSlPrice - activeGttPrice) / activeGttPrice) * 100);
+        gttStatus = 'ACTION_REQUIRED_AMEND';
+        gttStatusLabel = `AMEND GTT (+₹${slDelta.toFixed(2)})`;
+        gttStatusBadge = 'emerald';
+        isActionRequired = true;
+        reason = `GTT Amendment: Stop floor advanced from ₹${activeGttPrice.toFixed(2)} to ₹${targetSlPrice.toFixed(2)} (+₹${slDelta.toFixed(2)} / +${slDeltaPct}%). ${reason}`;
+      } else {
+        gttStatus = 'UP_TO_DATE';
+        gttStatusLabel = 'IN SYNC (ACTIVE)';
+        gttStatusBadge = 'slate';
+        isActionRequired = false;
+        reason = `GTT Active: Broker trigger ₹${activeGttPrice.toFixed(2)} is up-to-date and matches current stop floor. No broker action needed today.`;
+      }
+
       const distanceToSlPct = cmp > 0 && targetSlPrice > 0 ? Number((((cmp - targetSlPrice) / cmp) * 100).toFixed(2)) : 0;
       const isNearSl = distanceToSlPct <= 3.0 && distanceToSlPct >= 0;
 
@@ -1140,10 +1177,22 @@ export async function generateActionPlan({
         ema50,
         sma30,
         weinsteinStage,
-        sector: a.sector || 'Diversified'
+        sector: a.sector || 'Diversified',
+        activeGttPrice,
+        activeGttSetAt: activeGtt?.setAt || null,
+        gttStatus,
+        gttStatusLabel,
+        gttStatusBadge,
+        slDelta,
+        slDeltaPct,
+        isActionRequired
       };
     })
-    .sort((a, b) => b.pnlPct - a.pnlPct);
+    .sort((a, b) => {
+      if (a.isActionRequired !== b.isActionRequired) return a.isActionRequired ? -1 : 1;
+      if (b.slDelta !== a.slDelta) return b.slDelta - a.slDelta;
+      return b.pnlPct - a.pnlPct;
+    });
 
   // 4. Construct Unified CSV Rows with Multi-Tranche Breakdown & Stop Loss Actions
   const rows = [];
@@ -1219,20 +1268,20 @@ export async function generateActionPlan({
   stopLossActions.forEach(a => {
     rows.push([
       '3. STOP LOSS & GTT UPDATES (OPEN HOLDINGS)',
-      a.action,
+      a.gttStatusLabel,
       a.tier,
       a.symbol,
       a.name,
       a.cmp.toFixed(2),
       a.qty,
       a.val.toFixed(2),
-      a.action,
+      a.isActionRequired ? 'ACTION REQUIRED (BROKER)' : 'IN SYNC (ACTIVE)',
       a.targetSlPrice.toFixed(2),
       `+${a.distanceToSlPct.toFixed(1)}%`,
-      a.tier,
-      'Open Portfolio Holding',
+      a.activeGttPrice ? `Active: ₹${a.activeGttPrice.toFixed(2)} (Delta +₹${a.slDelta.toFixed(2)})` : 'GTT Unset',
+      a.action,
       a.qty,
-      `P&L: ${a.pnlPct >= 0 ? '+' : ''}${a.pnlPct.toFixed(1)}% (Cost ₹${a.avgBuyPrice}) | ${a.reason}`
+      `P&L: ${a.pnlPct >= 0 ? '+' : ''}${a.pnlPct.toFixed(1)}% (Cost ₹${a.avgBuyPrice}) | ${a.rationale || a.reason}`
     ]);
   });
 
@@ -1321,6 +1370,10 @@ export async function generateActionPlan({
     },
     stopLossSummary: {
       totalPositions: stopLossActions.length,
+      actionRequiredCount: stopLossActions.filter(a => a.isActionRequired).length,
+      newGttCount: stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_NEW').length,
+      amendGttCount: stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_AMEND').length,
+      upToDateCount: stopLossActions.filter(a => a.gttStatus === 'UP_TO_DATE').length,
       breakevenLocksCount: stopLossActions.filter(a => a.actionType === 'AMEND_BREAKEVEN').length,
       trailingRunnersCount: stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER').length,
       initialStopsCount: stopLossActions.filter(a => a.actionType === 'SET_INITIAL').length,

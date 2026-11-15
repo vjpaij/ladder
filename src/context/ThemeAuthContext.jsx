@@ -376,10 +376,10 @@ export function ThemeAuthProvider({ children }) {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-inherit mb-2">Success</h3>
-              <p className="text-sm text-slate-400 mb-6">{successMsg}</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-6">{successMsg}</p>
               <button
                 onClick={hideSuccess}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+                className="w-full py-2.5 rounded-xl border border-[var(--border-color)] reports-subcard hover:opacity-80 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-sm transition-colors cursor-pointer"
               >
                 Dismiss
               </button>
@@ -403,10 +403,10 @@ export function ThemeAuthProvider({ children }) {
                 <XCircle className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-inherit mb-2">Error</h3>
-              <p className="text-sm text-slate-400 mb-6">{errorMsg}</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-6">{errorMsg}</p>
               <button
                 onClick={hideError}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+                className="w-full py-2.5 rounded-xl border border-[var(--border-color)] reports-subcard hover:opacity-80 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-sm transition-colors cursor-pointer"
               >
                 Dismiss
               </button>
@@ -430,11 +430,11 @@ export function ThemeAuthProvider({ children }) {
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-inherit mb-2">Confirm Action</h3>
-              <p className="text-sm text-slate-400 mb-6">{confirmState.message}</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-6">{confirmState.message}</p>
               <div className="flex gap-3 w-full">
                 <button
                   onClick={() => handleConfirmClose(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl border border-[var(--border-color)] reports-subcard hover:opacity-80 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-sm transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -464,7 +464,7 @@ export function ThemeAuthProvider({ children }) {
                 <Edit3 className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-inherit mb-2">Input Required</h3>
-              <p className="text-sm text-slate-400 mb-4">{promptState.message}</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-4">{promptState.message}</p>
               <input
                 type="text"
                 autoFocus
@@ -474,18 +474,18 @@ export function ThemeAuthProvider({ children }) {
                   if (e.key === 'Enter') handlePromptClose(true);
                   if (e.key === 'Escape') handlePromptClose(false);
                 }}
-                className="w-full px-4 py-2.5 mb-6 bg-slate-900 border border-slate-700 rounded-xl text-sm outline-none focus:border-blue-500 text-center"
+                className="w-full px-4 py-2.5 mb-6 reports-subcard border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl text-sm outline-none focus:border-emerald-500 text-center"
               />
               <div className="flex gap-3 w-full">
                 <button
                   onClick={() => handlePromptClose(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl border border-[var(--border-color)] reports-subcard hover:opacity-80 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-sm transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handlePromptClose(true)}
-                  className="flex-1 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold text-sm transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition-colors cursor-pointer"
                 >
                   Submit
                 </button>

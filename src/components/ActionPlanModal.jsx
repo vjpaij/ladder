@@ -21,13 +21,14 @@ import {
   BarChart3,
   Filter,
   ChevronRight,
-  TrendingDown
+  TrendingDown,
+  Edit3
 } from 'lucide-react';
 import axios from 'axios';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 
 export default function ActionPlanModal({ isOpen, onClose }) {
-  const { user } = useThemeAuth();
+  const { user, showConfirm, showPrompt, showError } = useThemeAuth();
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
@@ -35,11 +36,20 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   const [error, setError] = useState(null);
 
   // Configuration state
-  const [externalCash, setExternalCash] = useState(200000);
+  const [externalCash, setExternalCash] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ladder_action_plan_external_cash');
+      return saved !== null && saved !== '' ? Number(saved) : 200000;
+    } catch {
+      return 200000;
+    }
+  });
   const [recyclingMode, setRecyclingMode] = useState('FULL_AND_TRIMS');
   const [activeTab, setActiveTab] = useState('BUYS'); // 'BUYS' | 'QUEUED' | 'SELLS' | 'STOP_LOSSES'
   const [sellFilter, setSellFilter] = useState('ALL'); // 'ALL' | 'STRUCTURAL' | 'PRUNING'
-  const [stopLossFilter, setStopLossFilter] = useState('ALL'); // 'ALL' | 'BREAKEVEN' | 'TRAILING' | 'INITIAL' | 'NEAR_SL'
+  const [stopLossFilter, setStopLossFilter] = useState('ACTION_REQUIRED'); // 'ACTION_REQUIRED' | 'ALL' | 'AMEND' | 'NEW_GTT' | 'UP_TO_DATE' | 'BREAKEVEN' | 'TRAILING' | 'INITIAL' | 'NEAR_SL'
+  const [syncingSl, setSyncingSl] = useState(false);
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState('');
 
   // Plan data
   const [plan, setPlan] = useState(null);
@@ -59,6 +69,10 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   }, [plan?.stopLossActions]);
 
   const filteredStopLossActions = useMemo(() => {
+    if (stopLossFilter === 'ACTION_REQUIRED') return stopLossActions.filter(a => a.isActionRequired);
+    if (stopLossFilter === 'AMEND') return stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_AMEND');
+    if (stopLossFilter === 'NEW_GTT') return stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_NEW');
+    if (stopLossFilter === 'UP_TO_DATE') return stopLossActions.filter(a => a.gttStatus === 'UP_TO_DATE');
     if (stopLossFilter === 'BREAKEVEN') return stopLossActions.filter(a => a.actionType === 'AMEND_BREAKEVEN');
     if (stopLossFilter === 'TRAILING') return stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER');
     if (stopLossFilter === 'INITIAL') return stopLossActions.filter(a => a.actionType === 'SET_INITIAL');
@@ -74,20 +88,26 @@ export default function ActionPlanModal({ isOpen, onClose }) {
     return plan?.pruningSells || (plan?.sells || []).filter(s => s.isPruning);
   }, [plan?.pruningSells, plan?.sells]);
 
-  const fetchPlan = useCallback(async (cash = externalCash, mode = recyclingMode) => {
+  const fetchPlan = useCallback(async (cash = null, mode = null) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get('/api/stock-intelligence/action-plan', {
-        params: {
-          externalCash: cash,
-          recyclingMode: mode
-        }
-      });
+      const params = {};
+      if (cash !== null && cash !== undefined) {
+        params.externalCash = cash;
+      }
+      if (mode !== null && mode !== undefined) {
+        params.recyclingMode = mode;
+      }
+      const res = await axios.get('/api/stock-intelligence/action-plan', { params });
       setPlan(res.data);
       if (res.data?.summary) {
         if (res.data.summary.externalCashBudget !== undefined) {
-          setExternalCash(res.data.summary.externalCashBudget);
+          const budget = res.data.summary.externalCashBudget;
+          setExternalCash(budget);
+          try {
+            localStorage.setItem('ladder_action_plan_external_cash', String(budget));
+          } catch {}
         }
         if (res.data.summary.recyclingMode) {
           setRecyclingMode(res.data.summary.recyclingMode);
@@ -99,7 +119,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
     } finally {
       setLoading(false);
     }
-  }, [externalCash, recyclingMode]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -110,6 +130,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   const handleCashChange = (newVal) => {
     const valid = Math.max(0, Math.round(Number(newVal) || 0));
     setExternalCash(valid);
+    try {
+      localStorage.setItem('ladder_action_plan_external_cash', String(valid));
+    } catch {}
     fetchPlan(valid, recyclingMode);
   };
 
@@ -127,10 +150,13 @@ export default function ActionPlanModal({ isOpen, onClose }) {
         periodicIncrement: externalCash,
         recyclingMode
       });
+      try {
+        localStorage.setItem('ladder_action_plan_external_cash', String(externalCash));
+      } catch {}
       setSaveStatus('✓ Saved as Default');
       setTimeout(() => setSaveStatus(''), 3000);
     } catch (err) {
-      alert('Failed to save settings: ' + (err.response?.data?.error || err.message));
+      showError('Failed to save settings: ' + (err.response?.data?.error || err.message));
     } finally {
       setSavingConfig(false);
     }
@@ -157,9 +183,83 @@ export default function ActionPlanModal({ isOpen, onClose }) {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Failed to download CSV: ' + (err.response?.data?.error || err.message));
+      showError('Failed to download CSV: ' + (err.response?.data?.error || err.message));
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleMarkGttSet = async (sla) => {
+    try {
+      setSyncingSl(true);
+      await axios.post('/api/stock-intelligence/active-stop-loss', {
+        symbol: sla.symbol,
+        triggerPrice: sla.targetSlPrice,
+        tier: sla.tier,
+        rationale: sla.rationale || sla.reason
+      });
+      await fetchPlan();
+      setSyncSuccessMsg(`✓ ${sla.symbol} GTT recorded at ₹${sla.targetSlPrice.toFixed(2)} in broker.`);
+      setTimeout(() => setSyncSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error('[ActionPlanModal] SL sync error:', err);
+      showError(err.response?.data?.error || err.message || 'Failed to update active GTT stop loss.');
+    } finally {
+      setSyncingSl(false);
+    }
+  };
+
+  const handleCustomGttSet = async (sla) => {
+    const currentVal = sla.activeGttPrice ? sla.activeGttPrice : sla.targetSlPrice;
+    const input = await showPrompt(`Enter active GTT Stop Loss trigger price for ${sla.symbol} in your broker:`, String(currentVal));
+    if (!input) return;
+    const price = Number(input);
+    if (!Number.isFinite(price) || price <= 0) {
+      showError('Please enter a valid positive trigger price.');
+      return;
+    }
+    try {
+      setSyncingSl(true);
+      await axios.post('/api/stock-intelligence/active-stop-loss', {
+        symbol: sla.symbol,
+        triggerPrice: price,
+        tier: sla.tier,
+        rationale: `Manual entry: ₹${price.toFixed(2)}`
+      });
+      await fetchPlan();
+      setSyncSuccessMsg(`✓ ${sla.symbol} GTT recorded at ₹${price.toFixed(2)}.`);
+      setTimeout(() => setSyncSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error('[ActionPlanModal] Custom SL sync error:', err);
+      showError(err.response?.data?.error || err.message || 'Failed to update active GTT stop loss.');
+    } finally {
+      setSyncingSl(false);
+    }
+  };
+
+  const handleMarkAllActionableSet = async () => {
+    const actionable = stopLossActions.filter(a => a.isActionRequired);
+    if (actionable.length === 0) return;
+    const confirmed = await showConfirm(`Mark all ${actionable.length} actionable GTT Stop Losses as confirmed in your broker?`);
+    if (!confirmed) return;
+
+    try {
+      setSyncingSl(true);
+      const entries = actionable.map(a => ({
+        symbol: a.symbol,
+        triggerPrice: a.targetSlPrice,
+        tier: a.tier,
+        rationale: a.rationale || a.reason
+      }));
+      await axios.post('/api/stock-intelligence/active-stop-loss', { entries });
+      await fetchPlan();
+      setSyncSuccessMsg(`✓ All ${actionable.length} GTT Stop Losses marked as active in broker.`);
+      setTimeout(() => setSyncSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error('[ActionPlanModal] Bulk SL sync error:', err);
+      showError(err.response?.data?.error || err.message || 'Failed to bulk update active GTT stop losses.');
+    } finally {
+      setSyncingSl(false);
     }
   };
 
@@ -557,11 +657,15 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             >
               <ShieldCheck className="w-4 h-4" />
               <span>Stop Loss & GTT Updates</span>
-              {stopLossActions.length > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40">
-                  {stopLossActions.length} Holdings
+              {summary.stopLossSummary?.actionRequiredCount > 0 ? (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-600 dark:text-amber-300 border border-amber-500/50 font-black animate-pulse">
+                  {summary.stopLossSummary.actionRequiredCount} Action Needed
                 </span>
-              )}
+              ) : stopLossActions.length > 0 ? (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/40 font-bold">
+                  ✓ In Sync ({stopLossActions.length})
+                </span>
+              ) : null}
             </button>
           </div>
 
@@ -903,32 +1007,51 @@ export default function ActionPlanModal({ isOpen, onClose }) {
             <div className="space-y-4">
               {/* 4 KPI Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
-                  <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
-                    Monitored Holdings
-                  </span>
-                  <span className="text-base sm:text-lg font-black font-mono text-[var(--text-primary)] mt-1 block">
-                    {summary.stopLossSummary?.totalPositions ?? stopLossActions.length}
+                <div className={`reports-subcard rounded-2xl border p-3 ${
+                  (summary.stopLossSummary?.actionRequiredCount ?? 0) > 0
+                    ? 'border-amber-500/40 bg-amber-500/10'
+                    : 'border-emerald-500/30 bg-emerald-500/5'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
+                      Action Required
+                    </span>
+                    {(summary.stopLossSummary?.actionRequiredCount ?? 0) > 0 ? (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 animate-pulse">
+                        Broker Update
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
+                        ✓ In Sync
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-base sm:text-lg font-black font-mono mt-1 block ${
+                    (summary.stopLossSummary?.actionRequiredCount ?? 0) > 0
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-emerald-600 dark:text-emerald-400'
+                  }`}>
+                    {summary.stopLossSummary?.actionRequiredCount ?? 0} Holdings
                   </span>
                   <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
-                    Active portfolio positions
+                    {summary.stopLossSummary?.amendGttCount ?? 0} Amendments · {summary.stopLossSummary?.newGttCount ?? 0} New
                   </span>
                 </div>
 
                 <div className="reports-subcard rounded-2xl border border-emerald-500/30 p-3 bg-emerald-500/5">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
-                      Breakeven Locked
+                      In Sync (Broker)
                     </span>
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
-                      0% Risk
+                      Up-to-Date
                     </span>
                   </div>
                   <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
-                    {summary.stopLossSummary?.breakevenLocksCount ?? 0}
+                    {summary.stopLossSummary?.upToDateCount ?? 0}
                   </span>
                   <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
-                    GTT amended to +1% cost
+                    Active GTT matches target floor
                   </span>
                 </div>
 
@@ -949,23 +1072,55 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                   </span>
                 </div>
 
-                <div className="reports-subcard rounded-2xl border border-amber-500/30 p-3 bg-amber-500/5">
+                <div className="reports-subcard rounded-2xl border border-rose-500/30 p-3 bg-rose-500/5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
-                      Initial -8% Stops
+                    <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider block">
+                      Near Stop (≤3%)
                     </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300">
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-300">
                       Defense
                     </span>
                   </div>
-                  <span className="text-base sm:text-lg font-black font-mono text-amber-600 dark:text-amber-400 mt-1 block">
-                    {summary.stopLossSummary?.initialStopsCount ?? 0}
+                  <span className="text-base sm:text-lg font-black font-mono text-rose-600 dark:text-rose-400 mt-1 block">
+                    {summary.stopLossSummary?.nearStopCount ?? 0}
                   </span>
                   <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
-                    Downside defense on new buys
+                    Close to stop loss trigger
                   </span>
                 </div>
               </div>
+
+              {/* Action Banner when modifications are pending */}
+              {(summary.stopLossSummary?.actionRequiredCount ?? 0) > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-300">
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <ShieldAlert className="w-4 h-4 shrink-0 text-amber-500 animate-pulse" />
+                    <div>
+                      <span className="font-bold">Broker Action Required: </span>
+                      <span>
+                        {summary.stopLossSummary.actionRequiredCount} holding(s) need GTT stop losses set or amended in Zerodha/Groww ({summary.stopLossSummary.amendGttCount ?? 0} trailing amendments, {summary.stopLossSummary.newGttCount ?? 0} new entries).
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleMarkAllActionableSet}
+                    disabled={syncingSl}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 transition-all flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Mark All {summary.stopLossSummary.actionRequiredCount} as Synced</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Sync Success Toast */}
+              {syncSuccessMsg && (
+                <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-xs font-bold flex items-center gap-2 animate-fade-in">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                  <span>{syncSuccessMsg}</span>
+                </div>
+              )}
 
               {/* Strategy Rules Explanation Strip */}
               <div className="p-3.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 text-[var(--text-primary)] space-y-2">
@@ -973,7 +1128,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-indigo-500" />
                     <span className="text-xs font-bold tracking-wide">
-                      Automated GTT Stop Loss Protocol — Capital Preservation & Profit Locking
+                      Active GTT Tracking Protocol — Only Changes Highlighted, Zero Repetition
                     </span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
@@ -983,21 +1138,35 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-[11px] text-[var(--text-muted)]">
                   <div className="space-y-0.5">
                     <span className="font-bold text-amber-600 dark:text-amber-400 block">Tier 1: Initial -8% Entry Stop</span>
-                    <span>Placed on order execution. Caps any loss at -8.0% to prevent bad setups from draining capital.</span>
+                    <span>Placed on order execution. Caps initial risk at -8.0% to prevent losing capital.</span>
                   </div>
                   <div className="space-y-0.5">
                     <span className="font-bold text-emerald-600 dark:text-emerald-400 block">Tier 2: Breakeven Lock (+15% to +30%)</span>
-                    <span>Once stock gains +15%, move GTT SL to +1% above cost basis. Guarantees zero risk forever.</span>
+                    <span>Once stock gains +15%, move GTT SL to +1% above cost basis. Guarantees zero principal risk.</span>
                   </div>
                   <div className="space-y-0.5">
                     <span className="font-bold text-cyan-600 dark:text-cyan-400 block">Tier 3 & 4: Trailing Floor (+30% & Multibaggers)</span>
-                    <span>Trail stop above 50-EMA, 30w-SMA, or +15%/+25% gain floor. Lets multibaggers run while locking profit.</span>
+                    <span>Trail stop above 50-EMA, 30w-SMA, or +15%/+25% gain floor. Lets multibaggers run on house money.</span>
                   </div>
                 </div>
               </div>
 
               {/* Sub-Filters */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('ACTION_REQUIRED')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    stopLossFilter === 'ACTION_REQUIRED'
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <span>Action Required</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-amber-500/30">
+                    {summary.stopLossSummary?.actionRequiredCount ?? 0}
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setStopLossFilter('ALL')}
@@ -1008,6 +1177,39 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                   }`}
                 >
                   All Positions ({stopLossActions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('AMEND')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'AMEND'
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Trailing Amendments ({summary.stopLossSummary?.amendGttCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('NEW_GTT')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'NEW_GTT'
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  New GTTs ({summary.stopLossSummary?.newGttCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('UP_TO_DATE')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'UP_TO_DATE'
+                      ? 'bg-slate-500/20 text-[var(--text-primary)] border border-slate-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  In Sync ({summary.stopLossSummary?.upToDateCount ?? 0})
                 </button>
                 <button
                   type="button"
@@ -1033,17 +1235,6 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStopLossFilter('INITIAL')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    stopLossFilter === 'INITIAL'
-                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  Initial -8% Stops ({summary.stopLossSummary?.initialStopsCount ?? 0})
-                </button>
-                <button
-                  type="button"
                   onClick={() => setStopLossFilter('NEAR_SL')}
                   className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
                     stopLossFilter === 'NEAR_SL'
@@ -1060,52 +1251,66 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-[var(--border-color)] reports-subcard text-[var(--text-muted)] font-bold">
-                      <th className="py-2.5 px-3">GTT Action</th>
+                      <th className="py-2.5 px-3">Broker Status</th>
                       <th className="py-2.5 px-3">Symbol</th>
                       <th className="py-2.5 px-3">Company Name</th>
                       <th className="py-2.5 px-3 text-right">CMP</th>
                       <th className="py-2.5 px-3 text-right">Cost Basis</th>
                       <th className="py-2.5 px-3 text-right">P&L %</th>
+                      <th className="py-2.5 px-3 text-right text-slate-400">Active GTT</th>
                       <th className="py-2.5 px-3 text-right text-amber-500 dark:text-amber-400">Target GTT SL</th>
-                      <th className="py-2.5 px-3 text-right">Buffer to SL</th>
+                      <th className="py-2.5 px-3 text-right text-emerald-500">Delta</th>
+                      <th className="py-2.5 px-3 text-right">Buffer</th>
                       <th className="py-2.5 px-3">Execution Guidance & Rationale</th>
+                      <th className="py-2.5 px-3 text-center">Sync Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-color)]">
                     {filteredStopLossActions.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-[var(--text-muted)]">
-                          No positions match the selected filter.
+                        <td colSpan={12} className="py-12 text-center text-[var(--text-muted)]">
+                          {stopLossFilter === 'ACTION_REQUIRED' ? (
+                            <div className="space-y-2">
+                              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                              <div className="text-sm font-bold text-[var(--text-primary)]">
+                                All {stopLossActions.length} open holdings have GTT Stop Losses synchronized in your broker!
+                              </div>
+                              <div className="text-xs text-[var(--text-muted)]">
+                                Zero modifications required today. Switch to &quot;All Positions&quot; to inspect full portfolio stop floors.
+                              </div>
+                            </div>
+                          ) : (
+                            'No positions match the selected filter.'
+                          )}
                         </td>
                       </tr>
                     ) : (
                       filteredStopLossActions.map((sla, idx) => {
                         const isBreakeven = sla.actionType === 'AMEND_BREAKEVEN';
-                        const isTrailing = sla.actionType === 'AMEND_TRAILING' || sla.actionType === 'AMEND_MULTIBAGGER';
-                        const isInitial = sla.actionType === 'SET_INITIAL';
                         const isNear = sla.isNearSl;
 
                         return (
                           <tr key={sla.symbol + '-' + idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              <span
-                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                                  isNear
-                                    ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40 animate-pulse'
-                                    : isBreakeven
-                                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40'
-                                    : isTrailing
-                                    ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500/40'
-                                    : 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
-                                }`}
-                              >
-                                {sla.actionLabel || sla.action}
-                              </span>
+                              {sla.gttStatus === 'ACTION_REQUIRED_AMEND' ? (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40 animate-pulse flex items-center gap-1 w-fit">
+                                  <span>AMEND</span>
+                                  <span>(+₹{sla.slDelta.toFixed(2)})</span>
+                                </span>
+                              ) : sla.gttStatus === 'ACTION_REQUIRED_NEW' ? (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 flex items-center gap-1 w-fit">
+                                  <span>SET GTT (-8%)</span>
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border bg-slate-500/10 text-[var(--text-muted)] border-slate-500/20 flex items-center gap-1 w-fit">
+                                  <span>✓ In Sync</span>
+                                </span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)] whitespace-nowrap">
                               {sla.symbol}
                             </td>
-                            <td className="py-2.5 px-3 text-[var(--text-muted)] max-w-[140px] truncate" title={sla.name}>
+                            <td className="py-2.5 px-3 text-[var(--text-muted)] max-w-[130px] truncate" title={sla.name}>
                               {sla.name}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
@@ -1121,8 +1326,22 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                             }`}>
                               {(Number(sla.pnlPct) || 0) >= 0 ? '+' : ''}{(Number(sla.pnlPct) || 0).toFixed(2)}%
                             </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-[var(--text-muted)]">
+                              {sla.activeGttPrice ? formatInr2(sla.activeGttPrice) : <span className="text-amber-500 italic text-[11px]">Unset</span>}
+                            </td>
                             <td className="py-2.5 px-3 text-right font-mono font-black text-amber-600 dark:text-amber-400">
                               {formatInr2(sla.targetSlPrice)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
+                              {sla.slDelta > 0 ? (
+                                <span className="text-emerald-600 dark:text-emerald-400 text-[11px]">
+                                  +₹{sla.slDelta.toFixed(2)} (+{sla.slDeltaPct.toFixed(1)}%)
+                                </span>
+                              ) : sla.gttStatus === 'ACTION_REQUIRED_NEW' ? (
+                                <span className="text-[10px] text-amber-500 font-normal">Initial</span>
+                              ) : (
+                                <span className="text-[var(--text-muted)] text-[11px] font-normal">—</span>
+                              )}
                             </td>
                             <td className={`py-2.5 px-3 text-right font-mono font-bold ${
                               isNear
@@ -1133,6 +1352,30 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                             </td>
                             <td className="py-2.5 px-3 text-[11px] text-[var(--text-muted)] max-w-sm leading-relaxed">
                               {sla.rationale || sla.reason}
+                            </td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              {sla.isActionRequired ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkGttSet(sla)}
+                                  disabled={syncingSl}
+                                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 transition-all cursor-pointer whitespace-nowrap shadow-sm disabled:opacity-50"
+                                >
+                                  ✓ Mark Set
+                                </button>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="text-emerald-500 font-bold text-[11px]">✓ Active</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCustomGttSet(sla)}
+                                    title="Edit active trigger price"
+                                    className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded hover:bg-[var(--surface-color)] transition-colors cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );

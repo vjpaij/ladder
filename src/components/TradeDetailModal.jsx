@@ -47,7 +47,7 @@ const AVAILABLE_TAGS = [
 ];
 
 export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onRefresh }) {
-  const { currency, formatMoney } = useThemeAuth();
+  const { currency, formatMoney, showConfirm, showError } = useThemeAuth();
   const [activeViewTab, setActiveViewTab] = useState('ORDER'); // 'ORDER' | 'CHART' | 'FINANCIALS'
   const [isDeleting, setIsDeleting] = useState(false);
   const [notes, setNotes] = useState(trade?.notes || '');
@@ -113,7 +113,8 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
 
   const handleDelete = async () => {
     const confirmName = `${trade.symbol} (${trade.date || trade.entryDate})`;
-    if (!window.confirm(`Are you sure you want to delete trade "${confirmName}"? This cannot be undone.`)) {
+    const confirmed = await showConfirm(`Are you sure you want to delete trade "${confirmName}"? This cannot be undone.`);
+    if (!confirmed) {
       return;
     }
     setIsDeleting(true);
@@ -123,7 +124,7 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
       if (onRefresh) onRefresh();
       onClose();
     } catch (err) {
-      alert('Failed to delete trade: ' + (err.response?.data?.error || err.message));
+      showError('Failed to delete trade: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsDeleting(false);
     }
@@ -143,7 +144,7 @@ export default function TradeDetailModal({ trade, onClose, onEdit, onDelete, onR
       setTimeout(() => setSaveStatus(''), 3000);
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert('Failed to save notes and tags: ' + (err.response?.data?.error || err.message));
+      showError('Failed to save notes and tags: ' + (err.response?.data?.error || err.message));
     } finally {
       setIsSaving(false);
     }

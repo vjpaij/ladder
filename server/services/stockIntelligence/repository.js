@@ -14,6 +14,8 @@ const DEFAULT_CONFIG = {
   recyclingMode: 'FULL_AND_TRIMS',
   maxDailyBuys: 5,
   dailyDeploymentCap: 350000,
+  minMarketCapCr: 2500,
+  activeStopLosses: {},
   updatedAt: null
 };
 
@@ -28,13 +30,27 @@ function atomicWrite(file, payload) {
   fs.renameSync(temp, file);
 }
 
+export function resolveConfigUserKey(userId, document) {
+  if (userId && document?.byUser?.[userId]) return userId;
+  if (!userId || userId === '1' || userId === 1 || userId === 'default' || userId === 'admin@ladder.com') {
+    if (document?.byUser?.['vijaypaij@gmail.com']) return 'vijaypaij@gmail.com';
+  }
+  const keys = Object.keys(document?.byUser || {});
+  if (keys.includes('vijaypaij@gmail.com')) return 'vijaypaij@gmail.com';
+  if (keys.length > 0) return keys[0];
+  return userId ? String(userId) : 'vijaypaij@gmail.com';
+}
+
 export function getIntelligenceConfig(userId) {
   const document = readJson(CONFIG_FILE, { byUser: {} });
-  return { ...DEFAULT_CONFIG, ...(document.byUser?.[userId] || {}) };
+  const key = resolveConfigUserKey(userId, document);
+  return { ...DEFAULT_CONFIG, ...(document.byUser?.[key] || {}) };
 }
 
 export function saveIntelligenceConfig(userId, input) {
-  const current = getIntelligenceConfig(userId);
+  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const key = resolveConfigUserKey(userId, document);
+  const current = getIntelligenceConfig(key);
 
   let targetWeight = current.maxPositionWeightPct;
   if (input?.maxPositionWeightPct !== undefined) {
@@ -103,12 +119,70 @@ export function saveIntelligenceConfig(userId, input) {
     recyclingMode: recMode,
     maxDailyBuys,
     dailyDeploymentCap,
+    minMarketCapCr: input?.minMarketCapCr !== undefined ? Number(input.minMarketCapCr) : (current.minMarketCapCr ?? 2500),
+    activeStopLosses: input?.activeStopLosses !== undefined ? input.activeStopLosses : (current.activeStopLosses || {}),
     updatedAt: new Date().toISOString()
   };
-  const document = readJson(CONFIG_FILE, { byUser: {} });
-  document.byUser = { ...(document.byUser || {}), [userId]: config };
+  document.byUser = { ...(document.byUser || {}), [key]: config };
   atomicWrite(CONFIG_FILE, document);
   return config;
+}
+
+export function saveActiveStopLoss(userId, symbol, triggerPrice, metadata = {}) {
+  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const key = resolveConfigUserKey(userId, document);
+  const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
+  const currentSlMap = userConfig.activeStopLosses || {};
+  const updatedSlMap = {
+    ...currentSlMap,
+    [symbol]: {
+      triggerPrice: Number(Number(triggerPrice).toFixed(2)),
+      tier: metadata.tier || 'INITIAL_8PCT',
+      rationale: metadata.rationale || '',
+      setAt: new Date().toISOString()
+    }
+  };
+  userConfig.activeStopLosses = updatedSlMap;
+  userConfig.updatedAt = new Date().toISOString();
+  document.byUser = { ...(document.byUser || {}), [key]: userConfig };
+  atomicWrite(CONFIG_FILE, document);
+  return updatedSlMap;
+}
+
+export function saveBulkActiveStopLosses(userId, entries = []) {
+  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const key = resolveConfigUserKey(userId, document);
+  const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
+  const currentSlMap = { ...(userConfig.activeStopLosses || {}) };
+  const now = new Date().toISOString();
+  for (const entry of entries) {
+    if (entry.symbol && entry.triggerPrice) {
+      currentSlMap[entry.symbol] = {
+        triggerPrice: Number(Number(entry.triggerPrice).toFixed(2)),
+        tier: entry.tier || 'INITIAL_8PCT',
+        rationale: entry.rationale || '',
+        setAt: now
+      };
+    }
+  }
+  userConfig.activeStopLosses = currentSlMap;
+  userConfig.updatedAt = now;
+  document.byUser = { ...(document.byUser || {}), [key]: userConfig };
+  atomicWrite(CONFIG_FILE, document);
+  return currentSlMap;
+}
+
+export function deleteActiveStopLoss(userId, symbol) {
+  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const key = resolveConfigUserKey(userId, document);
+  const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
+  if (userConfig.activeStopLosses && userConfig.activeStopLosses[symbol]) {
+    delete userConfig.activeStopLosses[symbol];
+    userConfig.updatedAt = new Date().toISOString();
+    document.byUser = { ...(document.byUser || {}), [key]: userConfig };
+    atomicWrite(CONFIG_FILE, document);
+  }
+  return userConfig.activeStopLosses || {};
 }
 
 export function recordStateTransitions(userId, analyses) {

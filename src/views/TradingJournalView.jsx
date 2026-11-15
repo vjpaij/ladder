@@ -56,7 +56,7 @@ import SymbolTradeLogsModal from '../components/SymbolTradeLogsModal';
 import ChartRangeSelector from '../components/ChartRangeSelector';
 
 export default function TradingJournalView({ holdings = [], onSelectHolding }) {
-  const { currency, toggleCurrency, formatMoney } = useThemeAuth();
+  const { currency, toggleCurrency, formatMoney, showConfirm, showError } = useThemeAuth();
 
   const [symbols, setSymbols] = useState([]);
   const [stats, setStats] = useState(null);
@@ -215,14 +215,15 @@ export default function TradingJournalView({ holdings = [], onSelectHolding }) {
   };
 
   const handleDeleteTrade = async (tradeId, label) => {
-    if (!window.confirm(`Are you sure you want to delete trade "${label}"? This cannot be undone.`)) {
+    const confirmed = await showConfirm(`Are you sure you want to delete trade "${label}"? This cannot be undone.`);
+    if (!confirmed) {
       return;
     }
     try {
       await axios.delete(`/api/trading-journal/${tradeId}`);
       await fetchJournalData(true);
     } catch (err) {
-      alert('Delete failed: ' + (err.response?.data?.error || err.message));
+      showError('Delete failed: ' + (err.response?.data?.error || err.message));
     }
   };
 
