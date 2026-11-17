@@ -387,12 +387,16 @@ export default function SectorCapPerformanceSection({
               </span>
             </div>
 
-            <div className="h-[420px] w-full">
+            <div
+              className="w-full transition-all duration-300"
+              style={{ height: `${Math.max(540, activeGroups.length * 38)}px` }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={activeGroups}
                   layout="vertical"
-                  margin={{ top: 10, right: 25, left: 10, bottom: 5 }}
+                  margin={{ top: 10, right: 30, left: 15, bottom: 5 }}
+                  barCategoryGap={6}
                   onClick={(state) => {
                     const name = state?.activePayload?.[0]?.payload?.name || state?.activeLabel;
                     if (name) setSelectedGroup(name);
@@ -411,9 +415,10 @@ export default function SectorCapPerformanceSection({
                     dataKey="name"
                     type="category"
                     stroke="#64748B"
-                    fontSize={10}
-                    width={140}
-                    tickFormatter={(val) => val.length > 20 ? `${val.slice(0, 18)}...` : val}
+                    fontSize={11}
+                    width={240}
+                    interval={0}
+                    tickFormatter={(val) => val}
                   />
                   <Tooltip
                     content={({ active, payload }) => {
@@ -475,7 +480,7 @@ export default function SectorCapPerformanceSection({
           </div>
 
           {/* Right Column: Constituent Stocks Breakdown */}
-          <div className="lg:col-span-5 reports-card p-5 rounded-3xl border border-[var(--border-color)] flex flex-col justify-between space-y-4">
+          <div className="lg:col-span-5 reports-card p-5 rounded-3xl border border-[var(--border-color)] flex flex-col justify-between space-y-4 lg:sticky lg:top-6 lg:self-start">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
                 <div>
@@ -509,7 +514,7 @@ export default function SectorCapPerformanceSection({
               </div>
 
               {/* Constituent Stocks Table */}
-              <div className="overflow-y-auto max-h-[380px] custom-scrollbar pr-1 relative">
+              <div className="overflow-y-auto max-h-[520px] custom-scrollbar pr-1 relative">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-30 shadow-sm border-b border-[var(--border-color)] text-[10px] uppercase font-bold text-[var(--text-muted)]">
                     <tr className="bg-[var(--card-bg)]">
@@ -597,6 +602,11 @@ export default function SectorCapPerformanceSection({
                               {isPositive ? <ArrowUpRight className="w-2.5 h-2.5" /> : <ArrowDownRight className="w-2.5 h-2.5" />}
                               {(Number(s.returnPct) || 0) >= 0 ? '+' : ''}{(Number(s.returnPct) || 0).toFixed(1)}%
                             </span>
+                            {s.isAcquiredDuringPeriod && (
+                              <span className="block text-[9px] text-[var(--text-muted)] font-normal" title={`Acquired on ${s.firstBuyDate}`}>
+                                Since Buy
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );

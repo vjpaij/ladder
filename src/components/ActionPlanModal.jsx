@@ -71,10 +71,12 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   const filteredStopLossActions = useMemo(() => {
     if (stopLossFilter === 'ACTION_REQUIRED') return stopLossActions.filter(a => a.isActionRequired);
     if (stopLossFilter === 'AMEND') return stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_AMEND');
+    if (stopLossFilter === 'CORE_RUNNER') return stopLossActions.filter(a => a.actionType === 'AMEND_CORE_RUNNER' || a.tier === 'TRANCHE2_CORE_RUNNER');
+    if (stopLossFilter === 'TRANCHE1_TRIM') return stopLossActions.filter(a => a.actionType === 'SET_TRANCHE1_TRIM' || a.tier === 'TRANCHE1_TRIM');
     if (stopLossFilter === 'NEW_GTT') return stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_NEW');
     if (stopLossFilter === 'UP_TO_DATE') return stopLossActions.filter(a => a.gttStatus === 'UP_TO_DATE');
     if (stopLossFilter === 'BREAKEVEN') return stopLossActions.filter(a => a.actionType === 'AMEND_BREAKEVEN');
-    if (stopLossFilter === 'TRAILING') return stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER');
+    if (stopLossFilter === 'TRAILING') return stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER' || a.actionType === 'AMEND_CORE_RUNNER');
     if (stopLossFilter === 'INITIAL') return stopLossActions.filter(a => a.actionType === 'SET_INITIAL');
     if (stopLossFilter === 'NEAR_SL') return stopLossActions.filter(a => a.isNearSl);
     return stopLossActions;
@@ -1034,7 +1036,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                     {summary.stopLossSummary?.actionRequiredCount ?? 0} Holdings
                   </span>
                   <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
-                    {summary.stopLossSummary?.amendGttCount ?? 0} Amendments · {summary.stopLossSummary?.newGttCount ?? 0} New
+                    {summary.stopLossSummary?.amendGttCount ?? 0} Amendments · {summary.stopLossSummary?.newGttCount ?? 0} New · {summary.stopLossSummary?.coreRunnersCount ?? 0} Core
                   </span>
                 </div>
 
@@ -1058,17 +1060,17 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 <div className="reports-subcard rounded-2xl border border-cyan-500/30 p-3 bg-cyan-500/5">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider block">
-                      Trailing 50-EMA
+                      Core 30W-SMA
                     </span>
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-300">
                       Runners
                     </span>
                   </div>
                   <span className="text-base sm:text-lg font-black font-mono text-cyan-600 dark:text-cyan-400 mt-1 block">
-                    {summary.stopLossSummary?.trailingRunnersCount ?? 0}
+                    {summary.stopLossSummary?.coreRunnersCount ?? 0}
                   </span>
                   <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
-                    Riding +30% & multibaggers
+                    Tranche 1 locked · 30w-SMA
                   </span>
                 </div>
 
@@ -1128,25 +1130,29 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-indigo-500" />
                     <span className="text-xs font-bold tracking-wide">
-                      Active GTT Tracking Protocol — Only Changes Highlighted, Zero Repetition
+                      Active GTT Tracking Protocol — Synchronized with Staged Exit Plan
                     </span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
                     Broker GTT Ready
                   </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-[11px] text-[var(--text-muted)]">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 pt-1 text-[11px] text-[var(--text-muted)]">
                   <div className="space-y-0.5">
                     <span className="font-bold text-amber-600 dark:text-amber-400 block">Tier 1: Initial -8% Entry Stop</span>
-                    <span>Placed on order execution. Caps initial risk at -8.0% to prevent losing capital.</span>
+                    <span>100% shares. Caps initial risk at -8.0% from cost basis.</span>
                   </div>
                   <div className="space-y-0.5">
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400 block">Tier 2: Breakeven Lock (+15% to +30%)</span>
-                    <span>Once stock gains +15%, move GTT SL to +1% above cost basis. Guarantees zero principal risk.</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 block">Tier 2: Breakeven (+15% to +30%)</span>
+                    <span>100% shares. Lock SL to cost basis +1% statutory cushion.</span>
                   </div>
                   <div className="space-y-0.5">
-                    <span className="font-bold text-cyan-600 dark:text-cyan-400 block">Tier 3 & 4: Trailing Floor (+30% & Multibaggers)</span>
-                    <span>Trail stop above 50-EMA, 30w-SMA, or +15%/+25% gain floor. Lets multibaggers run on house money.</span>
+                    <span className="font-bold text-purple-600 dark:text-purple-400 block">Tier 3: Tranche 1 Trim (33%)</span>
+                    <span>33% trim on trailing floor/50-EMA. Leaves 67% core running.</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-cyan-600 dark:text-cyan-400 block">Tier 4: Core Runner (30W-SMA)</span>
+                    <span>Tranche 1 completed. Remaining core rides on 30w-SMA support.</span>
                   </div>
                 </div>
               </div>
@@ -1177,6 +1183,28 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                   }`}
                 >
                   All Positions ({stopLossActions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('CORE_RUNNER')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'CORE_RUNNER'
+                      ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Core 30w-SMA Runners ({summary.stopLossSummary?.coreRunnersCount ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStopLossFilter('TRANCHE1_TRIM')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    stopLossFilter === 'TRANCHE1_TRIM'
+                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/40 shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Tranche 1 Trims ({summary.stopLossSummary?.tranche1TrimsCount ?? 0})
                 </button>
                 <button
                   type="button"
@@ -1252,13 +1280,13 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                   <thead>
                     <tr className="border-b border-[var(--border-color)] reports-subcard text-[var(--text-muted)] font-bold">
                       <th className="py-2.5 px-3">Broker Status</th>
-                      <th className="py-2.5 px-3">Symbol</th>
-                      <th className="py-2.5 px-3">Company Name</th>
+                      <th className="py-2.5 px-3">Symbol & Tranche</th>
+                      <th className="py-2.5 px-3">Sector</th>
                       <th className="py-2.5 px-3 text-right">CMP</th>
                       <th className="py-2.5 px-3 text-right">Cost Basis</th>
                       <th className="py-2.5 px-3 text-right">P&L %</th>
                       <th className="py-2.5 px-3 text-right text-slate-400">Active GTT</th>
-                      <th className="py-2.5 px-3 text-right text-amber-500 dark:text-amber-400">Target GTT SL</th>
+                      <th className="py-2.5 px-3 text-right text-amber-500 dark:text-amber-400">Target GTT SL (Qty)</th>
                       <th className="py-2.5 px-3 text-right text-emerald-500">Delta</th>
                       <th className="py-2.5 px-3 text-right">Buffer</th>
                       <th className="py-2.5 px-3">Execution Guidance & Rationale</th>
@@ -1292,7 +1320,15 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                         return (
                           <tr key={sla.symbol + '-' + idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              {sla.gttStatus === 'ACTION_REQUIRED_AMEND' ? (
+                              {sla.actionType === 'AMEND_CORE_RUNNER' ? (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500/40 animate-pulse flex items-center gap-1 w-fit">
+                                  <span>AMEND → 30W-SMA</span>
+                                </span>
+                              ) : sla.actionType === 'SET_TRANCHE1_TRIM' ? (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/40 animate-pulse flex items-center gap-1 w-fit">
+                                  <span>SET T1 TRIM (33%)</span>
+                                </span>
+                              ) : sla.gttStatus === 'ACTION_REQUIRED_AMEND' ? (
                                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40 animate-pulse flex items-center gap-1 w-fit">
                                   <span>AMEND</span>
                                   <span>(+₹{sla.slDelta.toFixed(2)})</span>
@@ -1308,10 +1344,22 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                               )}
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)] whitespace-nowrap">
-                              {sla.symbol}
+                              <div>{sla.symbol}</div>
+                              <div className="text-[10px] text-[var(--text-muted)] font-normal truncate max-w-[130px]" title={sla.name}>
+                                {sla.name}
+                              </div>
+                              <div className={`text-[9px] font-sans font-semibold mt-0.5 ${
+                                sla.tier === 'TRANCHE2_CORE_RUNNER'
+                                  ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                                  : sla.tier === 'TRANCHE1_TRIM'
+                                    ? 'text-purple-600 dark:text-purple-400 font-bold'
+                                    : 'text-[var(--text-muted)]'
+                              }`}>
+                                {sla.trancheStage || 'Core Position'}
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-[var(--text-muted)] max-w-[130px] truncate" title={sla.name}>
-                              {sla.name}
+                            <td className="py-2.5 px-3 text-[var(--text-muted)] max-w-[130px] truncate font-sans text-[11px]" title={sla.name}>
+                              {sla.sector || 'Diversified'}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
                               {formatInr2(sla.cmp)}
@@ -1330,7 +1378,10 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                               {sla.activeGttPrice ? formatInr2(sla.activeGttPrice) : <span className="text-amber-500 italic text-[11px]">Unset</span>}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-black text-amber-600 dark:text-amber-400">
-                              {formatInr2(sla.targetSlPrice)}
+                              <div>{formatInr2(sla.targetSlPrice)}</div>
+                              <div className="text-[9.5px] font-normal text-[var(--text-muted)]">
+                                {sla.targetQty} of {sla.qty} shs
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
                               {sla.slDelta > 0 ? (

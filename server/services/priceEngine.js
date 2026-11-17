@@ -5,6 +5,7 @@ import { db, updateCacheRow, getCacheEntry } from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { storeRate, getPersistedRate, scheduleRetry, registerFetchFunction, recordDailyFxRate } from './fxRateStore.js';
 import { getHistoricalPricesMap } from './historicalPriceStore.js';
+import { resolveCanonicalTicker, getCleanSymbol } from './stockIntelligence/symbolAliasService.js';
 
 export const liveQuoteCache = new Map();
 
@@ -300,9 +301,19 @@ const yfCircuitBreaker = {
 export async function fetchStockQuote(symbol) {
   if (!symbol) return null;
 
+  // Resolve alias if symbol has a known canonical ticker
+  const clean = getCleanSymbol(symbol);
+  const canonical = resolveCanonicalTicker(clean);
+  let effectiveSymbol = symbol;
+  if (canonical && canonical !== clean) {
+    if (symbol.endsWith('.NS') && canonical.endsWith('.NS')) effectiveSymbol = canonical;
+    else if (symbol.endsWith('.BO') && canonical.endsWith('.BO')) effectiveSymbol = canonical;
+    else if (!symbol.includes('.')) effectiveSymbol = canonical;
+  }
+
   // If circuit breaker is OPEN, serve from cache if available or bail early
   if (!yfCircuitBreaker.canAttempt()) {
-    const cached = liveQuoteCache.get(symbol);
+    const cached = liveQuoteCache.get(symbol) || liveQuoteCache.get(effectiveSymbol);
     if (cached) return cached;
     return null;
   }
@@ -310,7 +321,7 @@ export async function fetchStockQuote(symbol) {
   const maxRetries = 2;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${effectiveSymbol}?interval=1d&range=1d`;
       const res = await axios.get(url, {
         timeout: 5000,
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -331,7 +342,7 @@ export async function fetchStockQuote(symbol) {
 
         const quoteTime = result.meta.regularMarketTime || Math.floor(Date.now() / 1000);
         // Derive exchange timezone so US stocks reflect US trading date and Indian stocks reflect Indian date
-        const exchangeTz = result.meta.exchangeTimezoneName || (symbol.endsWith('.NS') || symbol.endsWith('.BO') ? 'Asia/Kolkata' : 'America/New_York');
+        const exchangeTz = result.meta.exchangeTimezoneName || (effectiveSymbol.endsWith('.NS') || effectiveSymbol.endsWith('.BO') ? 'Asia/Kolkata' : 'America/New_York');
         const quoteDate = formatCleanQuoteDate(quoteTime, exchangeTz);
 
         const quote = {
@@ -358,8 +369,55 @@ export async function fetchStockQuote(symbol) {
     } catch (err) {
       const isNotFound = err.response?.status === 404;
       if (isNotFound) {
-        // Expected absence (e.g. stock not listed on BSE / no .BO ticker); do not retry or trip breaker
-        return liveQuoteCache.get(symbol) || null;
+        // If an Indian .NS ticker wasn't found, probe SME (-SM.NS)
+        if (effectiveSymbol.endsWith('.NS') && !effectiveSymbol.includes('-SM') && !effectiveSymbol.includes('-RR')) {
+          try {
+            const smeSym = `${clean}-SM.NS`;
+            const smeRes = await axios.get(`https://query1.finance.yahoo.com/v8/finance/chart/${smeSym}?interval=1d&range=1d`, {
+              timeout: 5000,
+              headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+            });
+            const smeResult = smeRes.data?.chart?.result?.[0];
+            if (smeResult && smeResult.meta && smeResult.meta.regularMarketPrice) {
+              const price = Number(smeResult.meta.regularMarketPrice) || 0;
+              const prevClose = Number(smeResult.meta.previousClose || smeResult.meta.chartPreviousClose || price);
+              const dayChange = price - prevClose;
+              const dayChangePct = prevClose > 0 ? Number(((dayChange / prevClose) * 100).toFixed(2)) : 0;
+              const quoteObj = smeResult.indicators?.quote?.[0] || {};
+              const openPrice = Number(quoteObj.open?.[0] || price);
+              const dayHigh = Number(smeResult.meta.regularMarketDayHigh || quoteObj.high?.[0] || price);
+              const dayLow = Number(smeResult.meta.regularMarketDayLow || quoteObj.low?.[0] || price);
+              const closePrice = Number(quoteObj.close?.[0] || price);
+              const fiftyTwoWeekHigh = Number(smeResult.meta.fiftyTwoWeekHigh || dayHigh * 1.15);
+              const fiftyTwoWeekLow = Number(smeResult.meta.fiftyTwoWeekLow || dayLow * 0.85);
+              const quoteTime = smeResult.meta.regularMarketTime || Math.floor(Date.now() / 1000);
+              const quoteDate = formatCleanQuoteDate(quoteTime, 'Asia/Kolkata');
+
+              const smeQuote = {
+                price,
+                adjustedClose: (smeResult.indicators?.quote?.[0]?.adjclose?.[0]) || price,
+                previousClose: prevClose,
+                dayChange: Number(dayChange.toFixed(2)),
+                dayChangePct,
+                open: Number(openPrice.toFixed(2)),
+                high: Number(dayHigh.toFixed(2)),
+                low: Number(dayLow.toFixed(2)),
+                close: Number(closePrice.toFixed(2)),
+                fiftyTwoWeekHigh: Number(fiftyTwoWeekHigh.toFixed(2)),
+                fiftyTwoWeekLow: Number(fiftyTwoWeekLow.toFixed(2)),
+                currency: 'INR',
+                quoteDate,
+                exchangeTimezone: 'Asia/Kolkata',
+                updated: new Date().toISOString()
+              };
+              yfCircuitBreaker.recordSuccess();
+              return smeQuote;
+            }
+          } catch (eSme) {
+            // SME probe did not match
+          }
+        }
+        return liveQuoteCache.get(symbol) || liveQuoteCache.get(effectiveSymbol) || null;
       }
       if (attempt === maxRetries) {
         yfCircuitBreaker.recordFailure();
@@ -1214,9 +1272,16 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
         await Promise.all(batch.map(async (h) => {
           try {
             const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
+            const canonical = resolveCanonicalTicker(baseSymbol);
+            let nseTicker = `${baseSymbol}.NS`;
+            let bseTicker = `${baseSymbol}.BO`;
+            if (canonical && canonical !== baseSymbol) {
+              if (canonical.endsWith('.BO')) bseTicker = canonical;
+              else if (canonical.includes('.')) nseTicker = canonical;
+            }
             const [nseQ, bseQ] = await Promise.all([
-              fetchStockQuote(`${baseSymbol}.NS`),
-              fetchStockQuote(`${baseSymbol}.BO`)
+              fetchStockQuote(nseTicker),
+              fetchStockQuote(bseTicker)
             ]);
 
             const nseP = Number(nseQ?.price) || 0;

@@ -21,7 +21,7 @@ import { buildStockAnalyses, calculateTriggeredStagedSell } from './analysisServ
 import { validateAndHealStockData } from './dataIntegrityValidator.js';
 import { getTodayIST } from '../marketCalendar.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../priceEngine.js';
-import { getIntelligenceConfig } from './repository.js';
+import { getIntelligenceConfig, pruneActiveStopLosses } from './repository.js';
 import { resolveCanonicalSector } from './buyAnalysisService.js';
 import { calculateMarketOpportunity } from './marketOpportunityEngine.js';
 
@@ -180,6 +180,20 @@ export async function generateActionPlan({
     db.select('asset_metadata'),
     loadHistoricalPricesAsync()
   ]);
+
+  // Auto-prune any activeStopLosses for holdings that are liquidated (quantity <= 0) or no longer in portfolio
+  const staleStopLossSymbols = Object.keys(userConfig?.activeStopLosses || {}).filter(sym => {
+    const h = holdings.find(item => item.symbol === sym);
+    return !h || Number(h.quantity) <= 0;
+  });
+  if (staleStopLossSymbols.length > 0) {
+    for (const sym of staleStopLossSymbols) {
+      delete userConfig.activeStopLosses[sym];
+    }
+    try {
+      pruneActiveStopLosses(userId, staleStopLossSymbols);
+    } catch (_) {}
+  }
 
   const enrichedHoldings = holdings.map(h => {
     const quote = liveQuoteCache.get(h.symbol);
@@ -1070,44 +1084,65 @@ export async function generateActionPlan({
       const atrFloor = round2(Number(a.trailingFloorPrice || a.stopLoss || a.chandelierStopPrice) || 0);
       const weinsteinStage = a.weinsteinStage || 2;
 
+      const isT1Done = a.stagedExitPlan?.tranche1?.status === 'COMPLETED';
+      const t1Shares = a.stagedExitPlan?.tranche1?.targetShares || Math.max(1, Math.round(qty * 0.33));
+      const t1Trigger = round2(Number(a.stagedExitPlan?.tranche1?.triggerPrice) || Math.max(ema50, atrFloor, round2(avg * 1.15)));
+      const t2Trigger = round2(Number(a.stagedExitPlan?.tranche2?.triggerPrice) || sma30 || round2(avg * 1.05));
+
       let action = 'MAINTAIN GTT SL';
       let actionType = 'MAINTAIN';
       let targetSlPrice = 0;
+      let targetQty = qty;
+      let trancheStage = 'INITIAL RISK DEFENSE (100%)';
       let tier = 'INITIAL_8PCT';
       let reason = '';
       let badgeColor = 'blue';
 
-      if (pnlPct < 15) {
+      if (isT1Done) {
+        // --- TRANCHE 1 COMPLETED: CORE RUNNER (TRANCHE 2) ---
+        // Tranche 1 (1/3 position) already executed in ledger. The remaining core shares ride on house money.
+        // The GTT stop loss MUST be anchored to Tranche 2 (30-week SMA breakdown floor).
+        targetSlPrice = t2Trigger > 0 ? t2Trigger : (sma30 > 0 ? sma30 : round2(avg * 1.05));
+        targetQty = qty;
+        trancheStage = 'TRANCHE 2 (CORE RUNNER)';
+        tier = 'TRANCHE2_CORE_RUNNER';
+        action = 'AMEND GTT SL -> 30W-SMA (CORE RUNNER)';
+        actionType = 'AMEND_CORE_RUNNER';
+        badgeColor = 'cyan';
+        reason = `Tranche 1 completed (locked profit). Core position (${targetQty} shs) riding on house money to test 30W-SMA support at ₹${targetSlPrice.toFixed(2)}. Amend broker GTT to 30W-SMA.`;
+      } else if (pnlPct < 15) {
+        // --- TIER 1: INITIAL CAPITAL DEFENSE (< 15% GAIN) ---
         targetSlPrice = round2(avg * 0.92);
+        targetQty = qty;
+        trancheStage = 'INITIAL RISK DEFENSE (100%)';
         tier = 'INITIAL_8PCT';
         action = 'SET / MAINTAIN GTT SL (-8%)';
         actionType = 'SET_INITIAL';
         badgeColor = 'amber';
-        reason = `Initial capital defense: Place GTT SL at ₹${targetSlPrice.toFixed(2)} (-8.0% from cost basis ₹${avg.toFixed(2)}).`;
+        reason = `Initial capital defense: Place GTT SL at ₹${targetSlPrice.toFixed(2)} (-8.0% from cost basis ₹${avg.toFixed(2)}) for full position (${targetQty} shs).`;
       } else if (pnlPct >= 15 && pnlPct < 30) {
+        // --- TIER 2: BREAKEVEN LOCK (+15% TO +30% GAIN) ---
         targetSlPrice = round2(avg * 1.01);
+        targetQty = qty;
+        trancheStage = 'BREAKEVEN LOCK (100%)';
         tier = 'BREAKEVEN_LOCK';
         action = 'AMEND GTT SL -> BREAKEVEN';
         actionType = 'AMEND_BREAKEVEN';
         badgeColor = 'emerald';
-        reason = `Breakeven Lock: Position is up +${pnlPct.toFixed(1)}%. Protect principal and statutory charges at ₹${targetSlPrice.toFixed(2)}.`;
-      } else if (pnlPct >= 30 && pnlPct < 50) {
-        const profitLockFloor = round2(avg * 1.15);
-        targetSlPrice = Math.max(profitLockFloor, ema50, sma30, atrFloor);
-        tier = 'TRAILING_EMA';
-        action = 'AMEND GTT SL -> TRAILING FLOOR';
-        actionType = 'AMEND_TRAILING';
-        badgeColor = 'purple';
-        const floorRef = targetSlPrice === ema50 ? '50-day EMA' : targetSlPrice === sma30 ? '30-week SMA' : 'Trailing ATR Floor';
-        reason = `Trailing Profit Lock: Up +${pnlPct.toFixed(1)}%. Amend GTT SL to ₹${targetSlPrice.toFixed(2)} (${floorRef}). Minimum +15% profit locked.`;
+        reason = `Breakeven Lock: Position is up +${pnlPct.toFixed(1)}%. Protect principal and statutory charges at ₹${targetSlPrice.toFixed(2)} for full position (${targetQty} shs).`;
       } else {
-        targetSlPrice = Math.max(ema50, sma30, atrFloor, round2(avg * 1.25));
-        tier = 'MULTIBAGGER_RIDER';
-        action = 'AMEND GTT SL -> 50-EMA / 30W-SMA';
-        actionType = 'AMEND_MULTIBAGGER';
-        badgeColor = 'cyan';
-        const floorRef = targetSlPrice === ema50 ? '50-day EMA' : targetSlPrice === sma30 ? '30-week SMA' : 'ATR Trailing Floor';
-        reason = `Multibagger Compounder: Up +${pnlPct.toFixed(1)}% (Riding on house money). Trail GTT SL along ${floorRef} at ₹${targetSlPrice.toFixed(2)}.`;
+        // --- TIER 3: TRANCHE 1 PENDING (+30%+ GAIN) ---
+        // Up >= 30%, but Tranche 1 has not yet been executed in the trade ledger.
+        // GTT Stop Loss is placed on Tranche 1 shares (33% trim) at the trailing floor / Chandelier ATR / 50-EMA.
+        targetSlPrice = t1Trigger > 0 ? t1Trigger : Math.max(ema50, atrFloor, round2(avg * 1.15));
+        targetQty = Math.min(qty, t1Shares);
+        trancheStage = 'TRANCHE 1 TRIM (33%)';
+        tier = 'TRANCHE1_TRIM';
+        action = 'SET GTT SL -> TRANCHE 1 TRIM (33%)';
+        actionType = 'SET_TRANCHE1_TRIM';
+        badgeColor = 'purple';
+        const floorRef = targetSlPrice === ema50 ? '50-day EMA' : (targetSlPrice === atrFloor ? 'Chandelier ATR Floor' : 'Trailing Profit Lock');
+        reason = `Tranche 1 Profit Lock: Up +${pnlPct.toFixed(1)}%. Place GTT SL for ${targetQty} shares (33% trim) at ₹${targetSlPrice.toFixed(2)} (${floorRef}). Keep remaining ${qty - targetQty} core shares riding on 30w-SMA.`;
       }
 
       // Broker GTT Validation: Stop loss trigger price must strictly be below live CMP
@@ -1119,9 +1154,15 @@ export async function generateActionPlan({
       const activeGtt = userConfig?.activeStopLosses?.[a.symbol] || null;
       const activeGttPrice = activeGtt && Number(activeGtt.triggerPrice) > 0 ? round2(Number(activeGtt.triggerPrice)) : null;
 
-      // Ratchet Rule: Stop loss trigger in trend following never moves down
-      if (activeGttPrice !== null && targetSlPrice < activeGttPrice) {
-        targetSlPrice = activeGttPrice;
+      // Ratchet Transition Rule:
+      // If position has transitioned to TRANCHE2_CORE_RUNNER, the broker GTT was previously anchored to Tranche 1 (or unaligned).
+      // We MUST allow setting the GTT to the 30w-SMA support level so core shares are not liquidated prematurely.
+      const isTierTransition = (tier === 'TRANCHE2_CORE_RUNNER' && activeGtt?.tier !== 'TRANCHE2_CORE_RUNNER');
+
+      if (!isTierTransition) {
+        if (activeGttPrice !== null && targetSlPrice < activeGttPrice) {
+          targetSlPrice = activeGttPrice;
+        }
       }
 
       let gttStatus = 'ACTION_REQUIRED_NEW';
@@ -1136,6 +1177,14 @@ export async function generateActionPlan({
         gttStatusLabel = 'ACTION: SET NEW GTT';
         gttStatusBadge = 'amber';
         isActionRequired = true;
+      } else if (isTierTransition && Math.abs(targetSlPrice - activeGttPrice) > 1) {
+        slDelta = round2(targetSlPrice - activeGttPrice);
+        slDeltaPct = round2(((targetSlPrice - activeGttPrice) / activeGttPrice) * 100);
+        gttStatus = 'ACTION_REQUIRED_AMEND';
+        gttStatusLabel = 'AMEND GTT (-> 30W-SMA)';
+        gttStatusBadge = 'cyan';
+        isActionRequired = true;
+        reason = `Tranche 1 Completed: Position transitioned to Core Runner (${targetQty} shs). Amend broker GTT trigger from ₹${activeGttPrice.toFixed(2)} to 30W-SMA at ₹${targetSlPrice.toFixed(2)} to let core position compound on house money.`;
       } else if (targetSlPrice >= round2(activeGttPrice * 1.005)) { // Advanced by >= 0.5%
         slDelta = round2(targetSlPrice - activeGttPrice);
         slDeltaPct = round2(((targetSlPrice - activeGttPrice) / activeGttPrice) * 100);
@@ -1149,7 +1198,7 @@ export async function generateActionPlan({
         gttStatusLabel = 'IN SYNC (ACTIVE)';
         gttStatusBadge = 'slate';
         isActionRequired = false;
-        reason = `GTT Active: Broker trigger ₹${activeGttPrice.toFixed(2)} is up-to-date and matches current stop floor. No broker action needed today.`;
+        reason = `GTT Active: Broker trigger ₹${activeGttPrice.toFixed(2)} is up-to-date and matches current stop floor (${targetQty} shs). No broker action needed today.`;
       }
 
       const distanceToSlPct = cmp > 0 && targetSlPrice > 0 ? Number((((cmp - targetSlPrice) / cmp) * 100).toFixed(2)) : 0;
@@ -1159,6 +1208,8 @@ export async function generateActionPlan({
         symbol: a.symbol,
         name: a.name,
         qty,
+        targetQty,
+        trancheStage,
         cmp,
         avgBuyPrice: round2(avg),
         val,
@@ -1269,19 +1320,19 @@ export async function generateActionPlan({
     rows.push([
       '3. STOP LOSS & GTT UPDATES (OPEN HOLDINGS)',
       a.gttStatusLabel,
-      a.tier,
+      `${a.tier} (${a.trancheStage})`,
       a.symbol,
       a.name,
       a.cmp.toFixed(2),
-      a.qty,
-      a.val.toFixed(2),
+      a.targetQty,
+      round2(a.targetQty * a.cmp).toFixed(2),
       a.isActionRequired ? 'ACTION REQUIRED (BROKER)' : 'IN SYNC (ACTIVE)',
       a.targetSlPrice.toFixed(2),
       `+${a.distanceToSlPct.toFixed(1)}%`,
       a.activeGttPrice ? `Active: ₹${a.activeGttPrice.toFixed(2)} (Delta +₹${a.slDelta.toFixed(2)})` : 'GTT Unset',
       a.action,
       a.qty,
-      `P&L: ${a.pnlPct >= 0 ? '+' : ''}${a.pnlPct.toFixed(1)}% (Cost ₹${a.avgBuyPrice}) | ${a.rationale || a.reason}`
+      `P&L: ${a.pnlPct >= 0 ? '+' : ''}${a.pnlPct.toFixed(1)}% (Cost ₹${a.avgBuyPrice}) | Action Shares: ${a.targetQty} of ${a.qty} held (${a.trancheStage}) | ${a.rationale || a.reason}`
     ]);
   });
 
@@ -1374,8 +1425,10 @@ export async function generateActionPlan({
       newGttCount: stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_NEW').length,
       amendGttCount: stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_AMEND').length,
       upToDateCount: stopLossActions.filter(a => a.gttStatus === 'UP_TO_DATE').length,
+      coreRunnersCount: stopLossActions.filter(a => a.actionType === 'AMEND_CORE_RUNNER').length,
+      tranche1TrimsCount: stopLossActions.filter(a => a.actionType === 'SET_TRANCHE1_TRIM').length,
       breakevenLocksCount: stopLossActions.filter(a => a.actionType === 'AMEND_BREAKEVEN').length,
-      trailingRunnersCount: stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER').length,
+      trailingRunnersCount: stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER' || a.actionType === 'AMEND_CORE_RUNNER').length,
       initialStopsCount: stopLossActions.filter(a => a.actionType === 'SET_INITIAL').length,
       nearStopCount: stopLossActions.filter(a => a.isNearSl).length
     }

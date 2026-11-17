@@ -464,7 +464,7 @@ export default function MutualFundsView({ summary, holdings, onDeleteHolding, on
                               </span>
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol}{h.sector && h.sector !== 'Unknown' ? ` • ${h.sector}` : ''}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">AMFI #{h.symbol}</span>
                                 {h.quote_date && (() => {
                                   const status = getQuoteBadgeStatus(h.quote_date);
                                   return (

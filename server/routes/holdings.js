@@ -390,12 +390,16 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       const cleanSym = (h.symbol || '').replace(/\.(NS|BO)$/i, '').trim();
       const meta = metadataMap[h.symbol] || metadataMap[cleanSym] || metadataMap[cleanSym.toUpperCase()] || {};
 
-      const rawSector = (meta.sector && meta.sector !== 'Unknown')
-        ? meta.sector
-        : (h.sector && h.sector !== 'Unknown' && h.sector !== 'US Equities' && h.sector !== 'General')
-          ? h.sector
-          : resolveCanonicalSector(meta, h.name, h.symbol);
-      const finalSector = (rawSector && rawSector !== 'Unknown') ? rawSector : 'Diversified & Other';
+      const isEquity = h.category_id === 'in_stocks' || h.category_id === 'us_stocks';
+      let finalSector = null;
+      if (isEquity) {
+        const rawSector = (meta.sector && meta.sector !== 'Unknown')
+          ? meta.sector
+          : (h.sector && h.sector !== 'Unknown' && h.sector !== 'US Equities' && h.sector !== 'General')
+            ? h.sector
+            : resolveCanonicalSector(meta, h.name, h.symbol);
+        finalSector = (rawSector && rawSector !== 'Unknown') ? rawSector : null;
+      }
       const finalMcap = resolveCanonicalMarketCap(meta, h);
 
       let finalName = h.name;
@@ -1607,11 +1611,15 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       metaList = await db.select('asset_metadata');
     } catch (_) {}
     const metaRow = (metaList || []).find(m => m.symbol === holding.symbol || m.symbol === cleanDetailSym || m.symbol === cleanDetailSym.toUpperCase()) || {};
-    const detailSector = (holding.sector && holding.sector !== 'Unknown' && holding.sector !== 'US Equities')
-      ? holding.sector
-      : (metaRow.sector && metaRow.sector !== 'Unknown')
-        ? metaRow.sector
-        : resolveCanonicalSector(metaRow, holding.name, holding.symbol);
+    const isEquity = holding.category_id === 'in_stocks' || holding.category_id === 'us_stocks';
+    let detailSector = null;
+    if (isEquity) {
+      detailSector = (holding.sector && holding.sector !== 'Unknown' && holding.sector !== 'US Equities')
+        ? holding.sector
+        : (metaRow.sector && metaRow.sector !== 'Unknown')
+          ? metaRow.sector
+          : resolveCanonicalSector(metaRow, holding.name, holding.symbol);
+    }
     const detailMcap = resolveCanonicalMarketCap(metaRow, holding);
 
     const updatedHolding = {

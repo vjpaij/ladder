@@ -185,6 +185,27 @@ export function deleteActiveStopLoss(userId, symbol) {
   return userConfig.activeStopLosses || {};
 }
 
+export function pruneActiveStopLosses(userId, symbols = []) {
+  if (!Array.isArray(symbols) || symbols.length === 0) return {};
+  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const key = resolveConfigUserKey(userId, document);
+  const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
+  if (!userConfig.activeStopLosses) return {};
+  let modified = false;
+  for (const sym of symbols) {
+    if (userConfig.activeStopLosses[sym]) {
+      delete userConfig.activeStopLosses[sym];
+      modified = true;
+    }
+  }
+  if (modified) {
+    userConfig.updatedAt = new Date().toISOString();
+    document.byUser = { ...(document.byUser || {}), [key]: userConfig };
+    atomicWrite(CONFIG_FILE, document);
+  }
+  return userConfig.activeStopLosses || {};
+}
+
 export function recordStateTransitions(userId, analyses) {
   const document = readJson(STATE_FILE, { states: {}, events: [] });
   const events = [];

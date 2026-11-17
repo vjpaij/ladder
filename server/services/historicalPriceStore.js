@@ -238,21 +238,41 @@ export async function fetchHistoricalPricesForSymbol(symbol, category = 'in_stoc
       const isIncompleteCoverage = quotesFound && (earliestQuoteTime - startMs > 86400000 * 15);
       
       if ((!quotesFound || isIncompleteCoverage) && fetchSym.endsWith('.NS')) {
-        const boSym = fetchSym.replace(/\.NS$/, '.BO');
-        try {
-          await fetchYahooUrl(boSym);
-        } catch (e2) {
-          console.warn(`[Yahoo Fallback] Failed for ${boSym}:`, e2.message);
+        const cleanBase = symbol.replace(/\.(NS|BO)$/i, '');
+        if (!fetchSym.includes('-SM')) {
+          try {
+            await fetchYahooUrl(`${cleanBase}-SM.NS`);
+          } catch (eSme) {
+            // SME fallback did not match
+          }
+        }
+        if (!quotesFound) {
+          const boSym = fetchSym.replace(/\.NS$/, '.BO');
+          try {
+            await fetchYahooUrl(boSym);
+          } catch (e2) {
+            console.warn(`[Yahoo Fallback] Failed for ${boSym}:`, e2.message);
+          }
         }
       }
     } catch (err) {
-      // If .NS failed, fallback to .BO for Indian stocks
+      // If .NS failed, fallback to SME or .BO for Indian stocks
       if (isIndian && fetchSym.endsWith('.NS')) {
-        const boSym = fetchSym.replace(/\.NS$/, '.BO');
-        try {
-          await fetchYahooUrl(boSym);
-        } catch (e2) {
-          console.warn(`[Yahoo Fallback] Failed for ${boSym}:`, e2.message);
+        const cleanBase = symbol.replace(/\.(NS|BO)$/i, '');
+        if (!fetchSym.includes('-SM')) {
+          try {
+            await fetchYahooUrl(`${cleanBase}-SM.NS`);
+          } catch (eSme) {
+            // SME fallback did not match
+          }
+        }
+        if (!quotesFound) {
+          const boSym = fetchSym.replace(/\.NS$/, '.BO');
+          try {
+            await fetchYahooUrl(boSym);
+          } catch (e2) {
+            console.warn(`[Yahoo Fallback] Failed for ${boSym}:`, e2.message);
+          }
         }
       }
     }

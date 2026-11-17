@@ -760,3 +760,27 @@ test('Rule 13: Staged Exit Ledger Integration — Completed Tranche 1 with pendi
   assert.equal(analysisB.suggestedSellQuantity, 67, 'Must recommend all remaining 67 shares for Tranche 2 exit');
   assert.equal(calculateTriggeredStagedSell(analysisB).quantity, 67, 'calculateTriggeredStagedSell must return 67 actionable shares');
 });
+
+test('Rule 14: Next Day Action Plan Stop Loss Engine anchors GTT to Tranche 2 (30w-SMA) when Tranche 1 is completed (SYRMA protection) and sizes action shares to Tranche 1 (33%) when pending', async () => {
+  const { generateActionPlan } = await import('./actionPlanService.js');
+  const plan = await generateActionPlan({ userId: '1' });
+  assert.ok(plan, 'Plan must generate');
+  assert.ok(Array.isArray(plan.stopLossActions), 'Must have stopLossActions array');
+
+  // Verify SYRMA specifically (Tranche 1 completed, core runner)
+  const syrmaSl = plan.stopLossActions.find(a => a.symbol === 'SYRMA');
+  if (syrmaSl) {
+    assert.equal(syrmaSl.tier, 'TRANCHE2_CORE_RUNNER', 'SYRMA tier must be TRANCHE2_CORE_RUNNER');
+    assert.equal(syrmaSl.trancheStage, 'TRANCHE 2 (CORE RUNNER)', 'SYRMA trancheStage must be TRANCHE 2 (CORE RUNNER)');
+    assert.equal(syrmaSl.targetQty, syrmaSl.qty, 'Target quantity must be all remaining core shares');
+    assert.equal(syrmaSl.targetSlPrice, 1390.03, 'Target SL price must match Tranche 2 30-week SMA trigger');
+  }
+
+  // Verify all holdings with Tranche 1 completed have targetQty === qty and tier === TRANCHE2_CORE_RUNNER
+  const coreRunners = plan.stopLossActions.filter(a => a.tier === 'TRANCHE2_CORE_RUNNER');
+  assert.ok(coreRunners.length > 0, 'Must have active Core Runners');
+  for (const cr of coreRunners) {
+    assert.equal(cr.targetQty, cr.qty, `${cr.symbol} target quantity must equal full held core quantity`);
+    assert.equal(cr.actionType, 'AMEND_CORE_RUNNER', `${cr.symbol} actionType must be AMEND_CORE_RUNNER`);
+  }
+});

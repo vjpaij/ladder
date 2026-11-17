@@ -751,12 +751,6 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                               <span className="text-blue-400 font-semibold">{selected.market_cap}</span>
                             </>
                           )}
-                          {selected.market_cap && selected.market_cap !== 'Unknown' && (
-                            <>
-                              <span>•</span>
-                              <span className="text-blue-400 font-semibold">{selected.market_cap}</span>
-                            </>
-                          )}
                           <span>•</span>
                           <span>Quote date: {selected.quoteDate || 'Live'}</span>
                         </div>

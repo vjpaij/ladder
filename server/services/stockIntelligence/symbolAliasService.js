@@ -31,6 +31,12 @@ export const KNOWN_SYMBOL_ALIASES = {
   // Ador Welding NSE symbol rename (April 2025)
   'ADORWELD': 'ADOR.NS',
 
+  // NSE SME series
+  'NEWJAISA': 'NEWJAISA-SM.NS',
+
+  // Embassy Office Parks REIT (NSE REIT series / BSE)
+  'EMBASSY': 'EMBASSY-RR.NS',
+
   // Ganesh Housing NSE symbol rename (Sep 2025)
   'GANESHHOUC': 'GANESHHOU.NS',
 

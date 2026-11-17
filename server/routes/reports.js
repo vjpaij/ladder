@@ -203,7 +203,23 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
 
     const fxRate = await fetchFxRate();
     const holdings = await db.select('holdings');
+    const transactions = await db.select('transactions');
     const histMap = await loadHistoricalPricesAsync();
+
+    const holdingFirstBuyDateMap = new Map();
+    (transactions || []).forEach(t => {
+      if (t.type === 'BUY' && t.date) {
+        if (t.holding_id) {
+          const prevH = holdingFirstBuyDateMap.get(String(t.holding_id));
+          if (!prevH || t.date < prevH) holdingFirstBuyDateMap.set(String(t.holding_id), t.date);
+        }
+        if (t.symbol) {
+          const symClean = String(t.symbol).replace(/\.(NS|BO)$/i, '').toUpperCase();
+          const prevS = holdingFirstBuyDateMap.get(symClean);
+          if (!prevS || t.date < prevS) holdingFirstBuyDateMap.set(symClean, t.date);
+        }
+      }
+    });
 
     let meta = [];
     try {
@@ -352,9 +368,13 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
         const liveQuote = liveQuoteCache.get(h.symbol);
         const endPrice = resolveHoldingPrice(h, liveQuote) || Number(h.current_price) || 0;
 
-        // Base price on startDate
+        // Base price on startDate: If position was initiated after startDate, the user owned 0 shares
+        // at startDate. The authentic baseline is therefore the position's cost basis (avg_buy_price).
+        const firstBuyDate = holdingFirstBuyDateMap.get(String(h.id)) || holdingFirstBuyDateMap.get(cleanSym) || null;
+        const isAcquiredDuringPeriod = Boolean(startDate && firstBuyDate && firstBuyDate > startDate);
+
         let basePrice = null;
-        if (rangeType === 'ALL' || !startDate) {
+        if (rangeType === 'ALL' || !startDate || isAcquiredDuringPeriod) {
           basePrice = Number(h.avg_buy_price) || endPrice;
         } else {
           const series = histMap[h.symbol] || histMap[cleanSym] || histMap[`${cleanSym}.NS`] || histMap[`${cleanSym}.BO`] || {};
@@ -405,6 +425,10 @@ router.get('/reports/sector-cap-performance', authenticateToken, async (req, res
           currentValINR: Math.round(currentValINR * 100) / 100,
           gainINR: Math.round(gainINR * 100) / 100,
           returnPct: Math.round(returnPct * 100) / 100,
+          firstBuyDate,
+          isAcquiredDuringPeriod,
+          totalPnlPct: Number(h.pnl_pct) !== undefined && !isNaN(Number(h.pnl_pct)) ? Number(Number(h.pnl_pct).toFixed(2)) : Math.round(returnPct * 100) / 100,
+          avgBuyPrice: Number(h.avg_buy_price) || basePrice,
           isPortfolioHolding: true
         });
       }
