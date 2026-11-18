@@ -346,6 +346,15 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
 
 
+      const soldQty = isClosed 
+        ? (Number(h.sell_qty) || totalSellQty || Number(h.buy_qty) || 0)
+        : totalSellQty;
+      const avgSellPrice = totalSellQty > 0
+        ? Number((isUSD ? (grossSellProceedsUSD / totalSellQty) : (grossSellProceedsINR / totalSellQty)).toFixed(precisionDigits))
+        : (Number(h.avg_sell_price) || 0);
+      const redeemedValue = Number((isUSD ? netSellProceedsUSD : netSellProceedsINR).toFixed(2));
+      const grossRedeemed = Number((isUSD ? grossSellProceedsUSD : grossSellProceedsINR).toFixed(2));
+
       const currentValueOriginal = qty * currentPriceNum;
       const currentValueINR = computeHoldingValueINR(h, currentPriceNum, liveRate);
 
@@ -363,15 +372,6 @@ router.get('/holdings', authenticateToken, async (req, res) => {
 
       const unrealizedPnlOriginal = !isClosed ? (currentValueOriginal - investedValueOriginal) : 0;
       const unrealizedPnlINR = gainINR;
-
-      const soldQty = isClosed 
-        ? (Number(h.sell_qty) || totalSellQty || Number(h.buy_qty) || 0)
-        : totalSellQty;
-      const avgSellPrice = totalSellQty > 0
-        ? Number((isUSD ? (grossSellProceedsUSD / totalSellQty) : (grossSellProceedsINR / totalSellQty)).toFixed(precisionDigits))
-        : (Number(h.avg_sell_price) || 0);
-      const redeemedValue = Number((isUSD ? netSellProceedsUSD : netSellProceedsINR).toFixed(2));
-      const grossRedeemed = Number((isUSD ? grossSellProceedsUSD : grossSellProceedsINR).toFixed(2));
 
       const realizedPnlUSD = (txs.length > 0) ? realizedTradingPnlUSD : (Number(h.realized_pnl) || 0);
       const realizedPnlINR = (txs.length > 0) ? realizedTradingPnlINR : ((Number(h.realized_pnl) || 0) * (isUSD ? fxRate : 1.0));
@@ -1737,7 +1737,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Missing portfolio type or data' });
     }
 
-    const fxRate = await fetchFxRate();
+    const fxRate = portfolio === 'us_stocks' ? await fetchFxRate() : 1.0;
 
     // Handle market-based portfolios (equities, mutual funds, NPS)
     if (['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(portfolio)) {

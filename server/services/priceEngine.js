@@ -133,9 +133,18 @@ export async function fetchFxRate() {
   const cachedQuote = liveQuoteCache.get('USDINR');
   if (cachedQuote && cachedQuote.price > 0 && cachedQuote.updated) {
     const ageMs = Date.now() - new Date(cachedQuote.updated).getTime();
-    if (ageMs < 30000) {
+    // Cache for 15 minutes during active hours, 24 hours off-hours
+    const ttlMs = isAnyMarketOpen() ? (15 * 60 * 1000) : (24 * 60 * 60 * 1000);
+    if (ageMs < ttlMs) {
       return cachedQuote.price;
     }
+  }
+
+  // Fast-path: If a verified persisted rate exists on disk, use it immediately (< 0.1ms)
+  const persisted = getPersistedRate('USD_INR');
+  if (persisted && persisted > 0 && (!cachedQuote || !cachedQuote.price)) {
+    liveQuoteCache.set('USDINR', { price: persisted, updated: new Date().toISOString() });
+    return persisted;
   }
 
   if (inFlightFxPromise) {
@@ -178,7 +187,6 @@ export async function fetchFxRate() {
       }
 
       // Fallback: Last known good persisted rate (no hardcoded values)
-      const persisted = getPersistedRate('USD_INR');
       if (persisted) {
         console.warn(`[FX Rate] All live sources failed. Using last persisted rate: ${persisted}`);
         scheduleRetry('USD_INR');
@@ -193,6 +201,14 @@ export async function fetchFxRate() {
       inFlightFxPromise = null;
     }
   })();
+
+  // If we already have a reasonably recent cached or persisted rate, return it without blocking on network
+  if (cachedQuote && cachedQuote.price > 0) {
+    return cachedQuote.price;
+  }
+  if (persisted && persisted > 0) {
+    return persisted;
+  }
 
   return inFlightFxPromise;
 }

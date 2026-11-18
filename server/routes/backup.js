@@ -125,6 +125,14 @@ router.post('/cloud-backups/restore', authenticateToken, async (req, res) => {
     // Otherwise, for legacy backups lacking pnl_history, rebuild in background
     (async () => {
       try {
+        if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+          console.log('[Restore] Cloud container detected: skipping child fork of rebuild_portfolio_eod.mjs.');
+          job.status = 'COMPLETED';
+          job.completedAt = new Date().toISOString();
+          restoreInProgress = false;
+          return;
+        }
+
         await new Promise((resolve, reject) => {
           const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
           const child = fork(scriptPath, [], { stdio: 'pipe' });

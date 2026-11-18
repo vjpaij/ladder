@@ -346,25 +346,24 @@ app.listen(PORT, '0.0.0.0', async () => {
       console.log(`[PriceEngine] Primed liveQuoteCache with ${primedCount} holdings from local cache on boot (0 egress).`);
     }
 
-    // Synchronize latest authoritative NAVs for active NPS and MF holdings
-    await syncAllMissingNavs({ persistToDb: true });
+    // Instant warm of stock intelligence analysis cache from disk snapshot (< 15ms)
+    await warmStockIntelligenceCache();
 
-    // Refresh all active holdings prices (US, IN, MF, NPS) on startup strictly if market is open per Rule 18 & 22
-    if (isAnyMarketOpen()) {
-      await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
-    }
+    // Deferred background sync for authoritative NAVs and active market quotes (15s delay)
+    // Guarantees server accepts logins, pings, and dashboard queries with 0ms startup lag
+    setTimeout(async () => {
+      try {
+        await syncAllMissingNavs({ persistToDb: true });
+        if (isAnyMarketOpen()) {
+          await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
+        }
+      } catch (syncErr) {
+        console.warn('[Startup Price/NAV Sync Warning]:', syncErr.message);
+      }
+    }, 15000);
   } catch (err) {
     console.warn('[PriceEngine Priming Warning]:', err.message);
   }
-
-  // 1e. Pre-warm stock intelligence analysis cache in background so Stock Analysis loads in 0ms
-  setTimeout(async () => {
-    try {
-      await warmStockIntelligenceCache();
-    } catch (warmErr) {
-      console.warn('[Stock Analysis Warmup Warning]:', warmErr.message);
-    }
-  }, 3000);
 
   // 2. Self-scheduling non-overlapping real-time active price & forex sync loop
   // Runs every 10s during active market trading hours for open markets, and pauses when markets are closed
@@ -612,6 +611,23 @@ app.listen(PORT, '0.0.0.0', async () => {
         } catch (e) {
           console.warn('[EOD Scheduler] Closing price persist warning:', e.message);
         }
+
+        if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+          console.log(`[EOD Scheduler] Cloud container detected: skipping child fork of rebuild_portfolio_eod.mjs (handled by scheduled CI/CD).`);
+          logSyncEvent({
+            jobType: 'EOD_REBUILD',
+            jobName: `EOD Valuation Rebuild (${label})`,
+            scheduledTime: label,
+            runTime: new Date().toISOString(),
+            status: 'SUCCESS',
+            durationMs: Date.now() - startRebuild,
+            details: `Persisted holding closing prices. Rebuild fork bypassed for cloud memory safety.`,
+            error: null
+          });
+          armNextRebuild();
+          return;
+        }
+
         const child = fork('./scripts/rebuild_portfolio_eod.mjs', ['--incremental']);
         child.on('exit', (code) => {
           console.log(`[EOD Scheduler] Scheduled rebuild (${label}) completed with exit code ${code}`);

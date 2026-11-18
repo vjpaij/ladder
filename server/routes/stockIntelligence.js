@@ -29,6 +29,27 @@ let cachedOverview = null;
 let cachedOverviewKey = '';
 let cachedOverviewTimestamp = 0;
 const OVERVIEW_TTL_MS = 15 * 60 * 1000; // 15 minutes fast in-memory cache
+const OVERVIEW_SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'stock_intelligence_overview.json');
+
+function saveOverviewSnapshotToDisk(overview) {
+  try {
+    fs.writeFileSync(OVERVIEW_SNAPSHOT_FILE, JSON.stringify(overview), 'utf-8');
+  } catch (err) {
+    console.warn('[Stock Intelligence] Snapshot save warning:', err.message);
+  }
+}
+
+function loadOverviewSnapshotFromDisk() {
+  try {
+    if (fs.existsSync(OVERVIEW_SNAPSHOT_FILE)) {
+      const raw = fs.readFileSync(OVERVIEW_SNAPSHOT_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn('[Stock Intelligence] Snapshot read warning:', err.message);
+  }
+  return null;
+}
 
 function getUserKey(user) {
   return String(user?.email || user?.userId || user?.id || 'vijaypaij@gmail.com');
@@ -42,6 +63,17 @@ export function invalidateStockIntelligenceCache() {
 
 export async function warmStockIntelligenceCache() {
   try {
+    // 1. Instant restore from disk snapshot (< 2ms, 0 CPU blocking)
+    const diskSnapshot = loadOverviewSnapshotFromDisk();
+    if (diskSnapshot && diskSnapshot.analyses && diskSnapshot.analyses.length > 0) {
+      cachedOverview = diskSnapshot;
+      cachedOverviewKey = 'vijaypaij@gmail.com';
+      cachedOverviewTimestamp = Date.now();
+      console.log(`[Stock Intelligence] Instantly restored stock intelligence overview from disk snapshot (${diskSnapshot.analyses.length} stocks, 0ms CPU wait).`);
+      return;
+    }
+
+    // 2. Fallback to background calculation if snapshot missing
     await computeStockOverview('vijaypaij@gmail.com');
     console.log('[Stock Intelligence] Pre-warmed stock intelligence overview cache.');
   } catch (err) {
@@ -301,6 +333,7 @@ export async function computeStockOverview(userId, { forceRefresh = false, inclu
   cachedOverview = result;
   cachedOverviewKey = userId;
   cachedOverviewTimestamp = Date.now();
+  saveOverviewSnapshotToDisk(result);
 
   return result;
 }

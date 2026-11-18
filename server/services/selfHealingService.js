@@ -626,8 +626,8 @@ export async function healRecentHistoricalPrices(options = {}) {
       result.updatedSymbols = [...affectedSymbols];
       console.log(`[Self-Healing] Reconciled and saved ${result.updated} price points across ${result.updatedSymbols.length} assets and ${result.updatedDates.length} trading days.`);
 
-      // Trigger automatic EOD cascade when prices change for past dates
-      if (options.triggerEodSync !== false && result.updatedDates.length > 0) {
+      // Trigger automatic EOD cascade when prices change for past dates (local developer env only)
+      if (options.triggerEodSync !== false && result.updatedDates.length > 0 && !process.env.RENDER && process.env.NODE_ENV !== 'production') {
         try {
           const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
           const child = fork(scriptPath, ['--incremental'], { stdio: 'inherit' });

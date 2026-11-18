@@ -236,12 +236,8 @@ export function triggerEodRebuildIfPastDate(txDate) {
     _earliestTxDate = null;
     _eodRebuildTimer = null;
     try {
-      console.log(`[EOD Auto-Sync] Running debounced background cascade for ${targetDate}...`);
+      console.log(`[EOD Auto-Sync] Running debounced in-process cascade for ${targetDate}...`);
       await fastCascadeEodLogs(targetDate);
-
-      const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
-      const child = fork(scriptPath, [], { detached: true, stdio: 'ignore' });
-      child.unref();
     } catch (e) {
       console.warn('[EOD Auto-Sync Warning]:', e.message);
     }
@@ -304,7 +300,14 @@ export async function checkAndTriggerMissedEodRebuild(options = {}) {
     return result;
   }
 
-  // Trigger rebuild via the background script
+  // Prevent spawning heavy child processes on memory-constrained cloud containers (e.g. Render 512MB RAM)
+  if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+    console.log(`[EOD Check] Missed EOD detected (${latestLogDate} < ${lastCompletedTradingDay}). Skipping child fork in cloud production container to prevent OOM.`);
+    result.skippedCloud = true;
+    return result;
+  }
+
+  // Trigger rebuild via the background script (local developer environments only)
   try {
     const scriptPath = path.join(process.cwd(), 'scripts', 'rebuild_portfolio_eod.mjs');
     if (waitForCompletion) {

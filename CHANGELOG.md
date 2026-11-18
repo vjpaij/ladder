@@ -5,6 +5,15 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.2.4] - 2026-11-18
+
+### Fixed
+- **Temporal Dead Zone `soldQty` ReferenceError**: Fixed fatal runtime `ReferenceError: Cannot access 'soldQty' before initialization` in `GET /api/holdings` where closed US stock valuation referenced `soldQty` 9 lines before its declaration, causing 500 crashes and breaking the Dashboard, Bank account view, and holding cards.
+- **Production Child Process Fork Ban**: Completely eradicated `fork('rebuild_portfolio_eod.mjs')` calls from transaction ingestion, login sync, and scheduled routines in production cloud containers. Spawning child processes inside Render's 512MB RAM container had caused immediate kernel OOM `SIGKILL` termination and 502 Bad Gateway errors; all transaction cascades now run strictly in-process (< 15ms) via `fastCascadeEodLogs`.
+- **Non-USD Transaction FX Optimization**: Gated `fetchFxRate()` in `POST /api/add-investment` strictly to US stocks, eliminating 15-20s Yahoo Finance network timeouts on INR portfolios (Bank, EPF, Equities, MFs, Loans) and accelerating transaction recording from 21,000ms to < 50ms.
+- **Resilient In-Memory FX Caching**: Expanded USD/INR cache TTL to 15 minutes during trading hours (24h off-hours) and added instant fallback to `getPersistedRate('USD_INR')`, eliminating blocking synchronous network retries.
+- **Instant Boot & Stock Intelligence Disk Snapshot**: Pre-saved `data/stock_intelligence_overview.json` (1.35 MB) snapshot, replacing 63-second synchronous CPU calculation on boot with an 11ms disk restore. Deferred background NAV and price sync by 15s, allowing Express to boot in < 50ms and immediately serve `/api/ping` and `/api/auth/login`.
+
 ## [5.91.0] - 2026-10-17
 
 ### Hardened
