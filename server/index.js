@@ -123,6 +123,14 @@ app.use('/api', stockLogosRouter);
 app.use('/api', tradingJournalRouter);
 
 // -------------------------------------------------------------
+// Lightweight Health-Check Ping (Zero Database Overhead)
+// Keeps Render Free Tier awake 24/7 when pinged every 10-14 mins
+// -------------------------------------------------------------
+app.get('/api/ping', (req, res) => {
+  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// -------------------------------------------------------------
 // Sync Status API — surfaces WAL gaps and cache/Supabase divergence
 // -------------------------------------------------------------
 const SYNC_STATUS_TABLES = ['categories', 'holdings', 'transactions', 'dividends', 'liabilities'];

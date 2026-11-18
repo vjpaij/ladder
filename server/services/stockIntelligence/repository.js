@@ -1,10 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import zlib from 'node:zlib';
+import { supabaseAdmin } from '../../supabaseAdminClient.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const STATE_FILE = path.join(DATA_DIR, 'stock_intelligence_state.json');
 const CONFIG_FILE = path.join(DATA_DIR, 'stock_intelligence_config.json');
+const CLOUD_STORAGE_KEY = 'configs/stock_intelligence_config.json.gz';
+const BUCKET_NAME = 'ladder_backups';
+
 const DEFAULT_CONFIG = {
   maxPositionWeightPct: null,
   externalCashBudget: 200000,
@@ -19,6 +24,10 @@ const DEFAULT_CONFIG = {
   updatedAt: null
 };
 
+// In-memory document cache to avoid repeated disk I/O
+let inMemoryConfigDoc = null;
+let cloudSyncTimeout = null;
+
 function readJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
 }
@@ -28,6 +37,85 @@ function atomicWrite(file, payload) {
   const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
   fs.writeFileSync(temp, JSON.stringify(payload, null, 2), 'utf8');
   fs.renameSync(temp, file);
+}
+
+/**
+ * Persists config to Supabase Cloud Storage (lossless gzip, ~3 KB, zero table schema bloat)
+ */
+async function syncConfigToCloud(document) {
+  if (!supabaseAdmin) return;
+  try {
+    const raw = JSON.stringify(document || {});
+    const compressed = zlib.gzipSync(Buffer.from(raw, 'utf-8'));
+    const { error } = await supabaseAdmin.storage
+      .from(BUCKET_NAME)
+      .upload(CLOUD_STORAGE_KEY, compressed, { upsert: true, contentType: 'application/gzip' });
+    if (error) {
+      console.warn('[StockIntelligence Config] Cloud sync warning:', error.message);
+    } else {
+      console.log(`[StockIntelligence Config] Persisted to Supabase storage (${(compressed.length / 1024).toFixed(1)} KB).`);
+    }
+  } catch (err) {
+    console.warn('[StockIntelligence Config] Cloud sync failed:', err.message);
+  }
+}
+
+function debouncedSyncToCloud(document) {
+  if (cloudSyncTimeout) clearTimeout(cloudSyncTimeout);
+  cloudSyncTimeout = setTimeout(() => {
+    syncConfigToCloud(document);
+  }, 1500);
+}
+
+/**
+ * Initializes and restores config from Supabase cloud storage on cold boot if local file is missing/empty
+ */
+export async function initIntelligenceConfigFromCloud() {
+  if (inMemoryConfigDoc) return inMemoryConfigDoc;
+  
+  // 1. Try local disk first
+  let doc = readJson(CONFIG_FILE, null);
+  
+  // 2. If missing or empty on ephemeral container, restore from Supabase Cloud Storage
+  if ((!doc || !doc.byUser || Object.keys(doc.byUser).length === 0) && supabaseAdmin) {
+    try {
+      console.log('[StockIntelligence Config] Checking cloud backup for intelligence config...');
+      const { data, error } = await supabaseAdmin.storage
+        .from(BUCKET_NAME)
+        .download(CLOUD_STORAGE_KEY);
+      if (!error && data) {
+        const arrayBuffer = await data.arrayBuffer();
+        const decompressed = zlib.gunzipSync(Buffer.from(arrayBuffer)).toString('utf-8');
+        const restored = JSON.parse(decompressed);
+        if (restored && restored.byUser) {
+          doc = restored;
+          atomicWrite(CONFIG_FILE, doc);
+          console.log('[StockIntelligence Config] Successfully restored config & GTT stops from Supabase cloud storage!');
+        }
+      }
+    } catch (e) {
+      console.warn('[StockIntelligence Config] Cloud restore warning:', e.message);
+    }
+  }
+
+  inMemoryConfigDoc = doc || { byUser: {} };
+  return inMemoryConfigDoc;
+}
+
+// Kick off async cloud restore on module load
+initIntelligenceConfigFromCloud().catch(() => {});
+
+function loadConfigDocument() {
+  if (!inMemoryConfigDoc) {
+    inMemoryConfigDoc = readJson(CONFIG_FILE, { byUser: {} });
+  }
+  return inMemoryConfigDoc;
+}
+
+function persistConfigDocument(document) {
+  inMemoryConfigDoc = document;
+  atomicWrite(CONFIG_FILE, document);
+  debouncedSyncToCloud(document);
 }
 
 export function resolveConfigUserKey(userId, document) {
@@ -42,13 +130,13 @@ export function resolveConfigUserKey(userId, document) {
 }
 
 export function getIntelligenceConfig(userId) {
-  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const document = loadConfigDocument();
   const key = resolveConfigUserKey(userId, document);
   return { ...DEFAULT_CONFIG, ...(document.byUser?.[key] || {}) };
 }
 
 export function saveIntelligenceConfig(userId, input) {
-  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const document = loadConfigDocument();
   const key = resolveConfigUserKey(userId, document);
   const current = getIntelligenceConfig(key);
 
@@ -124,12 +212,12 @@ export function saveIntelligenceConfig(userId, input) {
     updatedAt: new Date().toISOString()
   };
   document.byUser = { ...(document.byUser || {}), [key]: config };
-  atomicWrite(CONFIG_FILE, document);
+  persistConfigDocument(document);
   return config;
 }
 
 export function saveActiveStopLoss(userId, symbol, triggerPrice, metadata = {}) {
-  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const document = loadConfigDocument();
   const key = resolveConfigUserKey(userId, document);
   const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
   const currentSlMap = userConfig.activeStopLosses || {};
@@ -145,12 +233,12 @@ export function saveActiveStopLoss(userId, symbol, triggerPrice, metadata = {}) 
   userConfig.activeStopLosses = updatedSlMap;
   userConfig.updatedAt = new Date().toISOString();
   document.byUser = { ...(document.byUser || {}), [key]: userConfig };
-  atomicWrite(CONFIG_FILE, document);
+  persistConfigDocument(document);
   return updatedSlMap;
 }
 
 export function saveBulkActiveStopLosses(userId, entries = []) {
-  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const document = loadConfigDocument();
   const key = resolveConfigUserKey(userId, document);
   const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
   const currentSlMap = { ...(userConfig.activeStopLosses || {}) };
@@ -168,26 +256,26 @@ export function saveBulkActiveStopLosses(userId, entries = []) {
   userConfig.activeStopLosses = currentSlMap;
   userConfig.updatedAt = now;
   document.byUser = { ...(document.byUser || {}), [key]: userConfig };
-  atomicWrite(CONFIG_FILE, document);
+  persistConfigDocument(document);
   return currentSlMap;
 }
 
 export function deleteActiveStopLoss(userId, symbol) {
-  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const document = loadConfigDocument();
   const key = resolveConfigUserKey(userId, document);
   const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
   if (userConfig.activeStopLosses && userConfig.activeStopLosses[symbol]) {
     delete userConfig.activeStopLosses[symbol];
     userConfig.updatedAt = new Date().toISOString();
     document.byUser = { ...(document.byUser || {}), [key]: userConfig };
-    atomicWrite(CONFIG_FILE, document);
+    persistConfigDocument(document);
   }
   return userConfig.activeStopLosses || {};
 }
 
 export function pruneActiveStopLosses(userId, symbols = []) {
   if (!Array.isArray(symbols) || symbols.length === 0) return {};
-  const document = readJson(CONFIG_FILE, { byUser: {} });
+  const document = loadConfigDocument();
   const key = resolveConfigUserKey(userId, document);
   const userConfig = document.byUser?.[key] || { ...DEFAULT_CONFIG };
   if (!userConfig.activeStopLosses) return {};
@@ -201,7 +289,7 @@ export function pruneActiveStopLosses(userId, symbols = []) {
   if (modified) {
     userConfig.updatedAt = new Date().toISOString();
     document.byUser = { ...(document.byUser || {}), [key]: userConfig };
-    atomicWrite(CONFIG_FILE, document);
+    persistConfigDocument(document);
   }
   return userConfig.activeStopLosses || {};
 }

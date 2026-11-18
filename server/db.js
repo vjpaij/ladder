@@ -1,30 +1,92 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import zlib from 'zlib';
 import { supabase } from './supabaseClient.js';
+import { supabaseAdmin } from './supabaseAdminClient.js';
 
 const USERS_FILE = path.join(process.cwd(), 'data', 'users.json');
+const USERS_CLOUD_KEY = 'configs/users.json.gz';
+const BUCKET_NAME = 'ladder_backups';
 const isOfflineMode = process.env.OFFLINE_CACHE_MODE === 'true' || process.env.VITE_OFFLINE_CACHE_MODE === 'true';
 
+let cachedUsers = null;
+let usersCloudSyncTimeout = null;
+
+function syncUsersToCloud(users) {
+  if (!supabaseAdmin) return;
+  try {
+    const raw = JSON.stringify(users || []);
+    const compressed = zlib.gzipSync(Buffer.from(raw, 'utf-8'));
+    supabaseAdmin.storage
+      .from(BUCKET_NAME)
+      .upload(USERS_CLOUD_KEY, compressed, { upsert: true, contentType: 'application/gzip' })
+      .then(({ error }) => {
+        if (error) console.warn('[DB Users] Cloud backup warning:', error.message);
+        else console.log(`[DB Users] Backed up ${users.length} users to Supabase storage (${(compressed.length / 1024).toFixed(1)} KB).`);
+      })
+      .catch(err => console.warn('[DB Users] Cloud backup error:', err.message));
+  } catch (err) {
+    console.warn('[DB Users] Cloud backup failed:', err.message);
+  }
+}
+
+function debouncedSyncUsersToCloud(users) {
+  if (usersCloudSyncTimeout) clearTimeout(usersCloudSyncTimeout);
+  usersCloudSyncTimeout = setTimeout(() => {
+    syncUsersToCloud(users);
+  }, 1000);
+}
+
 function readLocalUsers() {
+  if (cachedUsers !== null) return cachedUsers;
   try {
     if (fs.existsSync(USERS_FILE)) {
       const content = fs.readFileSync(USERS_FILE, 'utf-8');
-      return JSON.parse(content || '[]');
+      cachedUsers = JSON.parse(content || '[]');
+      return cachedUsers;
     }
   } catch (e) {
     console.warn('[DB Users] Failed to read users.json:', e.message);
   }
-  return [];
+  cachedUsers = [];
+  return cachedUsers;
 }
 
 function writeLocalUsers(users) {
   try {
+    cachedUsers = users;
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8');
+    debouncedSyncUsersToCloud(users);
   } catch (e) {
     console.warn('[DB Users] Failed to write users.json:', e.message);
   }
 }
+
+// Startup restore from cloud if local users.json is missing or empty
+async function initUsersFromCloud() {
+  const users = readLocalUsers();
+  if (users.length === 0 && supabaseAdmin) {
+    try {
+      console.log('[DB Users] Local users.json empty, checking Supabase storage...');
+      const { data, error } = await supabaseAdmin.storage
+        .from(BUCKET_NAME)
+        .download(USERS_CLOUD_KEY);
+      if (!error && data) {
+        const arrayBuffer = await data.arrayBuffer();
+        const decompressed = zlib.gunzipSync(Buffer.from(arrayBuffer)).toString('utf-8');
+        const restored = JSON.parse(decompressed);
+        if (Array.isArray(restored) && restored.length > 0) {
+          writeLocalUsers(restored);
+          console.log(`[DB Users] Restored ${restored.length} users from Supabase storage.`);
+        }
+      }
+    } catch (e) {
+      console.warn('[DB Users] Cloud restore warning:', e.message);
+    }
+  }
+}
+initUsersFromCloud().catch(() => {});
 
 // Table name mapping helper (e.g. daily_pnl_logs -> pnl_history)
 function getSupabaseTableName(tableName) {
