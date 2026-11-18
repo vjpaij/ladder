@@ -17,12 +17,13 @@ check_symbols.mjs
 summary_response*.json
 data/backups/*.json
 data/backups/*.json.gz
-data/fx_rates_persistent.json
 data/db_cache_snapshot.json
-data/sip_history.json
-scratch/
 data/db_cache_snapshot.bak.json
 data/db_cache_snapshot.tmp.json
+!data/db_cache_snapshot.json.gz
+!data/fx_rates_persistent.json
+data/sip_history.json
+scratch/
 data/pending_writes.json
 data/stock_intelligence_state.json
 data/stock_intelligence_config.json

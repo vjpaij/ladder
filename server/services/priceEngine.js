@@ -1098,23 +1098,16 @@ export async function fetchNpsHistoricalNav(schemeCode) {
 
   const navMap = new Map();
 
-  // 1. Seed from local historical_prices.json if available
+  // 1. Seed from in-memory historical prices cache (0 disk I/O, 0 memory spike)
   let latestDateInLocal = null;
-  const hpPath = './data/historical_prices.json';
-  if (fs.existsSync(hpPath)) {
-    try {
-      const hp = JSON.parse(fs.readFileSync(hpPath, 'utf8'));
-      if (hp[schemeCode]) {
-        Object.entries(hp[schemeCode]).forEach(([d, p]) => {
-          if (p != null && !isNaN(p)) {
-            navMap.set(d, Number(p));
-            if (!latestDateInLocal || d > latestDateInLocal) latestDateInLocal = d;
-          }
-        });
+  const hp = getHistoricalPricesMap();
+  if (hp && hp[schemeCode]) {
+    Object.entries(hp[schemeCode]).forEach(([d, p]) => {
+      if (p != null && !isNaN(p)) {
+        navMap.set(d, Number(p));
+        if (!latestDateInLocal || d > latestDateInLocal) latestDateInLocal = d;
       }
-    } catch (e) {
-      console.warn(`[NPS Historical] Local historical prices parse error for ${schemeCode}:`, e.message);
-    }
+    });
   }
 
   const lastTradingDay = getLastTradingDay(getTodayIST(), 'NSE');

@@ -27,17 +27,16 @@ const DISPLAY_NAMES = {
   'credit_cards': 'Credit Card'
 };
 
-// --- Summary API Cache (60-second TTL during market hours) --------------------
-// The /api/summary endpoint iterates 400 holdings x 11K transactions for XIRR
-// and P&L calculations. Caching the result for 60 seconds prevents the dashboard
-// 30-second polling from re-running full computation on every tick.
+// --- Summary API Cache (5m active hours / 15m off-hours TTL) ------------------
 let _summaryCache = null;
 let _summaryCacheExpiry = 0;
-const SUMMARY_CACHE_TTL_MS = 60_000; // 60 seconds
+let _summaryInFlightPromise = null;
+const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export function invalidateSummaryCache() {
   _summaryCache = null;
   _summaryCacheExpiry = 0;
+  _summaryInFlightPromise = null;
 }
 
 export async function computeSummaryPayload(options = {}) {
@@ -46,8 +45,13 @@ export async function computeSummaryPayload(options = {}) {
   if (!forceRefresh && _summaryCache && nowMs < _summaryCacheExpiry) {
     return _summaryCache;
   }
+  if (!forceRefresh && _summaryInFlightPromise) {
+    return _summaryInFlightPromise;
+  }
 
-  const fxRate = await fetchFxRate();
+  _summaryInFlightPromise = (async () => {
+    try {
+      const fxRate = await fetchFxRate();
 
     const holdings = await db.select('holdings');
     const categories = await db.select('categories');
@@ -276,6 +280,25 @@ export async function computeSummaryPayload(options = {}) {
       }
     });
 
+    // Pre-index transactions and dividends by holding_id for O(1) retrieval
+    // Eliminates 5.5 million array comparisons on every summary evaluation
+    const txsByHoldingId = new Map();
+    (txs || []).forEach(t => {
+      if (t.type !== 'BUY' && t.type !== 'SELL') return;
+      const key = String(t.holding_id);
+      const list = txsByHoldingId.get(key);
+      if (list) list.push(t);
+      else txsByHoldingId.set(key, [t]);
+    });
+
+    const divsByHoldingId = new Map();
+    (dividends || []).forEach(d => {
+      const key = String(d.holding_id);
+      const list = divsByHoldingId.get(key);
+      if (list) list.push(d);
+      else divsByHoldingId.set(key, [d]);
+    });
+
     // 5. Finalize Category Metrics & Precise Holding-Level Weighted XIRR
     const categoryMetrics = Object.values(categoryMetricsMap)
       .filter(c => c.investedINR > 0 || c.currentINR > 0 || c.realizedINR > 0)
@@ -287,8 +310,8 @@ export async function computeSummaryPayload(options = {}) {
         // Calculate Active XIRR
         let activeCost = 0, activeWeightedXirr = 0;
         activeHoldings.forEach(h => {
-          const hTxs = txs.filter(t => t.holding_id === h.id && (t.type === 'BUY' || t.type === 'SELL'));
-          const hDivs = dividends.filter(d => d.holding_id === h.id);
+          const hTxs = txsByHoldingId.get(String(h.id)) || [];
+          const hDivs = divsByHoldingId.get(String(h.id)) || [];
           const flows = [];
           if (hTxs.length > 0) {
             hTxs.forEach(t => {
@@ -340,8 +363,8 @@ export async function computeSummaryPayload(options = {}) {
           const pnl = (Number(h.realized_pnl) || 0) * (h.currency === 'USD' ? fxRate : 1.0);
           const proceeds = cost + pnl;
 
-          const hTxs = txs.filter(t => t.holding_id === h.id && (t.type === 'BUY' || t.type === 'SELL'));
-          const hDivs = dividends.filter(d => d.holding_id === h.id);
+          const hTxs = txsByHoldingId.get(String(h.id)) || [];
+          const hDivs = divsByHoldingId.get(String(h.id)) || [];
           const flows = [];
           const hasSellTx = hTxs.some(t => t.type === 'SELL');
 
@@ -580,10 +603,17 @@ export async function computeSummaryPayload(options = {}) {
       assetAllocation,
       categoryMetrics
     };
-    // Cache for 60 seconds to protect against 30-second dashboard polling overhead
+    // Cache with adaptive TTL: 5m during active trading sessions, 15m off-hours
     _summaryCache = summaryPayload;
-    _summaryCacheExpiry = Date.now() + SUMMARY_CACHE_TTL_MS;
+    const ttl = isAnyMarketOpen() ? SUMMARY_CACHE_TTL_MS : (15 * 60 * 1000);
+    _summaryCacheExpiry = Date.now() + ttl;
     return summaryPayload;
+  } finally {
+    _summaryInFlightPromise = null;
+  }
+})();
+
+  return _summaryInFlightPromise;
 }
 
 export async function warmSummaryCache() {

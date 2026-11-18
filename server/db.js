@@ -106,6 +106,7 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const SNAPSHOT_FILE     = path.join(DATA_DIR, 'db_cache_snapshot.json');
 const SNAPSHOT_TMP      = path.join(DATA_DIR, 'db_cache_snapshot.tmp.json');
 const SNAPSHOT_BAK      = path.join(DATA_DIR, 'db_cache_snapshot.bak.json');
+const SNAPSHOT_GZ       = path.join(DATA_DIR, 'db_cache_snapshot.json.gz');
 
 // ─── WAL (Write-Ahead Log) ────────────────────────────────────────────────────
 // appendToWal is imported lazily to avoid circular deps at module load time.
@@ -243,8 +244,12 @@ export function saveCacheSnapshotToDisk({ allowEmptyReplacement = false, allowEm
       try { fs.unlinkSync(SNAPSHOT_TMP); } catch (_) {}
     }
 
-    // Phase 3: Copy to backup
+    // Phase 3: Copy to backup and write seed gz
     fs.copyFileSync(SNAPSHOT_FILE, SNAPSHOT_BAK);
+    try {
+      const compressed = zlib.gzipSync(Buffer.from(payload, 'utf-8'));
+      fs.writeFileSync(SNAPSHOT_GZ, compressed);
+    } catch (_) {}
   } catch (e) {
     console.warn('[DB Cache] Failed to save atomic disk snapshot:', e.message);
   }
@@ -272,6 +277,19 @@ function readAndVerifySnapshot(filePath) {
 
 export function restoreCacheSnapshotFromDisk() {
   try {
+    // 0. Auto-unpack compressed seed snapshot if primary doesn't exist (e.g. fresh cloud container)
+    if (!fs.existsSync(SNAPSHOT_FILE) && fs.existsSync(SNAPSHOT_GZ)) {
+      try {
+        console.log('[DB Cache] Decompressing seed snapshot from db_cache_snapshot.json.gz...');
+        const gzBuf = fs.readFileSync(SNAPSHOT_GZ);
+        const decompressed = zlib.gunzipSync(gzBuf);
+        fs.writeFileSync(SNAPSHOT_FILE, decompressed, 'utf-8');
+        console.log('[DB Cache] Seed snapshot unpacked successfully.');
+      } catch (gzErr) {
+        console.warn('[DB Cache] Failed to unpack seed .gz snapshot:', gzErr.message);
+      }
+    }
+
     // Try primary first, then .bak fallback
     let snapshot = readAndVerifySnapshot(SNAPSHOT_FILE);
     if (!snapshot) {

@@ -12,28 +12,36 @@ export function calculateXirr(cashflows, guess = 0.1) {
   if (!hasNeg || !hasPos) return 0;
 
   // Ensure cashflows sorted by date ascending
-  const sorted = [...valid].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const sorted = [...valid].sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0)));
   const t0 = new Date(sorted[0].date).getTime();
   const MS_PER_YEAR = 1000 * 3600 * 24 * 365.25;
 
+  // Pre-calculate relative time intervals once to avoid expensive new Date() calls inside iterations
+  const prepared = sorted.map(cf => ({
+    amount: cf.amount,
+    dt: (new Date(cf.date).getTime() - t0) / MS_PER_YEAR
+  }));
+
   function xnpv(rate) {
     let sum = 0;
-    for (const cf of sorted) {
-      const dt = (new Date(cf.date).getTime() - t0) / MS_PER_YEAR;
-      const denom = Math.pow(1 + rate, dt);
+    const base = 1 + rate;
+    for (let i = 0; i < prepared.length; i++) {
+      const p = prepared[i];
+      const denom = Math.pow(base, p.dt);
       if (!Number.isFinite(denom) || denom === 0) return NaN;
-      sum += cf.amount / denom;
+      sum += p.amount / denom;
     }
     return sum;
   }
 
   function dxnpv(rate) {
     let sum = 0;
-    for (const cf of sorted) {
-      const dt = (new Date(cf.date).getTime() - t0) / MS_PER_YEAR;
-      const denom = Math.pow(1 + rate, dt + 1);
+    const base = 1 + rate;
+    for (let i = 0; i < prepared.length; i++) {
+      const p = prepared[i];
+      const denom = Math.pow(base, p.dt + 1);
       if (!Number.isFinite(denom) || denom === 0) return NaN;
-      sum -= (dt * cf.amount) / denom;
+      sum -= (p.dt * p.amount) / denom;
     }
     return sum;
   }

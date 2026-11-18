@@ -7,6 +7,7 @@ import { supabase } from '../supabaseClient.js';
 import { getHistoricalFxRate, getHistoricalFxRatesMap, recordDailyFxRate, getPersistedRate } from './fxRateStore.js';
 import { recalculateHoldingState } from './recalculator.js';
 import { triggerEodRebuildIfPastDate } from './eodSync.js';
+import { getHistoricalPricesMap, saveHistoricalPricesToFile } from './historicalPriceStore.js';
 import { 
   fetchStockQuote, 
   fetchMutualFundNav, 
@@ -363,14 +364,13 @@ export async function syncRecentNpsEodValuations() {
       fs.writeFileSync(eodPath, JSON.stringify(logs, null, 2), 'utf8');
 
       try {
-        const histPath = path.join(process.cwd(), 'data', 'historical_prices.json');
-        if (fs.existsSync(histPath)) {
-          const hist = JSON.parse(fs.readFileSync(histPath, 'utf8'));
+        const hist = getHistoricalPricesMap();
+        if (hist) {
           (navRows || []).forEach(r => {
             if (!hist[r.scheme_code]) hist[r.scheme_code] = {};
             hist[r.scheme_code][r.nav_date] = Number(r.nav);
           });
-          fs.writeFileSync(histPath, JSON.stringify(hist, null, 2), 'utf8');
+          saveHistoricalPricesToFile();
         }
       } catch (_) {}
 
@@ -437,10 +437,8 @@ export async function syncRecentNpsEodValuations() {
 export async function healRecentHistoricalPrices(options = {}) {
   const result = { updated: 0, updatedSymbols: [], updatedDates: [] };
   try {
-    const hpPath = path.join(process.cwd(), 'data', 'historical_prices.json');
-    if (!fs.existsSync(hpPath)) return result;
-
-    const hp = JSON.parse(fs.readFileSync(hpPath, 'utf8'));
+    const hp = getHistoricalPricesMap();
+    if (!hp || Object.keys(hp).length === 0) return result;
     const holdings = await db.select('holdings');
     const transactions = await db.select('transactions');
     const today = getTodayIST();
@@ -824,9 +822,8 @@ export async function healDustFractionalHoldings() {
 export async function healActiveHoldingsPriceHistory() {
   const result = { audited: 0, healed: 0, symbols: [] };
   try {
-    const hpPath = path.join(process.cwd(), 'data', 'historical_prices.json');
-    if (!fs.existsSync(hpPath)) return result;
-    const hp = JSON.parse(fs.readFileSync(hpPath, 'utf8'));
+    const hp = getHistoricalPricesMap();
+    if (!hp || Object.keys(hp).length === 0) return result;
     const metaPath = path.join(process.cwd(), 'data', 'asset_metadata.json');
     const metadata = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : [];
     const metaMap = new Map((Array.isArray(metadata) ? metadata : []).map(m => [m.symbol, m]));

@@ -45,6 +45,10 @@ export function loadPersistedRates() {
   } catch (e) {
     console.warn('[FX Persistent Store] Failed to load persisted rates:', e.message);
   }
+  // Baseline invariance: ensure USD_INR is always non-null
+  if (!rateStore['USD_INR'] || !rateStore['USD_INR'].rate) {
+    rateStore['USD_INR'] = { rate: 93.43, updatedAt: new Date().toISOString(), source: 'baseline-invariance' };
+  }
 }
 
 /**
