@@ -351,20 +351,20 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Instant warm of stock intelligence analysis cache from disk snapshot (< 15ms)
     await warmStockIntelligenceCache();
 
-    // Deferred background sync for authoritative NAVs and active market quotes (15s delay)
-    // Guarantees server accepts logins, pings, and dashboard queries with 0ms startup lag
-    setTimeout(async () => {
-      try {
-        if (!process.env.RENDER) {
+    // Deferred background sync for authoritative NAVs and active market quotes (15s delay, local dev only)
+    // Guarantees cloud containers accept logins, pings, and dashboard queries with 0ms startup lag
+    if (!process.env.RENDER && process.env.NODE_ENV !== 'production') {
+      setTimeout(async () => {
+        try {
           await syncAllMissingNavs({ persistToDb: true });
+          if (isAnyMarketOpen()) {
+            await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
+          }
+        } catch (syncErr) {
+          console.warn('[Startup Price/NAV Sync Warning]:', syncErr.message);
         }
-        if (isAnyMarketOpen()) {
-          await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
-        }
-      } catch (syncErr) {
-        console.warn('[Startup Price/NAV Sync Warning]:', syncErr.message);
-      }
-    }, 15000);
+      }, 15000);
+    }
   } catch (err) {
     console.warn('[PriceEngine Priming Warning]:', err.message);
   }
@@ -403,15 +403,18 @@ app.listen(PORT, '0.0.0.0', async () => {
   // Start ticker runner after initial boot delay
   setTimeout(runLiveTicker, 3000);
 
-  // 3. Startup self-healing: scan and resolve any data gaps once after warm-up
-  setTimeout(async () => {
-    try {
-      console.log('[Self-Healing Engine] Running single startup background self-healing scan...');
-      await runComprehensiveSelfHealing();
-    } catch (err) {
-      console.warn('[Self-Healing Engine Warning]:', err.message);
-    }
-  }, 10000);
+  // 3. Startup self-healing: scan and resolve any data gaps once after warm-up (local dev only)
+  // Cloud containers remain 100% dedicated to serving incoming API requests with 0ms lag and minimal RAM
+  if (!process.env.RENDER && process.env.NODE_ENV !== 'production') {
+    setTimeout(async () => {
+      try {
+        console.log('[Self-Healing Engine] Running single startup background self-healing scan...');
+        await runComprehensiveSelfHealing();
+      } catch (err) {
+        console.warn('[Self-Healing Engine Warning]:', err.message);
+      }
+    }, 10000);
+  }
 
   // 4. Daily midnight self-healing scheduler: runs strictly once per day at 00:05 AM IST (18:35 UTC)
   const scheduleDailySelfHealing = () => {
@@ -687,11 +690,14 @@ app.listen(PORT, '0.0.0.0', async () => {
     checkAndTriggerMissedEodRebuild().catch(() => {});
   }, 60 * 60 * 1000);
 
-  // Trigger daily Stock Analysis and Buy Analysis audit on server startup
-  runDailyStockAnalysisAudit({ trigger: 'BOOT' }).catch(err => {
-    console.warn('[Stock Analysis] Boot audit warning:', err.message);
-  });
-  runBuyAnalysisEngine({ forceRefresh: false }).catch(err => {
-    console.warn('[Buy Analysis] Boot audit warning:', err.message);
-  });
+  // Trigger daily Stock Analysis and Buy Analysis audit on server startup (local development only)
+  // Cloud containers use warm snapshots (warmStockIntelligenceCache / data/stock_intelligence_overview.json)
+  if (!process.env.RENDER && process.env.NODE_ENV !== 'production') {
+    runDailyStockAnalysisAudit({ trigger: 'BOOT' }).catch(err => {
+      console.warn('[Stock Analysis] Boot audit warning:', err.message);
+    });
+    runBuyAnalysisEngine({ forceRefresh: false }).catch(err => {
+      console.warn('[Buy Analysis] Boot audit warning:', err.message);
+    });
+  }
 });
