@@ -238,8 +238,9 @@ app.listen(PORT, '0.0.0.0', async () => {
   }
 
   // 1d. Startup divergence reconciliation — compare cache vs Supabase row counts
-  //     If local cache has more rows than Supabase, upsert the missing rows directly.
-  setTimeout(async () => {
+  // Run ONLY in local development; cloud containers remain 100% focused on serving API traffic
+  if (!process.env.RENDER && process.env.NODE_ENV !== 'production') {
+    setTimeout(async () => {
     if (!supabaseAdmin) {
       console.warn('[Startup Reconciliation] supabaseAdmin not available — skipping divergence check.');
       return;
@@ -318,7 +319,8 @@ app.listen(PORT, '0.0.0.0', async () => {
     } catch (reconcileErr) {
       console.warn('[Startup Reconciliation Warning]:', reconcileErr.message);
     }
-  }, 15000);
+    }, 15000);
+  }
 
   // 1b. Prime liveQuoteCache from cached holdings on server boot (0 Supabase egress)
   try {
@@ -353,7 +355,9 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Guarantees server accepts logins, pings, and dashboard queries with 0ms startup lag
     setTimeout(async () => {
       try {
-        await syncAllMissingNavs({ persistToDb: true });
+        if (!process.env.RENDER) {
+          await syncAllMissingNavs({ persistToDb: true });
+        }
         if (isAnyMarketOpen()) {
           await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
         }
