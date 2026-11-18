@@ -28,7 +28,7 @@ const backtestCache = new Map();
 let cachedOverview = null;
 let cachedOverviewKey = '';
 let cachedOverviewTimestamp = 0;
-const OVERVIEW_TTL_MS = 60 * 1000; // 60 seconds fast in-memory cache
+const OVERVIEW_TTL_MS = 15 * 60 * 1000; // 15 minutes fast in-memory cache
 
 function getUserKey(user) {
   return String(user?.email || user?.userId || user?.id || 'vijaypaij@gmail.com');
@@ -38,6 +38,15 @@ export function invalidateStockIntelligenceCache() {
   cachedOverview = null;
   cachedOverviewKey = '';
   cachedOverviewTimestamp = 0;
+}
+
+export async function warmStockIntelligenceCache() {
+  try {
+    await computeStockOverview('vijaypaij@gmail.com');
+    console.log('[Stock Intelligence] Pre-warmed stock intelligence overview cache.');
+  } catch (err) {
+    console.warn('[Stock Intelligence] Warmup warning:', err.message);
+  }
 }
 
 function getBacktest(priceMap, symbols) {

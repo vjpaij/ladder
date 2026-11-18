@@ -226,22 +226,6 @@ export function ThemeAuthProvider({ children }) {
       }
     }, 30000);
 
-    // Cross-device concurrency heartbeat: ping server every 30 seconds to catch logins from other devices
-    const heartbeatInterval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/auth/session-check');
-        if (res.status === 401) {
-          const data = await res.json().catch(() => ({}));
-          const isSuperseded = data?.code === 'SESSION_SUPERSEDED';
-          logout(isSuperseded 
-            ? 'Session terminated: This account has logged in from another device.' 
-            : 'Session expired. Please sign in again.');
-        }
-      } catch (e) {
-        // Suppress transient network drops
-      }
-    }, 30000);
-
     // Multi-tab sync: if another tab cleared ladder_token, log out immediately
     const onStorageChange = (e) => {
       if (e.key === 'ladder_token' && !e.newValue) {
@@ -254,7 +238,6 @@ export function ThemeAuthProvider({ children }) {
     return () => {
       activityEvents.forEach(evt => window.removeEventListener(evt, recordActivity));
       clearInterval(inactivityInterval);
-      clearInterval(heartbeatInterval);
       window.removeEventListener('storage', onStorageChange);
     };
   }, [token, logout]);

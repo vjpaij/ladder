@@ -53,7 +53,7 @@ import sipsRouter from './routes/sips.js';
 import searchRouter from './routes/search.js';
 import reportsRouter from './routes/reports.js';
 import syncLogsRouter from './routes/syncLogs.js';
-import stockIntelligenceRouter, { runDailyStockAnalysisAudit } from './routes/stockIntelligence.js';
+import stockIntelligenceRouter, { runDailyStockAnalysisAudit, warmStockIntelligenceCache } from './routes/stockIntelligence.js';
 import buyAnalysisRouter, { runBuyAnalysisEngine, invalidateBuyCache } from './routes/buyAnalysis.js';
 import stockLogosRouter from './routes/stockLogos.js';
 import tradingJournalRouter from './routes/tradingJournal.js';
@@ -356,6 +356,15 @@ app.listen(PORT, '0.0.0.0', async () => {
   } catch (err) {
     console.warn('[PriceEngine Priming Warning]:', err.message);
   }
+
+  // 1e. Pre-warm stock intelligence analysis cache in background so Stock Analysis loads in 0ms
+  setTimeout(async () => {
+    try {
+      await warmStockIntelligenceCache();
+    } catch (warmErr) {
+      console.warn('[Stock Analysis Warmup Warning]:', warmErr.message);
+    }
+  }, 3000);
 
   // 2. Self-scheduling non-overlapping real-time active price & forex sync loop
   // Runs every 10s during active market trading hours for open markets, and pauses when markets are closed

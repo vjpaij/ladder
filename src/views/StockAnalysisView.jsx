@@ -540,7 +540,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       </div>
                     )}
                     <button
-                      onClick={() => reload(true, true, true)}
+                      onClick={() => reload(true, true, false)}
                       disabled={refreshing || loading}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border-color)] reports-subcard text-[10px] font-bold text-[var(--text-secondary)] hover:text-emerald-500 dark:hover:text-emerald-400 hover:border-emerald-500/30 transition-colors cursor-pointer"
                     >
