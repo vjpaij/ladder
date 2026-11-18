@@ -1,6 +1,7 @@
 import express from 'express';
 import { invalidateEodLogsCache, invalidateTxDatesCache, invalidateCalendarValuationCache } from './calendar.js';
 import { invalidateSummaryCache } from './summary.js';
+import { invalidateHoldingsResponseCache } from './holdings.js';
 import axios from 'axios';
 import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
@@ -259,6 +260,7 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
 
         // Invalidate server-side caches so next poll picks up newly refreshed prices
         invalidateSummaryCache();
+        invalidateHoldingsResponseCache();
         invalidateTxDatesCache();
         invalidateCalendarValuationCache();
         invalidateBuyCache();
@@ -350,6 +352,7 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
 
     // Invalidate server-side caches so next poll gets fresh data
     invalidateSummaryCache();
+    invalidateHoldingsResponseCache();
     invalidateTxDatesCache();
     invalidateCalendarValuationCache();
     invalidateBuyCache();

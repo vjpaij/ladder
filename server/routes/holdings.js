@@ -58,8 +58,22 @@ export function resolveCanonicalMarketCap(meta = {}, holding = {}) {
   return 'Small Cap';
 }
 
+let _holdingsResponseCache = null;
+let _holdingsResponseExpiry = 0;
+const HOLDINGS_RESPONSE_TTL_MS = 60_000;
+
+export function invalidateHoldingsResponseCache() {
+  _holdingsResponseCache = null;
+  _holdingsResponseExpiry = 0;
+}
+
 router.get('/holdings', authenticateToken, async (req, res) => {
   try {
+    const forceRefresh = req.query.forceRefresh === 'true';
+    if (!forceRefresh && _holdingsResponseCache && Date.now() < _holdingsResponseExpiry) {
+      return res.json(_holdingsResponseCache);
+    }
+
     const fxRate = await fetchFxRate();
 
     const holdings = await db.select('holdings');
@@ -496,6 +510,8 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       } catch (_) {}
     }
 
+    _holdingsResponseCache = formatted;
+    _holdingsResponseExpiry = Date.now() + HOLDINGS_RESPONSE_TTL_MS;
     res.json(formatted);
   } catch (err) {
     console.error('[Get Holdings Error]:', err);

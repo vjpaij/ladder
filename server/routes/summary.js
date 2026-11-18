@@ -39,19 +39,15 @@ export function invalidateSummaryCache() {
   _summaryCache = null;
   _summaryCacheExpiry = 0;
 }
-// -------------------------------------------------------------
-// Portfolio Summary & Metrics API
-// -------------------------------------------------------------
-router.get('/summary', async (req, res) => {
-  try {
-    // -- Fast-path: return cached summary if still fresh ----------------------
-    const forceRefresh = req.query.forceRefresh === 'true';
-    const nowMs = Date.now();
-    if (!forceRefresh && _summaryCache && nowMs < _summaryCacheExpiry) {
-      return res.json(_summaryCache);
-    }
 
-    const fxRate = await fetchFxRate();
+export async function computeSummaryPayload(options = {}) {
+  const forceRefresh = options.forceRefresh === true;
+  const nowMs = Date.now();
+  if (!forceRefresh && _summaryCache && nowMs < _summaryCacheExpiry) {
+    return _summaryCache;
+  }
+
+  const fxRate = await fetchFxRate();
 
     const holdings = await db.select('holdings');
     const categories = await db.select('categories');
@@ -587,7 +583,27 @@ router.get('/summary', async (req, res) => {
     // Cache for 60 seconds to protect against 30-second dashboard polling overhead
     _summaryCache = summaryPayload;
     _summaryCacheExpiry = Date.now() + SUMMARY_CACHE_TTL_MS;
-    res.json(summaryPayload);
+    return summaryPayload;
+}
+
+export async function warmSummaryCache() {
+  try {
+    const t0 = Date.now();
+    await computeSummaryPayload({ forceRefresh: true });
+    console.log(`[Summary Cache] Pre-warmed in-memory portfolio summary in ${Date.now() - t0}ms.`);
+  } catch (err) {
+    console.warn('[Summary Cache Warm Error]:', err.message);
+  }
+}
+
+// -------------------------------------------------------------
+// Portfolio Summary & Metrics API
+// -------------------------------------------------------------
+router.get('/summary', async (req, res) => {
+  try {
+    const forceRefresh = req.query.forceRefresh === 'true';
+    const payload = await computeSummaryPayload({ forceRefresh });
+    res.json(payload);
   } catch (err) {
     console.error('[API Error - /api/summary]:', err);
     res.status(500).json({ error: err.message });

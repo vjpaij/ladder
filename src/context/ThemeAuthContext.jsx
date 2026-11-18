@@ -139,14 +139,6 @@ export function ThemeAuthProvider({ children }) {
     localStorage.removeItem('ladder_token');
     localStorage.removeItem('ladder_user');
     localStorage.removeItem('ladder_last_activity');
-    try {
-      sessionStorage.removeItem('ladder_cache_summary');
-      sessionStorage.removeItem('ladder_cache_holdings');
-      sessionStorage.removeItem('ladder_cache_liabilities');
-      localStorage.removeItem('ladder_cache_summary');
-      localStorage.removeItem('ladder_cache_holdings');
-      localStorage.removeItem('ladder_cache_liabilities');
-    } catch (_) {}
     delete axios.defaults.headers.common.Authorization;
     setToken(null);
     setUser(null);

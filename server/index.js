@@ -41,12 +41,12 @@ import { authenticateToken } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
 import fxRouter from './routes/fx.js';
 import summaryRouter from './routes/summary.js';
-import holdingsRouter from './routes/holdings.js';
+import holdingsRouter, { invalidateHoldingsResponseCache } from './routes/holdings.js';
 import transactionsRouter from './routes/transactions.js';
 import liabilitiesRouter from './routes/liabilities.js';
 import dividendsRouter from './routes/dividends.js';
 import calendarRouter, { invalidateEodLogsCache, invalidateTxDatesCache } from './routes/calendar.js';
-import { invalidateSummaryCache } from './routes/summary.js';
+import { invalidateSummaryCache, warmSummaryCache } from './routes/summary.js';
 import backupRouter from './routes/backup.js';
 import databaseRouter from './routes/database.js';
 import sipsRouter from './routes/sips.js';
@@ -65,12 +65,29 @@ export { triggerEodRebuildIfPastDate };
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration
-const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
+// CORS configuration: Allow local dev, configured custom origins, Vercel deployments, and mobile/cron clients
+const defaultAllowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000'
+];
+
+const customOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (defaultAllowedOrigins.includes(origin) || customOrigins.includes(origin)) return callback(null, true);
+    if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return callback(null, true);
+    if (/^https:\/\/.*\.onrender\.com$/.test(origin)) return callback(null, true);
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Keep derived dashboard/calendar caches coherent after successful domain
@@ -89,6 +106,7 @@ app.use('/api', (req, res, next) => {
         invalidateSummaryCache();
         invalidateTxDatesCache();
         invalidateBuyCache();
+        invalidateHoldingsResponseCache();
       }
     });
   }
@@ -201,12 +219,13 @@ app.get('/api/internal/full-snapshot', authenticateToken, (req, res) => {
 // -------------------------------------------------------------
 // Server Boot & Background Schedulers
 // -------------------------------------------------------------
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`[Ladder Server] Running on http://localhost:${PORT}`);
 
   // 1. Pre-warm database cache on boot first to eliminate cold starts and protect egress
   try {
     await warmCache();
+    await warmSummaryCache();
   } catch (err) {
     console.warn('[WarmCache Error]:', err.message);
   }

@@ -10,10 +10,10 @@ import HoldingDetailModal from './components/HoldingDetailModal';
 import EditProfileModal from './components/EditProfileModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoginView from './views/LoginView';
+import OverviewView from './views/OverviewView';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
-// Code-split: each view is loaded on demand with auto-retry and stale-bundle recovery
-const OverviewView = lazyWithRetry(() => import('./views/OverviewView'), 'OverviewView');
+// Code-split secondary views: loaded on demand with auto-retry and stale-bundle recovery
 const CalendarView = lazyWithRetry(() => import('./views/CalendarView'), 'CalendarView');
 const StockAnalysisView = lazyWithRetry(() => import('./views/StockAnalysisView'), 'StockAnalysisView');
 const BuyAnalysisView = lazyWithRetry(() => import('./views/BuyAnalysisView'), 'BuyAnalysisView');

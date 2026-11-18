@@ -19,20 +19,6 @@ export default function LoginView() {
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Pre-load default overview chunk in idle time so entering the dashboard is instant (< 0ms wait)
-  useEffect(() => {
-    const prefetch = () => {
-      import('./OverviewView').catch(() => {});
-    };
-    if (typeof window !== 'undefined') {
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(prefetch);
-      } else {
-        setTimeout(prefetch, 200);
-      }
-    }
-  }, []);
-
   const isRegistering = mode === 'register';
   const isChangingPassword = mode === 'change_password';
 
@@ -87,6 +73,8 @@ export default function LoginView() {
     } catch (err) {
       if (!err.response) {
         setError('Unable to connect to server. Please verify the backend is running.');
+      } else if (err.response.status === 502 || err.response.status === 503 || err.response.status === 504) {
+        setError('Server is spinning up (free cloud container wake-up). Please wait 15-20 seconds and click Enter again.');
       } else {
         setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
       }

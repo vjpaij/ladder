@@ -7,7 +7,7 @@
     "dev": "npm run dev:all",
     "dev:all": "concurrently --restart-tries -1 --restart-after 3000 --names API,WEB \"npm run server\" \"npm run dev:frontend\"",
     "dev:frontend": "vite",
-    "start": "npm run dev:all",
+    "start": "node server/index.js",
     "build": "vite build",
     "preview": "vite preview",
     "server": "node --watch --watch-path=server server/index.js",
