@@ -163,7 +163,7 @@ export default function LoginView() {
                 autoComplete="username"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="Email address (e.g. vijaypaij@gmail.com)"
+                placeholder="Email address"
                 className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
               />
 
