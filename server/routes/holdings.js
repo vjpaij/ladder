@@ -1999,10 +1999,24 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
 
       if (!targetHolding && accName) {
         const allCategoryHoldings = await db.selectWhere('holdings', { category_id: portfolio });
-        const byName = allCategoryHoldings.find(h => 
-          (h.name || '').trim().toLowerCase() === accName.trim().toLowerCase() ||
-          (h.symbol || '').trim().toLowerCase() === accName.trim().toLowerCase()
-        );
+        const cleanInput = accName.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        const byName = allCategoryHoldings.find(h => {
+          const hName = (h.name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+          const hSym = (h.symbol || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (hName === cleanInput || hSym === cleanInput) return true;
+          // Canonical bank alias matching: prevent creating duplicate accounts for existing banks
+          if (portfolio === 'bank') {
+            if (cleanInput.includes('hdfc') && hName.includes('hdfc')) return true;
+            if (cleanInput.includes('icici') && hName.includes('icici')) return true;
+            if (cleanInput.includes('sbi') && hName.includes('sbi')) return true;
+            if (cleanInput.includes('idfc') && hName.includes('idfc')) return true;
+            if (cleanInput.includes('rbl') && hName.includes('rbl')) return true;
+            if (cleanInput.includes('indusind') && hName.includes('indusind')) return true;
+            if (cleanInput.includes('federal') && hName.includes('federal')) return true;
+          }
+          return false;
+        });
         if (byName) {
           targetHolding = byName;
           holdingId = targetHolding.id;

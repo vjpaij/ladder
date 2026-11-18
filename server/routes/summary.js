@@ -525,7 +525,7 @@ export async function computeSummaryPayload(options = {}) {
       const h = holdings.find(x => x.id === t.holding_id);
       return h && h.category_id === 'us_stocks';
     });
-    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET' || isUsMarketOpen());
     if (!isUsTrading && !hasUsTxToday && yesterdayLog && yesterdayLog.us_stocks !== undefined) {
       resolvedUsStocks = yesterdayLog.us_stocks;
     }

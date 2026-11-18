@@ -301,6 +301,17 @@ export function restoreCacheSnapshotFromDisk() {
       return false;
     }
 
+    // Strip known test artifact holding & transactions permanently
+    const KNOWN_DUPLICATE_HOLDING_IDS = new Set(['443a9aff-f457-4c80-90a1-9157172cfaa9']);
+    const KNOWN_TEST_TRANSACTION_IDS = new Set(['1f19acd5-9820-4ce0-883e-e7ab8c7884ea', '68ede23f-ab82-4cbb-9aa2-6dd60798c715']);
+
+    if (snapshot.tables.holdings && Array.isArray(snapshot.tables.holdings.data)) {
+      snapshot.tables.holdings.data = snapshot.tables.holdings.data.filter(h => !KNOWN_DUPLICATE_HOLDING_IDS.has(h.id));
+    }
+    if (snapshot.tables.transactions && Array.isArray(snapshot.tables.transactions.data)) {
+      snapshot.tables.transactions.data = snapshot.tables.transactions.data.filter(t => !KNOWN_TEST_TRANSACTION_IDS.has(t.id) && !KNOWN_DUPLICATE_HOLDING_IDS.has(t.holding_id));
+    }
+
     let count = 0;
     let rows = 0;
     for (const [key, entry] of Object.entries(snapshot.tables)) {

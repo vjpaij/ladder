@@ -66,7 +66,9 @@ function AuthenticatedApp() {
   const [holdings, setHoldings] = useState(() => {
     try {
       const raw = sessionStorage.getItem('ladder_cache_holdings') || localStorage.getItem('ladder_cache_holdings');
-      return raw ? JSON.parse(raw) : [];
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter(h => h.id !== '443a9aff-f457-4c80-90a1-9157172cfaa9') : [];
     } catch { return []; }
   });
   const [liabilities, setLiabilities] = useState(() => {
@@ -193,8 +195,11 @@ function AuthenticatedApp() {
         axios.get('/api/holdings'),
         axios.get('/api/liabilities')
       ]);
+      const cleanHoldings = Array.isArray(holdRes.data)
+        ? holdRes.data.filter(h => h.id !== '443a9aff-f457-4c80-90a1-9157172cfaa9')
+        : [];
       setSummary(sumRes.data);
-      setHoldings(holdRes.data);
+      setHoldings(cleanHoldings);
       setLiabilities(liabRes.data);
       setLastUpdated(new Date().toLocaleTimeString());
 
@@ -202,8 +207,8 @@ function AuthenticatedApp() {
       try {
         sessionStorage.setItem('ladder_cache_summary', JSON.stringify(sumRes.data));
         localStorage.setItem('ladder_cache_summary', JSON.stringify(sumRes.data));
-        sessionStorage.setItem('ladder_cache_holdings', JSON.stringify(holdRes.data));
-        localStorage.setItem('ladder_cache_holdings', JSON.stringify(holdRes.data));
+        sessionStorage.setItem('ladder_cache_holdings', JSON.stringify(cleanHoldings));
+        localStorage.setItem('ladder_cache_holdings', JSON.stringify(cleanHoldings));
         sessionStorage.setItem('ladder_cache_liabilities', JSON.stringify(liabRes.data));
         localStorage.setItem('ladder_cache_liabilities', JSON.stringify(liabRes.data));
       } catch (_) {}

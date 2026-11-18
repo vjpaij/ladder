@@ -25,8 +25,8 @@ export default function BankView({ holdings, onSelectHolding, onOpenAddModal, on
 
   const cleanBankName = (name = '') => name.replace(/\s*\(SBI\)/gi, '').trim();
 
-  // Filter bank holdings
-  const allBankHoldings = holdings.filter(h => h.category_id === 'bank');
+  // Filter bank holdings (guard against duplicate test artifacts)
+  const allBankHoldings = holdings.filter(h => h.category_id === 'bank' && h.id !== '443a9aff-f457-4c80-90a1-9157172cfaa9');
   const bankHoldings = allBankHoldings.filter(h => {
     // Bank account balances are represented by current_price. Imported and
     // recalculated holdings can carry a stale market-position status even when

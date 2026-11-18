@@ -269,7 +269,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       const h = holdings.find(x => x.id === t.holding_id);
       return h && h.category_id === 'us_stocks';
     });
-    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET');
+    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET' || isUsMarketOpen());
     if (!isUsTrading && !hasUsTxToday && lastTradingLog && lastTradingLog.us_stocks !== undefined) {
       resolvedUsStocks = lastTradingLog.us_stocks;
     }
