@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { Eye, EyeOff } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import logoImg from '../assets/logo.png';
 
@@ -11,6 +12,9 @@ export default function LoginView() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,45 +172,78 @@ export default function LoginView() {
               />
 
               {isChangingPassword && (
-                <input
-                  required
-                  disabled={isSubmitting}
-                  minLength={1}
-                  type="password"
-                  autoComplete="current-password"
-                  value={currentPassword}
-                  onChange={e => setCurrentPassword(e.target.value)}
-                  placeholder="Current password"
-                  className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
-                />
+                <div className="relative">
+                  <input
+                    required
+                    disabled={isSubmitting}
+                    minLength={1}
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    placeholder="Current password"
+                    className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 pr-11 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+                    aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               )}
 
-              <input
-                required
-                disabled={isSubmitting}
-                minLength={8}
-                maxLength={128}
-                type="password"
-                autoComplete={isRegistering || isChangingPassword ? 'new-password' : 'current-password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder={isChangingPassword ? 'New password (min 8 chars)' : 'Password'}
-                className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
-              />
-
-              {(isRegistering || isChangingPassword) && (
+              <div className="relative">
                 <input
                   required
                   disabled={isSubmitting}
                   minLength={8}
                   maxLength={128}
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder={isChangingPassword ? 'Confirm new password' : 'Confirm password'}
-                  className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete={isRegistering || isChangingPassword ? 'new-password' : 'current-password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={isChangingPassword ? 'New password (min 8 chars)' : 'Password'}
+                  className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 pr-11 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
                 />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {(isRegistering || isChangingPassword) && (
+                <div className="relative">
+                  <input
+                    required
+                    disabled={isSubmitting}
+                    minLength={8}
+                    maxLength={128}
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder={isChangingPassword ? 'Confirm new password' : 'Confirm password'}
+                    className="w-full rounded-xl bg-white/[0.045] border border-white/10 px-4 py-3 pr-11 text-sm outline-none transition-colors focus:border-emerald-400/70 focus:bg-white/[0.07] disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               )}
 
               <button
@@ -218,18 +255,6 @@ export default function LoginView() {
                   ? (isRegistering ? 'Creating workspace...' : isChangingPassword ? 'Updating password...' : 'Signing in...') 
                   : (isRegistering ? 'Create account' : isChangingPassword ? 'Update Password & Sign In' : 'Enter Ladder')}
               </button>
-
-              {mode === 'login' && (
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => switchMode('change_password')}
-                    className="text-xs text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
-                  >
-                    Change password?
-                  </button>
-                </div>
-              )}
             </form>
           </div>
         </section>

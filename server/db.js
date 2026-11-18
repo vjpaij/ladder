@@ -63,27 +63,27 @@ function writeLocalUsers(users) {
   }
 }
 
-// Startup restore from cloud if local users.json is missing or empty
+// Startup restore from cloud: load from Supabase Cloud Storage on cold boot
 async function initUsersFromCloud() {
-  const users = readLocalUsers();
-  if (users.length === 0 && supabaseAdmin) {
-    try {
-      console.log('[DB Users] Local users.json empty, checking Supabase storage...');
-      const { data, error } = await supabaseAdmin.storage
-        .from(BUCKET_NAME)
-        .download(USERS_CLOUD_KEY);
-      if (!error && data) {
-        const arrayBuffer = await data.arrayBuffer();
-        const decompressed = zlib.gunzipSync(Buffer.from(arrayBuffer)).toString('utf-8');
-        const restored = JSON.parse(decompressed);
-        if (Array.isArray(restored) && restored.length > 0) {
-          writeLocalUsers(restored);
-          console.log(`[DB Users] Restored ${restored.length} users from Supabase storage.`);
-        }
+  if (!supabaseAdmin) return;
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET_NAME)
+      .download(USERS_CLOUD_KEY);
+    if (!error && data) {
+      const arrayBuffer = await data.arrayBuffer();
+      const decompressed = zlib.gunzipSync(Buffer.from(arrayBuffer)).toString('utf-8');
+      const restored = JSON.parse(decompressed);
+      if (Array.isArray(restored) && restored.length > 0) {
+        cachedUsers = restored;
+        try {
+          fs.writeFileSync(USERS_FILE, JSON.stringify(restored, null, 2), 'utf-8');
+        } catch (_) {}
+        console.log(`[DB Users] Restored ${restored.length} users from Supabase cloud storage (active cloud authority).`);
       }
-    } catch (e) {
-      console.warn('[DB Users] Cloud restore warning:', e.message);
     }
+  } catch (e) {
+    console.warn('[DB Users] Cloud restore warning:', e.message);
   }
 }
 initUsersFromCloud().catch(() => {});
