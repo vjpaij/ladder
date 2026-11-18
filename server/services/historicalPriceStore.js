@@ -111,7 +111,48 @@ export async function saveHistoricalPricesToFile() {
         merged[sym] = { ...merged[sym], ...series };
       }
     }
-    historicalPricesCache = merged;
+
+    // Tiered dataset governance (Rule 23 & Memory Protection):
+    // 1. Portfolio holdings & benchmark indices retain 100% full multi-year history.
+    // 2. Non-portfolio market candidates retain a rolling 250 trading days (1 full year)
+    //    guaranteeing 100% data for 50-EMA, 30w-SMA, 126d RS, and 52w highs while keeping RAM safe.
+    let portfolioSyms = null;
+    try {
+      const dbModule = await import('../db.js');
+      const holdings = await dbModule.default.select('holdings');
+      portfolioSyms = new Set();
+      for (const h of (holdings || [])) {
+        if (h.symbol) {
+          const clean = h.symbol.replace(/\.(NS|BO)$/i, '').toUpperCase();
+          portfolioSyms.add(clean);
+          portfolioSyms.add(h.symbol.toUpperCase());
+        }
+      }
+    } catch (_) {}
+
+    const tieredMerged = {};
+    for (const [sym, series] of Object.entries(merged)) {
+      if (!series || typeof series !== 'object') continue;
+      const clean = sym.replace(/\.(NS|BO)$/i, '').toUpperCase();
+      const isPortfolio = portfolioSyms && (portfolioSyms.has(clean) || portfolioSyms.has(sym.toUpperCase()));
+      const isBenchmark = sym.startsWith('^');
+
+      if (isPortfolio || isBenchmark || !portfolioSyms) {
+        tieredMerged[sym] = series;
+      } else {
+        const dates = Object.keys(series).sort();
+        if (dates.length > 250) {
+          const trimmed = {};
+          for (const d of dates.slice(-250)) {
+            trimmed[d] = series[d];
+          }
+          tieredMerged[sym] = trimmed;
+        } else {
+          tieredMerged[sym] = series;
+        }
+      }
+    }
+    historicalPricesCache = tieredMerged;
     await fs.promises.writeFile(tempPath, JSON.stringify(historicalPricesCache, null, 2), 'utf-8');
     try {
       await fs.promises.rename(tempPath, HISTORICAL_PRICES_FILE);
