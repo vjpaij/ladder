@@ -15,6 +15,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import db from '../../db.js';
 import { loadHistoricalPricesAsync } from '../historicalPriceStore.js';
 import { buildStockAnalyses, calculateTriggeredStagedSell } from './analysisService.js';
@@ -59,22 +60,32 @@ export async function generateActionPlan({
     ? Math.max(0, Math.round(Number(paramDailyDeploymentCap)))
     : (userConfig.dailyDeploymentCap ?? 350000);
 
-  // 1. Load Buy Analyses from snapshot or service
+  // 1. Load Buy Analyses from snapshot or seed gz archive
   let buyAnalyses = [];
   const snapPath = path.join(projectRoot, 'data', 'buy_analysis_snapshot.json');
+  const snapGzPath = path.join(projectRoot, 'data', 'buy_analysis_snapshot.json.gz');
+
+  if (!fs.existsSync(snapPath) && fs.existsSync(snapGzPath)) {
+    try {
+      const unzipped = zlib.gunzipSync(fs.readFileSync(snapGzPath));
+      fs.writeFileSync(snapPath, unzipped);
+      console.log('[Action Plan] Restored buy_analysis_snapshot.json from seed gz archive.');
+    } catch (e) {
+      console.warn('[Action Plan] Seed snapshot unpack warning:', e.message);
+    }
+  }
+
   if (fs.existsSync(snapPath)) {
     try {
       const snap = JSON.parse(fs.readFileSync(snapPath, 'utf8'));
-      const ageMs = Date.now() - new Date(snap.generatedAt || 0).getTime();
-      // Use cached snapshot if less than 30 minutes old
-      if (ageMs < 30 * 60 * 1000 && Array.isArray(snap.analyses) && snap.analyses.length > 0) {
+      if (Array.isArray(snap.analyses) && snap.analyses.length > 0) {
         buyAnalyses = snap.analyses;
       }
     } catch (_) {}
   }
 
-  // If snapshot is missing or stale, dynamically generate fresh buy analyses
-  if (buyAnalyses.length === 0) {
+  // If snapshot is missing and not in cloud production, dynamically generate fresh buy analyses
+  if (buyAnalyses.length === 0 && !process.env.RENDER) {
     try {
       const { runBuyAnalysisEngine } = await import('../../routes/buyAnalysis.js');
       const fresh = await runBuyAnalysisEngine({ forceRefresh: false });

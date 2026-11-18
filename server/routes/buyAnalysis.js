@@ -14,6 +14,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import db from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getTodayIST, getLastTradingDay } from '../services/marketCalendar.js';
@@ -129,6 +130,14 @@ async function processNextWarmingItem() {
 
 // Load disk snapshot on server boot for instant 0ms responses, verifying ruleVersion
 try {
+  if (!fs.existsSync(SNAPSHOT_FILE)) {
+    const gzPath = SNAPSHOT_FILE + '.gz';
+    if (fs.existsSync(gzPath)) {
+      const unzipped = zlib.gunzipSync(fs.readFileSync(gzPath));
+      fs.writeFileSync(SNAPSHOT_FILE, unzipped);
+      console.log('[Buy Analysis] Restored buy_analysis_snapshot.json from seed gz archive.');
+    }
+  }
   if (fs.existsSync(SNAPSHOT_FILE)) {
     const parsed = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf8'));
     if (parsed && Array.isArray(parsed.analyses) && parsed.analyses.length > 0 && parsed.ruleVersion === BUY_ANALYSIS_RULE_VERSION) {

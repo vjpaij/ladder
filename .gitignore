@@ -30,6 +30,9 @@ data/stock_intelligence_config.json
 data/screener_cache/
 data/chartink_scan_cache.json
 data/buy_analysis_snapshot.json
+!data/buy_analysis_snapshot.json.gz
+data/stock_intelligence_action_plan.json
+!data/stock_intelligence_action_plan.json.gz
 data/news_intel_cache.json
 data/daily_candles_cache.json
 data/stock_logos_cache.json

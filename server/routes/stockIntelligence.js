@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import db from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getTodayIST } from '../services/marketCalendar.js';
@@ -31,6 +32,13 @@ let cachedOverviewTimestamp = 0;
 const OVERVIEW_TTL_MS = 15 * 60 * 1000; // 15 minutes fast in-memory cache
 const OVERVIEW_SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'stock_intelligence_overview.json');
 
+const ACTION_PLAN_SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'stock_intelligence_action_plan.json');
+const ACTION_PLAN_TTL_MS = 15 * 60 * 1000; // 15 minutes fast in-memory cache
+let cachedActionPlan = null;
+let cachedActionPlanKey = '';
+let cachedActionPlanTimestamp = 0;
+let _actionPlanInFlightPromise = null;
+
 function saveOverviewSnapshotToDisk(overview) {
   try {
     fs.writeFileSync(OVERVIEW_SNAPSHOT_FILE, JSON.stringify(overview), 'utf-8');
@@ -51,6 +59,34 @@ function loadOverviewSnapshotFromDisk() {
   return null;
 }
 
+function saveActionPlanSnapshotToDisk(plan) {
+  try {
+    fs.writeFileSync(ACTION_PLAN_SNAPSHOT_FILE, JSON.stringify(plan), 'utf-8');
+  } catch (err) {
+    console.warn('[Stock Intelligence] Action plan snapshot save warning:', err.message);
+  }
+}
+
+function loadActionPlanSnapshotFromDisk() {
+  try {
+    if (!fs.existsSync(ACTION_PLAN_SNAPSHOT_FILE)) {
+      const gzPath = ACTION_PLAN_SNAPSHOT_FILE + '.gz';
+      if (fs.existsSync(gzPath)) {
+        const unzipped = zlib.gunzipSync(fs.readFileSync(gzPath));
+        fs.writeFileSync(ACTION_PLAN_SNAPSHOT_FILE, unzipped);
+        console.log('[Stock Intelligence] Restored action plan snapshot from seed gz archive.');
+      }
+    }
+    if (fs.existsSync(ACTION_PLAN_SNAPSHOT_FILE)) {
+      const raw = fs.readFileSync(ACTION_PLAN_SNAPSHOT_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn('[Stock Intelligence] Action plan snapshot read warning:', err.message);
+  }
+  return null;
+}
+
 function getUserKey(user) {
   return String(user?.email || user?.userId || user?.id || 'vijaypaij@gmail.com');
 }
@@ -59,23 +95,36 @@ export function invalidateStockIntelligenceCache() {
   cachedOverview = null;
   cachedOverviewKey = '';
   cachedOverviewTimestamp = 0;
+  cachedActionPlan = null;
+  cachedActionPlanKey = '';
+  cachedActionPlanTimestamp = 0;
 }
 
 export async function warmStockIntelligenceCache() {
   try {
-    // 1. Instant restore from disk snapshot (< 2ms, 0 CPU blocking)
+    // 1. Instant restore overview from disk snapshot (< 2ms, 0 CPU blocking)
     const diskSnapshot = loadOverviewSnapshotFromDisk();
     if (diskSnapshot && diskSnapshot.analyses && diskSnapshot.analyses.length > 0) {
       cachedOverview = diskSnapshot;
       cachedOverviewKey = 'vijaypaij@gmail.com';
       cachedOverviewTimestamp = Date.now();
       console.log(`[Stock Intelligence] Instantly restored stock intelligence overview from disk snapshot (${diskSnapshot.analyses.length} stocks, 0ms CPU wait).`);
-      return;
     }
 
-    // 2. Fallback to background calculation if snapshot missing
-    await computeStockOverview('vijaypaij@gmail.com');
-    console.log('[Stock Intelligence] Pre-warmed stock intelligence overview cache.');
+    // 2. Instant restore action plan from disk snapshot (< 2ms, 0 CPU blocking)
+    const diskActionPlan = loadActionPlanSnapshotFromDisk();
+    if (diskActionPlan && diskActionPlan.summary) {
+      cachedActionPlan = diskActionPlan;
+      cachedActionPlanKey = 'default_vijaypaij@gmail.com';
+      cachedActionPlanTimestamp = Date.now();
+      console.log(`[Stock Intelligence] Instantly restored action plan from disk snapshot (0ms CPU wait).`);
+    }
+
+    if (!cachedOverview) {
+      // Fallback to background calculation if snapshot missing
+      await computeStockOverview('vijaypaij@gmail.com');
+      console.log('[Stock Intelligence] Pre-warmed stock intelligence overview cache.');
+    }
   } catch (err) {
     console.warn('[Stock Intelligence] Warmup warning:', err.message);
   }
@@ -459,7 +508,8 @@ router.delete('/stock-intelligence/active-stop-loss/:symbol', authenticateToken,
 
 router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res) => {
   try {
-    const userConfig = getIntelligenceConfig(getUserKey(req.user));
+    const userKey = getUserKey(req.user);
+    const userConfig = getIntelligenceConfig(userKey);
     const externalCash = (req.query.externalCash !== undefined && req.query.externalCash !== '' && req.query.externalCash !== 'null')
       ? Number(req.query.externalCash)
       : userConfig.externalCashBudget;
@@ -467,17 +517,48 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
     const maxDailyBuys = req.query.maxDailyBuys !== undefined ? Number(req.query.maxDailyBuys) : undefined;
     const dailyDeploymentCap = req.query.dailyDeploymentCap !== undefined ? Number(req.query.dailyDeploymentCap) : undefined;
 
-    const plan = await generateActionPlan({
-      userId: getUserKey(req.user),
-      externalCashBudget: externalCash,
-      recyclingMode,
-      maxDailyBuys,
-      dailyDeploymentCap,
-      userConfig
-    });
+    const cacheKey = `${userKey}_${externalCash}_${recyclingMode}_${maxDailyBuys}_${dailyDeploymentCap}`;
+    const now = Date.now();
+
+    // 1. Fast in-memory cache hit (< 1ms)
+    if (cachedActionPlan && (cachedActionPlanKey === cacheKey || (!req.query.externalCash && !req.query.recyclingMode)) && (now - cachedActionPlanTimestamp < ACTION_PLAN_TTL_MS)) {
+      return res.json(cachedActionPlan);
+    }
+
+    // 2. In-flight request deduplication
+    if (_actionPlanInFlightPromise) {
+      const plan = await _actionPlanInFlightPromise;
+      return res.json(plan);
+    }
+
+    _actionPlanInFlightPromise = (async () => {
+      try {
+        const plan = await generateActionPlan({
+          userId: userKey,
+          externalCashBudget: externalCash,
+          recyclingMode,
+          maxDailyBuys,
+          dailyDeploymentCap,
+          userConfig
+        });
+        cachedActionPlan = plan;
+        cachedActionPlanKey = cacheKey;
+        cachedActionPlanTimestamp = Date.now();
+        saveActionPlanSnapshotToDisk(plan);
+        return plan;
+      } finally {
+        _actionPlanInFlightPromise = null;
+      }
+    })();
+
+    const plan = await _actionPlanInFlightPromise;
     res.json(plan);
   } catch (error) {
     console.error('[Stock Intelligence] Action plan fetch failed:', error.message);
+    const fallback = loadActionPlanSnapshotFromDisk();
+    if (fallback && fallback.summary) {
+      return res.json(fallback);
+    }
     res.status(500).json({ error: 'Failed to generate action plan.' });
   }
 });

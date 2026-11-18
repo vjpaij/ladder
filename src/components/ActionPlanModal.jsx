@@ -51,8 +51,15 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   const [syncingSl, setSyncingSl] = useState(false);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState('');
 
-  // Plan data
-  const [plan, setPlan] = useState(null);
+  // Plan data (SWR persisted cache from sessionStorage for instant 0ms painting)
+  const [plan, setPlan] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('ladder_action_plan_cache');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const sells = useMemo(() => {
     return (plan?.sells || []).filter(s => Number(s.quantity) > 0 && (s.isFullExit || s.tranche1Status === 'READY' || s.tranche2Status === 'READY'));
@@ -103,6 +110,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
       }
       const res = await axios.get('/api/stock-intelligence/action-plan', { params });
       setPlan(res.data);
+      try {
+        sessionStorage.setItem('ladder_action_plan_cache', JSON.stringify(res.data));
+      } catch {}
       if (res.data?.summary) {
         if (res.data.summary.externalCashBudget !== undefined) {
           const budget = res.data.summary.externalCashBudget;
@@ -318,6 +328,25 @@ export default function ActionPlanModal({ isOpen, onClose }) {
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5">
+          {/* Connection Delay / Error Notice Banner */}
+          {error && (
+            <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>
+                  <strong>Notice:</strong> {error}
+                  {plan ? ' (Displaying verified cached action plan)' : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchPlan(externalCash, recyclingMode)}
+                className="px-3 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-600 dark:text-rose-300 font-bold border border-rose-500/40 transition-all cursor-pointer shrink-0"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {/* Dynamic Market Opportunity & Execution Mode Banner */}
           {summary.marketOpportunity && (
             <div className={`rounded-2xl border p-4 space-y-2.5 transition-all ${
@@ -547,9 +576,13 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
                 External Bank Cash
               </span>
-              <span className="text-base sm:text-lg font-black font-mono text-cyan-600 dark:text-cyan-400 mt-1 block">
-                {formatInr(summary.externalCashBudget)}
-              </span>
+              {loading && !plan ? (
+                <div className="h-6 w-24 bg-[var(--border-color)]/50 rounded-lg animate-pulse mt-1" />
+              ) : (
+                <span className="text-base sm:text-lg font-black font-mono text-cyan-600 dark:text-cyan-400 mt-1 block">
+                  {formatInr(summary.externalCashBudget)}
+                </span>
+              )}
               <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
                 Monthly infusion
               </span>
@@ -559,18 +592,26 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
                 Recycled Capital
               </span>
-              <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
-                +{formatInr(summary.recycledCapital)}
-              </span>
+              {loading && !plan ? (
+                <div className="h-6 w-24 bg-[var(--border-color)]/50 rounded-lg animate-pulse mt-1" />
+              ) : (
+                <span className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
+                  +{formatInr(summary.recycledCapital)}
+                </span>
+              )}
             </div>
 
             <div className="reports-subcard rounded-2xl border border-[var(--border-color)] p-3">
               <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
                 Total Purchasing Power
               </span>
-              <span className="text-base sm:text-lg font-black font-mono text-[var(--text-primary)] mt-1 block">
-                {formatInr(summary.totalPurchasingPower)}
-              </span>
+              {loading && !plan ? (
+                <div className="h-6 w-24 bg-[var(--border-color)]/50 rounded-lg animate-pulse mt-1" />
+              ) : (
+                <span className="text-base sm:text-lg font-black font-mono text-[var(--text-primary)] mt-1 block">
+                  {formatInr(summary.totalPurchasingPower)}
+                </span>
+              )}
               <span className="text-[10px] text-[var(--text-muted)] block mt-0.5">
                 Ready to deploy
               </span>
@@ -580,9 +621,13 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
                 Allocated to Buys
               </span>
-              <span className="text-base sm:text-lg font-black font-mono text-purple-600 dark:text-purple-400 mt-1 block">
-                {formatInr(summary.totalImmediateBuyValue)}
-              </span>
+              {loading && !plan ? (
+                <div className="h-6 w-24 bg-[var(--border-color)]/50 rounded-lg animate-pulse mt-1" />
+              ) : (
+                <span className="text-base sm:text-lg font-black font-mono text-purple-600 dark:text-purple-400 mt-1 block">
+                  {formatInr(summary.totalImmediateBuyValue)}
+                </span>
+              )}
               <span className="text-[10px] text-purple-600/80 dark:text-purple-400/80 block mt-0.5 truncate" title={`Dynamic Deployment Budget: ${formatInr(summary.dailyDeploymentCap)}`}>
                 Budget: {formatInr(summary.dailyDeploymentCap)}
               </span>
@@ -592,9 +637,13 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider block">
                 Remaining Buffer
               </span>
-              <span className="text-base sm:text-lg font-black font-mono text-[var(--text-muted)] mt-1 block">
-                {formatInr(summary.unallocatedCashBuffer)}
-              </span>
+              {loading && !plan ? (
+                <div className="h-6 w-24 bg-[var(--border-color)]/50 rounded-lg animate-pulse mt-1" />
+              ) : (
+                <span className="text-base sm:text-lg font-black font-mono text-[var(--text-muted)] mt-1 block">
+                  {formatInr(summary.unallocatedCashBuffer)}
+                </span>
+              )}
             </div>
           </div>
 
@@ -699,7 +748,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                     {immediateBuys.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="py-8 text-center text-[var(--text-muted)]">
-                          No immediate buys funded in current capital budget.
+                          {error ? 'Unable to load immediate buys due to connection or calculation delay. Please click Retry above.' : 'No immediate buys funded in current capital budget.'}
                         </td>
                       </tr>
                     ) : (
