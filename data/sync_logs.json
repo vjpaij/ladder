@@ -1,5 +1,16 @@
 [
   {
+    "id": "log_1794988860107_djeoe",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (01:30 PM IST)",
+    "scheduledTime": "01:30 PM IST",
+    "runTime": "2026-11-18T08:01:00.107Z",
+    "status": "SUCCESS",
+    "durationMs": 56645,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
     "id": "log_1794987820670_koc8a",
     "jobType": "STOCK_ANALYSIS_EOD",
     "jobName": "Daily Stock Analysis Audit (BOOT)",
@@ -5486,17 +5497,6 @@
     "status": "SUCCESS",
     "durationMs": 1141,
     "details": "Evaluated 50 active Indian equity holdings. 24 in Stage 2 Compounding, 13 technical trim, 0 on watch. Data integrity: 98% (1 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1793194949741_k2jzr",
-    "jobType": "EOD_REBUILD",
-    "jobName": "EOD Valuation Rebuild (06:30 PM IST)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-10-28T13:42:29.741Z",
-    "status": "SUCCESS",
-    "durationMs": 2549724,
-    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
     "error": null
   }
 ]
