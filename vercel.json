@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://LADDER_API_PLACEHOLDER/api/:path*"
+      "destination": "https://ladder-api-wsrj.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
