@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useThemeAuth } from '../context/ThemeAuthContext';
 import logoImg from '../assets/logo.png';
 
@@ -18,6 +18,20 @@ export default function LoginView() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pre-load default overview chunk in idle time so entering the dashboard is instant (< 0ms wait)
+  useEffect(() => {
+    const prefetch = () => {
+      import('./OverviewView').catch(() => {});
+    };
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(prefetch);
+      } else {
+        setTimeout(prefetch, 200);
+      }
+    }
+  }, []);
 
   const isRegistering = mode === 'register';
   const isChangingPassword = mode === 'change_password';
@@ -249,11 +263,14 @@ export default function LoginView() {
               <button
                 disabled={isSubmitting}
                 type="submit"
-                className="w-full rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black py-3 text-sm shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-50 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-950 font-black py-3 text-sm shadow-lg shadow-emerald-500/15 transition-all disabled:opacity-60 cursor-pointer active:scale-[0.99]"
               >
-                {isSubmitting 
-                  ? (isRegistering ? 'Creating workspace...' : isChangingPassword ? 'Updating password...' : 'Signing in...') 
-                  : (isRegistering ? 'Create account' : isChangingPassword ? 'Update Password & Sign In' : 'Enter Ladder')}
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin text-slate-950" />}
+                <span>
+                  {isSubmitting 
+                    ? (isRegistering ? 'Creating workspace...' : isChangingPassword ? 'Updating password...' : 'Entering Ladder...') 
+                    : (isRegistering ? 'Create account' : isChangingPassword ? 'Update Password & Sign In' : 'Enter Ladder')}
+                </span>
               </button>
             </form>
           </div>

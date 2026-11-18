@@ -27,6 +27,7 @@ import { useThemeAuth } from '../context/ThemeAuthContext';
 import { AnimatedPage, AnimatedItem, AnimatedCard } from '../components/AnimatedPage';
 import AnimatedCounter from '../components/AnimatedCounter';
 import DashboardTrendChart from '../components/DashboardTrendChart';
+import OverviewSkeleton from '../components/OverviewSkeleton';
 import { computeRangeDates } from '../components/ChartRangeSelector';
 
 const PIE_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#06B6D4', '#64748B'];
@@ -143,7 +144,7 @@ export default function OverviewView({ summary, holdings, liabilities, onNavigat
     return () => window.removeEventListener('ladder-data-updated', handleUpdate);
   }, [fetchEodLogs]);
 
-  if (!summary) return null;
+  if (!summary) return <OverviewSkeleton />;
 
   // --- Custom Pie Chart with 3D effect ---
   const allocationData = summary.assetAllocation || [];

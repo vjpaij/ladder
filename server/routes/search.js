@@ -238,6 +238,48 @@ router.post('/refresh-navs', authenticateToken, async (req, res) => {
 router.post('/refresh-prices', authenticateToken, async (req, res) => {
   const startTime = Date.now();
   const isLogin = req.body?.trigger === 'LOGIN' || req.query?.trigger === 'LOGIN';
+
+  if (isLogin) {
+    // Fast-path: Return immediately so login and dashboard render are 100% unblocked (0ms latency)
+    res.json({
+      success: true,
+      message: 'Background login asset auto-sync initiated',
+      queued: true
+    });
+
+    // Execute background quote refresh and missed EOD checks asynchronously without blocking client
+    setImmediate(async () => {
+      try {
+        await loadHistoricalPricesAsync();
+        const result = await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
+        let missedEodStatus = null;
+        try {
+          missedEodStatus = await checkAndTriggerMissedEodRebuild({ waitForCompletion: false });
+        } catch (_) {}
+
+        // Invalidate server-side caches so next poll picks up newly refreshed prices
+        invalidateSummaryCache();
+        invalidateTxDatesCache();
+        invalidateCalendarValuationCache();
+        invalidateBuyCache();
+
+        const durationMs = Date.now() - startTime;
+        logSyncEvent({
+          jobType: 'LOGIN_SYNC',
+          jobName: 'Webpage Login Asset Auto-Sync',
+          scheduledTime: 'On Webpage Login',
+          runTime: new Date().toISOString(),
+          status: 'SUCCESS',
+          durationMs,
+          details: `Refreshed live quotes and NAVs across all asset classes (${result?.updatedCount || 'all'} holdings updated).${missedEodStatus?.needed ? ' Catch-up EOD rebuild launched.' : ''}`
+        });
+      } catch (bgErr) {
+        console.warn('[RefreshPrices:LoginBackground] Warning:', bgErr.message);
+      }
+    });
+    return;
+  }
+
   try {
     await loadHistoricalPricesAsync();
 

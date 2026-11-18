@@ -56,9 +56,25 @@ function AppInner() {
 function AuthenticatedApp() {
   const { setFxRate, showError, showSuccess, showPrompt } = useThemeAuth();
   const [currentView, setCurrentView] = useState('overview');
-  const [summary, setSummary] = useState(null);
-  const [holdings, setHoldings] = useState([]);
-  const [liabilities, setLiabilities] = useState([]);
+  // Instant SWR hydration: render immediately from client-side cache while revalidating in background
+  const [summary, setSummary] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('ladder_cache_summary') || localStorage.getItem('ladder_cache_summary');
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
+  const [holdings, setHoldings] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('ladder_cache_holdings') || localStorage.getItem('ladder_cache_holdings');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  const [liabilities, setLiabilities] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('ladder_cache_liabilities') || localStorage.getItem('ladder_cache_liabilities');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [targetPortfolio, setTargetPortfolio] = useState(null);
@@ -82,8 +98,11 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     fetchDashboardData();
-    // Auto-sync all assets on login/webpage mount to show latest quotes at that moment
-    handleRefreshPrices({ trigger: 'LOGIN', silent: true });
+
+    // Defer background price auto-sync by 1.5s so initial dashboard render has 100% priority
+    const loginRefreshTimer = setTimeout(() => {
+      handleRefreshPrices({ trigger: 'LOGIN', silent: true });
+    }, 1500);
 
     // Refresh periodically while the dashboard is open (30s minimum per Rule 19).
     const pollInterval = setInterval(() => {
@@ -100,6 +119,7 @@ function AuthenticatedApp() {
     document.addEventListener('visibilitychange', handleFocus);
 
     return () => {
+      clearTimeout(loginRefreshTimer);
       clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
@@ -177,6 +197,17 @@ function AuthenticatedApp() {
       setHoldings(holdRes.data);
       setLiabilities(liabRes.data);
       setLastUpdated(new Date().toLocaleTimeString());
+
+      // Persist snapshot to client storage for instantaneous zero-latency SWR rehydration on next visit
+      try {
+        sessionStorage.setItem('ladder_cache_summary', JSON.stringify(sumRes.data));
+        localStorage.setItem('ladder_cache_summary', JSON.stringify(sumRes.data));
+        sessionStorage.setItem('ladder_cache_holdings', JSON.stringify(holdRes.data));
+        localStorage.setItem('ladder_cache_holdings', JSON.stringify(holdRes.data));
+        sessionStorage.setItem('ladder_cache_liabilities', JSON.stringify(liabRes.data));
+        localStorage.setItem('ladder_cache_liabilities', JSON.stringify(liabRes.data));
+      } catch (_) {}
+
       // Sync live FX rate into global context so all currency conversions use today's real rate
       if (sumRes.data.fxRate) setFxRate(sumRes.data.fxRate);
       window.dispatchEvent(new CustomEvent('ladder-data-updated'));
@@ -198,11 +229,13 @@ function AuthenticatedApp() {
   };
 
   const handleRefreshPrices = async (options = {}) => {
-    setIsRefreshing(true);
+    const isSilent = options.silent || false;
+    const trigger = options.trigger || 'MANUAL';
+    if (!isSilent) {
+      setIsRefreshing(true);
+    }
     try {
-      const isSilent = options.silent || false;
-      const trigger = options.trigger || 'MANUAL';
-      const res = await axios.post('/api/refresh-prices', { trigger });
+      await axios.post('/api/refresh-prices', { trigger });
       await fetchDashboardData(true);
       if (!isSilent) {
         setToast({
@@ -212,14 +245,16 @@ function AuthenticatedApp() {
       }
     } catch (err) {
       console.error('[App] Error refreshing prices:', err);
-      if (!options.silent) {
+      if (!isSilent) {
         setToast({
           type: 'error',
           message: 'Could not refresh prices: ' + (err.response?.data?.error || err.message)
         });
       }
     } finally {
-      setIsRefreshing(false);
+      if (!isSilent) {
+        setIsRefreshing(false);
+      }
     }
   };
 
