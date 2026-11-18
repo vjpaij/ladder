@@ -188,20 +188,21 @@ export function saveCacheSnapshotToDisk({ allowEmptyReplacement = false, allowEm
 
     // A few maintenance scripts run in their own Node process and may only
     // populate the table they changed (for example pnl_history after an EOD
-    // rebuild). Merge untouched tables from the last verified snapshot so a
-    // partial process can never replace the whole application cache.
-    const previous = readAndVerifySnapshot(SNAPSHOT_FILE) || readAndVerifySnapshot(SNAPSHOT_BAK);
-    if (previous?.tables) {
-      for (const [key, previousEntry] of Object.entries(previous.tables)) {
-        const current = serialized[key];
-        if (!current) {
-          serialized[key] = previousEntry;
-          continue;
-        }
-        const explicitlyAllowedEmpty = allowEmptyReplacement || allowEmptyTables.includes(key);
-        if (!explicitlyAllowedEmpty && Array.isArray(previousEntry.data) && previousEntry.data.length > 0 && Array.isArray(current.data) && current.data.length === 0) {
-          console.warn(`[DB Cache] Ignoring empty ${key} replacement; verified snapshot contains ${previousEntry.data.length} rows.`);
-          serialized[key] = previousEntry;
+    // rebuild). If cache is partial (< 5 tables), merge untouched tables from the last verified snapshot.
+    if (dbCache.size < 5) {
+      const previous = readAndVerifySnapshot(SNAPSHOT_FILE) || readAndVerifySnapshot(SNAPSHOT_BAK);
+      if (previous?.tables) {
+        for (const [key, previousEntry] of Object.entries(previous.tables)) {
+          const current = serialized[key];
+          if (!current) {
+            serialized[key] = previousEntry;
+            continue;
+          }
+          const explicitlyAllowedEmpty = allowEmptyReplacement || allowEmptyTables.includes(key);
+          if (!explicitlyAllowedEmpty && Array.isArray(previousEntry.data) && previousEntry.data.length > 0 && Array.isArray(current.data) && current.data.length === 0) {
+            console.warn(`[DB Cache] Ignoring empty ${key} replacement; verified snapshot contains ${previousEntry.data.length} rows.`);
+            serialized[key] = previousEntry;
+          }
         }
       }
     }
@@ -213,7 +214,7 @@ export function saveCacheSnapshotToDisk({ allowEmptyReplacement = false, allowEm
       saveTimeout = null;
     }
     const checksum = computeChecksum(serialized);
-    const payload = JSON.stringify({ savedAt: Date.now(), checksum, tables: serialized }, null, 2);
+    const payload = JSON.stringify({ savedAt: Date.now(), checksum, tables: serialized });
 
     // Phase 1: Write to temp file
     fs.writeFileSync(SNAPSHOT_TMP, payload, 'utf-8');
@@ -540,10 +541,10 @@ export const db = {
     const cached = dbCache.get(sTable);
     if (cached && Array.isArray(cached.data)) {
       cached.data.push(insertedRow);
-      saveCacheSnapshotToDisk();
+      debouncedSaveSnapshot();
     } else {
       setCacheEntry(sTable, [insertedRow]);
-      saveCacheSnapshotToDisk();
+      debouncedSaveSnapshot();
     }
 
     // Dual-write to Supabase (Ingress is always attempted) — record to WAL on any failure
@@ -589,7 +590,7 @@ export const db = {
       if (idx !== -1) {
         cached.data[idx] = { ...cached.data[idx], ...updates, updated_at: new Date().toISOString() };
         updatedRow = cached.data[idx];
-        saveCacheSnapshotToDisk();
+        debouncedSaveSnapshot();
       }
     }
 
@@ -637,7 +638,7 @@ export const db = {
     const cached = dbCache.get(sTable);
     if (cached && Array.isArray(cached.data)) {
       cached.data = cached.data.filter(u => String(u.id) !== String(id));
-      saveCacheSnapshotToDisk({ allowEmptyTables: cached.data.length === 0 ? [sTable] : [] });
+      debouncedSaveSnapshot();
     }
 
     // Dual-write delete to Supabase (Ingress is always attempted) — record to WAL on any failure
