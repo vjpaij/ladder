@@ -372,6 +372,86 @@ async function reconcileOverviewWithLiveHoldings(overview) {
   }
 }
 
+async function reconcileActionPlanWithLiveHoldings(plan) {
+  if (!plan) return plan;
+  try {
+    const currentHoldings = await db.select('holdings');
+    if (!Array.isArray(currentHoldings) || currentHoldings.length === 0) return plan;
+
+    const holdingMap = new Map();
+    for (const h of currentHoldings) {
+      const sym = String(h.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      holdingMap.set(sym, h);
+    }
+
+    // 1. Reconcile sells: strictly exclude redeemed or 0-quantity holdings and clamp sell quantities
+    const reconciledSells = [];
+    for (const s of (plan.sells || [])) {
+      const sym = String(s.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      const h = holdingMap.get(sym);
+      if (!h) continue;
+      const qty = Number(h.quantity) || 0;
+      const isRedeemed = String(h.status || '').toUpperCase() === 'REDEEMED' || qty <= 0;
+      if (isRedeemed) continue;
+
+      let actionQty = Number(s.quantity) || 0;
+      let heldShares = Number(s.heldShares) || qty;
+      if (heldShares > qty) heldShares = qty;
+      if (actionQty > qty || s.isFullExit || s.isPruning) {
+        actionQty = qty;
+      }
+
+      const quote = liveQuoteCache?.get(h.symbol);
+      const cmp = resolveHoldingPrice(h, quote) || s.cmp || Number(h.current_price) || 0;
+      const actionValue = Math.round(actionQty * cmp * 100) / 100;
+
+      let reason = s.reason;
+      if (reason && typeof reason === 'string') {
+        reason = reason.replace(/\(\d+\s*shs?\)/i, `(${actionQty} shs)`);
+      }
+
+      reconciledSells.push({
+        ...s,
+        quantity: actionQty,
+        heldShares,
+        cmp,
+        actionValue,
+        reason
+      });
+    }
+
+    // 2. Reconcile stopLossActions
+    const reconciledStopLoss = (plan.stopLossActions || []).filter(sl => {
+      const sym = String(sl.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      const h = holdingMap.get(sym);
+      if (!h) return false;
+      const qty = Number(h.quantity) || 0;
+      return !(String(h.status || '').toUpperCase() === 'REDEEMED' || qty <= 0);
+    });
+
+    // 3. Recalculate summary metrics
+    const totalRecycledCapital = reconciledSells.reduce((acc, s) => acc + (s.actionValue || 0), 0);
+    const summary = plan.summary ? {
+      ...plan.summary,
+      totalSellsCount: reconciledSells.length,
+      recycledCapital: Math.round(totalRecycledCapital * 100) / 100
+    } : plan.summary;
+
+    const totalActions = (plan.immediateBuys?.length || 0) + reconciledSells.length + (plan.queuedBuys?.length || 0);
+
+    return {
+      ...plan,
+      sells: reconciledSells,
+      stopLossActions: reconciledStopLoss,
+      summary,
+      totalActions
+    };
+  } catch (err) {
+    console.warn('[Stock Intelligence] Action plan reconcile warning:', err.message);
+    return plan;
+  }
+}
+
 export async function computeStockOverview(userId, { forceRefresh = false, includeBacktest = false } = {}) {
   const now = Date.now();
   if (!forceRefresh && cachedOverview && cachedOverviewKey === userId && (now - cachedOverviewTimestamp < OVERVIEW_TTL_MS)) {
@@ -620,15 +700,15 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
     const cacheKey = `${userKey}_${externalCash}_${recyclingMode}_${maxDailyBuys}_${dailyDeploymentCap}`;
     const now = Date.now();
 
-    // 1. Fast in-memory cache hit (< 1ms)
+    // 1. Fast in-memory cache hit (< 1ms) with live holding reconciliation
     if (cachedActionPlan && (cachedActionPlanKey === cacheKey || (!req.query.externalCash && !req.query.recyclingMode)) && (now - cachedActionPlanTimestamp < ACTION_PLAN_TTL_MS)) {
-      return res.json(cachedActionPlan);
+      return res.json(await reconcileActionPlanWithLiveHoldings(cachedActionPlan));
     }
 
     // 2. In-flight request deduplication
     if (_actionPlanInFlightPromise) {
       const plan = await _actionPlanInFlightPromise;
-      return res.json(plan);
+      return res.json(await reconcileActionPlanWithLiveHoldings(plan));
     }
 
     _actionPlanInFlightPromise = (async () => {
@@ -652,12 +732,12 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
     })();
 
     const plan = await _actionPlanInFlightPromise;
-    res.json(plan);
+    res.json(await reconcileActionPlanWithLiveHoldings(plan));
   } catch (error) {
     console.error('[Stock Intelligence] Action plan fetch failed:', error.message);
     const fallback = loadActionPlanSnapshotFromDisk();
     if (fallback && fallback.summary) {
-      return res.json(fallback);
+      return res.json(await reconcileActionPlanWithLiveHoldings(fallback));
     }
     res.status(500).json({ error: 'Failed to generate action plan.' });
   }
