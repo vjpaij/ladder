@@ -277,6 +277,14 @@ function BuySignalCard({ analysis, onSipPlanClick, onSyncSymbol, syncingSymbol, 
                     IN PORTFOLIO
                   </span>
                 )}
+                {analysis.isCoolingOff && (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold"
+                    title={`Exited ${analysis.daysSinceExit !== null ? `${analysis.daysSinceExit}d ago` : ''} on ${analysis.lastSoldDate}. 30-day cooling-off active to prevent churn.`}
+                  >
+                    COOLING OFF ({analysis.daysSinceExit !== null ? `${analysis.daysSinceExit}d` : '30d'})
+                  </span>
+                )}
                 {analysis.isIpo && (
                   <span
                     onClick={(e) => {

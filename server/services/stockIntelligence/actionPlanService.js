@@ -192,10 +192,10 @@ export async function generateActionPlan({
     loadHistoricalPricesAsync()
   ]);
 
-  // Auto-prune any activeStopLosses for holdings that are liquidated (quantity <= 0) or no longer in portfolio
+  // Auto-prune any activeStopLosses for holdings that are liquidated (quantity <= 0 / status === 'REDEEMED') or no longer in portfolio
   const staleStopLossSymbols = Object.keys(userConfig?.activeStopLosses || {}).filter(sym => {
     const h = holdings.find(item => item.symbol === sym);
-    return !h || Number(h.quantity) <= 0;
+    return !h || Number(h.quantity) <= 0 || String(h.status || '').toUpperCase() === 'REDEEMED';
   });
   if (staleStopLossSymbols.length > 0) {
     for (const sym of staleStopLossSymbols) {
@@ -206,7 +206,13 @@ export async function generateActionPlan({
     } catch (_) {}
   }
 
-  const enrichedHoldings = holdings.map(h => {
+  // Filter for strictly active, non-redeemed holdings with quantity > 0
+  const activeHoldings = holdings.filter(h => 
+    Number(h.quantity) > 0 && 
+    String(h.status || '').toUpperCase() !== 'REDEEMED'
+  );
+
+  const enrichedHoldings = activeHoldings.map(h => {
     const quote = liveQuoteCache.get(h.symbol);
     return {
       ...h,

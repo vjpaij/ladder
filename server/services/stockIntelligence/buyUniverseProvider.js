@@ -136,28 +136,28 @@ function loadNse500Universe() {
       for (const k of Object.keys(hp)) {
         const clean = String(k).replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
         hpKeys.add(clean);
-        if (isIndianStockSymbol(clean)) {
-          symbols.add(clean);
-        }
       }
     }
   } catch { /* ignore */ }
 
-  // Only include baseline stocks if they have price history
+  // 1. Include baseline stocks if they have price history
   for (const sym of NSE500_BASELINE) {
     const clean = String(sym).toUpperCase().trim();
-    if (isIndianStockSymbol(clean) && hpKeys.has(clean)) {
+    if (isIndianStockSymbol(clean) && (hpKeys.size === 0 || hpKeys.has(clean))) {
       symbols.add(clean);
     }
   }
 
+  // 2. Include genuine NSE 500 liquid stocks from universe file
   try {
     if (fs.existsSync(UNIVERSE_FILE)) {
       const custom = JSON.parse(fs.readFileSync(UNIVERSE_FILE, 'utf8'));
       if (Array.isArray(custom)) {
-        for (const s of custom) {
+        for (const s of custom.slice(0, 500)) {
           const clean = String(s).replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
-          if (isIndianStockSymbol(clean)) symbols.add(clean);
+          if (isIndianStockSymbol(clean) && (hpKeys.size === 0 || hpKeys.has(clean))) {
+            symbols.add(clean);
+          }
         }
       }
     }

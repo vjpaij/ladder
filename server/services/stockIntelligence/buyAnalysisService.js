@@ -727,9 +727,23 @@ export function buildBuyAnalyses(
         volumeConfirmed,
         chartinkFilter
       );
-      const { signal, reason, isStrongBuyEligible } = latestPriceAgeDays > 45
+      // 30-Day Cooling-off Guard for Recently Sold Assets:
+      // An asset that was exited/sold in the past 30 days must not immediately be flagged as a fresh BUY/STRONG_BUY
+      // to prevent churn, emotional re-entries, and whipsaws.
+      const daysSinceExit = candidate.lastSoldDate
+        ? Math.round((Date.parse(todayStr) - Date.parse(candidate.lastSoldDate)) / 86400000)
+        : null;
+      const isCoolingOff = daysSinceExit !== null && !isNaN(daysSinceExit) && daysSinceExit >= 0 && daysSinceExit <= 30;
+
+      let { signal, reason, isStrongBuyEligible } = latestPriceAgeDays > 45
         ? { signal: 'INSUFFICIENT_DATA', reason: `Latest cached close is ${latestPriceAgeDays} days old.`, isStrongBuyEligible: false }
         : preliminary;
+
+      if (isCoolingOff && (signal === 'STRONG_BUY' || signal === 'BUY')) {
+        signal = 'WATCH';
+        reason = `Recent Portfolio Exit (${daysSinceExit}d ago on ${candidate.lastSoldDate}) — 30-day cooling-off period active to protect capital from whipsaws & churn. Monitoring base development before re-entry.`;
+        isStrongBuyEligible = false;
+      }
       const recentEps = Array.isArray(fundamentals.annualEps) ? fundamentals.annualEps.slice(-4).map(Number) : [];
       const strongBuyBlockers = [
         !(Number.isFinite(techResult.rrRatio) && techResult.rrRatio >= 2.0) ? 'Estimated reward/risk below 2.0:1 or unavailable' : null,
@@ -822,6 +836,9 @@ export function buildBuyAnalyses(
         signalReason: reason,
         isStrongBuyEligible,
         strongBuyBlockers,
+        isCoolingOff: Boolean(isCoolingOff),
+        lastSoldDate: candidate.lastSoldDate || null,
+        daysSinceExit: daysSinceExit !== null ? daysSinceExit : null,
         ruleVersion: BUY_ANALYSIS_VERSION,
         isIpo: Boolean(trendData?.isIpo || fundResult?.isIpo),
 

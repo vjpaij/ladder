@@ -35,6 +35,7 @@ const router = express.Router();
 // In-memory buy analysis cache (15-minute TTL)
 let _buyAnalysisCache = null;
 let _buyAnalysisCacheTimestamp = 0;
+let _buyAnalysisInFlightPromise = null;
 const BUY_CACHE_TTL_MS = 15 * 60 * 1000;
 const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'buy_analysis_snapshot.json');
 
@@ -44,12 +45,6 @@ export function invalidateBuyCache() {
   _buyAnalysisCache = null;
   _buyAnalysisCacheTimestamp = 0;
   _fundamentalsCacheMap = null;
-  try {
-    if (fs.existsSync(SNAPSHOT_FILE)) {
-      fs.unlinkSync(SNAPSHOT_FILE);
-      console.log('[Buy Analysis] Purged disk snapshot file on cache invalidation.');
-    }
-  } catch (_) {}
 }
 
 // In-memory fundamentals cache to avoid hundreds of synchronous disk reads per evaluation
@@ -175,11 +170,34 @@ router.get('/buy-analysis/sync-status', authenticateToken, (req, res) => {
 export async function runBuyAnalysisEngine({ forceRefresh = false } = {}) {
   const now = Date.now();
 
-  // Serve from in-memory cache (15-min TTL) if fresh, matching ruleVersion, and not force-refreshed
+  // 1. Instant serve from in-memory cache if fresh (< 1ms)
   if (!forceRefresh && _buyAnalysisCache && _buyAnalysisCache.ruleVersion === BUY_ANALYSIS_RULE_VERSION && (now - _buyAnalysisCacheTimestamp < BUY_CACHE_TTL_MS)) {
     return _buyAnalysisCache;
   }
 
+  // 2. Stale-While-Revalidate: If we have an existing verified snapshot/cache and forceRefresh is false,
+  // return it immediately to guarantee sub-10ms response and kick off background re-evaluation.
+  if (!forceRefresh && _buyAnalysisCache && _buyAnalysisCache.ruleVersion === BUY_ANALYSIS_RULE_VERSION) {
+    if (!_buyAnalysisInFlightPromise) {
+      _buyAnalysisInFlightPromise = _executeBuyAnalysisEngine({ forceRefresh: false })
+        .catch(err => console.warn('[Buy Analysis] Background revalidation warning:', err.message))
+        .finally(() => { _buyAnalysisInFlightPromise = null; });
+    }
+    return _buyAnalysisCache;
+  }
+
+  // 3. Deduplicate in-flight requests (prevent duplicate concurrent calculation passes)
+  if (_buyAnalysisInFlightPromise) {
+    return _buyAnalysisInFlightPromise;
+  }
+
+  _buyAnalysisInFlightPromise = _executeBuyAnalysisEngine({ forceRefresh })
+    .finally(() => { _buyAnalysisInFlightPromise = null; });
+
+  return _buyAnalysisInFlightPromise;
+}
+
+async function _executeBuyAnalysisEngine({ forceRefresh = false } = {}) {
   const startTime = Date.now();
 
   // Load holdings, price history, live Chartink breakouts, and transactions
@@ -383,8 +401,34 @@ router.post('/buy-analysis/refresh-fundamentals', authenticateToken, async (req,
       if (_fundamentalsCacheMap) {
         _fundamentalsCacheMap[clean] = fund;
       }
-      invalidateBuyCache();
-      const freshResult = await runBuyAnalysisEngine({ forceRefresh: true });
+
+      // Fast single-symbol update without running a full 500-stock recalculation
+      if (_buyAnalysisCache && Array.isArray(_buyAnalysisCache.analyses)) {
+        const candidate = {
+          symbol: clean,
+          name: fund.name || clean,
+          source: 'Manual Refresh',
+          inPortfolio: false
+        };
+        const history = await loadHistoricalPricesAsync();
+        const singleAnalysis = buildBuyAnalyses([candidate], history, { [clean]: fund }, {}, {}, { today: getTodayIST() });
+        const updatedItem = singleAnalysis[0];
+        if (updatedItem) {
+          const idx = _buyAnalysisCache.analyses.findIndex(a => a.symbol === clean);
+          if (idx >= 0) {
+            _buyAnalysisCache.analyses[idx] = updatedItem;
+          } else {
+            _buyAnalysisCache.analyses.unshift(updatedItem);
+          }
+          _buyAnalysisCache.summary = buildBuyPortfolioSummary(_buyAnalysisCache.analyses);
+          try {
+            fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(_buyAnalysisCache), 'utf8');
+          } catch (_) {}
+          return res.json({ symbol: clean, fundamentals: fund, analysis: updatedItem, summary: _buyAnalysisCache.summary });
+        }
+      }
+
+      const freshResult = await runBuyAnalysisEngine({ forceRefresh: false });
       const updatedAnalysis = freshResult.analyses?.find(a => a.symbol === clean);
       return res.json({ symbol: clean, fundamentals: fund, analysis: updatedAnalysis, summary: freshResult.summary });
     }
