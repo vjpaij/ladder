@@ -275,10 +275,107 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
   }
 }
 
+async function reconcileOverviewWithLiveHoldings(overview) {
+  if (!overview) return overview;
+  try {
+    const currentHoldings = await db.select('holdings');
+    if (!Array.isArray(currentHoldings) || currentHoldings.length === 0) return overview;
+
+    const inMap = new Map();
+    const usMap = new Map();
+
+    for (const h of currentHoldings) {
+      const qty = Number(h.quantity) || 0;
+      const isRedeemed = String(h.status || '').toUpperCase() === 'REDEEMED' || qty <= 0;
+      if (isRedeemed) continue;
+
+      const sym = String(h.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      if (h.category_id === 'in_stocks') {
+        inMap.set(sym, h);
+      } else if (h.category_id === 'us_stocks') {
+        usMap.set(sym, h);
+      }
+    }
+
+    // Filter and enrich Indian analyses: strictly exclude redeemed or 0-qty holdings
+    const reconciledAnalyses = (overview.analyses || [])
+      .filter(a => {
+        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+        return inMap.has(sym);
+      })
+      .map(a => {
+        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+        const h = inMap.get(sym);
+        const quote = liveQuoteCache?.get(h.symbol);
+        const curPrice = resolveHoldingPrice(h, quote) || a.currentPrice || Number(h.current_price) || 0;
+        const qty = Number(h.quantity) || 0;
+        const avgBuy = Number(h.avg_buy_price) || a.avgBuyPrice || 0;
+        const invested = qty * avgBuy;
+        const curVal = qty * curPrice;
+        const unpnl = curVal - invested;
+        const pnlPct = invested > 0 ? (unpnl / invested) * 100 : 0;
+
+        return {
+          ...a,
+          holdingId: h.id,
+          quantity: qty,
+          avgBuyPrice: avgBuy,
+          currentPrice: curPrice,
+          investedValue: Math.round(invested * 100) / 100,
+          currentValue: Math.round(curVal * 100) / 100,
+          unrealizedPnL: Math.round(unpnl * 100) / 100,
+          pnlPct: Math.round(pnlPct * 100) / 100
+        };
+      });
+
+    // Filter and enrich US analyses: strictly exclude redeemed or 0-qty holdings
+    const reconciledUsAnalyses = (overview.usAnalyses || [])
+      .filter(a => {
+        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+        return usMap.has(sym);
+      })
+      .map(a => {
+        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+        const h = usMap.get(sym);
+        const quote = liveQuoteCache?.get(h.symbol);
+        const curPrice = resolveHoldingPrice(h, quote) || a.currentPrice || Number(h.current_price) || 0;
+        const qty = Number(h.quantity) || 0;
+        const avgBuy = Number(h.avg_buy_price) || a.avgBuyPrice || 0;
+        const invested = qty * avgBuy;
+        const curVal = qty * curPrice;
+        const unpnl = curVal - invested;
+        const pnlPct = invested > 0 ? (unpnl / invested) * 100 : 0;
+
+        return {
+          ...a,
+          holdingId: h.id,
+          quantity: qty,
+          avgBuyPrice: avgBuy,
+          currentPrice: curPrice,
+          investedValue: Math.round(invested * 100) / 100,
+          currentValue: Math.round(curVal * 100) / 100,
+          unrealizedPnL: Math.round(unpnl * 100) / 100,
+          pnlPct: Math.round(pnlPct * 100) / 100
+        };
+      });
+
+    return {
+      ...overview,
+      analyses: reconciledAnalyses,
+      usAnalyses: reconciledUsAnalyses,
+      summary: buildPortfolioSummary(reconciledAnalyses),
+      usSummary: buildPortfolioSummary(reconciledUsAnalyses)
+    };
+  } catch (err) {
+    console.warn('[Stock Intelligence] Live reconciliation warning:', err.message);
+    return overview;
+  }
+}
+
 export async function computeStockOverview(userId, { forceRefresh = false, includeBacktest = false } = {}) {
   const now = Date.now();
   if (!forceRefresh && cachedOverview && cachedOverviewKey === userId && (now - cachedOverviewTimestamp < OVERVIEW_TTL_MS)) {
-    return cachedOverview;
+    return await reconcileOverviewWithLiveHoldings(cachedOverview);
   }
 
   const [holdings, transactions, dividends, metadata, history] = await Promise.all([
@@ -288,9 +385,9 @@ export async function computeStockOverview(userId, { forceRefresh = false, inclu
     db.select('asset_metadata'),
     loadHistoricalPricesAsync()
   ]);
-  const active = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0);
+  const active = holdings.filter(item => item.category_id === 'in_stocks' && Number(item.quantity) > 0 && String(item.status || '').toUpperCase() !== 'REDEEMED');
   const symbols = [...new Set(active.map(item => item.symbol).filter(Boolean))];
-  const activeUs = holdings.filter(item => item.category_id === 'us_stocks' && Number(item.quantity) > 0);
+  const activeUs = holdings.filter(item => item.category_id === 'us_stocks' && Number(item.quantity) > 0 && String(item.status || '').toUpperCase() !== 'REDEEMED');
   const usSymbols = [...new Set(activeUs.map(item => item.symbol).filter(Boolean))];
   const config = getIntelligenceConfig(userId);
 
@@ -378,13 +475,16 @@ export async function computeStockOverview(userId, { forceRefresh = false, inclu
     }
   };
 
+  // Reconcile and synchronize with live holdings before saving and returning
+  const reconciled = await reconcileOverviewWithLiveHoldings(result);
+
   // Cache the completed overview payload
-  cachedOverview = result;
+  cachedOverview = reconciled;
   cachedOverviewKey = userId;
   cachedOverviewTimestamp = Date.now();
-  saveOverviewSnapshotToDisk(result);
+  saveOverviewSnapshotToDisk(reconciled);
 
-  return result;
+  return reconciled;
 }
 
 router.get('/stock-intelligence/overview', authenticateToken, async (req, res) => {

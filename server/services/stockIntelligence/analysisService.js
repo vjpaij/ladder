@@ -388,7 +388,11 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
   if (!buyThesesSet) buyThesesSet = new Set();
   const metadataBySymbol = new Map(metadata.map(row => [cleanSym(row.symbol), row]));
   const targetCategory = categoryId || 'in_stocks';
-  const targetStocks = holdings.filter(item => item.category_id === targetCategory && Number(item.quantity) > 0);
+  const targetStocks = holdings.filter(item => 
+    item.category_id === targetCategory && 
+    Number(item.quantity) > 0 && 
+    String(item.status || '').toUpperCase() !== 'REDEEMED'
+  );
 
   // Index transactions and dividends once by holdingId and clean symbol for O(1) lookups
   const txByHolding = new Map();

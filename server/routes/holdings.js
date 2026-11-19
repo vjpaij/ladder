@@ -23,6 +23,7 @@ import { scheduleAutoSyncFromPortfolio } from '../services/tradingJournalService
 import { calculateXirr } from '../services/xirrCalculator.js';
 import { invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
 import { invalidateBuyCache } from './buyAnalysis.js';
+import { invalidateStockIntelligenceCache } from './stockIntelligence.js';
 import { resolveCanonicalSector } from '../services/stockIntelligence/buyAnalysisService.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 import { getLoanAmortizationData, settleAmortizationForMonth } from '../services/loanEngine.js';
@@ -579,6 +580,9 @@ router.put('/holdings/:id', authenticateToken, async (req, res) => {
       status: Number(quantity) > 0 ? 'active' : 'closed'
     });
 
+    invalidateStockIntelligenceCache();
+    invalidateBuyCache();
+
     res.json({ success: true });
   } catch (err) {
     console.error('[Put Holdings Error]:', err);
@@ -614,6 +618,9 @@ router.delete('/holdings/:id', authenticateToken, async (req, res) => {
     const { error: holdErr } = await supabase.from('holdings').delete().eq('id', id);
     if (holdErr) throw new Error(holdErr.message);
     db.removeFromCache('holdings', id);
+
+    invalidateStockIntelligenceCache();
+    invalidateBuyCache();
 
     res.json({ success: true, message: 'Holding and all associated records deleted successfully.' });
   } catch (err) {
@@ -1977,6 +1984,7 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       setImmediate(() => {
         invalidateBenchmarkCache();
         invalidateBuyCache();
+        invalidateStockIntelligenceCache();
         triggerEodRebuildIfPastDate(txDate);
         scheduleAutoSyncFromPortfolio(4000);
       });

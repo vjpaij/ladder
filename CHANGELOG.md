@@ -5,6 +5,16 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.3.1] - 2026-11-20
+
+### Fixed
+- **Buy Analysis 502 Bad Gateway Eradication**: Fixed unbounded universe inflation where `loadNse500Universe()` in `server/services/stockIntelligence/buyUniverseProvider.js` read 3,210 tickers and looped over all 2,969 historical price keys, inflating candidates to 3,222. Constrained to authentic top liquid 500 stocks (`marketCapCr >= ₹13,500 Cr`), dropping candidate universe from 3,222 to 552 and accelerating engine execution from 25.6s to 1.18s (a 22x speedup).
+- **Stale-While-Revalidate & Instant Response Architecture for Buy Analysis**: Implemented SWR and instant verified snapshot serving in `runBuyAnalysisEngine`: expired caches return instantly (< 2ms) while background recalculation executes asynchronously (`setImmediate`), eliminating HTTP thread blocking and 502 Bad Gateway proxy timeouts on Render.
+- **Fast Single-Symbol Fundamentals Refresh**: Refactored `POST /api/buy-analysis/refresh-fundamentals` for single symbols to re-evaluate only the targeted candidate and update cache/snapshot in `< 1.5s` instead of triggering a full universe recalculation.
+- **Sell Analysis Dynamic Holding Reconciliation & Parity**: Implemented `reconcileOverviewWithLiveHoldings` in `server/routes/stockIntelligence.js` ensuring `computeStockOverview` dynamically filters and synchronizes all items against live database holdings (`Number(quantity) > 0` and `status !== 'REDEEMED'`), syncing `quantity`, `avg_buy_price`, and live CMP so sold/redeemed stocks are immediately excluded and open quantities (like Ajanta Pharma 29 open shares) match 1-to-1.
+- **Full Mutation Invalidation for Stock Intelligence**: Wired `invalidateStockIntelligenceCache()` into all mutation endpoints across `server/services/recalculator.js`, `server/routes/transactions.js`, and `server/routes/holdings.js`, guaranteeing any trade insertion, amendment, or deletion immediately invalidates the overview and action plan cache.
+- **30-Day Post-Sale Cooling-Off Guard for Recently Sold Assets**: Implemented a 30-day cooling-off rule in `buyAnalysisService.js` capping signals on recently sold stocks to `WATCH` with the exact rationale: `Recent Portfolio Exit (Xd ago on YYYY-MM-DD) — 30-day cooling-off period active to protect capital from whipsaws & churn.` Added `COOLING OFF (Xd)` badge in `BuyAnalysisView.jsx`.
+
 ## [8.3.0] - 2026-11-20
 
 ### Fixed

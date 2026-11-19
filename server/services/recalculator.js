@@ -2,6 +2,8 @@ import { db } from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { liveQuoteCache } from './priceEngine.js';
 import { scheduleAutoSyncFromPortfolio } from './tradingJournalService.js';
+import { invalidateStockIntelligenceCache } from '../routes/stockIntelligence.js';
+import { invalidateBuyCache } from '../routes/buyAnalysis.js';
 
 /**
  * Universal Chronological Position Recalculation Engine
@@ -278,6 +280,8 @@ export async function recalculateHoldingState(holdingId) {
       });
 
       scheduleAutoSyncFromPortfolio();
+      invalidateStockIntelligenceCache();
+      invalidateBuyCache();
 
       return {
         holdingId,
