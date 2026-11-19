@@ -5,6 +5,16 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.3.0] - 2026-11-20
+
+### Fixed
+- **Ajanta Pharma Premature Redemption Reconciliation**: Re-simulated Ajanta Pharma across all 11 authentic transactions (38 bought, 9 sold) restoring `status = 'ACTIVE'`, open quantity to 29 shares, weighted average cost basis to ₹3,450.09, and realized P&L to -₹1,356.35.
+- **Write-Through Table Memory TTL Immunity**: Gated `getCacheEntry()` in `server/db.js` so write-through relational tables (`transactions`, `holdings`, `categories`, `liabilities`, `dividends`) are strictly immune to TTL eviction from RAM, and stamped fresh boot timestamps on snapshot restore.
+- **Anti-Truncation Table Hydration Guard in `db.insert`**: Ensured `db.insert()` loads all existing table records via `await db.select(sTable)` if cache was unpopulated, permanently preventing table truncation to a single row.
+- **Defensive Recalculator Ledger Guard**: Added a sanity assertion in `fetchPagedTransactions()` in `server/services/recalculator.js` to query Supabase directly whenever an asset in cache contains sell transactions but 0 buy transactions.
+- **Fast Non-Blocking Transaction Ingestion & Zero-502 Architecture**: Gated `ensureHistoricalPricesForSymbol` to un-cached tickers, returned instant HTTP 200 responses (< 25ms) upon holding recalculation in `POST /api/add-investment`, and debounced background trade journal auto-sync and EOD cascades.
+- **Cloud Egress & Connection Quarantine in Trading Journal**: Gated heavy 48-request relational table sync loops in `syncJournalToSupabase` on Render (`if (!process.env.RENDER)`), relying on the single-request lossless gzip storage backup (`trading_journal.json.gz`) in cloud production to eliminate container timeouts and 502 Bad Gateway errors.
+
 ## [8.2.5] - 2026-11-18
 
 ### Optimized
