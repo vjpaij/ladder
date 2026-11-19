@@ -82,51 +82,53 @@ export async function syncJournalToSupabase() {
       console.log(`[TradingJournal] Persisted compressed journal to Supabase (${(compressed.length / 1024).toFixed(1)} KB, zero bloat).`);
     }
 
-    // Also attempt relational table upsert if public.trading_journal exists
-    try {
-      const { error: tableError } = await client.from('trading_journal').select('id', { head: true, count: 'exact' });
-      if (!tableError && Array.isArray(cachedJournal)) {
-        const batchSize = 100;
-        for (let i = 0; i < cachedJournal.length; i += batchSize) {
-          const slice = cachedJournal.slice(i, i + batchSize).map(t => ({
-            id: String(t.id),
-            symbol: t.symbol,
-            name: t.name,
-            market: t.market || 'IN',
-            segment: t.segment || 'IN_EQUITY',
-            trade_type: t.tradeType || 'LONG',
-            status: t.status || 'CLOSED',
-            entry_date: t.entryDate || null,
-            exit_date: t.exitDate || null,
-            entry_price: t.entryPrice,
-            exit_price: t.exitPrice,
-            quantity: t.quantity,
-            brokerage: t.brokerage,
-            stt: t.stt,
-            exchange_charges: t.exchangeCharges,
-            gst: t.gst,
-            stamp_duty: t.stampDuty,
-            sebi_charges: t.sebiCharges,
-            total_charges: t.totalCharges,
-            gross_pnl: t.grossPnl,
-            net_pnl: t.netPnl,
-            roi_pct: t.roiPct,
-            setup: t.setup,
-            timeframe: t.timeframe,
-            emotions: t.emotions,
-            discipline: t.discipline,
-            tags: t.tags || [],
-            notes: t.notes || '',
-            chart_url: t.chartUrl || '',
-            rating: t.rating || 4,
-            updated_at: new Date().toISOString()
-          }));
-          await client.from('trading_journal').upsert(slice);
+    // Also attempt relational table upsert if public.trading_journal exists (gated to local/non-Render dev to avoid 48 sequential network round-trips on cloud containers)
+    if (!process.env.RENDER) {
+      try {
+        const { error: tableError } = await client.from('trading_journal').select('id', { head: true, count: 'exact' });
+        if (!tableError && Array.isArray(cachedJournal)) {
+          const batchSize = 250;
+          for (let i = 0; i < cachedJournal.length; i += batchSize) {
+            const slice = cachedJournal.slice(i, i + batchSize).map(t => ({
+              id: String(t.id),
+              symbol: t.symbol,
+              name: t.name,
+              market: t.market || 'IN',
+              segment: t.segment || 'IN_EQUITY',
+              trade_type: t.tradeType || 'LONG',
+              status: t.status || 'CLOSED',
+              entry_date: t.entryDate || null,
+              exit_date: t.exitDate || null,
+              entry_price: t.entryPrice,
+              exit_price: t.exitPrice,
+              quantity: t.quantity,
+              brokerage: t.brokerage,
+              stt: t.stt,
+              exchange_charges: t.exchangeCharges,
+              gst: t.gst,
+              stamp_duty: t.stampDuty,
+              sebi_charges: t.sebiCharges,
+              total_charges: t.totalCharges,
+              gross_pnl: t.grossPnl,
+              net_pnl: t.netPnl,
+              roi_pct: t.roiPct,
+              setup: t.setup,
+              timeframe: t.timeframe,
+              emotions: t.emotions,
+              discipline: t.discipline,
+              tags: t.tags || [],
+              notes: t.notes || '',
+              chart_url: t.chartUrl || '',
+              rating: t.rating || 4,
+              updated_at: new Date().toISOString()
+            }));
+            await client.from('trading_journal').upsert(slice);
+          }
+          console.log(`[TradingJournal] Synced ${cachedJournal.length} rows to Supabase trading_journal table.`);
         }
-        console.log(`[TradingJournal] Synced ${cachedJournal.length} rows to Supabase trading_journal table.`);
+      } catch (_) {
+        // Table doesn't exist yet, safe in compressed storage
       }
-    } catch (_) {
-      // Table doesn't exist yet, safe in compressed storage
     }
   } catch (err) {
     console.warn('[TradingJournal] Supabase cloud sync error:', err.message);
@@ -142,7 +144,7 @@ export function debouncedSyncToCloud() {
 
 // Debounced auto-sync trigger for portfolio mutations (buys, sells, splits, deletes)
 let autoSyncPortfolioTimeout = null;
-export function scheduleAutoSyncFromPortfolio(delayMs = 300) {
+export function scheduleAutoSyncFromPortfolio(delayMs = 4000) {
   if (autoSyncPortfolioTimeout) clearTimeout(autoSyncPortfolioTimeout);
   autoSyncPortfolioTimeout = setTimeout(async () => {
     try {

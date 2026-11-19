@@ -14,13 +14,22 @@ async function fetchPagedTransactions(filterField, filterValue) {
   try {
     const allTxs = await db.select('transactions');
     if (allTxs && allTxs.length > 0) {
-      return allTxs
+      const filtered = allTxs
         .filter(tx => String(tx[filterField]) === String(filterValue))
         .sort((a, b) => {
           const dDiff = (a.date || '').localeCompare(b.date || '');
           if (dDiff !== 0) return dDiff;
           return (a.created_at || '').localeCompare(b.created_at || '');
         });
+
+      // Defensive integrity guard: If transactions for an equity holding only have SELLs and 0 BUYs,
+      // the in-memory cache may be incomplete or truncated. Fall back to Supabase query for this holding!
+      const hasBuys = filtered.some(t => ['BUY', 'INVESTMENT', 'BONUS', 'SPLIT', 'DEMERGER', 'MERGER', 'DEPOSIT', 'CREDIT', 'CONTRIBUTION'].includes((t.type || '').toUpperCase()));
+      const hasSells = filtered.some(t => ['SELL', 'REDEEM', 'REDEMPTION', 'WITHDRAWAL', 'DEBIT'].includes((t.type || '').toUpperCase()));
+      if (!hasSells || hasBuys || allTxs.length < 50) {
+        return filtered;
+      }
+      console.warn(`[Recalculator] In-memory cache had sells but no buys for ${filterField}=${filterValue}. Verifying against Supabase...`);
     }
   } catch (e) {
     console.warn('[Recalculator] In-memory transactions read fallback:', e.message);

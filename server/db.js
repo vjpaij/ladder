@@ -314,8 +314,9 @@ export function restoreCacheSnapshotFromDisk() {
 
     let count = 0;
     let rows = 0;
+    const now = Date.now();
     for (const [key, entry] of Object.entries(snapshot.tables)) {
-      dbCache.set(key, entry);
+      dbCache.set(key, { ...entry, timestamp: now });
       count++;
       if (Array.isArray(entry.data)) rows += entry.data.length;
     }
@@ -336,9 +337,22 @@ export function initDatabase() {
   }
 }
 
+const WRITE_THROUGH_PERSISTENT_TABLES = new Set([
+  'transactions',
+  'holdings',
+  'dividends',
+  'categories',
+  'liabilities'
+]);
+
 export function getCacheEntry(tableName) {
   const entry = dbCache.get(tableName);
   if (!entry) return null;
+  // Write-through tables are kept resident in Node.js RAM and updated in-place (Rule 18).
+  // Never evict them from memory to prevent cloud egress spikes, table truncation, or race conditions.
+  if (WRITE_THROUGH_PERSISTENT_TABLES.has(tableName)) {
+    return entry.data;
+  }
   if (!isOfflineMode && (Date.now() - entry.timestamp > CACHE_TTL_MS)) {
     dbCache.delete(tableName);
     return null;
@@ -567,14 +581,17 @@ export const db = {
     const insertedRow = { id: newId, created_at: new Date().toISOString(), ...row };
 
     // Write-through update: push directly to RAM cache
-    const cached = dbCache.get(sTable);
+    let cached = dbCache.get(sTable);
+    if (!cached || !Array.isArray(cached.data)) {
+      const rows = await db.select(sTable);
+      cached = dbCache.get(sTable);
+    }
     if (cached && Array.isArray(cached.data)) {
       cached.data.push(insertedRow);
-      debouncedSaveSnapshot();
     } else {
       setCacheEntry(sTable, [insertedRow]);
-      debouncedSaveSnapshot();
     }
+    debouncedSaveSnapshot();
 
     // Dual-write to Supabase (Ingress is always attempted) — record to WAL on any failure
     try {

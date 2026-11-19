@@ -1957,21 +1957,29 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
 
       if (txFxRate) txRecord.fx_rate = txFxRate;
 
-      // Automatically populate historical daily prices for new or existing holdings
+      // Only fetch historical daily prices if not already cached in memory
       if (['in_stocks', 'us_stocks', 'mutual_funds', 'nps'].includes(portfolio)) {
         try {
-          ensureHistoricalPricesForSymbol(symbolKey, portfolio, txDate).catch(() => {});
+          const hpMap = getHistoricalPricesMap();
+          const cleanSym = String(symbolKey || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+          if (!hpMap.has(cleanSym) && !hpMap.has(symbolKey)) {
+            ensureHistoricalPricesForSymbol(symbolKey, portfolio, txDate).catch(() => {});
+          }
         } catch (e) {
           console.warn(`[Auto-Price Sync] Failed to ensure historical prices for ${symbolKey}:`, e.message);
         }
       }
 
       await db.insert('transactions', txRecord);
-      scheduleAutoSyncFromPortfolio();
       await recalculateHoldingState(holdingId);
-      invalidateBenchmarkCache();
-      invalidateBuyCache();
-      triggerEodRebuildIfPastDate(txDate);
+
+      // Background non-blocking tasks
+      setImmediate(() => {
+        invalidateBenchmarkCache();
+        invalidateBuyCache();
+        triggerEodRebuildIfPastDate(txDate);
+        scheduleAutoSyncFromPortfolio(4000);
+      });
 
       return res.json({ success: true, holdingId, action: 'transaction_recorded' });
     }
