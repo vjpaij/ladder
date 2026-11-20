@@ -52,6 +52,10 @@ export const KNOWN_SYMBOL_ALIASES = {
   // J.B. Chemicals & Pharmaceuticals merger into Torrent Pharma (July 2026)
   'JBCHEPHARM': 'TORNTPHARM.NS',
 
+  // Shukra Pharmaceuticals renamed to Shukra Medtech Limited (Nov 2026)
+  'SHUKRAPHAR': 'SHUKRAMED.NS',
+  'SHUKRAMED': 'SHUKRAMED.NS',
+
   // BSE-only or BSE Scrip-mapped listings
   'NSE': 'NSE.BO',
   '544937': 'NSE.BO',
