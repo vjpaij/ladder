@@ -712,6 +712,10 @@ export const db = {
 
   forceEvict: (tableName) => {
     forceEvict(tableName);
+  },
+
+  saveCacheSnapshotToDisk: (opts) => {
+    return saveCacheSnapshotToDisk(opts);
   }
 };
 

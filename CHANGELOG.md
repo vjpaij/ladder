@@ -5,6 +5,13 @@ All notable changes to the **Ladder Finance Dashboard** project will be document
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.3.2] - 2026-11-20
+
+### Fixed
+- **Full Liquidation Reconciliation (Ajanta Pharma, Shreepushkar & Gufic Bio)**: Resolved issue where Ajanta Pharma, Shreepushkar Chemicals, and Gufic Biosciences reappeared as Sell candidates despite being fully sold on 18-Nov-2026. The cloud database contained the authentic 100% liquidation transactions (AJANTPHARM 38 sold / 0 remaining; SHREEPUSHK 223 sold / 0 remaining; GUFICBIO 242 sold / 0 remaining; total 12,502 transactions), but local/git snapshots retained an older 12,485-transaction snapshot. Rehydrated all tables from Supabase into `db_cache_snapshot.json.gz`, marking all three assets as `quantity: 0, status: 'REDEEMED'`.
+- **Bidirectional Cloud Startup Divergence Synchronization**: Refactored `server/index.js` startup divergence reconciliation from a one-way cache-to-cloud check (`Math.max(0, cacheCount - count)`) into a fully bidirectional reconciliation engine running across both local and Render cloud containers. On server boot, if Supabase has more rows than cache (`count > cacheCount`), missing transactions and holdings are automatically pulled into RAM, affected holdings are recalculated via `recalculateHoldingState`, and disk snapshots are saved.
+- **Permanent Sell Candidate Elimination**: Regenerated `stock_intelligence_overview.json`, `stock_intelligence_action_plan.json.gz`, and `buy_analysis_snapshot.json.gz` with verified 0-quantity holding states, completely eliminating fully liquidated holdings from Sell Analysis and Action Plan sells.
+
 ## [8.3.1] - 2026-11-20
 
 ### Fixed

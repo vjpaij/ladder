@@ -237,18 +237,17 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.warn('[WAL Flusher Init Error]:', err.message);
   }
 
-  // 1d. Startup divergence reconciliation — compare cache vs Supabase row counts
-  // Run ONLY in local development; cloud containers remain 100% focused on serving API traffic
-  if (!process.env.RENDER && process.env.NODE_ENV !== 'production') {
-    setTimeout(async () => {
-    if (!supabaseAdmin) {
-      console.warn('[Startup Reconciliation] supabaseAdmin not available — skipping divergence check.');
+  // 1d. Startup divergence reconciliation — bidirectional compare cache vs Supabase row counts
+  setTimeout(async () => {
+    if (!supabaseAdmin && !supabase) {
+      console.warn('[Startup Reconciliation] Supabase clients not available — skipping divergence check.');
       return;
     }
     try {
       console.log('[Startup Reconciliation] Comparing cache row counts vs Supabase...');
       const reconcileTables = ['categories', 'holdings', 'transactions', 'dividends', 'liabilities'];
       let totalUpserted = 0;
+      let totalPulled = 0;
 
       for (const table of reconcileTables) {
         const cacheRows = await db.select(table);
@@ -262,65 +261,104 @@ app.listen(PORT, '0.0.0.0', async () => {
           continue;
         }
 
-        const gap = Math.max(0, cacheCount - count);
-        if (gap === 0) {
+        if (cacheCount === count) {
           console.log(`[Startup Reconciliation] ${table}: cache=${cacheCount}, supabase=${count} — IN SYNC`);
           continue;
         }
 
         console.warn(
           `[Startup Reconciliation] DIVERGENCE DETECTED: ${table} — ` +
-          `cache has ${cacheCount} rows, Supabase has ${count} rows (gap: ${gap}). Reconciling...`
+          `cache has ${cacheCount} rows, Supabase has ${count} rows.`
         );
 
-        // Fetch all existing IDs from Supabase to find what's missing
-        let supabaseIds = new Set();
-        let from = 0;
-        const batchSize = 1000;
-        while (true) {
-          const { data: idRows, error: idErr } = await supabaseAdmin
-            .from(table).select('id').range(from, from + batchSize - 1);
-          if (idErr || !idRows || idRows.length === 0) break;
-          idRows.forEach(r => supabaseIds.add(String(r.id)));
-          if (idRows.length < batchSize) break;
-          from += batchSize;
-        }
+        // Case A: Supabase has MORE rows than cache -> pull missing rows into cache
+        if (count > cacheCount) {
+          const pullGap = count - cacheCount;
+          console.log(`[Startup Reconciliation] ${table}: Supabase has ${pullGap} more row(s) than cache. Pulling from cloud...`);
+          const cacheIds = new Set(cacheRows.map(r => String(r.id)));
+          
+          let from = 0;
+          const batchSize = 1000;
+          const missingFromCache = [];
+          while (true) {
+            const { data: supaData, error: sErr } = await supabase
+              .from(table).select('*').range(from, from + batchSize - 1);
+            if (sErr || !supaData || supaData.length === 0) break;
+            for (const r of supaData) {
+              if (!cacheIds.has(String(r.id))) {
+                missingFromCache.push(r);
+                cacheIds.add(String(r.id));
+              }
+            }
+            if (supaData.length < batchSize) break;
+            from += batchSize;
+          }
 
-        // Find cache rows whose IDs are absent in Supabase
-        const missingRows = cacheRows.filter(r => !supabaseIds.has(String(r.id)));
-        if (missingRows.length === 0) {
-          console.log(`[Startup Reconciliation] ${table}: no missing IDs found — counts may differ due to deletes. Skipping.`);
-          continue;
-        }
-
-        console.log(`[Startup Reconciliation] ${table}: upserting ${missingRows.length} missing row(s) to Supabase...`);
-
-        // Upsert in batches of 200 using service role (bypasses RLS)
-        const upsertBatch = 200;
-        let upserted = 0;
-        for (let i = 0; i < missingRows.length; i += upsertBatch) {
-          const chunk = missingRows.slice(i, i + upsertBatch);
-          const { error: upsertErr } = await supabaseAdmin.from(table).upsert(chunk);
-          if (upsertErr) {
-            console.error(`[Startup Reconciliation] Failed to upsert ${table} batch:`, upsertErr.message);
-          } else {
-            upserted += chunk.length;
+          if (missingFromCache.length > 0) {
+            cacheRows.push(...missingFromCache);
+            totalPulled += missingFromCache.length;
+            console.log(`[Startup Reconciliation] ${table}: successfully pulled ${missingFromCache.length} missing row(s) into cache.`);
+            
+            // If transactions were pulled, recalculate holding states for affected holdings
+            if (table === 'transactions') {
+              const affectedHoldingIds = [...new Set(missingFromCache.map(tx => tx.holding_id).filter(Boolean))];
+              console.log(`[Startup Reconciliation] Recalculating ${affectedHoldingIds.length} affected holding(s)...`);
+              for (const hId of affectedHoldingIds) {
+                try {
+                  const { recalculateHoldingState } = await import('./services/recalculator.js');
+                  await recalculateHoldingState(hId);
+                } catch (recErr) {
+                  console.warn(`[Startup Reconciliation] Recalculate warning for ${hId}:`, recErr.message);
+                }
+              }
+            }
+            db.saveCacheSnapshotToDisk();
           }
         }
-        totalUpserted += upserted;
-        console.log(`[Startup Reconciliation] ${table}: ${upserted}/${missingRows.length} missing rows synced to Supabase.`);
+
+        // Case B: Cache has MORE rows than Supabase -> push missing rows to Supabase
+        if (cacheCount > count && supabaseAdmin) {
+          let supabaseIds = new Set();
+          let from = 0;
+          const batchSize = 1000;
+          while (true) {
+            const { data: idRows, error: idErr } = await supabaseAdmin
+              .from(table).select('id').range(from, from + batchSize - 1);
+            if (idErr || !idRows || idRows.length === 0) break;
+            idRows.forEach(r => supabaseIds.add(String(r.id)));
+            if (idRows.length < batchSize) break;
+            from += batchSize;
+          }
+
+          const missingRows = cacheRows.filter(r => !supabaseIds.has(String(r.id)));
+          if (missingRows.length > 0) {
+            console.log(`[Startup Reconciliation] ${table}: upserting ${missingRows.length} missing row(s) to Supabase...`);
+            const upsertBatch = 200;
+            let upserted = 0;
+            for (let i = 0; i < missingRows.length; i += upsertBatch) {
+              const chunk = missingRows.slice(i, i + upsertBatch);
+              const { error: upsertErr } = await supabaseAdmin.from(table).upsert(chunk);
+              if (upsertErr) {
+                console.error(`[Startup Reconciliation] Failed to upsert ${table} batch:`, upsertErr.message);
+              } else {
+                upserted += chunk.length;
+              }
+            }
+            totalUpserted += upserted;
+            console.log(`[Startup Reconciliation] ${table}: ${upserted}/${missingRows.length} missing rows synced to Supabase.`);
+          }
+        }
       }
 
-      if (totalUpserted > 0) {
-        console.log(`[Startup Reconciliation] Complete. Upserted ${totalUpserted} total row(s) to Supabase.`);
+      if (totalUpserted > 0 || totalPulled > 0) {
+        console.log(`[Startup Reconciliation] Complete. Synced: ${totalPulled} pulled to cache, ${totalUpserted} pushed to Supabase.`);
       } else {
         console.log('[Startup Reconciliation] All write-through tables are in sync with Supabase.');
       }
     } catch (reconcileErr) {
       console.warn('[Startup Reconciliation Warning]:', reconcileErr.message);
     }
-    }, 15000);
-  }
+  }, 5000);
 
   // 1b. Prime liveQuoteCache from cached holdings on server boot (0 Supabase egress)
   try {
