@@ -315,6 +315,47 @@ async function reconcileOverviewWithLiveHoldings(overview) {
         const unpnl = curVal - invested;
         const pnlPct = invested > 0 ? (unpnl / invested) * 100 : 0;
 
+        // Dynamic Real-Time Stop Floor & Tranche Re-evaluation:
+        // If live market price (curPrice) has not breached or has rebounded above the trailing floor / Tranche 1 trigger,
+        // dynamically clear stop floor breach and reset tranche 1 status to PENDING.
+        const stopFloor = a.tranche1Trigger || a.trailingFloorPrice || a.chandelierStopPrice;
+        let stopFloorBreached = a.stopFloorBreached;
+        let tranche1Status = a.tranche1Status;
+        let action = a.action;
+        let state = a.state;
+        let suggestedSellQuantity = a.suggestedSellQuantity;
+        let stagedExitPlan = a.stagedExitPlan ? { ...a.stagedExitPlan } : a.stagedExitPlan;
+        let liveBufferPct = a.liveBufferToTrailingFloorPct;
+
+        if (stopFloor && curPrice > 0) {
+          liveBufferPct = Number((((curPrice - stopFloor) / stopFloor) * 100).toFixed(2));
+          if (curPrice >= stopFloor) {
+            stopFloorBreached = false;
+            if (tranche1Status === 'READY') tranche1Status = 'PENDING';
+            if (stagedExitPlan?.tranche1?.status === 'READY') {
+              stagedExitPlan = {
+                ...stagedExitPlan,
+                tranche1: { ...stagedExitPlan.tranche1, status: 'PENDING' }
+              };
+            }
+            if (action === 'REVIEW_PARTIAL_SALE' && !a.has4RedCandlesBelow21Ema && a.technicalState !== 'TECHNICAL_TRIM_CANDIDATE') {
+              action = 'HOLD_AND_COMPOUND';
+              if (state === 'TECHNICAL_TRIM_CANDIDATE') state = 'NORMAL';
+              suggestedSellQuantity = 0;
+              if (stagedExitPlan) stagedExitPlan.totalActionShares = 0;
+            }
+          } else {
+            stopFloorBreached = true;
+            if (tranche1Status === 'PENDING') tranche1Status = 'READY';
+            if (stagedExitPlan?.tranche1?.status === 'PENDING') {
+              stagedExitPlan = {
+                ...stagedExitPlan,
+                tranche1: { ...stagedExitPlan.tranche1, status: 'READY' }
+              };
+            }
+          }
+        }
+
         return {
           ...a,
           holdingId: h.id,
@@ -324,7 +365,14 @@ async function reconcileOverviewWithLiveHoldings(overview) {
           investedValue: Math.round(invested * 100) / 100,
           currentValue: Math.round(curVal * 100) / 100,
           unrealizedPnL: Math.round(unpnl * 100) / 100,
-          pnlPct: Math.round(pnlPct * 100) / 100
+          pnlPct: Math.round(pnlPct * 100) / 100,
+          stopFloorBreached,
+          tranche1Status,
+          action,
+          state,
+          suggestedSellQuantity,
+          stagedExitPlan,
+          liveBufferToTrailingFloorPct: liveBufferPct
         };
       });
 
@@ -346,6 +394,44 @@ async function reconcileOverviewWithLiveHoldings(overview) {
         const unpnl = curVal - invested;
         const pnlPct = invested > 0 ? (unpnl / invested) * 100 : 0;
 
+        const stopFloor = a.tranche1Trigger || a.trailingFloorPrice || a.chandelierStopPrice;
+        let stopFloorBreached = a.stopFloorBreached;
+        let tranche1Status = a.tranche1Status;
+        let action = a.action;
+        let state = a.state;
+        let suggestedSellQuantity = a.suggestedSellQuantity;
+        let stagedExitPlan = a.stagedExitPlan ? { ...a.stagedExitPlan } : a.stagedExitPlan;
+        let liveBufferPct = a.liveBufferToTrailingFloorPct;
+
+        if (stopFloor && curPrice > 0) {
+          liveBufferPct = Number((((curPrice - stopFloor) / stopFloor) * 100).toFixed(2));
+          if (curPrice >= stopFloor) {
+            stopFloorBreached = false;
+            if (tranche1Status === 'READY') tranche1Status = 'PENDING';
+            if (stagedExitPlan?.tranche1?.status === 'READY') {
+              stagedExitPlan = {
+                ...stagedExitPlan,
+                tranche1: { ...stagedExitPlan.tranche1, status: 'PENDING' }
+              };
+            }
+            if (action === 'REVIEW_PARTIAL_SALE' && !a.has4RedCandlesBelow21Ema && a.technicalState !== 'TECHNICAL_TRIM_CANDIDATE') {
+              action = 'HOLD_AND_COMPOUND';
+              if (state === 'TECHNICAL_TRIM_CANDIDATE') state = 'NORMAL';
+              suggestedSellQuantity = 0;
+              if (stagedExitPlan) stagedExitPlan.totalActionShares = 0;
+            }
+          } else {
+            stopFloorBreached = true;
+            if (tranche1Status === 'PENDING') tranche1Status = 'READY';
+            if (stagedExitPlan?.tranche1?.status === 'PENDING') {
+              stagedExitPlan = {
+                ...stagedExitPlan,
+                tranche1: { ...stagedExitPlan.tranche1, status: 'READY' }
+              };
+            }
+          }
+        }
+
         return {
           ...a,
           holdingId: h.id,
@@ -355,7 +441,14 @@ async function reconcileOverviewWithLiveHoldings(overview) {
           investedValue: Math.round(invested * 100) / 100,
           currentValue: Math.round(curVal * 100) / 100,
           unrealizedPnL: Math.round(unpnl * 100) / 100,
-          pnlPct: Math.round(pnlPct * 100) / 100
+          pnlPct: Math.round(pnlPct * 100) / 100,
+          stopFloorBreached,
+          tranche1Status,
+          action,
+          state,
+          suggestedSellQuantity,
+          stagedExitPlan,
+          liveBufferToTrailingFloorPct: liveBufferPct
         };
       });
 
@@ -403,6 +496,18 @@ async function reconcileActionPlanWithLiveHoldings(plan) {
 
       const quote = liveQuoteCache?.get(h.symbol);
       const cmp = resolveHoldingPrice(h, quote) || s.cmp || Number(h.current_price) || 0;
+
+      // Real-time market price verification:
+      // If a sell was suggested due to a stop floor / trailing stop breach,
+      // and live market price (cmp) is at or above the stop trigger price,
+      // the stop has NOT been breached in real-time. Dynamically exclude from sells.
+      const stopTrigger = s.triggerPrice || s.tranche1Trigger;
+      if (stopTrigger && (s.category === 'Trailing Stop Floor Breach' || s.isChandelierBreach || s.actionType?.includes('STOP FLOOR'))) {
+        if (cmp >= stopTrigger) {
+          continue; // Safe! Live CMP is above the stop floor.
+        }
+      }
+
       const actionValue = Math.round(actionQty * cmp * 100) / 100;
 
       let reason = s.reason;
@@ -426,7 +531,14 @@ async function reconcileActionPlanWithLiveHoldings(plan) {
       const h = holdingMap.get(sym);
       if (!h) return false;
       const qty = Number(h.quantity) || 0;
-      return !(String(h.status || '').toUpperCase() === 'REDEEMED' || qty <= 0);
+      if (String(h.status || '').toUpperCase() === 'REDEEMED' || qty <= 0) return false;
+      const quote = liveQuoteCache?.get(h.symbol);
+      const cmp = resolveHoldingPrice(h, quote) || sl.cmp || Number(h.current_price) || 0;
+      const stopTrigger = sl.triggerPrice || sl.stopPrice || sl.floorPrice;
+      if (stopTrigger && cmp >= stopTrigger) {
+        return false; // Not breached in real time
+      }
+      return true;
     });
 
     // 3. Recalculate summary metrics

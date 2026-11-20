@@ -274,6 +274,41 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       resolvedUsStocks = lastTradingLog.us_stocks;
     }
 
+    // Mutual funds and NPS NAVs are published once daily at night (AMFI after 21:00 IST).
+    // Bank savings and EPF are ledger-based. During intraday trading, unless a transaction
+    // occurred today in that category, their valuation strictly carries forward yesterday's finalized close.
+    const hasMfTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && h.category_id === 'mutual_funds';
+    });
+    if (!hasMfTxToday && lastTradingLog && lastTradingLog.mutual_funds !== undefined) {
+      resolvedMf = lastTradingLog.mutual_funds;
+    }
+
+    const hasNpsTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && h.category_id === 'nps';
+    });
+    if (!hasNpsTxToday && lastTradingLog && lastTradingLog.nps !== undefined) {
+      resolvedNps = lastTradingLog.nps;
+    }
+
+    const hasSavingsTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && h.category_id === 'bank';
+    });
+    if (!hasSavingsTxToday && lastTradingLog && lastTradingLog.savings !== undefined) {
+      resolvedSavings = lastTradingLog.savings;
+    }
+
+    const hasEpfTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && h.category_id === 'epf';
+    });
+    if (!hasEpfTxToday && lastTradingLog && lastTradingLog.epf !== undefined) {
+      resolvedEpf = lastTradingLog.epf;
+    }
+
     let totalAssets = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     let totalWealth = Number((totalAssets - resolvedDebt).toFixed(2));
 

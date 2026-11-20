@@ -1285,8 +1285,15 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
             let nseTicker = `${baseSymbol}.NS`;
             let bseTicker = `${baseSymbol}.BO`;
             if (canonical && canonical !== baseSymbol) {
-              if (canonical.endsWith('.BO')) bseTicker = canonical;
-              else if (canonical.includes('.')) nseTicker = canonical;
+              if (canonical.endsWith('.BO')) {
+                bseTicker = canonical;
+                nseTicker = canonical.replace(/\.BO$/i, '.NS');
+              } else if (canonical.endsWith('.NS')) {
+                nseTicker = canonical;
+                bseTicker = canonical.replace(/\.NS$/i, '.BO');
+              } else if (canonical.includes('.')) {
+                nseTicker = canonical;
+              }
             }
             const [nseQ, bseQ] = await Promise.all([
               fetchStockQuote(nseTicker),

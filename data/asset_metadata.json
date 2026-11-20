@@ -15035,7 +15035,7 @@
   },
   {
     "symbol": "SHUKRAPHAR",
-    "name": "Shukra Pharmaceuticals Limited",
+    "name": "Shukra Medtech Limited",
     "category_id": "in_stocks",
     "exchange": "NSE",
     "isin": "INE551C01044",
@@ -48380,5 +48380,21 @@
     "mcap_category": "Large Cap",
     "capitalisation": "Large Cap",
     "sebi_rank": null
+  },
+  {
+    "symbol": "SHUKRAMED",
+    "name": "Shukra Medtech Limited",
+    "category_id": "in_stocks",
+    "exchange": "NSE",
+    "isin": "INE551C01044",
+    "listing_date": "14-AUG-2026",
+    "series": "EQ",
+    "sector": "Healthcare Services & Hospitals",
+    "industry": "Diagnostic Kits & Medical Formulations",
+    "market_cap": 3313,
+    "mcap_category": "Micro Cap",
+    "capitalisation": "Micro Cap",
+    "sebi_rank": 1001,
+    "last_updated": "2026-11-10T18:01:49.513Z"
   }
 ]
