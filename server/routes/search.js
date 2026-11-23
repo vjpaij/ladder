@@ -9,6 +9,7 @@ import { refreshAllHoldingsPrices, refreshActiveHoldingsPrices, fetchNpsHistoric
 import { loadHistoricalPricesAsync } from '../services/historicalPriceStore.js';
 import { runComprehensiveSelfHealing, syncRecentNpsEodValuations } from '../services/selfHealingService.js';
 import { invalidateBuyCache } from './buyAnalysis.js';
+import { invalidateStockIntelligenceCache } from './stockIntelligence.js';
 import { processDueSips } from '../services/sipEngine.js';
 import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -282,6 +283,27 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
     return;
   }
 
+  if (req.body?.equityOnly) {
+    // Fast equity-only quote refresh: polls NSE/BSE & US quotes via Yahoo Finance in ~1.2s
+    // Skips heavy AMFI/Protean scrapers and full-year EOD cascades
+    try {
+      await loadHistoricalPricesAsync();
+      const result = await refreshActiveHoldingsPrices({ forceAll: true, marketSession: 'ALL', persistToDb: false });
+      invalidateStockIntelligenceCache();
+      invalidateSummaryCache();
+      invalidateHoldingsResponseCache();
+      return res.json({
+        success: true,
+        equityOnly: true,
+        updatedCount: result?.updatedCount || 0,
+        durationMs: Date.now() - startTime
+      });
+    } catch (err) {
+      console.warn('[RefreshPrices:EquityOnly] Warning:', err.message);
+      return res.status(500).json({ error: 'Failed to refresh equity quotes: ' + err.message });
+    }
+  }
+
   try {
     await loadHistoricalPricesAsync();
 
@@ -356,6 +378,7 @@ router.post('/refresh-prices', authenticateToken, async (req, res) => {
     invalidateTxDatesCache();
     invalidateCalendarValuationCache();
     invalidateBuyCache();
+    invalidateStockIntelligenceCache();
     res.json({ success: true, ...result, missedEodStatus, npsStatus });
   } catch (err) {
     const durationMs = Date.now() - startTime;
