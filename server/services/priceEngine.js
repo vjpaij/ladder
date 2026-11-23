@@ -103,7 +103,12 @@ export function buildCanonicalLivePriceMap({
       const priceHistory = histCache[h.symbol] || histCache[cleanSymbol] ||
         histCache[`${cleanSymbol}.NS`] || {};
       const previousDates = Object.keys(priceHistory).filter(date => date < currentTodayStr && Number(priceHistory[date]) > 0).sort();
-      if (previousDates.length > 0) {
+      const lastTradingDay = getLastTradingDay(currentTodayStr, h.category_id === 'us_stocks' ? 'US' : 'NSE');
+      if (previousDates.length > 0 && previousDates.at(-1) >= lastTradingDay) {
+        price = Number(priceHistory[previousDates.at(-1)]);
+      } else if (Number(h.current_price) > 0) {
+        price = Number(h.current_price);
+      } else if (previousDates.length > 0) {
         price = Number(priceHistory[previousDates.at(-1)]);
       } else {
         price = Number(h.current_price) || 0;

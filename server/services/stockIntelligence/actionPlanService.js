@@ -36,30 +36,24 @@ function escapeCsvCell(val) {
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
 
-export async function generateActionPlan({
+
+let cachedActionPlanBase = null;
+let cachedActionPlanBaseKey = '';
+let cachedActionPlanBaseTimestamp = 0;
+const BASE_CACHE_TTL_MS = 15 * 60 * 1000;
+
+export function invalidateActionPlanBaseCache() {
+  cachedActionPlanBase = null;
+  cachedActionPlanBaseKey = '';
+  cachedActionPlanBaseTimestamp = 0;
+}
+
+export async function computeActionPlanBase({
   userId = '1',
-  externalCashBudget: paramExternalCash,
-  recyclingMode: paramRecyclingMode,
-  maxDailyBuys: paramMaxDailyBuys,
-  dailyDeploymentCap: paramDailyDeploymentCap,
   userConfig: paramUserConfig
 } = {}) {
   const projectRoot = process.cwd();
-
-  // Load User Configuration
   const userConfig = paramUserConfig || getIntelligenceConfig(userId);
-  const externalCashBudget = paramExternalCash !== undefined && paramExternalCash !== null
-    ? Math.max(0, Math.round(Number(paramExternalCash)))
-    : (userConfig.externalCashBudget ?? 200000);
-  const periodicIncrement = userConfig.periodicIncrement ?? 200000;
-  const recyclingMode = paramRecyclingMode || userConfig.recyclingMode || 'FULL_AND_TRIMS';
-  const maxDailyBuys = paramMaxDailyBuys !== undefined && paramMaxDailyBuys !== null
-    ? Math.max(1, Math.min(15, Math.round(Number(paramMaxDailyBuys))))
-    : (userConfig.maxDailyBuys ?? 5);
-  const dailyDeploymentCap = paramDailyDeploymentCap !== undefined && paramDailyDeploymentCap !== null
-    ? Math.max(0, Math.round(Number(paramDailyDeploymentCap)))
-    : (userConfig.dailyDeploymentCap ?? 350000);
-
   // 1. Load Buy Analyses from snapshot or seed gz archive
   let buyAnalyses = [];
   const snapPath = path.join(projectRoot, 'data', 'buy_analysis_snapshot.json');
@@ -319,19 +313,6 @@ export async function generateActionPlan({
   const netTransactionCashDelta = totalRealizedExitProceeds - totalDeployedBuys;
   const realizedRecycledCapital = Math.max(0, baseRecycledCapital + netTransactionCashDelta);
 
-  let projectedRecycledCapital = realizedRecycledCapital;
-  if (recyclingMode === 'FULL_AND_TRIMS') {
-    projectedRecycledCapital += (fullExitProceeds + trimProceeds + chandelierBreachProceeds);
-  } else if (recyclingMode === 'FULL_ONLY') {
-    projectedRecycledCapital += (fullExitProceeds + chandelierBreachProceeds);
-  } else {
-    // 'EXTERNAL_ONLY': zero selling, pure portfolio expansion
-    projectedRecycledCapital = 0;
-  }
-
-  // Recycled capital represents the actual net cash obtained from the base + subsequent rebalances
-  const recycledCapital = recyclingMode === 'EXTERNAL_ONLY' ? 0 : round2(realizedRecycledCapital);
-  const totalPurchasingPower = round2(externalCashBudget + recycledCapital);
 
   // Dynamic Portfolio Weight Cap calculation based on total Indian equity valuation
   const totalIndianEquityValuation = enrichedHoldings
@@ -712,153 +693,16 @@ export async function generateActionPlan({
   // Sort candidates by priority rank descending
   candidateEvaluations.sort((a, b) => b.priorityRank - a.priorityRank);
 
-  // 2.5 Market Opportunity & Dynamic Execution Mode Engine
-  const marketOpportunity = calculateMarketOpportunity({
-    candidateEvaluations,
-    enrichedHoldings,
-    topSectors,
-    totalPurchasingPower,
-    config: userConfig?.marketOpportunityConfig
-  });
 
-  const isStrikeMode = marketOpportunity.isStrikeMode;
-
-  // Dynamic Deployment Budget replaces arbitrary static ceilings unless explicitly overridden
-  const effectiveDeploymentCap = paramDailyDeploymentCap !== undefined && paramDailyDeploymentCap !== null
-    ? Math.max(0, Math.round(Number(paramDailyDeploymentCap)))
-    : (isStrikeMode ? marketOpportunity.dynamicDeploymentBudget : (userConfig.dailyDeploymentCap ?? 350000));
-
-  // In Opportunity Strike mode, buy capacity expands dynamically to fund ALL qualifying Prime compounders
-  // In Staggered Accumulation mode, deployment is staged in measured daily batches (default: 5)
-  const effectiveMaxDailyBuys = paramMaxDailyBuys !== undefined && paramMaxDailyBuys !== null
-    ? Math.max(1, Math.min(50, Math.round(Number(paramMaxDailyBuys))))
-    : (isStrikeMode ? 50 : (userConfig.maxDailyBuys ?? 5));
-
-  // Sequential Budget Deployment Pass with Sector Concentration Guard & Dynamic Mode Execution
-  let remainingCapital = totalPurchasingPower;
-  let dailySpend = 0;
-  const immediateBuys = [];
-  const queuedBuys = [];
-  const sectorSpendMap = {};
-  const sectorCountMap = {};
-  const maxSectorSpend = Math.max(150000, totalPurchasingPower * 0.50); // Max 50% of total purchasing power in one sector
-  const maxSectorBuys = 5; // Max 5 immediate funded buys in the same sector on the same day
-
-  candidateEvaluations.forEach(cand => {
-    // Disqualified microcaps (< ₹1,000 Cr hard floor, < ₹2,500 Cr unless MPS >= 90 or IPO) and penny stocks (CMP < ₹20) are strictly excluded from all Action Plan buckets (never queued or exported in CSV)
-    const isMicrocapOrPenny = cand.cmp < 20 || (cand.mcap > 0 && cand.mcap < 1000) || (cand.mcap > 0 && cand.mcap < minMcapFloor && cand.mps < 90 && !cand.isIpo) || cand.sizing?.tierLabel?.includes('Microcap');
-    if (isMicrocapOrPenny) {
-      return;
-    }
-
-    if (cand.targetAmount <= 0 || (cand.sizing && cand.sizing.alloc <= 0)) {
-      const isCoreHold = cand.isOwned && (cand.sizing?.tierLabel?.includes('Hold Core') || cand.sizing?.tierLabel?.includes('Cap Reached'));
-      const isExtendedHold = cand.isOwned && cand.stance === 'EXTENDED_RUNNER';
-      const isLossHold = cand.isOwned && (cand.sizing?.tierLabel?.includes('Loss Protection') || cand.sizing?.summary?.includes('LOSS'));
-      queuedBuys.push({
-        ...cand,
-        executionStatus: isCoreHold
-          ? 'CORE HOLD (CAP REACHED)'
-          : isExtendedHold
-            ? 'STAND ASIDE (AWAIT PULLBACK)'
-            : isLossHold
-              ? 'STAND ASIDE (POSITION IN LOSS)'
-              : 'STAND ASIDE (ZERO SIZING)',
-        actionShares: 0,
-        actionValue: 0,
-        note: cand.sizing?.summary || 'Stand Aside (₹0 capital allocation). Await pullback or structural reset.'
-      });
-      return;
-    }
-
-    // Pre-Earnings Guard: Protect from binary quarterly earnings gap-down risk.
-    // In Opportunity Strike mode: For exceptional leaders with confirmed top momentum (MPS >= 80), allow 40% initial starter tranche, leaving 60% dry powder for post-earnings confirmation so multibaggers are not missed.
-    // Otherwise, queue candidates with imminent earnings to await post-results confirmation.
-    if (cand.stance === 'PRE_EARNINGS') {
-      const isEligiblePilot = isStrikeMode && cand.mps >= 80 && cand.sizing?.alloc > 0;
-      if (!isEligiblePilot) {
-        queuedBuys.push({
-          ...cand,
-          executionStatus: 'QUEUED (AWAITING EARNINGS CONFIRMATION)',
-          actionShares: 0,
-          actionValue: 0,
-          note: `Pre-Earnings Gate: Breakout setup qualified (MPS ${cand.mps}). Imminent quarterly earnings release. Queued to protect against binary gap-down risk; ready for immediate deployment upon post-earnings confirmation.`
-        });
-        return;
-      }
-    }
-
-    const effectiveTargetAmount = cand.targetAmount;
-    const effectiveTargetShares = cand.targetShares;
-    const effectiveAmount = effectiveTargetShares * cand.cmp;
-
-    const candSector = cand.sector || 'Diversified';
-    const currentSectorSpend = sectorSpendMap[candSector] || 0;
-    const currentSectorCount = sectorCountMap[candSector] || 0;
-
-    // Sector Concentration Guard: Prevent deploying >50% or >5 positions into the same sector on one day
-    if (currentSectorCount >= maxSectorBuys || (currentSectorSpend + effectiveAmount > maxSectorSpend && currentSectorCount >= 1)) {
-      queuedBuys.push({
-        ...cand,
-        executionStatus: 'QUEUED (SECTOR CONCENTRATION CAP)',
-        actionShares: 0,
-        actionValue: 0,
-        note: `Sector Cap Reached: Already allocated ₹${Math.round(currentSectorSpend).toLocaleString('en-IN')} across ${currentSectorCount} position(s) in [${candSector}]. Queued to ensure cross-sector diversification.`
-      });
-      return;
-    }
-
-    // Dynamic Execution Mode & Capital Bandwidth Gate:
-    // Opportunity Strike Mode: Allocates up to dynamicDeploymentBudget across all qualifying leaders (uncapped count).
-    // Staggered Accumulation Mode: Limits to staged tranches (effectiveMaxDailyBuys and effectiveDeploymentCap).
-    const withinDailyBandwidth = immediateBuys.length < effectiveMaxDailyBuys;
-    const withinDailySpend = (dailySpend + effectiveAmount <= effectiveDeploymentCap) || (immediateBuys.length === 0);
-    const withinTotalCapital = remainingCapital >= effectiveAmount;
-
-    if (withinDailyBandwidth && withinDailySpend && withinTotalCapital) {
-      const fundedShares = effectiveTargetShares;
-      const fundedValue = fundedShares * cand.cmp;
-      remainingCapital -= fundedValue;
-      dailySpend += fundedValue;
-      sectorSpendMap[candSector] = currentSectorSpend + fundedValue;
-      sectorCountMap[candSector] = currentSectorCount + 1;
-      immediateBuys.push({
-        ...cand,
-        executionStatus: 'FUNDED TODAY (IMMEDIATE EXECUTION)',
-        actionShares: fundedShares,
-        actionValue: fundedValue,
-        note: cand.isOwned
-          ? `Tranche Addition (Holding ${cand.heldQty} shs): ${cand.sizing.summary}. Trail stop at ₹${cand.sl.toFixed(2)}.`
-          : `New Entry: ${cand.sizing.summary}. Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}, Stop ₹${cand.sl.toFixed(2)}.`
-      });
-    } else {
-      const isBudgetCap = !withinDailySpend || !withinDailyBandwidth;
-      queuedBuys.push({
-        ...cand,
-        executionStatus: isBudgetCap
-          ? (isStrikeMode ? 'QUEUED (OPPORTUNITY BUDGET REACHED)' : 'QUEUED (DAILY BANDWIDTH CAP - NEXT IN LINE)')
-          : 'QUEUED FOR NEXT PERIODIC INFUSION',
-        actionShares: cand.targetShares,
-        actionValue: cand.targetAmount,
-        note: isBudgetCap
-          ? (isStrikeMode
-              ? `Prime Setup Qualified (MPS ${cand.mps}): Dynamic Opportunity Strike budget limit reached (Allocated ₹${Math.round(dailySpend/1000)}k of ₹${Math.round(effectiveDeploymentCap/1000)}k dynamic budget). Next in line for immediate allocation.`
-              : `Top-Tier Setup Qualified (MPS ${cand.mps}): Queued for next trading sessions to maintain disciplined daily staged execution (Max ${effectiveMaxDailyBuys} daily executions, ₹${Math.round(effectiveDeploymentCap/1000)}k daily deployment cap).`)
-          : `Queued: Next candidate for execution upon next periodic capital injection (Target: ₹${cand.targetAmount.toFixed(2)}).`
-      });
-    }
-  });
-
-  // 3. Process Algorithmic Sells (strictly performance decay, zero forced selling)
-  const activeSells = [];
-
+  // 3. Process Algorithmic Sells
+  const fullExitSells = [];
   fullExits.forEach(a => {
     const cmp = Number(a.currentPrice) || 0;
     const qty = Number(a.quantity) || 0;
     const amt = qty * cmp;
     const trigger = a.chandelierStopPrice || a.sma30Week || 0;
 
-    activeSells.push({
+    fullExitSells.push({
       executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
       actionType: a.isIpo ? 'SELL - IPO CRASH CIRCUIT-BREAKER' : 'SELL - FULL EXIT',
       category: a.isIpo ? 'Full Exit (IPO Crash Circuit-Breaker)' : 'Full Exit (Structural Breakdown)',
@@ -883,8 +727,8 @@ export async function generateActionPlan({
     });
   });
 
-  if (recyclingMode === 'FULL_AND_TRIMS') {
-    regularTrims.forEach(a => {
+  const regularTrimSells = [];
+  regularTrims.forEach(a => {
       const cmp = Number(a.currentPrice) || 0;
       const held = Number(a.quantity) || 0;
       const trimQty = Number(a.suggestedSellQuantity) || 0;
@@ -902,7 +746,7 @@ export async function generateActionPlan({
         ? 'SELL - IPO DEFENSIVE TRIM'
         : (a.state === 'TECHNICAL_TRIM_CANDIDATE' ? 'SELL - TECHNICAL TRIM' : 'SELL - FUNDAMENTAL TRIM');
 
-      activeSells.push({
+      regularTrimSells.push({
         executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
         actionType,
         category: cat,
@@ -926,10 +770,8 @@ export async function generateActionPlan({
         isFullExit: false
       });
     });
-  }
 
-  // Trailing-stop breach sells: live CMP has already broken below the displayed trailing floor.
-  // Add them with exact multi-tranche staged share numbers.
+  const chandelierBreachSellItems = [];
   chandelierBreachSells.forEach(a => {
     const cmp = Number(a.currentPrice) || 0;
     const held = Number(a.quantity) || 0;
@@ -957,7 +799,7 @@ export async function generateActionPlan({
           ? `SELL - STAGED CATCH-UP (${triggeredNames.length} TRANCHES)`
           : 'SELL - STOP FLOOR BREACH'));
 
-    activeSells.push({
+    chandelierBreachSellItems.push({
       executionGroup: '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
       actionType,
       category: a.isIpo ? 'Adaptive IPO Stop Floor Breach' : (t2Status === 'READY' ? 'Structural Trend Breakdown' : 'Trailing Stop Floor Breach'),
@@ -988,14 +830,14 @@ export async function generateActionPlan({
   // ONLY prunes confirmed Stage 3/4 breakdowns below 30w-SMA or stagnant sub-50 MPS laggards in loss.
   const pruningSells = [];
   const enablePruning = userConfig?.enablePortfolioPruning ?? true;
-  if (enablePruning && recyclingMode !== 'EXTERNAL_ONLY') {
+  if (enablePruning) {
     heldAnalyses.forEach(a => {
       const cmp = Number(a.currentPrice) || 0;
       const qty = Number(a.quantity) || 0;
       const amt = qty * cmp;
       if (qty <= 0 || amt <= 0) return;
-      // Skip if already flagged in activeSells (e.g. in chandelier breach or full exit)
-      if (activeSells.some(s => s.symbol === a.symbol)) return;
+      // Skip if already flagged in exit or trim
+      if (fullExitSells.some(s => s.symbol === a.symbol) || chandelierBreachSellItems.some(s => s.symbol === a.symbol) || regularTrimSells.some(s => s.symbol === a.symbol)) return;
 
       const sma30 = Number(a.sma30Week) || 0;
       const isBelow30wSma = sma30 > 0 && cmp < sma30;
@@ -1043,7 +885,6 @@ export async function generateActionPlan({
           isPruning: true
         };
         pruningSells.push(pItem);
-        activeSells.push(pItem);
       }
     });
   }
@@ -1051,7 +892,7 @@ export async function generateActionPlan({
   // 3c. Core Focus Portfolio (20–25 Compounders Model)
   // Maps all retained non-pruned, non-exited active holdings with their current and target allocations
   const coreFocusHoldings = heldAnalyses
-    .filter(a => Number(a.quantity) > 0 && !pruningSells.some(p => p.symbol === a.symbol) && !activeSells.some(s => s.symbol === a.symbol && s.isFullExit))
+    .filter(a => Number(a.quantity) > 0 && !pruningSells.some(p => p.symbol === a.symbol) && !fullExitSells.some(s => s.symbol === a.symbol))
     .map(a => {
       const cmp = Number(a.currentPrice) || 0;
       const qty = Number(a.quantity) || 0;
@@ -1089,7 +930,7 @@ export async function generateActionPlan({
   // - Tier 3: Strong Compounder (+30% to +50% Gain) -> Trailing 50-EMA / 30w-SMA (Lock >= +15% profit floor)
   // - Tier 4: Multibagger Runner (+50%+ Gain / Doubler) -> Trailing 50-EMA / 30w-SMA (Ride on House Money)
   const stopLossActions = heldAnalyses
-    .filter(a => Number(a.quantity) > 0 && !activeSells.some(s => s.symbol === a.symbol && s.isFullExit))
+    .filter(a => Number(a.quantity) > 0 && !pruningSells.some(p => p.symbol === a.symbol) && !fullExitSells.some(s => s.symbol === a.symbol))
     .map(a => {
       const cmp = Number(a.currentPrice) || 0;
       const avg = Number(a.avgBuyPrice || a.portfolioAvgPrice || a.avg_buy_price) || cmp;
@@ -1262,6 +1103,247 @@ export async function generateActionPlan({
       if (b.slDelta !== a.slDelta) return b.slDelta - a.slDelta;
       return b.pnlPct - a.pnlPct;
     });
+
+
+  return {
+    candidateEvaluations,
+    fullExitSells,
+    regularTrimSells,
+    chandelierBreachSellItems,
+    pruningSells,
+    coreFocusHoldings,
+    stopLossActions,
+    fullExitProceeds,
+    trimProceeds,
+    chandelierBreachProceeds,
+    baseRecycledCapital,
+    baselineDate,
+    totalRealizedExitProceeds,
+    totalDeployedBuys,
+    realizedRecycledCapital,
+    totalIndianEquityValuation,
+    targetWeightPct,
+    minMcapFloor,
+    marketRegime,
+    topSectors,
+    enrichedHoldings,
+    chandelierBreachSells
+  };
+}
+
+export async function generateActionPlan({
+  userId = '1',
+  externalCashBudget: paramExternalCash,
+  recyclingMode: paramRecyclingMode,
+  maxDailyBuys: paramMaxDailyBuys,
+  dailyDeploymentCap: paramDailyDeploymentCap,
+  userConfig: paramUserConfig,
+  forceRefresh = false
+} = {}) {
+  const projectRoot = process.cwd();
+  const userConfig = paramUserConfig || getIntelligenceConfig(userId);
+  const externalCashBudget = paramExternalCash !== undefined && paramExternalCash !== null
+    ? Math.max(0, Math.round(Number(paramExternalCash)))
+    : (userConfig.externalCashBudget ?? 200000);
+  const periodicIncrement = userConfig.periodicIncrement ?? 200000;
+  const recyclingMode = paramRecyclingMode || userConfig.recyclingMode || 'FULL_AND_TRIMS';
+
+  const now = Date.now();
+  let baseData = null;
+  const baseCacheKey = `${userId}_${JSON.stringify(userConfig || {})}`;
+  if (!forceRefresh && cachedActionPlanBase && cachedActionPlanBaseKey === baseCacheKey && (now - cachedActionPlanBaseTimestamp < BASE_CACHE_TTL_MS)) {
+    baseData = cachedActionPlanBase;
+  }
+  if (!baseData) {
+    baseData = await computeActionPlanBase({ userId, userConfig });
+    cachedActionPlanBase = baseData;
+    cachedActionPlanBaseKey = baseCacheKey;
+    cachedActionPlanBaseTimestamp = Date.now();
+  }
+
+  const {
+    candidateEvaluations,
+    fullExitSells,
+    regularTrimSells,
+    chandelierBreachSellItems,
+    pruningSells,
+    coreFocusHoldings,
+    stopLossActions,
+    fullExitProceeds,
+    trimProceeds,
+    chandelierBreachProceeds,
+    baseRecycledCapital,
+    baselineDate,
+    totalRealizedExitProceeds,
+    totalDeployedBuys,
+    realizedRecycledCapital,
+    totalIndianEquityValuation,
+    targetWeightPct,
+    minMcapFloor,
+    marketRegime,
+    topSectors,
+    enrichedHoldings,
+    chandelierBreachSells
+  } = baseData;
+
+  let activeSells = [];
+  if (recyclingMode === 'FULL_AND_TRIMS') {
+    activeSells = [...fullExitSells, ...regularTrimSells, ...chandelierBreachSellItems, ...pruningSells];
+  } else if (recyclingMode === 'FULL_ONLY') {
+    activeSells = [...fullExitSells, ...chandelierBreachSellItems, ...pruningSells];
+  } else {
+    activeSells = [];
+  }
+
+  let projectedRecycledCapital = realizedRecycledCapital;
+  if (recyclingMode === 'FULL_AND_TRIMS') {
+    projectedRecycledCapital += (fullExitProceeds + trimProceeds + chandelierBreachProceeds);
+  } else if (recyclingMode === 'FULL_ONLY') {
+    projectedRecycledCapital += (fullExitProceeds + chandelierBreachProceeds);
+  } else {
+    projectedRecycledCapital = 0;
+  }
+
+  const recycledCapital = recyclingMode === 'EXTERNAL_ONLY' ? 0 : round2(realizedRecycledCapital);
+  const totalPurchasingPower = round2(externalCashBudget + recycledCapital);
+
+  // 2.5 Market Opportunity & Dynamic Execution Mode Engine
+  const marketOpportunity = calculateMarketOpportunity({
+    candidateEvaluations,
+    enrichedHoldings,
+    topSectors,
+    totalPurchasingPower,
+    config: userConfig?.marketOpportunityConfig
+  });
+
+  const isStrikeMode = marketOpportunity.isStrikeMode;
+
+  // Dynamic Deployment Budget replaces arbitrary static ceilings unless explicitly overridden
+  const effectiveDeploymentCap = paramDailyDeploymentCap !== undefined && paramDailyDeploymentCap !== null
+    ? Math.max(0, Math.round(Number(paramDailyDeploymentCap)))
+    : (isStrikeMode ? marketOpportunity.dynamicDeploymentBudget : (userConfig.dailyDeploymentCap ?? 350000));
+
+  // In Opportunity Strike mode, buy capacity expands dynamically to fund ALL qualifying Prime compounders
+  // In Staggered Accumulation mode, deployment is staged in measured daily batches (default: 5)
+  const effectiveMaxDailyBuys = paramMaxDailyBuys !== undefined && paramMaxDailyBuys !== null
+    ? Math.max(1, Math.min(50, Math.round(Number(paramMaxDailyBuys))))
+    : (isStrikeMode ? 50 : (userConfig.maxDailyBuys ?? 5));
+
+  // Sequential Budget Deployment Pass with Sector Concentration Guard & Dynamic Mode Execution
+  let remainingCapital = totalPurchasingPower;
+  let dailySpend = 0;
+  const immediateBuys = [];
+  const queuedBuys = [];
+  const sectorSpendMap = {};
+  const sectorCountMap = {};
+  const maxSectorSpend = Math.max(150000, totalPurchasingPower * 0.50); // Max 50% of total purchasing power in one sector
+  const maxSectorBuys = 5; // Max 5 immediate funded buys in the same sector on the same day
+
+  candidateEvaluations.forEach(cand => {
+    // Disqualified microcaps (< ₹1,000 Cr hard floor, < ₹2,500 Cr unless MPS >= 90 or IPO) and penny stocks (CMP < ₹20) are strictly excluded from all Action Plan buckets (never queued or exported in CSV)
+    const isMicrocapOrPenny = cand.cmp < 20 || (cand.mcap > 0 && cand.mcap < 1000) || (cand.mcap > 0 && cand.mcap < minMcapFloor && cand.mps < 90 && !cand.isIpo) || cand.sizing?.tierLabel?.includes('Microcap');
+    if (isMicrocapOrPenny) {
+      return;
+    }
+
+    if (cand.targetAmount <= 0 || (cand.sizing && cand.sizing.alloc <= 0)) {
+      const isCoreHold = cand.isOwned && (cand.sizing?.tierLabel?.includes('Hold Core') || cand.sizing?.tierLabel?.includes('Cap Reached'));
+      const isExtendedHold = cand.isOwned && cand.stance === 'EXTENDED_RUNNER';
+      const isLossHold = cand.isOwned && (cand.sizing?.tierLabel?.includes('Loss Protection') || cand.sizing?.summary?.includes('LOSS'));
+      queuedBuys.push({
+        ...cand,
+        executionStatus: isCoreHold
+          ? 'CORE HOLD (CAP REACHED)'
+          : isExtendedHold
+            ? 'STAND ASIDE (AWAIT PULLBACK)'
+            : isLossHold
+              ? 'STAND ASIDE (POSITION IN LOSS)'
+              : 'STAND ASIDE (ZERO SIZING)',
+        actionShares: 0,
+        actionValue: 0,
+        note: cand.sizing?.summary || 'Stand Aside (₹0 capital allocation). Await pullback or structural reset.'
+      });
+      return;
+    }
+
+    // Pre-Earnings Guard: Protect from binary quarterly earnings gap-down risk.
+    // In Opportunity Strike mode: For exceptional leaders with confirmed top momentum (MPS >= 80), allow 40% initial starter tranche, leaving 60% dry powder for post-earnings confirmation so multibaggers are not missed.
+    // Otherwise, queue candidates with imminent earnings to await post-results confirmation.
+    if (cand.stance === 'PRE_EARNINGS') {
+      const isEligiblePilot = isStrikeMode && cand.mps >= 80 && cand.sizing?.alloc > 0;
+      if (!isEligiblePilot) {
+        queuedBuys.push({
+          ...cand,
+          executionStatus: 'QUEUED (AWAITING EARNINGS CONFIRMATION)',
+          actionShares: 0,
+          actionValue: 0,
+          note: `Pre-Earnings Gate: Breakout setup qualified (MPS ${cand.mps}). Imminent quarterly earnings release. Queued to protect against binary gap-down risk; ready for immediate deployment upon post-earnings confirmation.`
+        });
+        return;
+      }
+    }
+
+    const effectiveTargetAmount = cand.targetAmount;
+    const effectiveTargetShares = cand.targetShares;
+    const effectiveAmount = effectiveTargetShares * cand.cmp;
+
+    const candSector = cand.sector || 'Diversified';
+    const currentSectorSpend = sectorSpendMap[candSector] || 0;
+    const currentSectorCount = sectorCountMap[candSector] || 0;
+
+    // Sector Concentration Guard: Prevent deploying >50% or >5 positions into the same sector on one day
+    if (currentSectorCount >= maxSectorBuys || (currentSectorSpend + effectiveAmount > maxSectorSpend && currentSectorCount >= 1)) {
+      queuedBuys.push({
+        ...cand,
+        executionStatus: 'QUEUED (SECTOR CONCENTRATION CAP)',
+        actionShares: 0,
+        actionValue: 0,
+        note: `Sector Cap Reached: Already allocated ₹${Math.round(currentSectorSpend).toLocaleString('en-IN')} across ${currentSectorCount} position(s) in [${candSector}]. Queued to ensure cross-sector diversification.`
+      });
+      return;
+    }
+
+    // Dynamic Execution Mode & Capital Bandwidth Gate:
+    // Opportunity Strike Mode: Allocates up to dynamicDeploymentBudget across all qualifying leaders (uncapped count).
+    // Staggered Accumulation Mode: Limits to staged tranches (effectiveMaxDailyBuys and effectiveDeploymentCap).
+    const withinDailyBandwidth = immediateBuys.length < effectiveMaxDailyBuys;
+    const withinDailySpend = (dailySpend + effectiveAmount <= effectiveDeploymentCap) || (immediateBuys.length === 0);
+    const withinTotalCapital = remainingCapital >= effectiveAmount;
+
+    if (withinDailyBandwidth && withinDailySpend && withinTotalCapital) {
+      const fundedShares = effectiveTargetShares;
+      const fundedValue = fundedShares * cand.cmp;
+      remainingCapital -= fundedValue;
+      dailySpend += fundedValue;
+      sectorSpendMap[candSector] = currentSectorSpend + fundedValue;
+      sectorCountMap[candSector] = currentSectorCount + 1;
+      immediateBuys.push({
+        ...cand,
+        executionStatus: 'FUNDED TODAY (IMMEDIATE EXECUTION)',
+        actionShares: fundedShares,
+        actionValue: fundedValue,
+        note: cand.isOwned
+          ? `Tranche Addition (Holding ${cand.heldQty} shs): ${cand.sizing.summary}. Trail stop at ₹${cand.sl.toFixed(2)}.`
+          : `New Entry: ${cand.sizing.summary}. Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}, Stop ₹${cand.sl.toFixed(2)}.`
+      });
+    } else {
+      const isBudgetCap = !withinDailySpend || !withinDailyBandwidth;
+      queuedBuys.push({
+        ...cand,
+        executionStatus: isBudgetCap
+          ? (isStrikeMode ? 'QUEUED (OPPORTUNITY BUDGET REACHED)' : 'QUEUED (DAILY BANDWIDTH CAP - NEXT IN LINE)')
+          : 'QUEUED FOR NEXT PERIODIC INFUSION',
+        actionShares: cand.targetShares,
+        actionValue: cand.targetAmount,
+        note: isBudgetCap
+          ? (isStrikeMode
+              ? `Prime Setup Qualified (MPS ${cand.mps}): Dynamic Opportunity Strike budget limit reached (Allocated ₹${Math.round(dailySpend/1000)}k of ₹${Math.round(effectiveDeploymentCap/1000)}k dynamic budget). Next in line for immediate allocation.`
+              : `Top-Tier Setup Qualified (MPS ${cand.mps}): Queued for next trading sessions to maintain disciplined daily staged execution (Max ${effectiveMaxDailyBuys} daily executions, ₹${Math.round(effectiveDeploymentCap/1000)}k daily deployment cap).`)
+          : `Queued: Next candidate for execution upon next periodic capital injection (Target: ₹${cand.targetAmount.toFixed(2)}).`
+      });
+    }
+  });
+
 
   // 4. Construct Unified CSV Rows with Multi-Tranche Breakdown & Stop Loss Actions
   const rows = [];

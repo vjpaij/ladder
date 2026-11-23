@@ -22,7 +22,7 @@ import { loadAllCachedUsFundamentals } from '../services/stockIntelligence/usFun
 import { logSyncEvent } from '../services/syncLogService.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
 import { validateAndHealStockData } from '../services/stockIntelligence/dataIntegrityValidator.js';
-import { generateActionPlan } from '../services/stockIntelligence/actionPlanService.js';
+import { generateActionPlan, invalidateActionPlanBaseCache } from '../services/stockIntelligence/actionPlanService.js';
 
 const router = express.Router();
 const backtestCache = new Map();
@@ -37,7 +37,7 @@ const ACTION_PLAN_TTL_MS = 15 * 60 * 1000; // 15 minutes fast in-memory cache
 let cachedActionPlan = null;
 let cachedActionPlanKey = '';
 let cachedActionPlanTimestamp = 0;
-let _actionPlanInFlightPromise = null;
+const _actionPlanInFlightPromises = new Map();
 
 function saveOverviewSnapshotToDisk(overview) {
   try {
@@ -98,6 +98,7 @@ export function invalidateStockIntelligenceCache() {
   cachedActionPlan = null;
   cachedActionPlanKey = '';
   cachedActionPlanTimestamp = 0;
+  invalidateActionPlanBaseCache();
 }
 
 export async function warmStockIntelligenceCache() {
@@ -541,12 +542,16 @@ async function reconcileActionPlanWithLiveHoldings(plan) {
       return true;
     });
 
-    // 3. Recalculate summary metrics
-    const totalRecycledCapital = reconciledSells.reduce((acc, s) => acc + (s.actionValue || 0), 0);
+    // 3. Recalculate summary metrics without clobbering realized recycled capital pool
+    const totalSellProceeds = reconciledSells.reduce((acc, s) => acc + (s.actionValue || 0), 0);
+    const validRecycledCapital = plan.summary?.recycledCapital !== undefined ? plan.summary.recycledCapital : 0;
+    const validExternalCash = plan.summary?.externalCashBudget !== undefined ? plan.summary.externalCashBudget : 0;
     const summary = plan.summary ? {
       ...plan.summary,
       totalSellsCount: reconciledSells.length,
-      recycledCapital: Math.round(totalRecycledCapital * 100) / 100
+      sellsProceeds: Math.round(totalSellProceeds * 100) / 100,
+      recycledCapital: validRecycledCapital,
+      totalPurchasingPower: Math.round((validExternalCash + validRecycledCapital) * 100) / 100
     } : plan.summary;
 
     const totalActions = (plan.immediateBuys?.length || 0) + reconciledSells.length + (plan.queuedBuys?.length || 0);
@@ -813,17 +818,17 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
     const now = Date.now();
 
     // 1. Fast in-memory cache hit (< 1ms) with live holding reconciliation
-    if (cachedActionPlan && (cachedActionPlanKey === cacheKey || (!req.query.externalCash && !req.query.recyclingMode)) && (now - cachedActionPlanTimestamp < ACTION_PLAN_TTL_MS)) {
+    if (cachedActionPlan && cachedActionPlanKey === cacheKey && (now - cachedActionPlanTimestamp < ACTION_PLAN_TTL_MS)) {
       return res.json(await reconcileActionPlanWithLiveHoldings(cachedActionPlan));
     }
 
-    // 2. In-flight request deduplication
-    if (_actionPlanInFlightPromise) {
-      const plan = await _actionPlanInFlightPromise;
+    // 2. In-flight request deduplication per cacheKey
+    if (_actionPlanInFlightPromises.has(cacheKey)) {
+      const plan = await _actionPlanInFlightPromises.get(cacheKey);
       return res.json(await reconcileActionPlanWithLiveHoldings(plan));
     }
 
-    _actionPlanInFlightPromise = (async () => {
+    const inFlightPromise = (async () => {
       try {
         const plan = await generateActionPlan({
           userId: userKey,
@@ -839,11 +844,12 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
         saveActionPlanSnapshotToDisk(plan);
         return plan;
       } finally {
-        _actionPlanInFlightPromise = null;
+        _actionPlanInFlightPromises.delete(cacheKey);
       }
     })();
 
-    const plan = await _actionPlanInFlightPromise;
+    _actionPlanInFlightPromises.set(cacheKey, inFlightPromise);
+    const plan = await inFlightPromise;
     res.json(await reconcileActionPlanWithLiveHoldings(plan));
   } catch (error) {
     console.error('[Stock Intelligence] Action plan fetch failed:', error.message);

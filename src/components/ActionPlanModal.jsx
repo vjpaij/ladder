@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -44,6 +44,16 @@ export default function ActionPlanModal({ isOpen, onClose }) {
       return 200000;
     }
   });
+  const [cashInput, setCashInput] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ladder_action_plan_external_cash');
+      return saved !== null && saved !== '' ? String(saved) : '200000';
+    } catch {
+      return '200000';
+    }
+  });
+  const cashDebounceTimerRef = useRef(null);
+  const isInputFocusedRef = useRef(false);
   const [recyclingMode, setRecyclingMode] = useState('FULL_AND_TRIMS');
   const [activeTab, setActiveTab] = useState('BUYS'); // 'BUYS' | 'QUEUED' | 'SELLS' | 'STOP_LOSSES'
   const [sellFilter, setSellFilter] = useState('ALL'); // 'ALL' | 'STRUCTURAL' | 'PRUNING'
@@ -116,7 +126,10 @@ export default function ActionPlanModal({ isOpen, onClose }) {
       if (res.data?.summary) {
         if (res.data.summary.externalCashBudget !== undefined) {
           const budget = res.data.summary.externalCashBudget;
-          setExternalCash(budget);
+          if (!isInputFocusedRef.current) {
+            setExternalCash(budget);
+            setCashInput(String(budget));
+          }
           try {
             localStorage.setItem('ladder_action_plan_external_cash', String(budget));
           } catch {}
@@ -139,13 +152,43 @@ export default function ActionPlanModal({ isOpen, onClose }) {
     }
   }, [isOpen]);
 
-  const handleCashChange = (newVal) => {
-    const valid = Math.max(0, Math.round(Number(newVal) || 0));
+  useEffect(() => {
+    if (!isInputFocusedRef.current) {
+      setCashInput(String(externalCash));
+    }
+  }, [externalCash]);
+
+  useEffect(() => {
+    return () => {
+      if (cashDebounceTimerRef.current) {
+        clearTimeout(cashDebounceTimerRef.current);
+        cashDebounceTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const commitCashChange = useCallback((value) => {
+    if (cashDebounceTimerRef.current) {
+      clearTimeout(cashDebounceTimerRef.current);
+      cashDebounceTimerRef.current = null;
+    }
+    const valid = Math.max(0, Math.round(Number(value) || 0));
     setExternalCash(valid);
+    setCashInput(String(valid));
     try {
       localStorage.setItem('ladder_action_plan_external_cash', String(valid));
     } catch {}
     fetchPlan(valid, recyclingMode);
+  }, [fetchPlan, recyclingMode]);
+
+  const handleCashChange = (newVal) => {
+    setCashInput(newVal);
+    if (cashDebounceTimerRef.current) {
+      clearTimeout(cashDebounceTimerRef.current);
+    }
+    cashDebounceTimerRef.current = setTimeout(() => {
+      commitCashChange(newVal);
+    }, 450);
   };
 
   const handleModeChange = (newMode) => {
@@ -154,16 +197,22 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   };
 
   const handleSaveDefaults = async () => {
+    if (cashDebounceTimerRef.current) {
+      clearTimeout(cashDebounceTimerRef.current);
+      cashDebounceTimerRef.current = null;
+    }
+    const currentVal = Math.max(0, Math.round(Number(cashInput) || externalCash || 0));
+    setExternalCash(currentVal);
     setSavingConfig(true);
     setSaveStatus('');
     try {
       await axios.post('/api/stock-intelligence/config', {
-        externalCashBudget: externalCash,
-        periodicIncrement: externalCash,
+        externalCashBudget: currentVal,
+        periodicIncrement: currentVal,
         recyclingMode
       });
       try {
-        localStorage.setItem('ladder_action_plan_external_cash', String(externalCash));
+        localStorage.setItem('ladder_action_plan_external_cash', String(currentVal));
       } catch {}
       setSaveStatus('✓ Saved as Default');
       setTimeout(() => setSaveStatus(''), 3000);
@@ -438,7 +487,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => handleCashChange(150000)}
+                  onClick={() => commitCashChange(150000)}
                   className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                     externalCash === 150000
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-300'
@@ -449,7 +498,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCashChange(200000)}
+                  onClick={() => commitCashChange(200000)}
                   className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                     externalCash === 200000
                       ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 dark:text-emerald-300'
@@ -460,7 +509,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCashChange(Math.max(0, externalCash - 25000))}
+                  onClick={() => commitCashChange(Math.max(0, externalCash - 25000))}
                   className="px-2 py-1 text-xs font-mono font-bold rounded-lg border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                   title="Decrease by ₹25,000"
                 >
@@ -468,7 +517,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCashChange(externalCash + 25000)}
+                  onClick={() => commitCashChange(externalCash + 25000)}
                   className="px-2 py-1 text-xs font-mono font-bold rounded-lg border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
                   title="Increase by ₹25,000"
                 >
@@ -481,7 +530,18 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                     type="number"
                     step="5000"
                     min="0"
-                    value={externalCash}
+                    value={cashInput}
+                    onFocus={() => { isInputFocusedRef.current = true; }}
+                    onBlur={() => {
+                      isInputFocusedRef.current = false;
+                      commitCashChange(cashInput);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.target.blur();
+                        commitCashChange(cashInput);
+                      }
+                    }}
                     onChange={(e) => handleCashChange(e.target.value)}
                     className="w-28 pl-6 pr-2 py-1 text-xs font-mono font-bold rounded-lg bg-[var(--surface-color)] border border-[var(--border-color)] text-[var(--text-primary)] focus:outline-none focus:border-cyan-500"
                   />
