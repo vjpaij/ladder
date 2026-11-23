@@ -132,7 +132,7 @@ function StateBadge({ state, isCompounding, dataQuality }) {
 // Client-side in-memory cache to make page switching instantaneous (< 1ms)
 let cachedStockAnalysisData = null;
 
-export default function StockAnalysisView({ holdings = [], onSelectHolding, initialTab }) {
+export default function StockAnalysisView({ holdings = [], onSelectHolding, onRefresh, initialTab }) {
   const { formatMoney, showSuccess, showError } = useThemeAuth();
   const [activeAnalysisMode, setActiveAnalysisMode] = useState(() => {
     if (initialTab && (initialTab === 'buy' || initialTab === 'sell' || initialTab === 'journal')) {
@@ -189,17 +189,26 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
       let priceRefreshWarning = '';
       if (refreshPrices) {
         try {
-          await axios.post('/api/refresh-prices', { trigger: 'MANUAL' });
+          await axios.post('/api/refresh-prices', { trigger: 'MANUAL', equityOnly: true });
         } catch (refreshError) {
           priceRefreshWarning = `Live price refresh failed; showing the latest available data. ${refreshError.response?.data?.error || refreshError.message}`;
         }
+      }
+      if (typeof onRefresh === 'function') {
+        try {
+          await onRefresh();
+        } catch (_) {}
       }
       const params = forceServerRefresh ? { refresh: 'true' } : {};
       const response = await axios.get('/api/stock-intelligence/overview', { params });
       cachedStockAnalysisData = response.data;
       setData(response.data);
       setMaxWeight(response.data.config?.maxPositionWeightPct ?? '');
-      if (priceRefreshWarning) setError(priceRefreshWarning);
+      if (priceRefreshWarning) {
+        setError(priceRefreshWarning);
+      } else if (forceServerRefresh && silent && typeof showSuccess === 'function') {
+        showSuccess('Stock analysis refreshed with latest market prices.');
+      }
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Could not load stock analysis.');
     } finally {
@@ -540,7 +549,7 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, init
                       </div>
                     )}
                     <button
-                      onClick={() => reload(true, true, false)}
+                      onClick={() => reload(true, true, true)}
                       disabled={refreshing || loading}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border-color)] reports-subcard text-[10px] font-bold text-[var(--text-secondary)] hover:text-emerald-500 dark:hover:text-emerald-400 hover:border-emerald-500/30 transition-colors cursor-pointer"
                     >

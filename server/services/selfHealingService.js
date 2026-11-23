@@ -619,7 +619,7 @@ export async function healRecentHistoricalPrices(options = {}) {
     }
 
     if (dirty) {
-      fs.writeFileSync(hpPath, JSON.stringify(hp, null, 2), 'utf8');
+      saveHistoricalPricesToFile();
       result.updatedDates = [...affectedDates].sort();
       result.updatedSymbols = [...affectedSymbols];
       console.log(`[Self-Healing] Reconciled and saved ${result.updated} price points across ${result.updatedSymbols.length} assets and ${result.updatedDates.length} trading days.`);

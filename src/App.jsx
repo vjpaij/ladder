@@ -368,9 +368,9 @@ function AuthenticatedApp() {
       case 'calendar':
         return <CalendarView key="calendar" />;
       case 'stock_analysis':
-        return <StockAnalysisView key="stock_analysis" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
+        return <StockAnalysisView key="stock_analysis" holdings={holdings} onSelectHolding={setSelectedHoldingModal} onRefresh={fetchDashboardData} />;
       case 'buy_analysis':
-        return <StockAnalysisView key="stock_analysis_buy" initialTab="buy" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;
+        return <StockAnalysisView key="stock_analysis_buy" initialTab="buy" holdings={holdings} onSelectHolding={setSelectedHoldingModal} onRefresh={fetchDashboardData} />;
       case 'stock_journal':
       case 'trade_journal':
         return <TradingJournalView key="trade_journal" holdings={holdings} onSelectHolding={setSelectedHoldingModal} />;

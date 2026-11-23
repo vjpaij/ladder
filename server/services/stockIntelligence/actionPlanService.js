@@ -1129,24 +1129,25 @@ export async function generateActionPlan({
         reason = `Tranche 1 completed (locked profit). Core position (${targetQty} shs) riding on house money to test 30W-SMA support at ₹${targetSlPrice.toFixed(2)}. Amend broker GTT to 30W-SMA.`;
       } else if (pnlPct < 15) {
         // --- TIER 1: INITIAL CAPITAL DEFENSE (< 15% GAIN) ---
-        targetSlPrice = round2(avg * 0.92);
-        targetQty = qty;
-        trancheStage = 'INITIAL RISK DEFENSE (100%)';
+        // GTT is placed on Tranche 1 shares (33% trim) at the -8.0% stop floor, matching Sell Analysis Tranche 1
+        targetSlPrice = t1Trigger > 0 ? t1Trigger : round2(avg * 0.92);
+        targetQty = Math.min(qty, t1Shares);
+        trancheStage = 'TRANCHE 1 TRIM (33%)';
         tier = 'INITIAL_8PCT';
-        action = 'SET / MAINTAIN GTT SL (-8%)';
+        action = 'SET GTT SL -> TRANCHE 1 (-8%)';
         actionType = 'SET_INITIAL';
         badgeColor = 'amber';
-        reason = `Initial capital defense: Place GTT SL at ₹${targetSlPrice.toFixed(2)} (-8.0% from cost basis ₹${avg.toFixed(2)}) for full position (${targetQty} shs).`;
+        reason = `Initial capital defense: Place GTT SL at ₹${targetSlPrice.toFixed(2)} (-8.0% from cost basis ₹${avg.toFixed(2)}) for Tranche 1 trim (${targetQty} of ${qty} shs). Keep remaining ${qty - targetQty} core shares riding on 30w-SMA.`;
       } else if (pnlPct >= 15 && pnlPct < 30) {
         // --- TIER 2: BREAKEVEN LOCK (+15% TO +30% GAIN) ---
-        targetSlPrice = round2(avg * 1.01);
-        targetQty = qty;
-        trancheStage = 'BREAKEVEN LOCK (100%)';
+        targetSlPrice = t1Trigger > 0 ? t1Trigger : round2(avg * 1.01);
+        targetQty = Math.min(qty, t1Shares);
+        trancheStage = 'TRANCHE 1 TRIM (33%)';
         tier = 'BREAKEVEN_LOCK';
-        action = 'AMEND GTT SL -> BREAKEVEN';
+        action = 'AMEND GTT SL -> TRANCHE 1 (BREAKEVEN)';
         actionType = 'AMEND_BREAKEVEN';
         badgeColor = 'emerald';
-        reason = `Breakeven Lock: Position is up +${pnlPct.toFixed(1)}%. Protect principal and statutory charges at ₹${targetSlPrice.toFixed(2)} for full position (${targetQty} shs).`;
+        reason = `Breakeven Lock: Position is up +${pnlPct.toFixed(1)}%. Protect Tranche 1 trim (${targetQty} of ${qty} shs) at ₹${targetSlPrice.toFixed(2)}. Keep remaining ${qty - targetQty} core shares riding on 30w-SMA.`;
       } else {
         // --- TIER 3: TRANCHE 1 PENDING (+30%+ GAIN) ---
         // Up >= 30%, but Tranche 1 has not yet been executed in the trade ledger.
@@ -1159,7 +1160,7 @@ export async function generateActionPlan({
         actionType = 'SET_TRANCHE1_TRIM';
         badgeColor = 'purple';
         const floorRef = targetSlPrice === ema50 ? '50-day EMA' : (targetSlPrice === atrFloor ? 'Chandelier ATR Floor' : 'Trailing Profit Lock');
-        reason = `Tranche 1 Profit Lock: Up +${pnlPct.toFixed(1)}%. Place GTT SL for ${targetQty} shares (33% trim) at ₹${targetSlPrice.toFixed(2)} (${floorRef}). Keep remaining ${qty - targetQty} core shares riding on 30w-SMA.`;
+        reason = `Tranche 1 Profit Lock: Up +${pnlPct.toFixed(1)}%. Place GTT SL for ${targetQty} of ${qty} shares (33% trim) at ₹${targetSlPrice.toFixed(2)} (${floorRef}). Keep remaining ${qty - targetQty} core shares riding on 30w-SMA.`;
       }
 
       // Broker GTT Validation: Stop loss trigger price must strictly be below live CMP

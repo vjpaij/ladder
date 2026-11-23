@@ -211,9 +211,17 @@ function deriveLogicalTrimQuantity({
  */
 function buildStagedExitPlan({ holding, currentPrice, sma30Week, chandelierStopPrice, trailingFloorPrice, state, action, isRecentBuy, pnlFromLatestBuyPct, suggestedSellQuantity, sizingRatio, sizingMethod, ledgerAudit }) {
   const currentQty = Number(holding.quantity) || 0;
+  const avgBuyPrice = Number(holding.avg_buy_price || holding.avgBuyPrice || holding.costBasis) || 0;
+  const initialStopPrice = avgBuyPrice > 0 ? Number((avgBuyPrice * 0.92).toFixed(2)) : 0;
   const stopFloor = Number(trailingFloorPrice || chandelierStopPrice) || 0;
+
+  // For fresh or low-gain positions (< 15%), anchor Tranche 1 protective floor to the -8% initial risk defense
+  const effectiveStopFloor = (pnlFromLatestBuyPct !== null && pnlFromLatestBuyPct !== undefined && pnlFromLatestBuyPct < 15 && initialStopPrice > 0)
+    ? Math.max(initialStopPrice, stopFloor)
+    : stopFloor;
+
   // A falling price crosses the higher protective floor before the lower 30w SMA.
-  const triggers = [Number(sma30Week) || 0, stopFloor].filter(price => price > 0).sort((a, b) => b - a);
+  const triggers = [Number(sma30Week) || 0, effectiveStopFloor].filter(price => price > 0).sort((a, b) => b - a);
   const triggerPrice1 = Number((triggers[0] || currentPrice).toFixed(2));
   const triggerPrice2 = Number((triggers[1] || triggerPrice1 * 0.90).toFixed(2));
 
