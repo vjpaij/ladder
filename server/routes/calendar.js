@@ -6,7 +6,7 @@ import db from '../db.js';
 import { supabase } from '../supabaseClient.js';
 import { fetchFxRate, liveQuoteCache, resolveHoldingPrice, buildCanonicalLivePriceMap } from '../services/priceEngine.js';
 import { computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, getYesterdayIST, isAnyMarketOpen, isUsMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
+import { getHolidaysForYear, isTradingDay, getLastTradingDay, getNextTradingDay, getTodayIST, getYesterdayIST, isAnyMarketOpen, isIndianMarketOpen, isUsMarketOpen, getAssetSessionStatus, isAssetTradingDay, getSpecialTradingSession } from '../services/marketCalendar.js';
 import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -145,14 +145,15 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     let fxRate;
     let todayTxs = [];
     let holdings = [];
+    let liabilities = [];
 
     if (!forceRefresh && _todayValCache && now < _todayValCacheExpiry) {
       // Serve today's metrics from cache
-      ({ liveTodayValuation, fxRate, todayTxs, holdings } = _todayValCache);
+      ({ liveTodayValuation, fxRate, todayTxs, holdings, liabilities } = _todayValCache);
     } else {
       fxRate = await fetchFxRate();
       holdings = await db.select('holdings');
-      const liabilities = await db.select('liabilities');
+      liabilities = await db.select('liabilities');
       const allTxs = await db.select('transactions');
       todayTxs = (allTxs || []).filter(t => t.date === todayStr);
 
@@ -166,7 +167,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       });
       liveTodayValuation = computePortfolioValuation(holdings, liabilities, livePriceMap, effectiveUsFx);
 
-      _todayValCache = { liveTodayValuation, fxRate: effectiveUsFx, todayTxs, holdings };
+      _todayValCache = { liveTodayValuation, fxRate: effectiveUsFx, todayTxs, holdings, liabilities };
       _todayValCacheExpiry = now + TODAY_VAL_TTL_MS;
     }
 
@@ -263,13 +264,27 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     let resolvedNps = Number((liveTodayValuation.nps ?? 0).toFixed(2));
     let resolvedSavings = Number((liveTodayValuation.savings ?? 0).toFixed(2));
     let resolvedEpf = Number((liveTodayValuation.epf ?? 0).toFixed(2));
-    let resolvedDebt = Number((liveTodayValuation.debt ?? ((liveTodayValuation.loan || 0) + (liveTodayValuation.credits || 0))).toFixed(2));
+    let resolvedLoan = Number((liveTodayValuation.loan ?? lastTradingLog?.loan ?? 0).toFixed(2));
+    let resolvedCredits = Number((liveTodayValuation.credits ?? lastTradingLog?.credits ?? 0).toFixed(2));
+    let resolvedDebt = Number((liveTodayValuation.debt ?? (resolvedLoan + resolvedCredits)).toFixed(2));
 
+    // When Indian market is closed/inactive and no Indian trades occurred today,
+    // carry forward yesterday's finalized close to prevent phantom price drift.
+    const hasInTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && (h.category_id === 'in_stocks' || h.category_id === 'indian_stocks');
+    });
+    const isInTrading = Boolean((inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET' || isIndianMarketOpen()) && inStocksStatus.isTradingDay);
+    if (!isInTrading && !hasInTxToday && lastTradingLog && lastTradingLog.indian_stocks !== undefined) {
+      resolvedInStocks = lastTradingLog.indian_stocks;
+    }
+
+    // When US market is closed and no US trades occurred today, align US stock valuation with yesterday's finalized close
     const hasUsTxToday = todayTxs.some(t => {
       const h = holdings.find(x => x.id === t.holding_id);
       return h && h.category_id === 'us_stocks';
     });
-    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET' || isUsMarketOpen());
+    const isUsTrading = Boolean((usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET' || isUsMarketOpen()) && usStocksStatus.isTradingDay);
     if (!isUsTrading && !hasUsTxToday && lastTradingLog && lastTradingLog.us_stocks !== undefined) {
       resolvedUsStocks = lastTradingLog.us_stocks;
     }
@@ -309,6 +324,43 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       resolvedEpf = lastTradingLog.epf;
     }
 
+    // Liabilities (loans and credit cards) are ledger-based and only change on transaction execution.
+    // If no transaction occurred today in that liability, strictly carry forward yesterday's balance.
+    const hasLoanTxToday = todayTxs.some(t => {
+      if (!t.liability_id) return false;
+      const l = (liabilities || []).find(x => x.id === t.liability_id);
+      return l && (l.category_id === 'loans' || (l.name || '').toLowerCase().includes('loan'));
+    });
+    if (!hasLoanTxToday && lastTradingLog && lastTradingLog.loan !== undefined) {
+      resolvedLoan = lastTradingLog.loan;
+    }
+
+    const hasCreditTxToday = todayTxs.some(t => {
+      if (!t.liability_id) return false;
+      const l = (liabilities || []).find(x => x.id === t.liability_id);
+      return l && (l.category_id === 'credit_cards' || (l.name || '').toLowerCase().includes('card'));
+    });
+    if (!hasCreditTxToday && lastTradingLog && lastTradingLog.credits !== undefined) {
+      resolvedCredits = lastTradingLog.credits;
+    }
+
+    resolvedDebt = Number((resolvedLoan + resolvedCredits).toFixed(2));
+
+    let resolvedHdfc = Number((liveTodayValuation.hdfc ?? lastTradingLog?.hdfc ?? 0).toFixed(2));
+    let resolvedIndusind = Number((liveTodayValuation.indusind ?? lastTradingLog?.indusind ?? 0).toFixed(2));
+    let resolvedIdfc = Number((liveTodayValuation.idfc ?? lastTradingLog?.idfc ?? 0).toFixed(2));
+    let resolvedRbl = Number((liveTodayValuation.rbl ?? lastTradingLog?.rbl ?? 0).toFixed(2));
+    let resolvedSbi = Number((liveTodayValuation.sbi ?? lastTradingLog?.sbi ?? 0).toFixed(2));
+    let resolvedFederal = Number((liveTodayValuation.federal ?? lastTradingLog?.federal ?? 0).toFixed(2));
+    if (!hasSavingsTxToday && lastTradingLog) {
+      if (lastTradingLog.hdfc !== undefined) resolvedHdfc = lastTradingLog.hdfc;
+      if (lastTradingLog.indusind !== undefined) resolvedIndusind = lastTradingLog.indusind;
+      if (lastTradingLog.idfc !== undefined) resolvedIdfc = lastTradingLog.idfc;
+      if (lastTradingLog.rbl !== undefined) resolvedRbl = lastTradingLog.rbl;
+      if (lastTradingLog.sbi !== undefined) resolvedSbi = lastTradingLog.sbi;
+      if (lastTradingLog.federal !== undefined) resolvedFederal = lastTradingLog.federal;
+    }
+
     let totalAssets = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     let totalWealth = Number((totalAssets - resolvedDebt).toFixed(2));
 
@@ -316,7 +368,7 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
     const prevTotalAssets = Number((lastTradingLog?.total_assets ?? lastTradingLog?.total_assets_inr ?? totalAssets).toFixed(2));
     const prevLiabilities = Number((lastTradingLog?.debt ?? lastTradingLog?.liabilities_inr ?? resolvedDebt).toFixed(2));
 
-    const anyMarketTrading = Boolean(inStocksStatus.isTradingDay || usStocksStatus.isTradingDay);
+    const anyMarketTrading = Boolean(isInTrading || isUsTrading);
     const hasAnyTxToday = todayTxs.length > 0;
 
     let dailyPnl = Number((totalWealth - prevTotalWealth).toFixed(2));
@@ -336,6 +388,8 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
           if (lastTradingLog.nps !== undefined) resolvedNps = lastTradingLog.nps;
           if (lastTradingLog.savings !== undefined) resolvedSavings = lastTradingLog.savings;
           if (lastTradingLog.epf !== undefined) resolvedEpf = lastTradingLog.epf;
+          if (lastTradingLog.loan !== undefined) resolvedLoan = lastTradingLog.loan;
+          if (lastTradingLog.credits !== undefined) resolvedCredits = lastTradingLog.credits;
         }
       }
       dailyPnl = 0;
@@ -359,14 +413,14 @@ router.get('/daily-pnl', authenticateToken, async (req, res) => {
       nps_val_inr: resolvedNps,
       savings_val_inr: resolvedSavings,
       epf_val_inr: resolvedEpf,
-      hdfc: Number((liveTodayValuation.hdfc ?? lastTradingLog?.hdfc ?? 0).toFixed(2)),
-      indusind: Number((liveTodayValuation.indusind ?? lastTradingLog?.indusind ?? 0).toFixed(2)),
-      idfc: Number((liveTodayValuation.idfc ?? lastTradingLog?.idfc ?? 0).toFixed(2)),
-      rbl: Number((liveTodayValuation.rbl ?? lastTradingLog?.rbl ?? 0).toFixed(2)),
-      sbi: Number((liveTodayValuation.sbi ?? lastTradingLog?.sbi ?? 0).toFixed(2)),
-      federal: Number((liveTodayValuation.federal ?? lastTradingLog?.federal ?? 0).toFixed(2)),
-      loan: Number((liveTodayValuation.loan ?? lastTradingLog?.loan ?? 0).toFixed(2)),
-      credits: Number((liveTodayValuation.credits ?? lastTradingLog?.credits ?? 0).toFixed(2)),
+      hdfc: resolvedHdfc,
+      indusind: resolvedIndusind,
+      idfc: resolvedIdfc,
+      rbl: resolvedRbl,
+      sbi: resolvedSbi,
+      federal: resolvedFederal,
+      loan: resolvedLoan,
+      credits: resolvedCredits,
       total_assets: totalAssets,
       total_assets_inr: totalAssets,
       debt: resolvedDebt,

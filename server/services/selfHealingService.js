@@ -867,11 +867,59 @@ export async function healActiveHoldingsPriceHistory() {
   return result;
 }
 
+/**
+ * Auto-Reconcile Liability Balances with Canonical Transaction Ledgers (Rule 17)
+ * Ensures liabilities.outstanding_balance strictly equals the net sum of all
+ * child transactions (charges/borrowings minus payments/prepayments).
+ */
+export async function healLiabilityBalances() {
+  const result = { audited: 0, healed: 0, liabilities: [] };
+  try {
+    const allLiabilities = await db.select('liabilities');
+    const allTxs = await db.select('transactions');
+    result.audited = (allLiabilities || []).length;
+
+    for (const liab of (allLiabilities || [])) {
+      const txs = (allTxs || []).filter(t => String(t.liability_id) === String(liab.id));
+      let netDebt = 0;
+      if (txs && txs.length > 0) {
+        for (const tx of txs) {
+          const amt = Number(tx.total_amount) || Number(tx.price) || 0;
+          const type = (tx.type || '').toUpperCase();
+          if (['OPENING_BALANCE', 'BORROW', 'DISBURSEMENT', 'CHARGE', 'EXPENSE', 'TAKE'].includes(type)) {
+            netDebt += amt;
+          } else if (['EMI_PAYMENT', 'PREPAYMENT', 'PAYMENT', 'REPAYMENT', 'PAY'].includes(type)) {
+            netDebt -= amt;
+          }
+        }
+      } else {
+        netDebt = Number(liab.total_principal) || Number(liab.outstanding_balance) || 0;
+      }
+      netDebt = Math.max(0, parseFloat(netDebt.toFixed(2)));
+      const currentBal = Number(Number(liab.outstanding_balance || 0).toFixed(2));
+
+      if (Math.abs(netDebt - currentBal) > 0.01) {
+        console.log(`[Self-Healing] Reconciling liability balance for ${liab.name} (${liab.id}): ₹${currentBal} -> ₹${netDebt}`);
+        await db.update('liabilities', liab.id, {
+          outstanding_balance: netDebt,
+          updated_at: new Date().toISOString()
+        });
+        result.healed++;
+        result.liabilities.push(liab.name);
+      }
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] healLiabilityBalances error:', err.message);
+  }
+  return result;
+}
+
 export async function runComprehensiveSelfHealing() {
   console.log('[Self-Healing Service] Starting comprehensive self-healing scan...');
   const fxHeal = await healMissingHistoricalFxRates();
   const txHeal = await healTransactionFxRates();
   const priceHeal = await healMissingHoldingPrices();
+  const liabHeal = await healLiabilityBalances();
   const npsGapHeal = await healNpsNavGaps();
   const npsEodSync = await syncRecentNpsEodValuations();
   const histPriceHeal = await healRecentHistoricalPrices({ triggerEodSync: false });
@@ -885,11 +933,12 @@ export async function runComprehensiveSelfHealing() {
     console.warn('[Self-Healing Service] NAV sync warning:', err.message);
   }
 
-  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Current Prices: ${priceHeal.updated}, NPS NAV Gaps: ${npsGapHeal.updated}, Historical Asset Prices: ${histPriceHeal.updated}, Active Holdings Price Series: ${holdingsPriceHistHeal.healed}, Healed SIP TXs: ${sipHeal.healed}`);
+  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Current Prices: ${priceHeal.updated}, Healed Liabilities: ${liabHeal.healed}, NPS NAV Gaps: ${npsGapHeal.updated}, Historical Asset Prices: ${histPriceHeal.updated}, Active Holdings Price Series: ${holdingsPriceHistHeal.healed}, Healed SIP TXs: ${sipHeal.healed}`);
   return {
     fxHealed: fxHeal,
     transactionsHealed: txHeal,
     pricesHealed: priceHeal,
+    liabilitiesHealed: liabHeal,
     historicalPricesHealed: histPriceHeal,
     activeHoldingsPriceHistHealed: holdingsPriceHistHeal,
     historicalPricesHealed: histPriceHeal,

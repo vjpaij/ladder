@@ -32,7 +32,7 @@ import {
 import { createCloudBackup } from '../scripts/backup_manager.mjs';
 import { JWT_SECRET } from './middleware/auth.js';
 import { triggerEodRebuildIfPastDate, checkAndTriggerMissedEodRebuild } from './services/eodSync.js';
-import { runComprehensiveSelfHealing, syncRecentNpsEodValuations } from './services/selfHealingService.js';
+import { runComprehensiveSelfHealing, syncRecentNpsEodValuations, healLiabilityBalances } from './services/selfHealingService.js';
 import { processDueSips } from './services/sipEngine.js';
 import { initWalFlusher, flushWal, getWalStatus } from './services/walFlusherService.js';
 import { authenticateToken } from './middleware/auth.js';
@@ -225,6 +225,7 @@ app.listen(PORT, '0.0.0.0', async () => {
   // 1. Pre-warm database cache on boot first to eliminate cold starts and protect egress
   try {
     await warmCache();
+    await healLiabilityBalances();
     await warmSummaryCache();
   } catch (err) {
     console.warn('[WarmCache Error]:', err.message);

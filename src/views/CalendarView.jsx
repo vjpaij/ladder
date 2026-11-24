@@ -371,7 +371,7 @@ export default function CalendarView() {
     return Object.keys(CATEGORY_META).filter((key) => {
       const val = modalLog.breakdown?.[key] || 0;
       const prevVal = modalLog.prev_breakdown?.[key] || 0;
-      return (val - prevVal) !== 0;
+      return Math.abs(Number(val.toFixed(2)) - Number(prevVal.toFixed(2))) > 0.01;
     });
   }, [modalLog]);
 

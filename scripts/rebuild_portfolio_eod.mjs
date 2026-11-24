@@ -698,7 +698,8 @@ async function rebuildEod() {
       // Construct current snapshot with dynamically replayed bank & debt balances
       const historicalHoldings = holdings.map(h => {
         let q = holdingQty[h.id] || 0;
-        if (Math.abs(q) < 0.005) q = 0;
+        q = Math.max(0, q);
+        if (q < 0.005) q = 0;
         return {
           ...h,
           quantity: q

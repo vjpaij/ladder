@@ -9,7 +9,7 @@ import { getHistoricalFxRate, getPersistedRate } from '../services/fxRateStore.j
 import { getHistoricalPricesMap } from '../services/historicalPriceStore.js';
 import { calculateXirr, calculateAbsoluteReturn } from '../services/xirrCalculator.js';
 import { computeHoldingValueINR, computePortfolioValuation } from '../services/portfolioCalculator.js';
-import { getTodayIST, getYesterdayIST, isAnyMarketOpen, isUsMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
+import { getTodayIST, getYesterdayIST, isAnyMarketOpen, isIndianMarketOpen, isUsMarketOpen, isTradingDay, getAssetSessionStatus } from '../services/marketCalendar.js';
 import { checkAndTriggerMissedEodRebuild } from '../services/eodSync.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -518,14 +518,27 @@ export async function computeSummaryPayload(options = {}) {
     let resolvedNps = Number((valuation.nps || 0).toFixed(2));
     let resolvedSavings = Number((valuation.savings || 0).toFixed(2));
     let resolvedEpf = Number((valuation.epf || 0).toFixed(2));
-    let resolvedDebt = Number((valuation.debt || 0).toFixed(2));
+    let resolvedLoan = Number((valuation.loan || yesterdayLog?.loan || 0).toFixed(2));
+    let resolvedCredits = Number((valuation.credits || yesterdayLog?.credits || 0).toFixed(2));
+    let resolvedDebt = Number((valuation.debt || (resolvedLoan + resolvedCredits)).toFixed(2));
+
+    // When Indian market is closed/inactive and no Indian trades occurred today,
+    // carry forward yesterday's finalized close to prevent phantom price drift.
+    const hasInTxToday = todayTxs.some(t => {
+      const h = holdings.find(x => x.id === t.holding_id);
+      return h && (h.category_id === 'in_stocks' || h.category_id === 'indian_stocks');
+    });
+    const isInTrading = Boolean((inStocksStatus.status === 'MARKET_OPEN' || inStocksStatus.status === 'POST_MARKET' || isIndianMarketOpen()) && inStocksStatus.isTradingDay);
+    if (!isInTrading && !hasInTxToday && yesterdayLog && yesterdayLog.indian_stocks !== undefined) {
+      resolvedInStocks = yesterdayLog.indian_stocks;
+    }
 
     // When US market is closed and no US trades occurred today, align US stock valuation with yesterday's finalized close
     const hasUsTxToday = todayTxs.some(t => {
       const h = holdings.find(x => x.id === t.holding_id);
       return h && h.category_id === 'us_stocks';
     });
-    const isUsTrading = (usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET' || isUsMarketOpen());
+    const isUsTrading = Boolean((usStocksStatus.status === 'MARKET_OPEN' || usStocksStatus.status === 'POST_MARKET' || isUsMarketOpen()) && usStocksStatus.isTradingDay);
     if (!isUsTrading && !hasUsTxToday && yesterdayLog && yesterdayLog.us_stocks !== undefined) {
       resolvedUsStocks = yesterdayLog.us_stocks;
     }
@@ -565,10 +578,32 @@ export async function computeSummaryPayload(options = {}) {
       resolvedEpf = yesterdayLog.epf;
     }
 
+    // Liabilities (loans and credit cards) are ledger-based and only change on transaction execution.
+    // If no transaction occurred today in that liability, strictly carry forward yesterday's balance.
+    const hasLoanTxToday = todayTxs.some(t => {
+      if (!t.liability_id) return false;
+      const l = (liabilities || []).find(x => x.id === t.liability_id);
+      return l && (l.category_id === 'loans' || (l.name || '').toLowerCase().includes('loan'));
+    });
+    if (!hasLoanTxToday && yesterdayLog && yesterdayLog.loan !== undefined) {
+      resolvedLoan = yesterdayLog.loan;
+    }
+
+    const hasCreditTxToday = todayTxs.some(t => {
+      if (!t.liability_id) return false;
+      const l = (liabilities || []).find(x => x.id === t.liability_id);
+      return l && (l.category_id === 'credit_cards' || (l.name || '').toLowerCase().includes('card'));
+    });
+    if (!hasCreditTxToday && yesterdayLog && yesterdayLog.credits !== undefined) {
+      resolvedCredits = yesterdayLog.credits;
+    }
+
+    resolvedDebt = Number((resolvedLoan + resolvedCredits).toFixed(2));
+
     let finalTotalAssetsINR = Number((resolvedInStocks + resolvedUsStocks + resolvedMf + resolvedNps + resolvedSavings + resolvedEpf).toFixed(2));
     let finalNetWorthINR = Number((finalTotalAssetsINR - resolvedDebt).toFixed(2));
 
-    const anyMarketTrading = Boolean(inStocksStatus.isTradingDay || usStocksStatus.isTradingDay);
+    const anyMarketTrading = Boolean(isInTrading || isUsTrading);
     const hasAnyTxToday = todayTxs.length > 0;
 
     let dayPnlINR = Number((finalNetWorthINR - yesterdayWealth).toFixed(2));
@@ -586,6 +621,8 @@ export async function computeSummaryPayload(options = {}) {
           if (yesterdayLog.nps !== undefined) resolvedNps = yesterdayLog.nps;
           if (yesterdayLog.savings !== undefined) resolvedSavings = yesterdayLog.savings;
           if (yesterdayLog.epf !== undefined) resolvedEpf = yesterdayLog.epf;
+          if (yesterdayLog.loan !== undefined) resolvedLoan = yesterdayLog.loan;
+          if (yesterdayLog.credits !== undefined) resolvedCredits = yesterdayLog.credits;
         }
       }
       dayPnlINR = 0;

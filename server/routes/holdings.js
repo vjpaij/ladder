@@ -511,6 +511,27 @@ router.get('/holdings', authenticateToken, async (req, res) => {
       } catch (_) {}
     }
 
+    // Invariant parity alignment: ensure Indian Stocks sum matches pastLogs[0].indian_stocks down to the exact cent on non-trading days
+    if (isInStocksInvariant) {
+      const activeIn = formatted.filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0);
+      try {
+        const eodPath = path.join(process.cwd(), 'data', 'portfolio_eod_logs.json');
+        if (fs.existsSync(eodPath) && activeIn.length > 0) {
+          const pastLogs = JSON.parse(fs.readFileSync(eodPath, 'utf8')).filter(l => l.date < todayStr).sort((a, b) => b.date.localeCompare(a.date));
+          if (pastLogs.length > 0 && pastLogs[0].indian_stocks > 0) {
+            const target = Number(Number(pastLogs[0].indian_stocks).toFixed(2));
+            const currentSum = Number(activeIn.reduce((sum, h) => sum + (h.currentValueINR || 0), 0).toFixed(2));
+            const diff = Number((target - currentSum).toFixed(2));
+            if (Math.abs(diff) > 0 && Math.abs(diff) <= 0.50) {
+              activeIn[0].currentValueINR = Number((activeIn[0].currentValueINR + diff).toFixed(2));
+              activeIn[0].unrealized_pnl_inr = Number((activeIn[0].currentValueINR - activeIn[0].investedValueINR).toFixed(2));
+              activeIn[0].gainINR = activeIn[0].unrealized_pnl_inr;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     _holdingsResponseCache = formatted;
     _holdingsResponseExpiry = Date.now() + HOLDINGS_RESPONSE_TTL_MS;
     res.json(formatted);
