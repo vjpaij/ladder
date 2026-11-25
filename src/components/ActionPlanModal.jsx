@@ -1429,7 +1429,11 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                         return (
                           <tr key={sla.symbol + '-' + idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              {sla.actionType === 'AMEND_CORE_RUNNER' ? (
+                              {sla.gttStatus === 'STOP_BREACHED_SELL_NOW' ? (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40 animate-pulse flex items-center gap-1 w-fit">
+                                  <span>BREACHED — SELL</span>
+                                </span>
+                              ) : sla.actionType === 'AMEND_CORE_RUNNER' ? (
                                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500/40 animate-pulse flex items-center gap-1 w-fit">
                                   <span>AMEND → 30W-SMA</span>
                                 </span>

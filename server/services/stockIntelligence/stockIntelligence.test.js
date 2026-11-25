@@ -441,9 +441,11 @@ test('Rule 2: Fresh buy position dropping >= 8% triggers hard circuit-breaker de
   });
 
   assert.equal(results.length, 1);
-  assert.equal(results[0].state, 'TECHNICAL_TRIM_CANDIDATE', 'Hard loss triggers technical trim');
-  assert.equal(results[0].action, 'REVIEW_PARTIAL_SALE', 'Action must be review partial sale');
-  assert.ok(results[0].suggestedSellQuantity > 0, 'Tranche 1 trim shares must be > 0');
+  assert.equal(results[0].state, 'FULL_EXIT_CANDIDATE', 'Hard -8% loss on unproven position triggers 100% full exit');
+  assert.equal(results[0].action, 'FULL_EXIT', 'Action must be FULL_EXIT');
+  assert.equal(results[0].suggestedSellQuantity, 100, 'Must exit 100% of unproven position (no split to distant 30w-SMA)');
+  assert.equal(results[0].stagedExitPlan?.isSingleStageStop, true, 'Must use single-stage 100% capital defense');
+  assert.equal(results[0].stagedExitPlan?.tranche2?.targetShares, 0, 'Tranche 2 must be inactive for unproven <15% positions');
 });
 
 test('Rule 3: Buy analysis strictly disqualifies candidate stocks trading <= 30-week SMA as AVOID', () => {
@@ -702,9 +704,9 @@ test('Rule 12: Adaptive IPO Crash & Risk Protection Engine triggers defensive tr
     transactions: [{ holding_id: 'ipo1', type: 'BUY', date: entryDate, quantity: 600, price: entryPrice }]
   });
 
-  assert.equal(trimAnalysis.state, 'TECHNICAL_TRIM_CANDIDATE', 'Breached IPO must trigger TECHNICAL_TRIM_CANDIDATE');
-  assert.equal(trimAnalysis.action, 'REVIEW_PARTIAL_SALE', 'Breached IPO must trigger REVIEW_PARTIAL_SALE');
-  assert.ok(trimAnalysis.suggestedSellQuantity > 0, 'Breached IPO must have non-zero suggested sell quantity');
+  assert.equal(trimAnalysis.state, 'FULL_EXIT_CANDIDATE', 'Unproven IPO breaching -8% stop must trigger FULL_EXIT_CANDIDATE');
+  assert.equal(trimAnalysis.action, 'FULL_EXIT', 'Unproven IPO breaching -8% stop must trigger FULL_EXIT');
+  assert.equal(trimAnalysis.suggestedSellQuantity, 600, 'Breached unproven IPO must suggest 100% position exit');
   assert.ok(trimAnalysis.stopFloorBreached, 'stopFloorBreached must be true');
 
   // Case B: Severe crash (price drops to 75, -31.8% from entry 110)
@@ -783,4 +785,46 @@ test('Rule 14: Next Day Action Plan Stop Loss Engine anchors GTT to Tranche 2 (3
     assert.equal(cr.targetQty, cr.qty, `${cr.symbol} target quantity must equal full held core quantity`);
     assert.equal(cr.actionType, 'AMEND_CORE_RUNNER', `${cr.symbol} actionType must be AMEND_CORE_RUNNER`);
   }
+});
+
+test('Rule 15: Canonical GTT parity matches Sell Analysis and Anti-Chasing gate caps overextended peaks at WATCH', async () => {
+  const { resolveCanonicalGttOrder } = await import('./analysisService.js');
+  const { buildBuyAnalyses } = await import('./buyAnalysisService.js');
+
+  // 1. Canonical GTT parity: unproven <15% position uses 100% shares & exact stagedExitPlan trigger
+  const prices = weekdays(300, '2023-01-02');
+  const dates = Object.keys(prices).sort();
+  const today = dates.at(-1);
+  const buyDate = dates.at(-10);
+  const buyPrice = prices[buyDate];
+  const cmp = Number((buyPrice * 0.96).toFixed(2));
+  prices[today] = cmp;
+
+  const [analysis] = buildStockAnalyses(
+    [{ id: 'h_gtt_1', symbol: 'PARITYTEST', name: 'Parity Test', category_id: 'in_stocks', quantity: 100, current_price: cmp, avg_buy_price: buyPrice, investedValueINR: buyPrice * 100 }],
+    { PARITYTEST: prices },
+    { today, transactions: [{ holding_id: 'h_gtt_1', symbol: 'PARITYTEST', date: buyDate, type: 'BUY', quantity: 100, price: buyPrice, total_amount: buyPrice * 100 }], fundamentalsMap: { PARITYTEST: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING' } } }
+  );
+  const gtt = resolveCanonicalGttOrder(analysis, { triggerPrice: Number((buyPrice * 0.92).toFixed(2)), tier: 'INITIAL_8PCT' });
+  assert.equal(gtt.targetSlPrice, analysis.stagedExitPlan.tranche1.triggerPrice, 'GTT trigger must equal Sell Analysis Tranche 1 trigger');
+  assert.equal(gtt.targetQty, analysis.stagedExitPlan.tranche1.targetShares, 'GTT quantity must equal Sell Analysis Tranche 1 shares (100%)');
+  assert.equal(gtt.targetQty, 100, 'Unproven <15% position GTT must protect 100% of shares');
+
+  // 2. Anti-chasing gate: +60% extended parabolic spike must be capped at WATCH, never BUY/STRONG_BUY
+  const spikePrices = weekdays(300, '2023-01-02');
+  const spikeDates = Object.keys(spikePrices).sort();
+  const basePx = spikePrices[spikeDates.at(-30)];
+  for (let i = spikeDates.length - 25; i < spikeDates.length; i++) {
+    spikePrices[spikeDates[i]] = Number((basePx * (1 + (i - (spikeDates.length - 26)) * 0.03)).toFixed(2));
+  }
+  const spikeToday = spikeDates.at(-1);
+  const [buyCandidate] = buildBuyAnalyses({
+    candidates: [{ symbol: 'PEAKSPIKE', name: 'Peak Spike Ltd', source: 'NSE500', marketCapCr: 15000, currentPrice: spikePrices[spikeToday], category: 'in_stocks' }],
+    priceHistory: { PEAKSPIKE: spikePrices },
+    fundamentalsCache: { PEAKSPIKE: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING', yoySalesGrowthPct: 25, yoyPatGrowthPct: 30, roePct: 20, rocePct: 22, debtToEquity: 0.2, promoterPledgePct: 0, latestQuarterPat: 100, annualSales: [100, 120, 150, 190], annualPat: [10, 13, 17, 22], quarterlySales: [35, 40, 45, 52, 60], quarterlyPat: [4, 5, 6, 7, 8] } },
+    today: spikeToday
+  });
+  assert.ok(buyCandidate, 'Candidate must evaluate');
+  assert.equal(buyCandidate.buySignal, 'WATCH', 'Overextended parabolic peak must be capped at WATCH, never BUY or STRONG_BUY');
+  assert.match(buyCandidate.signalReason, /Overextended entry risk/i);
 });

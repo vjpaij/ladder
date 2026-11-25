@@ -354,6 +354,13 @@ async function reconcileOverviewWithLiveHoldings(overview) {
                 tranche1: { ...stagedExitPlan.tranche1, status: 'READY' }
               };
             }
+            const isSingleStage = Boolean(stagedExitPlan?.isSingleStageStop) || (pnlPct <= -8.0 && tranche1Status !== 'COMPLETED');
+            if (isSingleStage) {
+              state = 'FULL_EXIT_CANDIDATE';
+              action = 'FULL_EXIT';
+              suggestedSellQuantity = qty;
+              if (stagedExitPlan) stagedExitPlan.totalActionShares = qty;
+            }
           }
         }
 
@@ -429,6 +436,13 @@ async function reconcileOverviewWithLiveHoldings(overview) {
                 ...stagedExitPlan,
                 tranche1: { ...stagedExitPlan.tranche1, status: 'READY' }
               };
+            }
+            const isSingleStage = Boolean(stagedExitPlan?.isSingleStageStop) || (pnlPct <= -8.0 && tranche1Status !== 'COMPLETED');
+            if (isSingleStage) {
+              state = 'FULL_EXIT_CANDIDATE';
+              action = 'FULL_EXIT';
+              suggestedSellQuantity = qty;
+              if (stagedExitPlan) stagedExitPlan.totalActionShares = qty;
             }
           }
         }
@@ -526,21 +540,39 @@ async function reconcileActionPlanWithLiveHoldings(plan) {
       });
     }
 
-    // 2. Reconcile stopLossActions
-    const reconciledStopLoss = (plan.stopLossActions || []).filter(sl => {
+    // 2. Reconcile stopLossActions with live prices & breach flags
+    const reconciledStopLoss = (plan.stopLossActions || []).reduce((acc, sl) => {
       const sym = String(sl.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
       const h = holdingMap.get(sym);
-      if (!h) return false;
+      if (!h) return acc;
       const qty = Number(h.quantity) || 0;
-      if (String(h.status || '').toUpperCase() === 'REDEEMED' || qty <= 0) return false;
+      if (String(h.status || '').toUpperCase() === 'REDEEMED' || qty <= 0) return acc;
       const quote = liveQuoteCache?.get(h.symbol);
       const cmp = resolveHoldingPrice(h, quote) || sl.cmp || Number(h.current_price) || 0;
-      const stopTrigger = sl.triggerPrice || sl.stopPrice || sl.floorPrice;
-      if (stopTrigger && cmp >= stopTrigger) {
-        return false; // Not breached in real time
-      }
-      return true;
-    });
+      const avg = Number(h.avg_buy_price) || sl.avgBuyPrice || cmp;
+      const targetSlPrice = Number(sl.targetSlPrice) || 0;
+      const isBreached = cmp > 0 && targetSlPrice > 0 && cmp <= targetSlPrice;
+      const distanceToSlPct = cmp > 0 && targetSlPrice > 0 ? Number((((cmp - targetSlPrice) / cmp) * 100).toFixed(2)) : 0;
+      const pnlPct = avg > 0 && cmp > 0 ? Number((((cmp - avg) / avg) * 100).toFixed(2)) : sl.pnlPct;
+
+      acc.push({
+        ...sl,
+        qty,
+        cmp,
+        avgBuyPrice: Math.round(avg * 100) / 100,
+        val: Math.round(qty * cmp * 100) / 100,
+        pnlPct,
+        distanceToSlPct,
+        slBufferPct: distanceToSlPct,
+        isBreached,
+        isNearSl: isBreached || (distanceToSlPct <= 3.0 && distanceToSlPct >= 0),
+        gttStatus: isBreached ? 'STOP_BREACHED_SELL_NOW' : sl.gttStatus,
+        gttStatusLabel: isBreached ? 'STOP BREACHED — SELL NOW' : sl.gttStatusLabel,
+        gttStatusBadge: isBreached ? 'rose' : sl.gttStatusBadge,
+        isActionRequired: isBreached ? true : sl.isActionRequired
+      });
+      return acc;
+    }, []);
 
     // 3. Recalculate summary metrics without clobbering realized recycled capital pool
     const totalSellProceeds = reconciledSells.reduce((acc, s) => acc + (s.actionValue || 0), 0);
