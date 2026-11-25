@@ -1,5 +1,38 @@
 [
   {
+    "id": "log_1795583157432_g4kg0",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (BOOT)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-25T05:05:57.429Z",
+    "status": "SUCCESS",
+    "durationMs": 1704,
+    "details": "Evaluated 58 active Indian equity holdings. 49 in Stage 2 Compounding, 8 technical trim, 0 on watch. Data integrity: 67.2% (19 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1795582825055_4ejyv",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (10:30 AM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-25T05:00:25.055Z",
+    "status": "SUCCESS",
+    "durationMs": 558,
+    "details": "Evaluated 58 active Indian equity holdings. 49 in Stage 2 Compounding, 8 technical trim, 0 on watch. Data integrity: 67.2% (19 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1795582824493_2lff6",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (10:30 AM IST)",
+    "scheduledTime": "10:30 AM IST",
+    "runTime": "2026-11-25T05:00:24.493Z",
+    "status": "SUCCESS",
+    "durationMs": 24478,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
     "id": "log_1795582715923_i46lr",
     "jobType": "STOCK_ANALYSIS_EOD",
     "jobName": "Daily Stock Analysis Audit (BOOT)",
@@ -5463,39 +5496,6 @@
     "runTime": "2026-11-01T12:38:33.550Z",
     "status": "SUCCESS",
     "durationMs": 3301,
-    "details": "Refreshed live quotes and NAVs across all asset classes (78 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1793523523934_tvas9",
-    "jobType": "STOCK_ANALYSIS_EOD",
-    "jobName": "Daily Stock Analysis Audit (BOOT)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-11-01T08:58:43.932Z",
-    "status": "SUCCESS",
-    "durationMs": 2032,
-    "details": "Evaluated 55 active Indian equity holdings. 33 in Stage 2 Compounding, 13 technical trim, 1 on watch. Data integrity: 98.2% (1 anomalies). Recorded 0 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1793522516061_ocynx",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-11-01T08:41:56.061Z",
-    "status": "SUCCESS",
-    "durationMs": 11902,
-    "details": "Refreshed live quotes and NAVs across all asset classes (78 holdings updated).",
-    "error": null
-  },
-  {
-    "id": "log_1793522516036_bdkos",
-    "jobType": "LOGIN_SYNC",
-    "jobName": "Webpage Login Asset Auto-Sync",
-    "scheduledTime": "On Webpage Login",
-    "runTime": "2026-11-01T08:41:56.036Z",
-    "status": "SUCCESS",
-    "durationMs": 11881,
     "details": "Refreshed live quotes and NAVs across all asset classes (78 holdings updated).",
     "error": null
   }

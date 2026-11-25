@@ -16,6 +16,9 @@ let historicalPricesCache = {};
 let isLoaded = false;
 let loadPromise = null;
 let isSaving = false;
+let _needsSaveAgain = false;
+let _saveDebounceTimer = null;
+let _pendingSaveResolvers = [];
 let lastLoadedMtime = 0;
 
 /**
@@ -87,11 +90,37 @@ export function getHistoricalPricesMap() {
 }
 
 /**
- * Persist historical prices cache to disk atomically
+ * Persist historical prices cache to disk atomically with automatic debouncing.
+ * Batches frequent symbol updates into a single write to prevent disk thrashing and memory pressure.
  */
-export async function saveHistoricalPricesToFile() {
-  if (isSaving) return;
+export async function saveHistoricalPricesToFile(options = {}) {
+  const debounce = options.debounce !== false;
+  const delayMs = options.delayMs || 3000;
+
+  if (debounce) {
+    return new Promise((resolve, reject) => {
+      _pendingSaveResolvers.push({ resolve, reject });
+      if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
+      _saveDebounceTimer = setTimeout(() => {
+        _saveDebounceTimer = null;
+        _flushHistoricalPricesToFile();
+      }, delayMs);
+    });
+  }
+
+  return _flushHistoricalPricesToFile();
+}
+
+async function _flushHistoricalPricesToFile() {
+  if (isSaving) {
+    _needsSaveAgain = true;
+    return;
+  }
   isSaving = true;
+  _needsSaveAgain = false;
+  const resolvers = _pendingSaveResolvers;
+  _pendingSaveResolvers = [];
+
   const tempPath = `${HISTORICAL_PRICES_FILE}.${Date.now()}.tmp`;
   try {
     // Monotonic disk merge: read existing disk file to ensure we never drop symbols or historical dates written by other processes
@@ -161,13 +190,19 @@ export async function saveHistoricalPricesToFile() {
       await fs.promises.copyFile(tempPath, HISTORICAL_PRICES_FILE);
       await fs.promises.unlink(tempPath).catch(() => {});
     }
+    resolvers.forEach(r => r.resolve());
   } catch (e) {
     console.error('[Historical Pricing] Failed to save historical prices to disk:', e.message);
+    resolvers.forEach(r => r.reject(e));
     try {
       if (fs.existsSync(tempPath)) await fs.promises.unlink(tempPath);
     } catch (_) {}
   } finally {
     isSaving = false;
+    if (_needsSaveAgain) {
+      _needsSaveAgain = false;
+      saveHistoricalPricesToFile({ debounce: true, delayMs: 1500 });
+    }
   }
 }
 

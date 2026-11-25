@@ -5,10 +5,13 @@ import { fork } from 'child_process';
 
 // Global resilience handlers to prevent unexpected daemon exits
 process.on('uncaughtException', (err) => {
-  console.warn('[Server Resilience] Uncaught exception intercepted:', err.message);
+  console.warn('[Server Resilience] Uncaught exception intercepted:', err.message, err.stack);
 });
 process.on('unhandledRejection', (reason) => {
-  console.warn('[Server Resilience] Unhandled promise rejection intercepted:', reason?.message || reason);
+  console.warn('[Server Resilience] Unhandled promise rejection intercepted:', reason?.message || reason, reason?.stack);
+});
+process.on('exit', (code) => {
+  console.log(`[Server Daemon] Node process exiting with code: ${code}`);
 });
 
 import db, { initDatabase, warmCache, getFullCacheSnapshot } from './db.js';
