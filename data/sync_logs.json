@@ -1,5 +1,27 @@
 [
   {
+    "id": "log_1795593634350_fx8dz",
+    "jobType": "STOCK_ANALYSIS_EOD",
+    "jobName": "Daily Stock Analysis Audit (01:30 PM IST)",
+    "scheduledTime": "06:30 PM IST",
+    "runTime": "2026-11-25T08:00:34.349Z",
+    "status": "SUCCESS",
+    "durationMs": 1338,
+    "details": "Evaluated 58 active Indian equity holdings. 49 in Stage 2 Compounding, 8 technical trim, 0 on watch. Data integrity: 67.2% (19 anomalies). Recorded 0 state transition(s).",
+    "error": null
+  },
+  {
+    "id": "log_1795593633009_asdwf",
+    "jobType": "EOD_REBUILD",
+    "jobName": "EOD Valuation Rebuild (01:30 PM IST)",
+    "scheduledTime": "01:30 PM IST",
+    "runTime": "2026-11-25T08:00:33.009Z",
+    "status": "SUCCESS",
+    "durationMs": 32998,
+    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
+    "error": null
+  },
+  {
     "id": "log_1795583157432_g4kg0",
     "jobType": "STOCK_ANALYSIS_EOD",
     "jobName": "Daily Stock Analysis Audit (BOOT)",
@@ -5475,28 +5497,6 @@
     "status": "SUCCESS",
     "durationMs": 334,
     "details": "Evaluated 55 active Indian equity holdings. 0 in Stage 2 Compounding, 0 technical trim, 0 on watch. Data integrity: 100% (0 anomalies). Recorded 51 state transition(s).",
-    "error": null
-  },
-  {
-    "id": "log_1793538142418_rs3ea",
-    "jobType": "EOD_REBUILD",
-    "jobName": "EOD Valuation Rebuild (06:30 PM IST)",
-    "scheduledTime": "06:30 PM IST",
-    "runTime": "2026-11-01T13:02:22.418Z",
-    "status": "SUCCESS",
-    "durationMs": 151711,
-    "details": "Rebuilt portfolio EOD logs and synchronized historical valuations.",
-    "error": null
-  },
-  {
-    "id": "log_1793536713551_70hdw",
-    "jobType": "MANUAL_SYNC",
-    "jobName": "Live Asset Price Refresh",
-    "scheduledTime": "Manual / UI Trigger",
-    "runTime": "2026-11-01T12:38:33.550Z",
-    "status": "SUCCESS",
-    "durationMs": 3301,
-    "details": "Refreshed live quotes and NAVs across all asset classes (78 holdings updated).",
     "error": null
   }
 ]

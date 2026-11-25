@@ -617,6 +617,11 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const latestBuyDate = latestBuy?.date || null;
     const latestBuyPrice = Number(latestBuy?.price) || Number(holdingRow.avg_buy_price) || Number(item.avgBuyPrice) || item.currentPrice;
     const pnlFromLatestBuyPct = latestBuyPrice > 0 ? Number(((item.currentPrice / latestBuyPrice - 1) * 100).toFixed(2)) : 0;
+    const hasKnownCostBasis = Boolean(latestBuy?.price || Number(holdingRow.avg_buy_price) > 0 || Number(item.avgBuyPrice) > 0);
+    const overallAvgPrice = Number(item.avgBuyPrice) || Number(holdingRow.avg_buy_price) || latestBuyPrice;
+    const overallPnlPct = (hasKnownCostBasis && overallAvgPrice > 0 && item.currentPrice > 0)
+      ? Number(((item.currentPrice / overallAvgPrice - 1) * 100).toFixed(2))
+      : pnlFromLatestBuyPct;
     
     // Count actual trading days since latest purchase
     const tradingDatesSinceBuy = (item.history || []).map(r => r.date).filter(d => latestBuyDate && d >= latestBuyDate && d <= today);
@@ -644,8 +649,7 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const has4RedBreakdown = Boolean(item.has4RedCandlesBelow21Ema);
     const isDataUnavailable = item.state === 'DATA_UNAVAILABLE' && (!item.isIpo || item.dailyObservations < 10 || item.dataQuality === 'PRICE_HISTORY_QUOTE_MISMATCH' || item.dataQuality === 'INSUFFICIENT_HISTORY');
     const isIpoHolding = Boolean(!isDataUnavailable && item.isIpo && item.dailyObservations >= 10 && item.dataQuality !== 'PRICE_HISTORY_QUOTE_MISMATCH');
-    const hasKnownCostBasis = Boolean(latestBuy?.price || Number(holdingRow.avg_buy_price) > 0 || Number(item.avgBuyPrice) > 0);
-    const hasProfitCushion = !hasKnownCostBasis || (pnlFromLatestBuyPct !== null && pnlFromLatestBuyPct !== undefined && Number(pnlFromLatestBuyPct) >= 15);
+    const hasProfitCushion = !hasKnownCostBasis || (overallPnlPct !== null && overallPnlPct !== undefined && Number(overallPnlPct) >= 15);
 
     // 2. Confluence Decision State Evaluation
     if (isDataUnavailable) {
@@ -653,11 +657,11 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       action = 'NO_RECOMMENDATION';
     } else if (isIpoHolding) {
       // Adaptive IPO Crash & Risk Protection Engine
-      if (pnlFromLatestBuyPct <= -20.0 || (item.ipoLow > 0 && item.currentPrice < item.ipoLow * 0.85)) {
+      if (overallPnlPct <= -20.0 || (item.ipoLow > 0 && item.currentPrice < item.ipoLow * 0.85)) {
         // Severe crash circuit-breaker (loss >= 20% or severe break below post-listing low) = Full Exit
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (pnlFromLatestBuyPct <= -8.0) {
+      } else if (overallPnlPct <= -8.0) {
         // Universal hard risk circuit-breaker: Loss exceeds 8% tolerance threshold from entry = 100% Full Exit
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
@@ -684,8 +688,8 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
         // Confluence of structural bear/breakdown and fundamental deterioration = Full Exit
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (pnlFromLatestBuyPct !== null && pnlFromLatestBuyPct !== undefined && pnlFromLatestBuyPct <= -8.0) {
-        // Universal -8% Hard Risk Circuit-Breaker: Unproven/losing trade exceeding -8% from entry = 100% Full Exit (never leave 67% exposed to distant 30w-SMA)
+      } else if (hasKnownCostBasis && overallPnlPct !== null && overallPnlPct !== undefined && overallPnlPct <= -8.0) {
+        // Universal -8% Hard Risk Circuit-Breaker on overall position: exit 100% (never leave 67% exposed to distant 30w-SMA)
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
       } else if (isRecentBuy && (isStopFloorBreached || has4RedBreakdown || isTechBreakdown)) {
@@ -747,7 +751,7 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       state,
       action,
       isRecentBuy,
-      pnlFromLatestBuyPct,
+      pnlFromLatestBuyPct: overallPnlPct,
       suggestedSellQuantity: baseSizing.quantity || 0,
       sizingRatio: baseSizing.ratio,
       sizingMethod: baseSizing.method,
@@ -861,7 +865,13 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       const patNote = patDrop !== null && patDrop !== undefined ? ` (YoY PAT ${patDrop > 0 ? `+${patDrop}%` : `${patDrop}%`})` : '';
       explanation = `Fundamentals show earnings deterioration (${item.fundamentals?.opmTrendDirection?.toLowerCase()} margins at ${item.fundamentals?.latestOpmPct || '—'}%${patNote}). Review trimming ${suggestedSellQuantity} shares in line with earnings deceleration.`;
     } else if (state === 'FULL_EXIT_CANDIDATE') {
-      explanation = `Confluence of Stage 4 secular downtrend and fundamental deterioration. Full exit candidate (${suggestedSellQuantity} shares) to protect against permanent capital loss.`;
+      if (hasKnownCostBasis && overallPnlPct <= -8.0) {
+        explanation = `Hard -8% Risk Cut: Position is down ${overallPnlPct}% (CMP ₹${item.currentPrice.toFixed(2)} vs Avg Cost ₹${overallAvgPrice.toFixed(2)}). Exit 100% (${suggestedSellQuantity} shares) to cap loss; do not split down to 30w-SMA.`;
+      } else if (!hasProfitCushion && (isStopFloorBreached || item.stopFloorBreached)) {
+        explanation = `Unproven Position Stop Breach: Position (< +15% gain) broke stop floor ₹${(stopFloorPrice || item.currentPrice).toFixed(2)} (CMP ₹${item.currentPrice.toFixed(2)}). Exit 100% (${suggestedSellQuantity} shares) to preserve capital.`;
+      } else {
+        explanation = `Confluence of Stage 4 secular downtrend and fundamental deterioration. Full exit candidate (${suggestedSellQuantity} shares) to protect against permanent capital loss.`;
+      }
     } else if (state === 'WATCH') {
       explanation = `${item.weeksBelowAverage} consecutive weekly close(s) below average. Under observation; wait for confirmation before considering a sale.`;
     } else {

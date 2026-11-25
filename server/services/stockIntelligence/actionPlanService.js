@@ -360,7 +360,16 @@ export async function computeActionPlanBase({
       item.executiveStrategy?.extAbove50e ??
       (item.ema50 > 0 && cmp > 0 ? ((cmp - item.ema50) / item.ema50) * 100 : 0)
     ) || 0;
-    const isExtended = stance === 'EXTENDED_RUNNER' || pctEma50 > 16.0;
+    let sma30Val = Number(item.sma30w || item.sma30Week || item.executiveStrategy?.sma30w || 0);
+    if (!sma30Val && history?.[item.symbol]) {
+      const ser = history[item.symbol];
+      const dts = Object.keys(ser).sort();
+      if (dts.length >= 150) {
+        sma30Val = dts.slice(-150).reduce((s, d) => s + (Number(ser[d]) || 0), 0) / 150;
+      }
+    }
+    const pctSma30 = (sma30Val > 0 && cmp > 0) ? ((cmp - sma30Val) / sma30Val) * 100 : 0;
+    const isExtended = stance === 'EXTENDED_RUNNER' || pctEma50 > 15.0 || pctSma30 > 25.0;
 
     // Factor A: Institutional Base Compression & Volatility Contraction Pattern (VCP)
     const riskPct = cmp > 0 && sl > 0 ? Math.abs((cmp - sl) / cmp * 100) : 10;
@@ -456,34 +465,13 @@ export async function computeActionPlanBase({
     const stdBase = Math.round(baseValuation * 0.012);
     const preEarningsFactor = 0.40;
 
-    // Sizing for Brand-New Entries (Zero Existing Exposure)
+    // Sizing for Brand-New Entries (Zero Existing Exposure): Strictly forbid chasing overextended peaks
     if (isExtended) {
-      if (isPrime || isTier2) {
-        // High-conviction extended leader (MPS >= 70 or Strong Buy, like PANACHE MPS 100):
-        // Deploy Ladder 3-tranche disciplined starter: 25% pilot test tranche at CMP to establish initial exposure,
-        // while strictly keeping 75% dry powder reserved for the 50-EMA support pullback.
-        const pilotFactor = 0.25;
-        const targetBase = isPrime ? primeBase : tier2Base;
-        const pilotAlloc = Math.round(targetBase * pilotFactor);
-        const tierLabel = isPrime 
-          ? `Prime Extended Runner Pilot Tranche (25% Starter, ₹${Math.round(pilotAlloc / 1000)}k Staged)`
-          : `High Conviction Extended Runner Pilot Tranche (25% Starter, ₹${Math.round(pilotAlloc / 1000)}k Staged)`;
-        const factors = [
-          tierLabel,
-          `Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA) — 25% pilot entry to capture momentum; 75% dry powder reserved for 50-EMA pullback`
-        ];
-        return {
-          alloc: pilotAlloc,
-          tierLabel,
-          factors,
-          summary: `PILOT STARTER (25% TRANCHE): Price is extended +${pctEma50.toFixed(1)}% above 50-day EMA, but multi-bagger momentum (MPS ${mps}/100) warrants initiating a 25% pilot position (₹${Math.round(pilotAlloc).toLocaleString('en-IN')}) at CMP ₹${cmp}. Keep remaining 75% dry powder for the 50-EMA pullback.`
-        };
-      }
       return {
         alloc: 0,
-        tierLabel: 'Extended Runner (Await Pullback)',
-        factors: [`Extended Runner (+${pctEma50.toFixed(1)}% above 50-EMA)`],
-        summary: `STAND ASIDE (AWAIT PULLBACK): Price is extended +${pctEma50.toFixed(1)}% above 50-day EMA. Await healthy base consolidation or pullback toward 50-EMA support before initiating initial position.`
+        tierLabel: 'Overextended Peak (Await Pullback)',
+        factors: [`Overextended (+${pctSma30.toFixed(1)}% above 30w-SMA, +${pctEma50.toFixed(1)}% above 50-EMA)`],
+        summary: `STAND ASIDE (AWAIT PULLBACK): Price is overextended (+${pctSma30.toFixed(1)}% above 30w-SMA, +${pctEma50.toFixed(1)}% above 50-EMA). Do not chase vertical peaks — await consolidation near support before buying.`
       };
     }
 

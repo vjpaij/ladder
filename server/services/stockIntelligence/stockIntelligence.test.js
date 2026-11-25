@@ -522,10 +522,11 @@ test('Rule 5: Action Plan dynamically sizes subordinate pyramid tranches for own
   assert.ok(plan.immediateBuys, 'Immediate buys must exist');
   assert.ok(plan.queuedBuys, 'Queued buys must exist');
 
-  // Verify that any owned holding in immediate buys has a subordinate tranche, calibrated to dynamic tranche ceiling
+  // Verify that any owned holding in immediate buys has a subordinate tranche, calibrated to dynamic portfolio tranche ceiling
   const ownedImmediate = plan.immediateBuys.filter(b => b.isOwned);
+  const dynamicTrancheMax = Math.max(250000, Math.round((plan.summary?.totalIndianEquityValuation || plan.summary?.totalEquityValuation || 10000000) * 0.035));
   ownedImmediate.forEach(b => {
-    assert.ok(b.actionValue <= 250000, `Owned buy ${b.symbol} actionValue (${b.actionValue}) must not exceed single pyramid tranche size`);
+    assert.ok(b.actionValue <= dynamicTrancheMax, `Owned buy ${b.symbol} actionValue (${b.actionValue}) must not exceed dynamic single pyramid tranche size (${dynamicTrancheMax})`);
   });
 
   // Verify that any holding reaching or exceeding position cap is routed to Queued Buys with 0 shares and CORE HOLD
