@@ -1025,93 +1025,45 @@ export default function StockAnalysisView({ holdings = [], onSelectHolding, onRe
                     );
                   })()}
 
-                  {/* 4. STAGED MULTI-TRANCHE EXIT PLAN & EXECUTION TRACKER */}
+                  {/* 4. UNIFIED EXIT & GTT STOP PLAN (M6 100% RULE) */}
                   {selected.stagedExitPlan && (
                     <div className="mt-4 rounded-2xl border border-[var(--border-color)] reports-subcard p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2">
                           <Layers className="w-4 h-4 text-cyan-400" />
                           <h4 className="text-xs font-bold uppercase tracking-wider text-inherit">
-                            Staged Multi-Tranche Exit Plan
+                            Unified Exit & Broker GTT (100%)
                           </h4>
                         </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                          selected.stagedExitPlan.tranche1?.status === 'READY'
+                            ? 'border-rose-500/40 text-rose-500 dark:text-rose-300 bg-rose-500/20'
+                            : 'border-amber-500/30 text-amber-500 dark:text-amber-300 bg-amber-500/10'
+                        }`}>
+                          {selected.stagedExitPlan.tranche1?.status}
+                        </span>
                       </div>
 
-                      {/* Ledger Audit Status Message */}
-                      {selected.stagedExitPlan.ledgerAudit?.auditMessage && (
-                        <div className="mb-3 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.05] p-2.5 text-[10px] text-cyan-600 dark:text-cyan-200 flex items-center justify-between">
-                          <span>{selected.stagedExitPlan.ledgerAudit.auditMessage}</span>
-                          {selected.stagedExitPlan.ledgerAudit.recentSharesSold > 0 && (
-                            <span className="font-bold text-emerald-500 dark:text-emerald-300 font-mono">
-                              Locked {money(formatMoney, selected.stagedExitPlan.ledgerAudit.totalGrossProceedsLocked)}
-                            </span>
-                          )}
+                      <div className={`rounded-xl border p-3.5 flex flex-wrap items-center justify-between gap-4 ${
+                        selected.stagedExitPlan.tranche1?.status === 'READY'
+                          ? 'border-rose-500/50 bg-rose-500/10'
+                          : 'border-[var(--border-color)] bg-black/[0.02] dark:bg-white/[0.02]'
+                      }`}>
+                        <div>
+                          <div className="text-[11px] font-bold text-inherit">{selected.stagedExitPlan.tranche1?.name}</div>
+                          <div className="text-[11px] text-[var(--text-muted)] mt-0.5">{selected.stagedExitPlan.tranche1?.executionNote}</div>
                         </div>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Tranche 1 Card */}
-                        <div className={`rounded-xl border p-3 flex flex-col justify-between ${
-                          selected.stagedExitPlan.tranche1?.status === 'COMPLETED'
-                            ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
-                            : selected.stagedExitPlan.tranche1?.status === 'READY'
-                              ? 'border-rose-500/50 bg-rose-500/10'
-                              : selected.stagedExitPlan.tranche1?.status === 'PENDING'
-                              ? 'border-rose-500/30 bg-rose-500/[0.05]'
-                              : 'border-[var(--border-color)] reports-subcard opacity-70'
-                        }`}>
-                          <div>
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="text-[10px] font-bold text-inherit">{selected.stagedExitPlan.tranche1?.name}</span>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                                selected.stagedExitPlan.tranche1?.status === 'COMPLETED'
-                                   ? 'border-emerald-500/40 text-emerald-500 dark:text-emerald-300 bg-emerald-500/10'
-                                  : selected.stagedExitPlan.tranche1?.status === 'READY'
-                                    ? 'border-rose-500/40 text-rose-500 dark:text-rose-300 bg-rose-500/20'
-                                  : 'border-amber-500/30 text-amber-500 dark:text-amber-300 bg-amber-500/10'
-                              }`}>
-                                {selected.stagedExitPlan.tranche1?.status}
-                              </span>
-                            </div>
-                            <div className="text-base font-black font-mono text-inherit">
-                              Sell {selected.stagedExitPlan.tranche1?.targetShares?.toLocaleString() ?? '—'} shares
-                            </div>
-                            <div className="text-[10px] text-[var(--text-muted)] mt-1">
-                              First trigger: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche1?.triggerPrice}
+                        <div className="flex items-center gap-5 shrink-0 font-mono">
+                          <div className="text-right">
+                            <div className="text-[9px] uppercase text-[var(--text-muted)] font-bold">Exit Qty</div>
+                            <div className="text-sm font-black text-inherit">
+                              {selected.stagedExitPlan.tranche1?.targetShares?.toLocaleString() ?? '—'} shs (100%)
                             </div>
                           </div>
-                        </div>
-
-                        {/* Tranche 2 Card (Dynamically evaluated on today's remaining shares) */}
-                        <div className={`rounded-xl border p-3 flex flex-col justify-between ${
-                          selected.stagedExitPlan.tranche2?.status === 'COMPLETED'
-                            ? 'border-emerald-500/40 bg-emerald-500/[0.08]'
-                            : selected.stagedExitPlan.tranche2?.status === 'READY'
-                              ? 'border-rose-500/50 bg-rose-500/10'
-                              : selected.stagedExitPlan.tranche2?.status === 'ARMED'
-                                ? 'border-amber-500/30 bg-amber-500/[0.05]'
-                                : 'border-[var(--border-color)] reports-subcard opacity-70'
-                        }`}>
-                          <div>
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="text-[10px] font-bold text-inherit">{selected.stagedExitPlan.tranche2?.name}</span>
-                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                                selected.stagedExitPlan.tranche2?.status === 'COMPLETED'
-                                  ? 'border-emerald-500/40 text-emerald-500 dark:text-emerald-300 bg-emerald-500/10'
-                                  : selected.stagedExitPlan.tranche2?.status === 'READY'
-                                    ? 'border-rose-500/40 text-rose-500 dark:text-rose-300 bg-rose-500/20'
-                                    : selected.stagedExitPlan.tranche2?.status === 'ARMED'
-                                      ? 'border-amber-500/30 text-amber-500 dark:text-amber-300 bg-amber-500/10'
-                                      : 'border-[var(--border-color)] text-[var(--text-muted)]'
-                              }`}>
-                                {selected.stagedExitPlan.tranche2?.status}
-                              </span>
-                            </div>
-                            <div className="text-base font-black font-mono text-inherit">
-                              Sell {selected.stagedExitPlan.tranche2?.targetShares?.toLocaleString() ?? '—'} shares
-                            </div>
-                            <div className="text-[10px] text-[var(--text-muted)] mt-1">
-                              Final trigger: {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche2?.triggerPrice}
+                          <div className="text-right">
+                            <div className="text-[9px] uppercase text-[var(--text-muted)] font-bold">Unified Trigger</div>
+                            <div className="text-sm font-black text-inherit">
+                              {(selected.currency === 'USD' || isUsMarket) ? '$' : '₹'}{selected.stagedExitPlan.tranche1?.triggerPrice ?? '—'}
                             </div>
                           </div>
                         </div>

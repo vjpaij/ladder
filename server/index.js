@@ -56,11 +56,12 @@ import sipsRouter from './routes/sips.js';
 import searchRouter from './routes/search.js';
 import reportsRouter from './routes/reports.js';
 import syncLogsRouter from './routes/syncLogs.js';
-import stockIntelligenceRouter, { runDailyStockAnalysisAudit, warmStockIntelligenceCache } from './routes/stockIntelligence.js';
-import buyAnalysisRouter, { runBuyAnalysisEngine, invalidateBuyCache } from './routes/buyAnalysis.js';
+import stockIntelligenceRouter, { runDailyStockAnalysisAudit, warmStockIntelligenceCache, invalidateStockIntelligenceCache } from './routes/stockIntelligence.js';
+import buyAnalysisRouter, { runBuyAnalysisEngine, invalidateBuyCache, reloadBuySnapshotFromDisk } from './routes/buyAnalysis.js';
 import stockLogosRouter from './routes/stockLogos.js';
 import tradingJournalRouter from './routes/tradingJournal.js';
 import { logSyncEvent } from './services/syncLogService.js';
+import { uploadStockIntelligenceSnapshotsToCloud, restoreStockIntelligenceSnapshotsFromCloud } from './services/stockIntelligence/repository.js';
 
 // Re-export background EOD rebuild helper for backward compatibility
 export { triggerEodRebuildIfPastDate };
@@ -693,11 +694,11 @@ app.listen(PORT, '0.0.0.0', async () => {
             error: code === 0 ? null : `Exit code ${code}`
           });
           if (code === 0) {
-            runDailyStockAnalysisAudit({ trigger: label }).catch(err => {
-              console.warn('[Stock Analysis] EOD audit warning:', err.message);
-            });
-            runBuyAnalysisEngine({ forceRefresh: true }).catch(err => {
-              console.warn('[Buy Analysis] EOD audit warning:', err.message);
+            Promise.all([
+              runDailyStockAnalysisAudit({ trigger: label }).catch(err => console.warn('[Stock Analysis] EOD audit warning:', err.message)),
+              runBuyAnalysisEngine({ forceRefresh: false }).catch(err => console.warn('[Buy Analysis] EOD audit warning:', err.message))
+            ]).then(() => {
+              uploadStockIntelligenceSnapshotsToCloud().catch(() => {});
             });
           }
           armNextRebuild();
@@ -733,13 +734,24 @@ app.listen(PORT, '0.0.0.0', async () => {
   }, 60 * 60 * 1000);
 
   // Trigger daily Stock Analysis and Buy Analysis audit on server startup (local development only)
-  // Cloud containers use warm snapshots (warmStockIntelligenceCache / data/stock_intelligence_overview.json)
+  // Cloud containers defer restore of latest compressed EOD snapshots from Supabase storage (~675 KB, < 0.5% egress)
   if (!process.env.RENDER && process.env.NODE_ENV !== 'production') {
-    runDailyStockAnalysisAudit({ trigger: 'BOOT' }).catch(err => {
-      console.warn('[Stock Analysis] Boot audit warning:', err.message);
+    Promise.all([
+      runDailyStockAnalysisAudit({ trigger: 'BOOT' }).catch(err => console.warn('[Stock Analysis] Boot audit warning:', err.message)),
+      runBuyAnalysisEngine({ forceRefresh: false }).catch(err => console.warn('[Buy Analysis] Boot audit warning:', err.message))
+    ]).then(() => {
+      uploadStockIntelligenceSnapshotsToCloud().catch(() => {});
     });
-    runBuyAnalysisEngine({ forceRefresh: false }).catch(err => {
-      console.warn('[Buy Analysis] Boot audit warning:', err.message);
-    });
+  } else {
+    setTimeout(async () => {
+      try {
+        const res = await restoreStockIntelligenceSnapshotsFromCloud();
+        if (res.restored > 0) {
+          reloadBuySnapshotFromDisk();
+          invalidateStockIntelligenceCache();
+          await warmStockIntelligenceCache();
+        }
+      } catch (_) {}
+    }, 10000);
   }
 });

@@ -212,126 +212,63 @@ function deriveLogicalTrimQuantity({
 function buildStagedExitPlan({ holding, currentPrice, sma30Week, chandelierStopPrice, trailingFloorPrice, state, action, isRecentBuy, pnlFromLatestBuyPct, suggestedSellQuantity, sizingRatio, sizingMethod, ledgerAudit }) {
   const currentQty = Number(holding.quantity) || 0;
   const avgBuyPrice = Number(holding.avg_buy_price || holding.avgBuyPrice || holding.costBasis) || 0;
-  const initialStopPrice = avgBuyPrice > 0 ? Number((avgBuyPrice * 0.92).toFixed(2)) : 0;
+  const initialFlashStop = avgBuyPrice > 0 ? Number((avgBuyPrice * 0.90).toFixed(2)) : 0;
+  const weeklyStopPrice = avgBuyPrice > 0 ? Number((avgBuyPrice * 0.92).toFixed(2)) : 0;
   const stopFloor = Number(trailingFloorPrice || chandelierStopPrice) || 0;
+  const sma30Trigger = Number(sma30Week) > 0 ? Number(Number(sma30Week).toFixed(2)) : (stopFloor > 0 ? Number(stopFloor.toFixed(2)) : Number(currentPrice));
 
-  // For fresh or low-gain positions (< 15%), anchor protective floor to the -8% initial risk defense.
-  // When avgBuyPrice <= 0 (synthetic holding without cost basis), keep standard 2-tranche behavior.
+  // M6 Empirical Rule: Unproven positions (< +15% gain) defend 100% capital with -10% flash / -8% weekly stop.
+  // Proven winners (>= +15% gain) hold 100% until 2 consecutive completed weekly closes below 30-week SMA.
   const hasProfitCushion = avgBuyPrice <= 0 || (pnlFromLatestBuyPct !== null && pnlFromLatestBuyPct !== undefined && Number(pnlFromLatestBuyPct) >= 15);
-  const effectiveStopFloor = (!hasProfitCushion && initialStopPrice > 0)
-    ? Math.max(initialStopPrice, stopFloor)
-    : stopFloor;
-
-  const isFullExit = state === 'FULL_EXIT_CANDIDATE';
+  const isFullExit = state === 'FULL_EXIT_CANDIDATE' || action === 'FULL_EXIT';
   const isRetestHold = action === 'ACCUMULATION_RETEST';
-  const cycleStartQuantity = Math.max(currentQty, currentQty + (ledgerAudit.recentSharesSold || 0) - (ledgerAudit.recentSharesBought || 0));
-  const standardT1Qty = cycleStartQuantity > 0 ? Math.min(cycleStartQuantity, Math.max(1, Math.round(cycleStartQuantity * 0.33))) : 0;
-  const priorTranche1Complete = standardT1Qty > 0 && (ledgerAudit.recentSharesSold || 0) >= standardT1Qty;
 
-  // Single-stage 100% capital defense for unproven/losing positions (< 15% gain and no prior T1 exit).
-  // Reserve the 2-tranche (33% trailing floor / 67% 30w-SMA) split strictly for proven winners (>= 15% gain) riding on profit cushion.
-  const useSingleStageStop = isFullExit || (!hasProfitCushion && !priorTranche1Complete);
+  const triggerPrice1 = hasProfitCushion
+    ? sma30Trigger
+    : (initialFlashStop > 0 ? initialFlashStop : (stopFloor || currentPrice));
 
-  // A falling price crosses the higher protective floor before the lower 30w SMA.
-  const triggers = [Number(sma30Week) || 0, effectiveStopFloor].filter(price => price > 0).sort((a, b) => b - a);
-  const triggerPrice1 = useSingleStageStop
-    ? Number((effectiveStopFloor || triggers[0] || currentPrice).toFixed(2))
-    : Number((triggers[0] || currentPrice).toFixed(2));
-  const triggerPrice2 = useSingleStageStop
-    ? null
-    : Number((triggers[1] || triggerPrice1 * 0.90).toFixed(2));
-
-  // Dynamically calibrate Tranche 1 ratio based on state and risk corridor
-  const dynamicT1Ratio = useSingleStageStop
-    ? 1.0
-    : (sizingRatio && sizingRatio > 0 ? Math.min(1.0, Math.max(0.20, sizingRatio)) : 0.33);
-
-  const tranche1Quantity = useSingleStageStop
-    ? currentQty
-    : (cycleStartQuantity > 0
-      ? Math.min(cycleStartQuantity, Math.max(1, Math.round(cycleStartQuantity * dynamicT1Ratio)))
-      : 0);
-
-  const stagedPositionQuantity = Math.max(currentQty, currentQty + (ledgerAudit.recentSharesSold || 0));
-  const remainingAfterTranche1 = Math.max(0, stagedPositionQuantity - tranche1Quantity);
-
-  const tranche1Complete = !useSingleStageStop && tranche1Quantity > 0 && (ledgerAudit.recentSharesSold || 0) >= tranche1Quantity;
-  const tranche2Quantity = useSingleStageStop
-    ? 0
-    : (tranche1Complete ? currentQty : Math.max(0, remainingAfterTranche1));
-  const tranche2Complete = useSingleStageStop
-    ? (isFullExit && currentQty === 0)
-    : (tranche1Complete && currentQty === 0);
-
-  const tranche1Triggered = !isRetestHold && currentPrice <= triggerPrice1;
-  const tranche2Breached = !useSingleStageStop && triggerPrice2 !== null && currentPrice <= triggerPrice2;
-  const tranche2Triggered = !isRetestHold && tranche2Breached && !tranche2Complete;
-
-  const catchUpSellQuantity = useSingleStageStop
-    ? (isFullExit || tranche1Triggered ? currentQty : 0)
-    : (isRetestHold ? 0 : Math.min(currentQty,
-        (tranche1Triggered && !tranche1Complete ? tranche1Quantity : 0)
-        + (tranche2Breached && !tranche2Complete ? tranche2Quantity : 0)));
-
-  const totalActionShares = useSingleStageStop
-    ? (isFullExit || tranche1Triggered ? currentQty : 0)
-    : (isRetestHold ? 0 : Math.min(currentQty,
-        (tranche1Triggered && !tranche1Complete ? tranche1Quantity : 0)
-        + (tranche2Triggered ? tranche2Quantity : 0)));
+  const tranche1Triggered = !isRetestHold && (isFullExit || (hasProfitCushion ? false : (currentPrice <= triggerPrice1)));
+  const totalActionShares = isFullExit ? currentQty : 0;
 
   const tranche1 = {
-    name: useSingleStageStop ? 'Full Capital Defense (-8% / Stop Floor)' : 'Tranche 1 (Initial Stop-Floor Trim)',
-    targetShares: tranche1Quantity,
+    name: hasProfitCushion
+      ? '100% Trend Exit (2-Wk Close < 30w-SMA)'
+      : '100% Capital Defense (-10% Flash / -8% Weekly)',
+    targetShares: currentQty,
     triggerPrice: triggerPrice1,
-    status: tranche1Complete ? 'COMPLETED' : (isRetestHold ? 'PENDING' : (tranche1Quantity > 0 ? ((isFullExit || tranche1Triggered) ? 'READY' : 'PENDING') : 'INACTIVE')),
-    executionNote: tranche1Complete
-      ? `Tranche 1 completed from recent ledger sales (${ledgerAudit.recentSharesSold} sold, ${ledgerAudit.recentSharesBought} bought).`
-      : isRetestHold
-        ? `Holding through initial 5-day noise buffer (P&L ${pnlFromLatestBuyPct >= 0 ? '+' : ''}${pnlFromLatestBuyPct}%). Full 100% risk stop triggers at ₹${triggerPrice1} (-8% max loss).`
-        : useSingleStageStop
-          ? ((isFullExit || tranche1Triggered)
-            ? `Full capital defense triggered at ₹${triggerPrice1}. Exit 100% (${tranche1Quantity} shares) to cap loss; do not split to distant 30w-SMA.`
-            : `Unproven position (< +15% gain): 100% capital defense (${tranche1Quantity} shares) anchored at ₹${triggerPrice1}.`)
-          : tranche1Triggered
-            ? `First stage triggered. Review selling ${tranche1Quantity} shares; estimated remaining position: ${Math.max(0, currentQty - tranche1Quantity)} shares.`
-            : `At or below ₹${triggerPrice1}, review selling ${tranche1Quantity} shares as the first stage.`
+    weeklyTriggerPrice: hasProfitCushion ? sma30Trigger : weeklyStopPrice,
+    status: isRetestHold ? 'PENDING' : (currentQty > 0 ? (tranche1Triggered ? 'READY' : 'PENDING') : 'INACTIVE'),
+    executionNote: isRetestHold
+      ? `Initial retest buffer. Hard -10% flash stop at ₹${triggerPrice1} (-8% weekly close at ₹${weeklyStopPrice}).`
+      : isFullExit
+        ? `100% exit triggered (${currentQty} shares).`
+        : hasProfitCushion
+          ? `Hold 100% (${currentQty} shares) through daily noise; exit only on 2 consecutive Friday closes below 30w-SMA (₹${triggerPrice1}).`
+          : `Unproven (< +15% gain): 100% stop at ₹${triggerPrice1} (-10% flash) / ₹${weeklyStopPrice} (-8% Friday close).`
   };
 
-  const tranche2 = useSingleStageStop
-    ? {
-        name: 'Tranche 2 (Unlocked at +15% Gain)',
-        targetShares: 0,
-        triggerPrice: null,
-        status: 'INACTIVE',
-        executionNote: `Position has < +15% profit cushion. 100% of shares are protected at ₹${triggerPrice1} (no partial hold down to 30w-SMA).`
-      }
-    : {
-        name: 'Tranche 2 (Structural Trend Breakdown)',
-        targetShares: tranche2Quantity,
-        triggerPrice: triggerPrice2,
-        status: tranche2Complete ? 'COMPLETED' : (isRetestHold ? 'PENDING' : (tranche2Triggered ? 'READY' : (tranche2Breached ? 'ARMED' : 'PENDING'))),
-        executionNote: tranche2Complete
-          ? `Position fully exited in ledger (${ledgerAudit.recentSharesSold} shares sold).`
-          : isRetestHold
-            ? `Holding core position. Tranche 2 exit triggers if price falls below 30-week SMA at ₹${triggerPrice2}.`
-            : tranche2Triggered && !tranche1Complete
-              ? `Price has crossed both stage triggers before Tranche 1 was recorded. Catch up by reviewing full exit of ${catchUpSellQuantity} shares.`
-              : tranche2Triggered
-                ? `Structural trend breakdown below 30-week SMA. Review final exit of remaining ${tranche2Quantity} shares; no order placed automatically.`
-                : `If price falls below 30-week SMA at ₹${triggerPrice2}, review final exit of remaining ${tranche2Quantity} shares.`
-      };
+  const tranche2 = {
+    name: 'Single-Stage M6 Unified Exit',
+    targetShares: 0,
+    triggerPrice: null,
+    status: 'INACTIVE',
+    executionNote: hasProfitCushion
+      ? 'No partial trims — 100% rides with 2-week 30w-SMA trend confirmation.'
+      : 'No 33%/67% split — 100% exit protects initial capital cleanly.'
+  };
 
   return {
     tranche1,
     tranche2,
-    isSingleStageStop: useSingleStageStop,
+    isSingleStageStop: true,
+    hasProfitCushion,
     totalActionShares,
-    catchUpSellQuantity,
+    catchUpSellQuantity: totalActionShares,
     ledgerAudit: {
       ...ledgerAudit,
       auditMessage: ledgerAudit.recentSharesSold > 0
-        ? `Executed sale detected: ${ledgerAudit.recentSharesSold} shares sold recently.${ledgerAudit.recentSharesBought > 0 ? ` (+${ledgerAudit.recentSharesBought} shares bought since).` : ''} Current balance today is ${currentQty} shares.`
-        : 'No recent sales recorded in the ledger for this holding.'
+        ? `Recent ledger activity: ${ledgerAudit.recentSharesSold} sold${ledgerAudit.recentSharesBought > 0 ? `, ${ledgerAudit.recentSharesBought} bought` : ''}. Balance: ${currentQty} shares.`
+        : 'Active holding: 100% unified exit rule active.'
     }
   };
 }
@@ -651,79 +588,64 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     const isIpoHolding = Boolean(!isDataUnavailable && item.isIpo && item.dailyObservations >= 10 && item.dataQuality !== 'PRICE_HISTORY_QUOTE_MISMATCH');
     const hasProfitCushion = !hasKnownCostBasis || (overallPnlPct !== null && overallPnlPct !== undefined && Number(overallPnlPct) >= 15);
 
-    // 2. Confluence Decision State Evaluation
+    const isWeeklyBelow8Pct = Boolean(hasKnownCostBasis && !hasProfitCushion && item.weeklyClose > 0 && overallAvgPrice > 0 && item.weeklyClose <= overallAvgPrice * 0.92);
+    const is2WkBelowSma30 = Boolean((item.weeksBelowAverage >= 2 && item.sma30Week > 0) || isTechBreakdown);
+
+    // 2. M6 Empirical Confluence Decision Evaluation (100% Unified Exit)
     if (isDataUnavailable) {
       state = 'DATA_UNAVAILABLE';
       action = 'NO_RECOMMENDATION';
     } else if (isIpoHolding) {
-      // Adaptive IPO Crash & Risk Protection Engine
+      // Adaptive IPO Protection (M6): -10% Flash Cut or -8% Weekly Close when unproven; weekly trailing break if in profit
       if (overallPnlPct <= -20.0 || (item.ipoLow > 0 && item.currentPrice < item.ipoLow * 0.85)) {
-        // Severe crash circuit-breaker (loss >= 20% or severe break below post-listing low) = Full Exit
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (overallPnlPct <= -8.0) {
-        // Universal hard risk circuit-breaker: Loss exceeds 8% tolerance threshold from entry = 100% Full Exit
+      } else if (hasKnownCostBasis && overallPnlPct <= -10.0) {
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (isRecentBuy && (isStopFloorBreached || item.stopFloorBreached || has4RedBreakdown || isTechBreakdown)) {
-        // Fresh buy noise buffer: Within initial 5 trading days with loss < 8%, allow normal breakout retests without panic sell-offs
+      } else if (isWeeklyBelow8Pct) {
+        state = 'FULL_EXIT_CANDIDATE';
+        action = 'FULL_EXIT';
+      } else if (isRecentBuy && overallPnlPct < 0) {
         state = 'NORMAL';
         action = 'ACCUMULATION_RETEST';
-      } else if (!hasProfitCushion && (isStopFloorBreached || item.stopFloorBreached)) {
-        // Unproven IPO position (< +15% gain) breaching stop floor = 100% Full Exit
+      } else if (hasProfitCushion && item.trailingFloorPrice > 0 && item.weeklyClose > 0 && item.weeklyClose <= item.trailingFloorPrice) {
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (isStopFloorBreached || item.stopFloorBreached || has4RedBreakdown) {
-        // Adaptive stop floor breach or 4-red breakdown (with profit cushion)
-        state = 'TECHNICAL_TRIM_CANDIDATE';
-        action = 'REVIEW_PARTIAL_SALE';
       } else {
-        // Healthy Adaptive IPO Base: Holding safely above adaptive trailing floor and circuit breaker
         state = 'NORMAL';
         action = 'HOLD_AND_COMPOUND';
       }
     } else {
-      // Standard Weinstein 30-Week SMA & Fundamental Confluence Engine
-      if ((isTechBreakdown || isStage4Bear) && (isFundsDecaying || isGovernanceRedFlag)) {
-        // Confluence of structural bear/breakdown and fundamental deterioration = Full Exit
+      // M6 Institutional Weekly Trend & Risk Engine
+      if (hasKnownCostBasis && overallPnlPct !== null && overallPnlPct !== undefined && overallPnlPct <= -10.0) {
+        // -10% Flash Risk Guard: Exit 100% immediately to cap downside
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (hasKnownCostBasis && overallPnlPct !== null && overallPnlPct !== undefined && overallPnlPct <= -8.0) {
-        // Universal -8% Hard Risk Circuit-Breaker on overall position: exit 100% (never leave 67% exposed to distant 30w-SMA)
+      } else if (isWeeklyBelow8Pct) {
+        // -8% Weekly Close Failure (< +15% unproven): Exit 100% cleanly
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (isRecentBuy && (isStopFloorBreached || has4RedBreakdown || isTechBreakdown)) {
-        // Fresh buy noise buffer: Within initial 5 trading days with loss < 8%, allow normal breakout retests without panic sell-offs
+      } else if (!hasProfitCushion && (is2WkBelowSma30 && isStage4Bear)) {
+        // Structural bear breakdown on unproven holding
+        state = 'FULL_EXIT_CANDIDATE';
+        action = 'FULL_EXIT';
+      } else if (!hasProfitCushion) {
+        // Unproven (< +15%): Ignore 1-day news drops, 4-red-candles, and weekday Chandelier noise above -10%
         state = 'NORMAL';
-        action = 'ACCUMULATION_RETEST';
-      } else if (!hasProfitCushion && (isStopFloorBreached || item.stopFloorBreached)) {
-        // Unproven position (< +15% gain) breaching stop floor = 100% Full Exit
+        action = isRecentBuy && overallPnlPct < 0 ? 'ACCUMULATION_RETEST' : 'HOLD_AND_COMPOUND';
+      } else if (is2WkBelowSma30 || ((isTechBreakdown || isStage4Bear) && (isFundsDecaying || isGovernanceRedFlag))) {
+        // Proven Winner (>= +15%): 2 consecutive Friday weekly closes below 30w-SMA -> 100% Exit
         state = 'FULL_EXIT_CANDIDATE';
         action = 'FULL_EXIT';
-      } else if (isStopFloorBreached) {
-        // Proven winner (>= +15% gain) breaching stop floor = Tranche 1 partial trim (keep core on 30w-SMA)
-        state = 'TECHNICAL_TRIM_CANDIDATE';
-        action = 'REVIEW_PARTIAL_SALE';
-      } else if (has4RedBreakdown) {
-        // 4 consecutive daily red candles closed below 21-EMA (>= 5% below EMA)
-        state = 'TECHNICAL_TRIM_CANDIDATE';
-        action = 'REVIEW_PARTIAL_SALE';
-      } else if (isTechBreakdown) {
-        // 3 completed weekly closes below falling 30-week SMA
-        state = 'TECHNICAL_TRIM_CANDIDATE';
-        action = 'REVIEW_PARTIAL_SALE';
-      } else if (isStage2Bull && !isGovernanceRedFlag && !isStopFloorBreached && !has4RedBreakdown && !isSeverePatCollapse) {
-        // Multi-Bagger Compounding Guard Active: healthy Stage 2 trading safely above safety corridor.
-        state = 'NORMAL';
-        action = 'HOLD_AND_COMPOUND';
-      } else if (isFundsDecaying) {
-        state = 'FUNDAMENTAL_TRIM_CANDIDATE';
-        action = 'REVIEW_FUNDAMENTAL_TRIM';
-      } else if (item.state === 'WATCH') {
+      } else if (item.weeksBelowAverage === 1 || item.state === 'WATCH') {
+        // 1 weekly close below 30w-SMA: Watch only, await 2nd Friday close before selling
+        state = 'WATCH';
         action = 'MONITOR';
       } else {
+        // Healthy Winner Compounding: Ignore all weekday volatility and let compounders run 100%
         state = 'NORMAL';
-        action = 'HOLD';
+        action = 'HOLD_AND_COMPOUND';
       }
     }
 
@@ -767,58 +689,20 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
     if (action === 'ACCUMULATION_RETEST') {
       suggestedSellQuantity = 0;
       sizingMethod = `Fresh buy within 5-day noise corridor (P&L ${pnlFromLatestBuyPct >= 0 ? '+' : ''}${pnlFromLatestBuyPct}%). Holding through initial retest volatility without premature exit.`;
-    } else if (state === 'FULL_EXIT_CANDIDATE') {
+    } else if (state === 'FULL_EXIT_CANDIDATE' || action === 'FULL_EXIT') {
       suggestedSellQuantity = item.quantity;
-      sizingMethod = `Full thesis liquidation: 100% of remaining position (${item.quantity} shares) to protect capital against structural breakdown.`;
+      sizingMethod = `M6 Unified 100% Exit (${item.quantity} shares) triggered cleanly by confirmed capital-defense or weekly 30w-SMA rule.`;
     } else if (config?.maxPositionWeightPct && currentWeightPct > config.maxPositionWeightPct && baseSizing.quantity > 0) {
       state = 'PORTFOLIO_RISK_TRIM';
       action = 'REVIEW_RISK_TRIM';
       suggestedSellQuantity = baseSizing.quantity;
       sizingMethod = baseSizing.method;
-    } else if (isT1Done && !isT2Ready) {
-      // Tranche 1 is already completed in ledger and 30-week SMA (Tranche 2) has not broken:
-      // Hold remaining core position! Zero additional sales today.
-      suggestedSellQuantity = 0;
-      action = 'HOLD';
-      sizingMethod = `Tranche 1 completed (${ledgerAudit.recentSharesSold} shares sold). Holding core position (${item.quantity} shares) until 30-week SMA breakdown.`;
-    } else if (isT1Done && isT2Ready) {
-      // Tranche 1 was completed, and now Tranche 2 is triggered: Structural exit of all remaining shares!
-      suggestedSellQuantity = stagedExitPlan.tranche2?.targetShares || item.quantity;
-      action = 'SELL_ALL';
-      sizingMethod = `Structural trend breakdown: Live CMP ₹${item.currentPrice.toFixed(2)} is below 30-week SMA ₹${stagedExitPlan.tranche2?.triggerPrice}. Final Tranche 2 exit of remaining ${suggestedSellQuantity} shares.`;
-    } else if (isRecentBuy && pnlFromLatestBuyPct <= -8.0) {
-      // Hard risk circuit-breaker for fresh buy (Tranche 1 not yet completed)
-      suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
-      action = 'REVIEW_PARTIAL_SALE';
-      sizingMethod = `Fresh position hard risk cut: Dropped ${pnlFromLatestBuyPct}% below entry price ₹${latestBuyPrice.toFixed(2)} (exceeded 8% maximum loss threshold). De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
-    } else if (isIpoHolding && (pnlFromLatestBuyPct <= -8.0 || isStopFloorBreached)) {
-      // Adaptive IPO risk cut (Tranche 1 not yet completed)
-      suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || Math.max(1, Math.round(item.quantity * 0.33));
-      action = 'REVIEW_PARTIAL_SALE';
-      sizingMethod = `Adaptive IPO risk cut: Live CMP ₹${item.currentPrice.toFixed(2)} (entry ₹${latestBuyPrice.toFixed(2)}, P&L ${pnlFromLatestBuyPct}%) breached adaptive stop floor ₹${(stopFloorPrice || item.currentPrice).toFixed(2)}. De-risking Tranche 1 (${suggestedSellQuantity} shares).`;
-    } else if (isT2Ready && !isIpoHolding && !isRecentBuy) {
-      // Deep breach below both stop floor and 30-week SMA before Tranche 1 was recorded: full thesis exit!
-      suggestedSellQuantity = item.quantity;
-      action = 'SELL_ALL';
-      sizingMethod = `Structural trend breakdown: Live CMP ₹${item.currentPrice.toFixed(2)} is below 30-week SMA ₹${stagedExitPlan.tranche2?.triggerPrice}. Full exit of ${suggestedSellQuantity} shares.`;
-    } else if (state === 'FUNDAMENTAL_TRIM_CANDIDATE') {
-      // Tranche 1 fundamental trim
-      suggestedSellQuantity = stagedExitPlan.tranche1?.targetShares || baseSizing.quantity;
-      sizingMethod = baseSizing.method;
-    } else if (state === 'TECHNICAL_TRIM_CANDIDATE') {
-      const planShares = stagedExitPlan.totalActionShares > 0
-        ? stagedExitPlan.totalActionShares
-        : (baseSizing.quantity > 0 ? baseSizing.quantity : Math.max(1, Math.round(item.quantity * 0.33)));
-      suggestedSellQuantity = Math.min(item.quantity, planShares);
-
-      if (isStopFloorBreached) {
-        const breachFloorStr = stopFloorPrice ? stopFloorPrice.toFixed(2) : '—';
-        sizingMethod = stagedExitPlan.catchUpSellQuantity > stagedExitPlan.tranche1?.targetShares
-          ? `Multiple triggers breached below ₹${breachFloorStr}. Staged catch-up: Sell ${suggestedSellQuantity} shares across breached tranches.`
-          : `Trailing stop floor breached at ₹${item.currentPrice.toFixed(2)} (floor ₹${breachFloorStr}). Review Tranche 1 staged trim of ${suggestedSellQuantity} shares.`;
-      } else if (has4RedBreakdown) {
-        sizingMethod = `4 consecutive red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review defensive Tranche 1 trim of ${suggestedSellQuantity} shares.`;
-      }
+    } else if (state === 'WATCH' || action === 'MONITOR') {
+      suggestedSellQuantity = null;
+      sizingMethod = `Watch (1 weekly close < 30w-SMA): Await 2nd consecutive Friday weekly close below ₹${Number(item.sma30Week || 0).toFixed(2)} before selling.`;
+    } else if (action === 'HOLD_AND_COMPOUND') {
+      suggestedSellQuantity = null;
+      sizingMethod = stagedExitPlan.tranche1?.executionNote || `Holding 100% (${item.quantity} shares) cleanly above M6 trigger ₹${stagedExitPlan.tranche1?.triggerPrice || '—'}.`;
     }
 
     // 5. Principal Harvest ("Free Ride") Option
@@ -856,8 +740,12 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       explanation = `Short-term breakdown: 4 consecutive daily red candles closed below 21-day EMA (${item.distanceToDailyEma21Pct}% below EMA). Review trimming Tranche 1 (${suggestedSellQuantity} shares) to de-risk.`;
     } else if (compoundingShield.isActive) {
       explanation = isIpoHolding
-        ? `Adaptive IPO Shield Active: Trading safely above adaptive trailing floor (+${item.bufferToTrailingFloorPct}% buffer to stop ₹${item.trailingFloorPrice}). 30-week SMA baseline is establishing.`
-        : `Compounding Active: Weekly closes remain intact above the 30-week average (+${item.bufferToTrailingFloorPct}% buffer to trailing stop ₹${item.trailingFloorPrice}). The system advises letting this winner run without premature profit-taking.`;
+        ? (hasProfitCushion
+            ? `Adaptive IPO Shield Active: Trading safely above adaptive trailing floor (+${item.bufferToTrailingFloorPct}% buffer to stop ₹${item.trailingFloorPrice}).`
+            : `Adaptive IPO Shield Active: Hold 100% above M6 capital-defense stop ₹${stagedExitPlan.tranche1?.triggerPrice} (-10% flash) / ₹${stagedExitPlan.tranche1?.weeklyTriggerPrice} (-8% Friday close).`)
+        : (hasProfitCushion
+            ? `Compounding Active: Holding 100% above 30w-SMA (₹${Number(item.sma30Week || 0).toFixed(2)}). Ignore weekday noise.`
+            : `Above stop protection (₹${overallAvgPrice > 0 ? (overallAvgPrice * 0.90).toFixed(2) : '—'}). Hold 100%.`);
     } else if (state === 'TECHNICAL_TRIM_CANDIDATE') {
       explanation = `Three completed weekly closes are below a falling 30-week average (CMP ₹${item.currentPrice} vs SMA ₹${item.sma30Week?.toFixed(1)}). Review trimming Tranche 1 (${suggestedSellQuantity} shares) while letting core position ride.`;
     } else if (state === 'FUNDAMENTAL_TRIM_CANDIDATE') {
@@ -865,17 +753,21 @@ export function buildStockAnalyses(holdings, historicalPriceMap, { today, backte
       const patNote = patDrop !== null && patDrop !== undefined ? ` (YoY PAT ${patDrop > 0 ? `+${patDrop}%` : `${patDrop}%`})` : '';
       explanation = `Fundamentals show earnings deterioration (${item.fundamentals?.opmTrendDirection?.toLowerCase()} margins at ${item.fundamentals?.latestOpmPct || '—'}%${patNote}). Review trimming ${suggestedSellQuantity} shares in line with earnings deceleration.`;
     } else if (state === 'FULL_EXIT_CANDIDATE') {
-      if (hasKnownCostBasis && overallPnlPct <= -8.0) {
-        explanation = `Hard -8% Risk Cut: Position is down ${overallPnlPct}% (CMP ₹${item.currentPrice.toFixed(2)} vs Avg Cost ₹${overallAvgPrice.toFixed(2)}). Exit 100% (${suggestedSellQuantity} shares) to cap loss; do not split down to 30w-SMA.`;
-      } else if (!hasProfitCushion && (isStopFloorBreached || item.stopFloorBreached)) {
-        explanation = `Unproven Position Stop Breach: Position (< +15% gain) broke stop floor ₹${(stopFloorPrice || item.currentPrice).toFixed(2)} (CMP ₹${item.currentPrice.toFixed(2)}). Exit 100% (${suggestedSellQuantity} shares) to preserve capital.`;
+      if (hasKnownCostBasis && overallPnlPct <= -10.0) {
+        explanation = `-10% Flash Stop Breached: Down ${overallPnlPct}% vs Avg ₹${overallAvgPrice.toFixed(2)}. Exit 100% (${suggestedSellQuantity} shs).`;
+      } else if (isWeeklyBelow8Pct) {
+        explanation = `-8% Weekly Close Failure: Closed week at ₹${item.weeklyClose?.toFixed(2)} vs Avg ₹${overallAvgPrice.toFixed(2)}. Exit 100% (${suggestedSellQuantity} shs).`;
+      } else if (is2WkBelowSma30) {
+        explanation = `${item.weeksBelowAverage >= 2 ? '2 Consecutive Weekly Closes' : 'Confirmed Trend Break'} Below 30w-SMA (₹${Number(item.sma30Week || 0).toFixed(2)}). Exit 100% (${suggestedSellQuantity} shs).`;
       } else {
-        explanation = `Confluence of Stage 4 secular downtrend and fundamental deterioration. Full exit candidate (${suggestedSellQuantity} shares) to protect against permanent capital loss.`;
+        explanation = `Bearish breakdown with fundamental deterioration. Exit 100% (${suggestedSellQuantity} shs).`;
       }
     } else if (state === 'WATCH') {
-      explanation = `${item.weeksBelowAverage} consecutive weekly close(s) below average. Under observation; wait for confirmation before considering a sale.`;
+      explanation = `1 weekly close below 30w-SMA (₹${Number(item.sma30Week || 0).toFixed(2)}). Awaiting 2nd Friday close before exit.`;
     } else {
-      explanation = `Trend and fundamentals remain within normal fluctuation bounds. No exit trigger.`;
+      explanation = hasProfitCushion
+        ? `Healthy winner (+${overallPnlPct}%): Hold 100% through daily noise above 30w-SMA (₹${Number(item.sma30Week || 0).toFixed(2)}).`
+        : `Above stop protection (₹${overallAvgPrice > 0 ? (overallAvgPrice * 0.90).toFixed(2) : '—'}). Hold 100%.`;
     }
 
     return {
@@ -954,73 +846,49 @@ export function resolveCanonicalGttOrder(a, activeGtt = null) {
   const sma30 = round2(a.sma30Week || a.sma30 || 0);
   const atrFloor = round2(a.trailingFloorPrice || a.chandelierStopPrice || 0);
 
-  const t1Status = a.stagedExitPlan?.tranche1?.status || a.tranche1Status || 'PENDING';
-  const t2Status = a.stagedExitPlan?.tranche2?.status || a.tranche2Status || 'PENDING';
-  const isT1Done = t1Status === 'COMPLETED' && t2Status !== 'INACTIVE';
-  const t1Shares = Number(a.stagedExitPlan?.tranche1?.targetShares || a.tranche1Shares) || Math.max(1, Math.round(qty * 0.33));
   const t1Trigger = round2(a.stagedExitPlan?.tranche1?.triggerPrice || a.tranche1Trigger || 0);
-  const t2Trigger = round2(a.stagedExitPlan?.tranche2?.triggerPrice || a.tranche2Trigger || sma30 || 0);
-  const isSingleStage = Boolean(a.stagedExitPlan?.isSingleStageStop) || (!isT1Done && pnlPct < 15);
+  const hasProfitCushion = avg <= 0 || pnlPct >= 15;
 
   let action = 'MAINTAIN GTT SL';
   let actionType = 'MAINTAIN';
   let targetSlPrice = 0;
-  let targetQty = qty;
-  let trancheStage = 'FULL CAPITAL DEFENSE (100%)';
-  let tier = 'INITIAL_8PCT';
+  const targetQty = qty;
+  let trancheStage = 'CAPITAL DEFENSE (100%)';
+  let tier = 'INITIAL_10PCT';
   let reason = '';
-  let badgeColor = 'blue';
+  let badgeColor = 'amber';
 
-  if (isT1Done) {
-    targetSlPrice = t2Trigger > 0 ? t2Trigger : (sma30 > 0 ? sma30 : round2(avg * 1.05));
-    targetQty = qty;
-    trancheStage = 'TRANCHE 2 (CORE RUNNER)';
-    tier = 'TRANCHE2_CORE_RUNNER';
-    action = 'AMEND GTT SL -> 30W-SMA (CORE RUNNER)';
+  if (hasProfitCushion) {
+    targetSlPrice = sma30 > 0 ? sma30 : (t1Trigger > 0 ? t1Trigger : (atrFloor > 0 ? atrFloor : round2(avg * 1.05)));
+    trancheStage = '30W-SMA TREND EXIT (100%)';
+    tier = 'SMA30_TREND_EXIT';
+    action = 'AMEND GTT SL -> 30W-SMA (100%)';
     actionType = 'AMEND_CORE_RUNNER';
     badgeColor = 'cyan';
-    reason = `Tranche 1 completed (locked profit). Core position (${targetQty} shs) riding on house money to test 30W-SMA support at ₹${targetSlPrice.toFixed(2)}. Amend broker GTT to 30W-SMA.`;
-  } else if (isSingleStage) {
-    targetSlPrice = t1Trigger > 0 ? t1Trigger : Math.max(round2(avg * 0.92), atrFloor);
-    targetQty = qty;
-    trancheStage = 'FULL CAPITAL DEFENSE (100%)';
-    tier = 'INITIAL_8PCT';
-    action = 'SET GTT SL -> 100% CAPITAL DEFENSE';
+    reason = `Winner (+${pnlPct.toFixed(1)}%): Protect 100% (${targetQty} shs) at 30W-SMA (₹${targetSlPrice.toFixed(2)}); exit only on 2 consecutive weekly closes below SMA.`;
+  } else {
+    targetSlPrice = t1Trigger > 0 ? t1Trigger : round2(avg * 0.90);
+    trancheStage = 'CAPITAL DEFENSE (100%)';
+    tier = 'INITIAL_10PCT';
+    action = 'SET GTT SL -> -10% FLASH (100%)';
     actionType = 'SET_INITIAL';
     badgeColor = 'amber';
-    reason = `Unproven position (< +15% gain): Protect 100% of shares (${targetQty} shs) at ₹${targetSlPrice.toFixed(2)} (-8.0% / trailing stop floor). No partial split to 30w-SMA.`;
-  } else if (pnlPct < 30) {
-    targetSlPrice = t1Trigger > 0 ? t1Trigger : Math.max(round2(avg * 1.01), atrFloor);
-    targetQty = Math.min(qty, t1Shares);
-    trancheStage = 'TRANCHE 1 TRIM (33%)';
-    tier = 'BREAKEVEN_LOCK';
-    action = 'AMEND GTT SL -> TRANCHE 1 (BREAKEVEN)';
-    actionType = 'AMEND_BREAKEVEN';
-    badgeColor = 'emerald';
-    reason = `Breakeven Lock: Position is up +${pnlPct.toFixed(1)}%. Protect Tranche 1 trim (${targetQty} of ${qty} shs) at ₹${targetSlPrice.toFixed(2)}. Keep remaining ${qty - targetQty} core shares riding on 30w-SMA.`;
-  } else {
-    targetSlPrice = t1Trigger > 0 ? t1Trigger : Math.max(ema50, atrFloor, round2(avg * 1.15));
-    targetQty = Math.min(qty, t1Shares);
-    trancheStage = 'TRANCHE 1 TRIM (33%)';
-    tier = 'TRANCHE1_TRIM';
-    action = 'SET GTT SL -> TRANCHE 1 TRIM (33%)';
-    actionType = 'SET_TRANCHE1_TRIM';
-    badgeColor = 'purple';
-    const floorRef = targetSlPrice === ema50 ? '50-day EMA' : (targetSlPrice === atrFloor ? 'Chandelier ATR Floor' : 'Trailing Profit Lock');
-    reason = `Tranche 1 Profit Lock: Up +${pnlPct.toFixed(1)}%. Place GTT SL for ${targetQty} of ${qty} shares (33% trim) at ₹${targetSlPrice.toFixed(2)} (${floorRef}). Keep remaining ${qty - targetQty} core shares riding on 30w-SMA.`;
+    reason = `Unproven (< +15% gain): Protect 100% (${targetQty} shs) at ₹${targetSlPrice.toFixed(2)} (-10% flash / -8% Friday close).`;
   }
 
   const activeGttPrice = activeGtt && Number(activeGtt.triggerPrice) > 0 ? round2(Number(activeGtt.triggerPrice)) : null;
   const activeGttQty = activeGtt && Number(activeGtt.targetQty) > 0 ? Number(activeGtt.targetQty) : null;
-  const isTierTransition = (tier === 'TRANCHE2_CORE_RUNNER' && activeGtt?.tier !== 'TRANCHE2_CORE_RUNNER');
+  const isTierTransition = (tier === 'SMA30_TREND_EXIT' && activeGtt?.tier !== 'SMA30_TREND_EXIT');
 
+  // Ratchet forward on 30w-SMA upgrades without letting unproven stops creep down
   if (!isTierTransition && cmp > 0 && targetSlPrice < cmp) {
     if (activeGttPrice !== null && targetSlPrice < activeGttPrice && activeGttPrice < cmp) {
       targetSlPrice = activeGttPrice;
     }
   }
 
-  const isBreached = cmp > 0 && targetSlPrice > 0 && cmp <= targetSlPrice;
+  const isPriceBelowTrigger = cmp > 0 && targetSlPrice > 0 && cmp <= targetSlPrice;
+  const isConfirmedExit = a.state === 'FULL_EXIT_CANDIDATE' || a.action === 'FULL_EXIT' || (!hasProfitCushion && isPriceBelowTrigger);
   let gttStatus = 'ACTION_REQUIRED_NEW';
   let gttStatusLabel = 'ACTION: SET NEW GTT';
   let gttStatusBadge = 'amber';
@@ -1028,13 +896,20 @@ export function resolveCanonicalGttOrder(a, activeGtt = null) {
   let slDeltaPct = 0;
   let isActionRequired = true;
 
-  if (isBreached) {
+  if (isConfirmedExit) {
     gttStatus = 'STOP_BREACHED_SELL_NOW';
     gttStatusLabel = 'STOP BREACHED — SELL NOW';
     gttStatusBadge = 'rose';
     isActionRequired = true;
-    action = isSingleStage || isT1Done ? 'EXECUTE FULL EXIT NOW' : 'EXECUTE TRANCHE 1 SELL NOW';
-    reason = `STOP BREACHED: Live CMP ₹${cmp.toFixed(2)} is at/below stop trigger ₹${targetSlPrice.toFixed(2)}. Execute market/limit sell for ${targetQty} shs immediately (matches Sell Analysis).`;
+    action = 'EXECUTE 100% EXIT NOW';
+    reason = `FULL EXIT TRIGGERED: Exit 100% (${targetQty} shs) at CMP ₹${cmp.toFixed(2)} (trigger ₹${targetSlPrice.toFixed(2)}, matches Sell Analysis).`;
+  } else if (hasProfitCushion && isPriceBelowTrigger) {
+    // Mid-week dip below 30w-SMA not yet confirmed on 2 Friday closes
+    gttStatus = 'WATCH_WEEKLY_CLOSE';
+    gttStatusLabel = 'WATCH (AWAIT 2-WK CLOSE)';
+    gttStatusBadge = 'amber';
+    isActionRequired = false;
+    reason = `Mid-week test below 30W-SMA ₹${targetSlPrice.toFixed(2)} (CMP ₹${cmp.toFixed(2)}). M6 waits for 2 consecutive Friday closes before selling.`;
   } else if (!activeGttPrice) {
     gttStatus = 'ACTION_REQUIRED_NEW';
     gttStatusLabel = 'ACTION: SET NEW GTT';
@@ -1047,7 +922,7 @@ export function resolveCanonicalGttOrder(a, activeGtt = null) {
     gttStatusLabel = 'AMEND GTT (-> 30W-SMA)';
     gttStatusBadge = 'cyan';
     isActionRequired = true;
-    reason = `Tranche 1 Completed: Position transitioned to Core Runner (${targetQty} shs). Amend broker GTT trigger from ₹${activeGttPrice.toFixed(2)} to 30W-SMA at ₹${targetSlPrice.toFixed(2)} to let core position compound on house money.`;
+    reason = `Graduated to Winner (+${pnlPct.toFixed(1)}%): Update GTT from ₹${activeGttPrice.toFixed(2)} to 30W-SMA ₹${targetSlPrice.toFixed(2)} (100% · ${targetQty} shs).`;
   } else if (targetSlPrice >= round2(activeGttPrice * 1.005) || (activeGttQty !== null && activeGttQty !== targetQty)) {
     slDelta = round2(targetSlPrice - activeGttPrice);
     slDeltaPct = round2(((targetSlPrice - activeGttPrice) / activeGttPrice) * 100);
@@ -1055,17 +930,17 @@ export function resolveCanonicalGttOrder(a, activeGtt = null) {
     gttStatusLabel = slDelta >= 0.5 ? `AMEND GTT (+₹${slDelta.toFixed(2)})` : `AMEND GTT (${targetQty} shs)`;
     gttStatusBadge = 'emerald';
     isActionRequired = true;
-    reason = `GTT Amendment: Target stop ₹${targetSlPrice.toFixed(2)} for ${targetQty} shs (Broker GTT: ₹${activeGttPrice.toFixed(2)}). ${reason}`;
+    reason = `GTT Amendment: Stop trigger ₹${targetSlPrice.toFixed(2)} for ${targetQty} shs (Broker: ₹${activeGttPrice.toFixed(2)}). ${reason}`;
   } else {
     gttStatus = 'UP_TO_DATE';
     gttStatusLabel = 'IN SYNC (ACTIVE)';
     gttStatusBadge = 'slate';
     isActionRequired = false;
-    reason = `GTT Active: Broker trigger ₹${activeGttPrice.toFixed(2)} is up-to-date and matches current stop floor (${targetQty} shs). No broker action needed today.`;
+    reason = `GTT Active: Trigger ₹${activeGttPrice.toFixed(2)} matches current M6 stop (${targetQty} shs).`;
   }
 
   const distanceToSlPct = cmp > 0 && targetSlPrice > 0 ? Number((((cmp - targetSlPrice) / cmp) * 100).toFixed(2)) : 0;
-  const isNearSl = isBreached || (distanceToSlPct <= 3.0 && distanceToSlPct >= 0);
+  const isNearSl = isConfirmedExit || (distanceToSlPct <= 3.0 && distanceToSlPct >= 0);
 
   return {
     symbol: a.symbol,
@@ -1085,7 +960,7 @@ export function resolveCanonicalGttOrder(a, activeGtt = null) {
     distanceToSlPct,
     slBufferPct: distanceToSlPct,
     isNearSl,
-    isBreached,
+    isBreached: isConfirmedExit,
     badgeColor,
     reason,
     rationale: reason,

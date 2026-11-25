@@ -61,7 +61,9 @@ function loadOverviewSnapshotFromDisk() {
 
 function saveActionPlanSnapshotToDisk(plan) {
   try {
-    fs.writeFileSync(ACTION_PLAN_SNAPSHOT_FILE, JSON.stringify(plan), 'utf-8');
+    const serialized = JSON.stringify(plan);
+    fs.writeFileSync(ACTION_PLAN_SNAPSHOT_FILE, serialized, 'utf-8');
+    fs.writeFileSync(`${ACTION_PLAN_SNAPSHOT_FILE}.gz`, zlib.gzipSync(serialized));
   } catch (err) {
     console.warn('[Stock Intelligence] Action plan snapshot save warning:', err.message);
   }
@@ -276,6 +278,102 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
   }
 }
 
+function reconcileAnalysisList(list = [], holdingMap = new Map()) {
+  return list
+    .filter(a => {
+      const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      return holdingMap.has(sym);
+    })
+    .map(a => {
+      const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      const h = holdingMap.get(sym);
+      const quote = liveQuoteCache?.get(h.symbol);
+      const curPrice = resolveHoldingPrice(h, quote) || a.currentPrice || Number(h.current_price) || 0;
+      const qty = Number(h.quantity) || 0;
+      const avgBuy = Number(h.avg_buy_price) || a.avgBuyPrice || 0;
+      const invested = qty * avgBuy;
+      const curVal = qty * curPrice;
+      const unpnl = curVal - invested;
+      const pnlPct = invested > 0 ? (unpnl / invested) * 100 : 0;
+
+      // M6 Canonical Reconciliation:
+      // Proven winners (>= +15%) follow confirmed Friday weekly closes (< 30w-SMA for 2 weeks), never intraday flips.
+      // Unproven positions (< +15%) dynamically respond intraday to the hard -10% flash crash stop.
+      const stopFloor = a.tranche1Trigger || a.trailingFloorPrice || a.chandelierStopPrice;
+      const hasProfitCushion = Boolean(a.stagedExitPlan?.hasProfitCushion) || (avgBuy > 0 && pnlPct >= 15);
+      let stopFloorBreached = a.stopFloorBreached;
+      let tranche1Status = a.tranche1Status;
+      let action = a.action;
+      let state = a.state;
+      let suggestedSellQuantity = a.suggestedSellQuantity;
+      let stagedExitPlan = a.stagedExitPlan ? { ...a.stagedExitPlan } : a.stagedExitPlan;
+      let liveBufferPct = a.liveBufferToTrailingFloorPct;
+
+      if (stopFloor && curPrice > 0) {
+        liveBufferPct = Number((((curPrice - stopFloor) / stopFloor) * 100).toFixed(2));
+        if (hasProfitCushion) {
+          stopFloorBreached = action === 'FULL_EXIT';
+          if (stagedExitPlan?.tranche1) {
+            stagedExitPlan = {
+              ...stagedExitPlan,
+              tranche1: { ...stagedExitPlan.tranche1, status: action === 'FULL_EXIT' ? 'READY' : 'PENDING' },
+              totalActionShares: action === 'FULL_EXIT' ? qty : 0
+            };
+          }
+          tranche1Status = action === 'FULL_EXIT' ? 'READY' : 'PENDING';
+          suggestedSellQuantity = action === 'FULL_EXIT' ? qty : null;
+        } else if (curPrice >= stopFloor) {
+          stopFloorBreached = false;
+          tranche1Status = 'PENDING';
+          if (stagedExitPlan?.tranche1) {
+            stagedExitPlan = {
+              ...stagedExitPlan,
+              tranche1: { ...stagedExitPlan.tranche1, status: 'PENDING' },
+              totalActionShares: 0
+            };
+          }
+          if (action === 'REVIEW_PARTIAL_SALE') {
+            action = 'HOLD_AND_COMPOUND';
+            if (state === 'TECHNICAL_TRIM_CANDIDATE') state = 'NORMAL';
+            suggestedSellQuantity = null;
+          }
+        } else {
+          stopFloorBreached = true;
+          tranche1Status = 'READY';
+          if (stagedExitPlan?.tranche1) {
+            stagedExitPlan = {
+              ...stagedExitPlan,
+              tranche1: { ...stagedExitPlan.tranche1, status: 'READY' },
+              totalActionShares: qty
+            };
+          }
+          state = 'FULL_EXIT_CANDIDATE';
+          action = 'FULL_EXIT';
+          suggestedSellQuantity = qty;
+        }
+      }
+
+      return {
+        ...a,
+        holdingId: h.id,
+        quantity: qty,
+        avgBuyPrice: avgBuy,
+        currentPrice: curPrice,
+        investedValue: Math.round(invested * 100) / 100,
+        currentValue: Math.round(curVal * 100) / 100,
+        unrealizedPnL: Math.round(unpnl * 100) / 100,
+        pnlPct: Math.round(pnlPct * 100) / 100,
+        stopFloorBreached,
+        tranche1Status,
+        action,
+        state,
+        suggestedSellQuantity,
+        stagedExitPlan,
+        liveBufferToTrailingFloorPct: liveBufferPct
+      };
+    });
+}
+
 async function reconcileOverviewWithLiveHoldings(overview) {
   if (!overview) return overview;
   try {
@@ -298,174 +396,8 @@ async function reconcileOverviewWithLiveHoldings(overview) {
       }
     }
 
-    // Filter and enrich Indian analyses: strictly exclude redeemed or 0-qty holdings
-    const reconciledAnalyses = (overview.analyses || [])
-      .filter(a => {
-        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
-        return inMap.has(sym);
-      })
-      .map(a => {
-        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
-        const h = inMap.get(sym);
-        const quote = liveQuoteCache?.get(h.symbol);
-        const curPrice = resolveHoldingPrice(h, quote) || a.currentPrice || Number(h.current_price) || 0;
-        const qty = Number(h.quantity) || 0;
-        const avgBuy = Number(h.avg_buy_price) || a.avgBuyPrice || 0;
-        const invested = qty * avgBuy;
-        const curVal = qty * curPrice;
-        const unpnl = curVal - invested;
-        const pnlPct = invested > 0 ? (unpnl / invested) * 100 : 0;
-
-        // Dynamic Real-Time Stop Floor & Tranche Re-evaluation:
-        // If live market price (curPrice) has not breached or has rebounded above the trailing floor / Tranche 1 trigger,
-        // dynamically clear stop floor breach and reset tranche 1 status to PENDING.
-        const stopFloor = a.tranche1Trigger || a.trailingFloorPrice || a.chandelierStopPrice;
-        let stopFloorBreached = a.stopFloorBreached;
-        let tranche1Status = a.tranche1Status;
-        let action = a.action;
-        let state = a.state;
-        let suggestedSellQuantity = a.suggestedSellQuantity;
-        let stagedExitPlan = a.stagedExitPlan ? { ...a.stagedExitPlan } : a.stagedExitPlan;
-        let liveBufferPct = a.liveBufferToTrailingFloorPct;
-
-        if (stopFloor && curPrice > 0) {
-          liveBufferPct = Number((((curPrice - stopFloor) / stopFloor) * 100).toFixed(2));
-          if (curPrice >= stopFloor) {
-            stopFloorBreached = false;
-            if (tranche1Status === 'READY') tranche1Status = 'PENDING';
-            if (stagedExitPlan?.tranche1?.status === 'READY') {
-              stagedExitPlan = {
-                ...stagedExitPlan,
-                tranche1: { ...stagedExitPlan.tranche1, status: 'PENDING' }
-              };
-            }
-            if (action === 'REVIEW_PARTIAL_SALE' && !a.has4RedCandlesBelow21Ema && a.technicalState !== 'TECHNICAL_TRIM_CANDIDATE') {
-              action = 'HOLD_AND_COMPOUND';
-              if (state === 'TECHNICAL_TRIM_CANDIDATE') state = 'NORMAL';
-              suggestedSellQuantity = 0;
-              if (stagedExitPlan) stagedExitPlan.totalActionShares = 0;
-            }
-          } else {
-            stopFloorBreached = true;
-            if (tranche1Status === 'PENDING') tranche1Status = 'READY';
-            if (stagedExitPlan?.tranche1?.status === 'PENDING') {
-              stagedExitPlan = {
-                ...stagedExitPlan,
-                tranche1: { ...stagedExitPlan.tranche1, status: 'READY' }
-              };
-            }
-            const isSingleStage = Boolean(stagedExitPlan?.isSingleStageStop) || (pnlPct <= -8.0 && tranche1Status !== 'COMPLETED');
-            if (isSingleStage) {
-              state = 'FULL_EXIT_CANDIDATE';
-              action = 'FULL_EXIT';
-              suggestedSellQuantity = qty;
-              if (stagedExitPlan) stagedExitPlan.totalActionShares = qty;
-            }
-          }
-        }
-
-        return {
-          ...a,
-          holdingId: h.id,
-          quantity: qty,
-          avgBuyPrice: avgBuy,
-          currentPrice: curPrice,
-          investedValue: Math.round(invested * 100) / 100,
-          currentValue: Math.round(curVal * 100) / 100,
-          unrealizedPnL: Math.round(unpnl * 100) / 100,
-          pnlPct: Math.round(pnlPct * 100) / 100,
-          stopFloorBreached,
-          tranche1Status,
-          action,
-          state,
-          suggestedSellQuantity,
-          stagedExitPlan,
-          liveBufferToTrailingFloorPct: liveBufferPct
-        };
-      });
-
-    // Filter and enrich US analyses: strictly exclude redeemed or 0-qty holdings
-    const reconciledUsAnalyses = (overview.usAnalyses || [])
-      .filter(a => {
-        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
-        return usMap.has(sym);
-      })
-      .map(a => {
-        const sym = String(a.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
-        const h = usMap.get(sym);
-        const quote = liveQuoteCache?.get(h.symbol);
-        const curPrice = resolveHoldingPrice(h, quote) || a.currentPrice || Number(h.current_price) || 0;
-        const qty = Number(h.quantity) || 0;
-        const avgBuy = Number(h.avg_buy_price) || a.avgBuyPrice || 0;
-        const invested = qty * avgBuy;
-        const curVal = qty * curPrice;
-        const unpnl = curVal - invested;
-        const pnlPct = invested > 0 ? (unpnl / invested) * 100 : 0;
-
-        const stopFloor = a.tranche1Trigger || a.trailingFloorPrice || a.chandelierStopPrice;
-        let stopFloorBreached = a.stopFloorBreached;
-        let tranche1Status = a.tranche1Status;
-        let action = a.action;
-        let state = a.state;
-        let suggestedSellQuantity = a.suggestedSellQuantity;
-        let stagedExitPlan = a.stagedExitPlan ? { ...a.stagedExitPlan } : a.stagedExitPlan;
-        let liveBufferPct = a.liveBufferToTrailingFloorPct;
-
-        if (stopFloor && curPrice > 0) {
-          liveBufferPct = Number((((curPrice - stopFloor) / stopFloor) * 100).toFixed(2));
-          if (curPrice >= stopFloor) {
-            stopFloorBreached = false;
-            if (tranche1Status === 'READY') tranche1Status = 'PENDING';
-            if (stagedExitPlan?.tranche1?.status === 'READY') {
-              stagedExitPlan = {
-                ...stagedExitPlan,
-                tranche1: { ...stagedExitPlan.tranche1, status: 'PENDING' }
-              };
-            }
-            if (action === 'REVIEW_PARTIAL_SALE' && !a.has4RedCandlesBelow21Ema && a.technicalState !== 'TECHNICAL_TRIM_CANDIDATE') {
-              action = 'HOLD_AND_COMPOUND';
-              if (state === 'TECHNICAL_TRIM_CANDIDATE') state = 'NORMAL';
-              suggestedSellQuantity = 0;
-              if (stagedExitPlan) stagedExitPlan.totalActionShares = 0;
-            }
-          } else {
-            stopFloorBreached = true;
-            if (tranche1Status === 'PENDING') tranche1Status = 'READY';
-            if (stagedExitPlan?.tranche1?.status === 'PENDING') {
-              stagedExitPlan = {
-                ...stagedExitPlan,
-                tranche1: { ...stagedExitPlan.tranche1, status: 'READY' }
-              };
-            }
-            const isSingleStage = Boolean(stagedExitPlan?.isSingleStageStop) || (pnlPct <= -8.0 && tranche1Status !== 'COMPLETED');
-            if (isSingleStage) {
-              state = 'FULL_EXIT_CANDIDATE';
-              action = 'FULL_EXIT';
-              suggestedSellQuantity = qty;
-              if (stagedExitPlan) stagedExitPlan.totalActionShares = qty;
-            }
-          }
-        }
-
-        return {
-          ...a,
-          holdingId: h.id,
-          quantity: qty,
-          avgBuyPrice: avgBuy,
-          currentPrice: curPrice,
-          investedValue: Math.round(invested * 100) / 100,
-          currentValue: Math.round(curVal * 100) / 100,
-          unrealizedPnL: Math.round(unpnl * 100) / 100,
-          pnlPct: Math.round(pnlPct * 100) / 100,
-          stopFloorBreached,
-          tranche1Status,
-          action,
-          state,
-          suggestedSellQuantity,
-          stagedExitPlan,
-          liveBufferToTrailingFloorPct: liveBufferPct
-        };
-      });
+    const reconciledAnalyses = reconcileAnalysisList(overview.analyses || [], inMap);
+    const reconciledUsAnalyses = reconcileAnalysisList(overview.usAnalyses || [], usMap);
 
     return {
       ...overview,
@@ -551,7 +483,9 @@ async function reconcileActionPlanWithLiveHoldings(plan) {
       const cmp = resolveHoldingPrice(h, quote) || sl.cmp || Number(h.current_price) || 0;
       const avg = Number(h.avg_buy_price) || sl.avgBuyPrice || cmp;
       const targetSlPrice = Number(sl.targetSlPrice) || 0;
-      const isBreached = cmp > 0 && targetSlPrice > 0 && cmp <= targetSlPrice;
+      const isBreached = sl.tier === 'INITIAL_10PCT'
+        ? (cmp > 0 && targetSlPrice > 0 && cmp <= targetSlPrice)
+        : Boolean(sl.isBreached && cmp > 0 && targetSlPrice > 0 && cmp <= targetSlPrice);
       const distanceToSlPct = cmp > 0 && targetSlPrice > 0 ? Number((((cmp - targetSlPrice) / cmp) * 100).toFixed(2)) : 0;
       const pnlPct = avg > 0 && cmp > 0 ? Number((((cmp - avg) / avg) * 100).toFixed(2)) : sl.pnlPct;
 

@@ -68,48 +68,37 @@ test('rising price history activates Stage 2 Bull and Compounding Protection', (
   assert.ok(result.bufferToTrailingFloorPct > 0);
 });
 
-test('live Chandelier stop breach overrides the hold shield and stages a manual trim review', () => {
+test('M6 protects winning holdings from mid-week stop-floor noise above 30w-SMA (no premature trim)', () => {
   const prices = weeklyPrices(Array.from({ length: 60 }, (_, index) => 100 + index * 2));
-  const trend = analyzeTechnicalTrend(prices, { today: '2025-03-02' });
-  // Price below trailing floor (212) but safely above 30-week SMA (189): Tranche 1 triggers
   const trimPrice = 200;
   const holdings = [{ id: 'h1', symbol: 'RUNNER', category_id: 'in_stocks', quantity: 1500, current_price: trimPrice }];
   const [result] = buildStockAnalyses(holdings, { RUNNER: prices }, { today: '2025-03-02' });
 
   assert.equal(result.stopFloorBreached, true);
-  assert.equal(result.state, 'TECHNICAL_TRIM_CANDIDATE');
-  assert.equal(result.suggestedSellQuantity, 495);
-  assert.equal(result.stagedExitPlan.tranche1.status, 'READY');
-  assert.equal(result.stagedExitPlan.tranche2.status, 'PENDING');
-  assert.deepEqual(
-    [result.stagedExitPlan.tranche1.targetShares, result.stagedExitPlan.tranche2.targetShares],
-    [495, 1005]
-  );
-  assert.equal(
-    result.stagedExitPlan.tranche1.targetShares + result.stagedExitPlan.tranche2.targetShares,
-    result.quantity
-  );
-  assert.equal(calculateTriggeredStagedSell(result).quantity, 495);
-  assert.equal(calculateTriggeredStagedSell(result).triggeredTranches.length, 1);
-  assert.ok(result.stagedExitPlan.tranche1.triggerPrice > result.stagedExitPlan.tranche2.triggerPrice);
-  assert.match(result.explanation, /no order is placed automatically|not an automatically placed order/i);
+  assert.equal(result.state, 'NORMAL', 'M6 ignores mid-week trailing dip while above 30w-SMA');
+  assert.equal(result.action, 'HOLD_AND_COMPOUND');
+  assert.equal(result.stagedExitPlan.isSingleStageStop, true);
+  assert.equal(result.stagedExitPlan.tranche1.targetShares, 1500);
+  assert.equal(result.stagedExitPlan.tranche2.targetShares, 0);
   assert.ok(result.liveBufferToTrailingFloorPct < 0);
 
-  // Both triggers breached (below 30-week SMA at 187.11): Both Tranches trigger for full exit
-  const deepBreachPrice = Number((Math.min(trend.chandelierStopPrice, trend.sma30Week) * 0.99).toFixed(2));
+  // M6 breakdown: 2 consecutive completed weekly closes below 30w-SMA triggers 100% FULL_EXIT
+  const bearPrices = weeklyPrices([...Array(57).fill(200), 175, 172, 170]);
   const [deepBreach] = buildStockAnalyses(
-    [{ ...holdings[0], current_price: deepBreachPrice }],
-    { RUNNER: prices },
+    [{ ...holdings[0], current_price: 170 }],
+    { RUNNER: bearPrices },
     { today: '2025-03-02' }
   );
+  assert.equal(deepBreach.stagedExitPlan.isSingleStageStop, true);
   assert.equal(deepBreach.stagedExitPlan.tranche1.status, 'READY');
-  assert.equal(deepBreach.stagedExitPlan.tranche2.status, 'READY');
+  assert.equal(deepBreach.stagedExitPlan.tranche2.status, 'INACTIVE');
+  assert.equal(deepBreach.action, 'FULL_EXIT');
   assert.equal(deepBreach.suggestedSellQuantity, 1500);
   assert.equal(calculateTriggeredStagedSell(deepBreach).quantity, 1500);
-  assert.equal(calculateTriggeredStagedSell(deepBreach).triggeredTranches.length, 2);
+  assert.equal(calculateTriggeredStagedSell(deepBreach).triggeredTranches.length, 1);
 
-  // Ledger audit: Tranche 1 is completed (495 shares sold) and price is above 30-week SMA (200)
-  // Holds core position with suggestedSellQuantity = 0, action = 'HOLD' (no recursive subdivision)
+  // Ledger audit: Partial manual sale executed (495 sold, 1005 remaining) while price holds above 30w-SMA (200)
+  // Holds 100% of remaining 1005 shares with suggestedSellQuantity = 0, action = 'HOLD_AND_COMPOUND'
   const firstSaleHold = buildStockAnalyses(
     [{ ...holdings[0], quantity: 1005, current_price: 200 }],
     { RUNNER: prices },
@@ -118,28 +107,27 @@ test('live Chandelier stop breach overrides the hold shield and stages a manual 
       transactions: [{ holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: 200 }]
     }
   )[0];
-  assert.equal(firstSaleHold.stagedExitPlan.tranche1.status, 'COMPLETED');
-  assert.equal(firstSaleHold.stagedExitPlan.tranche2.status, 'PENDING');
-  assert.equal(firstSaleHold.stagedExitPlan.tranche2.targetShares, 1005);
-  assert.equal(firstSaleHold.suggestedSellQuantity, 0);
-  assert.equal(firstSaleHold.action, 'HOLD');
+  assert.equal(firstSaleHold.stagedExitPlan.tranche1.targetShares, 1005);
+  assert.equal(firstSaleHold.stagedExitPlan.tranche2.status, 'INACTIVE');
+  assert.equal(firstSaleHold.suggestedSellQuantity ?? 0, 0);
+  assert.equal(firstSaleHold.action, 'HOLD_AND_COMPOUND');
   assert.equal(calculateTriggeredStagedSell(firstSaleHold).quantity, 0);
 
-  // Ledger audit: Tranche 1 is completed and price now breaks 30-week SMA (187.11)
-  // Tranche 2 is READY, executing full exit of all remaining 1005 shares
+  // Ledger audit: After prior manual sale, price breaks 2 consecutive weekly closes below 30w-SMA
+  // Unified M6 exit triggers 100% of remaining 1005 shares as FULL_EXIT
   const secondSaleExit = buildStockAnalyses(
-    [{ ...holdings[0], quantity: 1005, current_price: deepBreachPrice }],
-    { RUNNER: prices },
+    [{ ...holdings[0], quantity: 1005, current_price: 170 }],
+    { RUNNER: bearPrices },
     {
       today: '2025-03-02',
       transactions: [{ holding_id: 'h1', type: 'SELL', date: '2025-03-01', quantity: 495, price: 200 }]
     }
   )[0];
-  assert.equal(secondSaleExit.stagedExitPlan.tranche1.status, 'COMPLETED');
-  assert.equal(secondSaleExit.stagedExitPlan.tranche2.status, 'READY');
-  assert.equal(secondSaleExit.stagedExitPlan.tranche2.targetShares, 1005);
+  assert.equal(secondSaleExit.stagedExitPlan.tranche1.status, 'READY');
+  assert.equal(secondSaleExit.stagedExitPlan.tranche1.targetShares, 1005);
+  assert.equal(secondSaleExit.stagedExitPlan.tranche2.status, 'INACTIVE');
   assert.equal(secondSaleExit.suggestedSellQuantity, 1005);
-  assert.equal(secondSaleExit.action, 'SELL_ALL');
+  assert.equal(secondSaleExit.action, 'FULL_EXIT');
   assert.equal(calculateTriggeredStagedSell(secondSaleExit).quantity, 1005);
   assert.equal(calculateTriggeredStagedSell(secondSaleExit).triggeredTranches.length, 1);
 });
@@ -202,7 +190,8 @@ test('staged exit plan detects intermediate sales and buys dynamically from ledg
   const [result] = buildStockAnalyses(holdings, { AAA: prices }, { today: '2025-10-01', transactions });
   
   assert.ok(result.stagedExitPlan);
-  assert.equal(result.stagedExitPlan.tranche1.status, 'COMPLETED');
+  assert.equal(result.stagedExitPlan.isSingleStageStop, true);
+  assert.equal(result.stagedExitPlan.tranche1.targetShares, 80);
   assert.equal(result.stagedExitPlan.ledgerAudit.recentSharesSold, 33);
   assert.equal(result.stagedExitPlan.ledgerAudit.recentSharesBought, 13);
   assert.equal(result.quantity, 80);
@@ -269,16 +258,16 @@ test('Task 8: Trailing stop floor breach is non-negotiable; mutual exclusivity e
   const cmpAboveSmaBelowChandelier = 195;
   const holding = { id: 'h1', symbol: 'BULLSTOCK', category_id: 'in_stocks', quantity: 100, current_price: cmpAboveSmaBelowChandelier };
 
-  // Case A: Trailing stop floor breach is NEVER suppressed by an active buy thesis or Stage 2 status
-  const [resultBull] = buildStockAnalyses([holding], { BULLSTOCK: prices }, {
+  // Case A: Confirmed 2-weekly-close breakdown below 30w-SMA triggers FULL_EXIT_CANDIDATE (not suppressed by activeBuyTheses)
+  const bearPrices = weeklyPrices([...Array(57).fill(220), 175, 172, 170]);
+  const holdingBear = { id: 'h1', symbol: 'BULLSTOCK', category_id: 'in_stocks', quantity: 100, current_price: 170 };
+  const [resultBull] = buildStockAnalyses([holdingBear], { BULLSTOCK: bearPrices }, {
     today: '2025-03-02',
     activeBuyTheses: ['BULLSTOCK']
   });
-  assert.equal(resultBull.weinsteinStage, 2);
-  assert.equal(resultBull.stopFloorBreached, true);
-  assert.equal(resultBull.state, 'TECHNICAL_TRIM_CANDIDATE');
-  assert.equal(resultBull.action, 'REVIEW_PARTIAL_SALE');
-  assert.ok(resultBull.suggestedSellQuantity > 0);
+  assert.equal(resultBull.state, 'FULL_EXIT_CANDIDATE');
+  assert.equal(resultBull.action, 'FULL_EXIT');
+  assert.equal(resultBull.suggestedSellQuantity, 100);
 
   // Case B: Safe holding trading above trailing stop floor retains NORMAL state
   const safeHolding = { id: 'h2', symbol: 'SAFEBUY', category_id: 'in_stocks', quantity: 50, current_price: 220 };
@@ -524,7 +513,7 @@ test('Rule 5: Action Plan dynamically sizes subordinate pyramid tranches for own
 
   // Verify that any owned holding in immediate buys has a subordinate tranche, calibrated to dynamic portfolio tranche ceiling
   const ownedImmediate = plan.immediateBuys.filter(b => b.isOwned);
-  const dynamicTrancheMax = Math.max(250000, Math.round((plan.summary?.totalIndianEquityValuation || plan.summary?.totalEquityValuation || 10000000) * 0.035));
+  const dynamicTrancheMax = Math.max(250000, Math.round((plan.summary?.totalIndianEquityValuation || plan.summary?.totalEquityValuation || 10000000) * 0.065));
   ownedImmediate.forEach(b => {
     assert.ok(b.actionValue <= dynamicTrancheMax, `Owned buy ${b.symbol} actionValue (${b.actionValue}) must not exceed dynamic single pyramid tranche size (${dynamicTrancheMax})`);
   });
@@ -724,75 +713,47 @@ test('Rule 12: Adaptive IPO Crash & Risk Protection Engine triggers defensive tr
   assert.equal(crashAnalysis.suggestedSellQuantity, 600, 'Crashing IPO must suggest 100% position exit');
 });
 
-test('Rule 13: Staged Exit Ledger Integration — Completed Tranche 1 with pending Tranche 2 enforces HOLD core position (0 sell quantity) and is excluded from Next Day Action Plan sells', () => {
-  // Scenario A: Holding had 100 shares originally. 33 shares sold in Tranche 1.
-  // 67 shares remaining. CMP is ₹95, above 30w-SMA (Tranche 2 trigger) of ₹85.
-  const holdingA = { id: 'h_staged', symbol: 'TESTSTAGED', category_id: 'in_stocks', quantity: 67, current_price: 95 };
-  const txsA = [
-    { holding_id: 'h_staged', type: 'BUY', date: '2026-09-01', quantity: 100, price: 100 },
-    { holding_id: 'h_staged', type: 'SELL', date: '2026-10-15', quantity: 33, price: 92 }
-  ];
-  // 50 weekly prices establishing a 30w SMA at ~₹85
-  const pricesA = {};
-  for (let i = 0; i < 50; i++) {
-    const d = new Date(2025, 0, 1 + i * 7).toISOString().slice(0, 10);
-    pricesA[d] = { date: d, close: 85 };
-  }
-  const [analysisA] = buildStockAnalyses([holdingA], { TESTSTAGED: pricesA }, {
-    today: '2026-11-10',
-    transactions: txsA
-  });
+test('Rule 13: M6 Unified Exit Engine — Holds 100% through mid-week noise and exits 100% only on 2 consecutive weekly closes below 30w-SMA', () => {
+  // 48 weekly Friday closes ending 2026-11-06 (4 days before today 2026-11-10)
+  const pricesA = weeklyPrices(Array(48).fill(100), '2025-12-12');
+  // Winner up >= +15% (entry 80, cmp 110, 30w-SMA 100): must HOLD_AND_COMPOUND
+  const holdingWinner = { id: 'h_m6_win', symbol: 'WINM6', category_id: 'in_stocks', quantity: 100, current_price: 110, avg_buy_price: 80 };
+  const [winAnalysis] = buildStockAnalyses([holdingWinner], { WINM6: pricesA }, { today: '2026-11-10', transactions: [{ holding_id: 'h_m6_win', type: 'BUY', date: '2025-12-12', quantity: 100, price: 80 }] });
+  assert.equal(winAnalysis.state, 'NORMAL');
+  assert.equal(winAnalysis.action, 'HOLD_AND_COMPOUND');
+  assert.equal(winAnalysis.stagedExitPlan.isSingleStageStop, true);
+  assert.equal(winAnalysis.stagedExitPlan.tranche1.targetShares, 100);
+  assert.equal(winAnalysis.stagedExitPlan.tranche2.status, 'INACTIVE');
 
-  assert.ok(analysisA.stagedExitPlan, 'Must have staged exit plan');
-  assert.equal(analysisA.stagedExitPlan.tranche1.status, 'COMPLETED', 'Tranche 1 must be marked COMPLETED from ledger sales');
-  assert.equal(analysisA.stagedExitPlan.tranche2.status, 'PENDING', 'Tranche 2 must be PENDING since CMP ₹95 > SMA ₹85');
-  assert.equal(analysisA.suggestedSellQuantity, 0, 'Must recommend 0 shares when Tranche 1 is completed and Tranche 2 is pending');
-  assert.equal(analysisA.action, 'HOLD', 'Action must be HOLD core position');
-  assert.equal(calculateTriggeredStagedSell(analysisA).quantity, 0, 'calculateTriggeredStagedSell must return 0 actionable shares');
-
-  // Scenario B: Price drops to ₹80, breaching Tranche 2 (30w SMA @ ₹85)
-  const holdingB = { ...holdingA, current_price: 80 };
-  const [analysisB] = buildStockAnalyses([holdingB], { TESTSTAGED: pricesA }, {
-    today: '2026-11-10',
-    transactions: txsA
-  });
-
-  assert.equal(analysisB.stagedExitPlan.tranche1.status, 'COMPLETED', 'Tranche 1 remains COMPLETED');
-  assert.equal(analysisB.stagedExitPlan.tranche2.status, 'READY', 'Tranche 2 must be READY since CMP ₹80 <= SMA ₹85');
-  assert.equal(analysisB.action, 'SELL_ALL', 'Action must be SELL_ALL when Tranche 2 triggers');
-  assert.equal(analysisB.suggestedSellQuantity, 67, 'Must recommend all remaining 67 shares for Tranche 2 exit');
-  assert.equal(calculateTriggeredStagedSell(analysisB).quantity, 67, 'calculateTriggeredStagedSell must return 67 actionable shares');
+  // 2 consecutive completed weekly closes below 30w-SMA (₹85 on Nov 13, ₹84 on Nov 20 < SMA): triggers 100% FULL_EXIT
+  const pricesBreak = {
+    ...pricesA,
+    '2026-11-13': 85,
+    '2026-11-20': 84
+  };
+  const [exitAnalysis] = buildStockAnalyses([{ ...holdingWinner, current_price: 84 }], { WINM6: pricesBreak }, { today: '2026-11-24', transactions: [{ holding_id: 'h_m6_win', type: 'BUY', date: '2025-12-12', quantity: 100, price: 80 }] });
+  assert.equal(exitAnalysis.state, 'FULL_EXIT_CANDIDATE');
+  assert.equal(exitAnalysis.action, 'FULL_EXIT');
+  assert.equal(exitAnalysis.suggestedSellQuantity, 100);
 });
 
-test('Rule 14: Next Day Action Plan Stop Loss Engine anchors GTT to Tranche 2 (30w-SMA) when Tranche 1 is completed (SYRMA protection) and sizes action shares to Tranche 1 (33%) when pending', async () => {
+test('Rule 14: Next Day Action Plan GTT Engine enforces unified 100% quantity parity across all open holdings (zero Tranche 1/2 split)', async () => {
   const { generateActionPlan } = await import('./actionPlanService.js');
   const plan = await generateActionPlan({ userId: '1' });
   assert.ok(plan, 'Plan must generate');
-  assert.ok(Array.isArray(plan.stopLossActions), 'Must have stopLossActions array');
+  assert.ok(Array.isArray(plan.stopLossActions) && plan.stopLossActions.length > 0, 'Must have stopLossActions array');
 
-  // Verify SYRMA specifically (Tranche 1 completed, core runner)
-  const syrmaSl = plan.stopLossActions.find(a => a.symbol === 'SYRMA');
-  if (syrmaSl) {
-    assert.equal(syrmaSl.tier, 'TRANCHE2_CORE_RUNNER', 'SYRMA tier must be TRANCHE2_CORE_RUNNER');
-    assert.equal(syrmaSl.trancheStage, 'TRANCHE 2 (CORE RUNNER)', 'SYRMA trancheStage must be TRANCHE 2 (CORE RUNNER)');
-    assert.equal(syrmaSl.targetQty, syrmaSl.qty, 'Target quantity must be all remaining core shares');
-    assert.equal(syrmaSl.targetSlPrice, 1390.03, 'Target SL price must match Tranche 2 30-week SMA trigger');
-  }
-
-  // Verify all holdings with Tranche 1 completed have targetQty === qty and tier === TRANCHE2_CORE_RUNNER
-  const coreRunners = plan.stopLossActions.filter(a => a.tier === 'TRANCHE2_CORE_RUNNER');
-  assert.ok(coreRunners.length > 0, 'Must have active Core Runners');
-  for (const cr of coreRunners) {
-    assert.equal(cr.targetQty, cr.qty, `${cr.symbol} target quantity must equal full held core quantity`);
-    assert.equal(cr.actionType, 'AMEND_CORE_RUNNER', `${cr.symbol} actionType must be AMEND_CORE_RUNNER`);
+  for (const sl of plan.stopLossActions) {
+    assert.equal(sl.targetQty, sl.qty, `${sl.symbol} GTT targetQty must equal 100% of held shares`);
+    assert.ok(['INITIAL_10PCT', 'SMA30_TREND_EXIT'].includes(sl.tier), `${sl.symbol} tier (${sl.tier}) must be INITIAL_10PCT or SMA30_TREND_EXIT`);
   }
 });
 
-test('Rule 15: Canonical GTT parity matches Sell Analysis and Anti-Chasing gate caps overextended peaks at WATCH', async () => {
+test('Rule 15: Canonical GTT parity matches Sell Analysis and Universe unlocks >=1000 Cr small/mid-cap multibaggers without peak bans', async () => {
   const { resolveCanonicalGttOrder } = await import('./analysisService.js');
   const { buildBuyAnalyses } = await import('./buyAnalysisService.js');
 
-  // 1. Canonical GTT parity: unproven <15% position uses 100% shares & exact stagedExitPlan trigger
+  // 1. Canonical M6 GTT parity: unproven <15% position anchors 100% shares to -10% flash stop
   const prices = weekdays(300, '2023-01-02');
   const dates = Object.keys(prices).sort();
   const today = dates.at(-1);
@@ -806,12 +767,12 @@ test('Rule 15: Canonical GTT parity matches Sell Analysis and Anti-Chasing gate 
     { PARITYTEST: prices },
     { today, transactions: [{ holding_id: 'h_gtt_1', symbol: 'PARITYTEST', date: buyDate, type: 'BUY', quantity: 100, price: buyPrice, total_amount: buyPrice * 100 }], fundamentalsMap: { PARITYTEST: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING' } } }
   );
-  const gtt = resolveCanonicalGttOrder(analysis, { triggerPrice: Number((buyPrice * 0.92).toFixed(2)), tier: 'INITIAL_8PCT' });
-  assert.equal(gtt.targetSlPrice, analysis.stagedExitPlan.tranche1.triggerPrice, 'GTT trigger must equal Sell Analysis Tranche 1 trigger');
-  assert.equal(gtt.targetQty, analysis.stagedExitPlan.tranche1.targetShares, 'GTT quantity must equal Sell Analysis Tranche 1 shares (100%)');
-  assert.equal(gtt.targetQty, 100, 'Unproven <15% position GTT must protect 100% of shares');
+  const gtt = resolveCanonicalGttOrder(analysis, null);
+  assert.equal(gtt.targetSlPrice, analysis.stagedExitPlan.tranche1.triggerPrice, 'GTT trigger must equal Sell Analysis trigger');
+  assert.equal(gtt.targetQty, 100, 'GTT quantity must protect 100% of shares');
+  assert.equal(gtt.tier, 'INITIAL_10PCT');
 
-  // 2. Anti-chasing gate: +60% extended parabolic spike must be capped at WATCH, never BUY/STRONG_BUY
+  // 2. Option A Stage 2 leader test: small/mid-cap strong momentum runner retains BUY/STRONG_BUY
   const spikePrices = weekdays(300, '2023-01-02');
   const spikeDates = Object.keys(spikePrices).sort();
   const basePx = spikePrices[spikeDates.at(-30)];
@@ -820,12 +781,15 @@ test('Rule 15: Canonical GTT parity matches Sell Analysis and Anti-Chasing gate 
   }
   const spikeToday = spikeDates.at(-1);
   const [buyCandidate] = buildBuyAnalyses({
-    candidates: [{ symbol: 'PEAKSPIKE', name: 'Peak Spike Ltd', source: 'NSE500', marketCapCr: 15000, currentPrice: spikePrices[spikeToday], category: 'in_stocks' }],
-    priceHistory: { PEAKSPIKE: spikePrices },
-    fundamentalsCache: { PEAKSPIKE: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING', yoySalesGrowthPct: 25, yoyPatGrowthPct: 30, roePct: 20, rocePct: 22, debtToEquity: 0.2, promoterPledgePct: 0, latestQuarterPat: 100, annualSales: [100, 120, 150, 190], annualPat: [10, 13, 17, 22], quarterlySales: [35, 40, 45, 52, 60], quarterlyPat: [4, 5, 6, 7, 8] } },
+    candidates: [{ symbol: 'SMID_MULTIBAGGER', name: 'SmallMid Winner Ltd', source: 'NSE500', marketCapCr: 2200, currentPrice: spikePrices[spikeToday], category: 'in_stocks' }],
+    priceHistory: { SMID_MULTIBAGGER: spikePrices },
+    fundamentalsCache: { SMID_MULTIBAGGER: { status: 'AVAILABLE', opmTrendDirection: 'EXPANDING', yoySalesGrowthPct: 25, yoyPatGrowthPct: 30, roePct: 20, rocePct: 22, debtToEquity: 0.2, promoterPledgePct: 0, latestQuarterPat: 100, annualSales: [100, 120, 150, 190], annualPat: [10, 13, 17, 22], quarterlySales: [35, 40, 45, 52, 60], quarterlyPat: [4, 5, 6, 7, 8] } },
     today: spikeToday
   });
   assert.ok(buyCandidate, 'Candidate must evaluate');
-  assert.equal(buyCandidate.buySignal, 'WATCH', 'Overextended parabolic peak must be capped at WATCH, never BUY or STRONG_BUY');
-  assert.match(buyCandidate.signalReason, /Overextended entry risk/i);
+  assert.ok(['STRONG_BUY', 'BUY'].includes(buyCandidate.buySignal), `Strong Stage 2 ₹2,200 Cr leader must qualify as STRONG_BUY or BUY, got ${buyCandidate.buySignal}`);
+
+  // 3. Expanded universe verifies > 1000 stocks including small/mid caps
+  const universe = buildCandidateUniverse([], [], [], []);
+  assert.ok(universe.length >= 1000, `Candidate universe must include >= 1,000 small/mid/large stocks (>= ₹1,000 Cr), got ${universe.length}`);
 });

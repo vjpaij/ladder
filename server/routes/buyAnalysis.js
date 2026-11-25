@@ -39,7 +39,16 @@ let _buyAnalysisInFlightPromise = null;
 const BUY_CACHE_TTL_MS = 15 * 60 * 1000;
 const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'buy_analysis_snapshot.json');
 
-export const BUY_ANALYSIS_RULE_VERSION = 'v7.5.6';
+export const BUY_ANALYSIS_RULE_VERSION = 'v8.4.0';
+
+function saveBuySnapshotToDisk(snapshotObj) {
+  try {
+    if (!fs.existsSync(path.dirname(SNAPSHOT_FILE))) fs.mkdirSync(path.dirname(SNAPSHOT_FILE), { recursive: true });
+    const serialized = JSON.stringify(snapshotObj);
+    fs.writeFileSync(SNAPSHOT_FILE, serialized, 'utf8');
+    fs.writeFileSync(`${SNAPSHOT_FILE}.gz`, zlib.gzipSync(serialized));
+  } catch (_) {}
+}
 
 export function invalidateBuyCache() {
   _buyAnalysisCache = null;
@@ -123,28 +132,34 @@ async function processNextWarmingItem() {
   }
 }
 
+export function reloadBuySnapshotFromDisk() {
+  try {
+    if (!fs.existsSync(SNAPSHOT_FILE)) {
+      const gzPath = SNAPSHOT_FILE + '.gz';
+      if (fs.existsSync(gzPath)) {
+        const unzipped = zlib.gunzipSync(fs.readFileSync(gzPath));
+        fs.writeFileSync(SNAPSHOT_FILE, unzipped);
+        console.log('[Buy Analysis] Restored buy_analysis_snapshot.json from seed gz archive.');
+      }
+    }
+    if (fs.existsSync(SNAPSHOT_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf8'));
+      if (parsed && Array.isArray(parsed.analyses) && parsed.analyses.length > 0 && parsed.ruleVersion === BUY_ANALYSIS_RULE_VERSION) {
+        _buyAnalysisCache = parsed;
+        _buyAnalysisCacheTimestamp = Date.now();
+        console.log(`[Buy Analysis] Loaded verified snapshot (${parsed.ruleVersion}, ${parsed.analyses.length} candidates)`);
+        return true;
+      } else if (parsed && parsed.ruleVersion !== BUY_ANALYSIS_RULE_VERSION) {
+        console.log(`[Buy Analysis] Discarded outdated snapshot (${parsed.ruleVersion || 'legacy'} !== ${BUY_ANALYSIS_RULE_VERSION}). Recomputation required.`);
+        try { fs.unlinkSync(SNAPSHOT_FILE); } catch (_) {}
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
 // Load disk snapshot on server boot for instant 0ms responses, verifying ruleVersion
-try {
-  if (!fs.existsSync(SNAPSHOT_FILE)) {
-    const gzPath = SNAPSHOT_FILE + '.gz';
-    if (fs.existsSync(gzPath)) {
-      const unzipped = zlib.gunzipSync(fs.readFileSync(gzPath));
-      fs.writeFileSync(SNAPSHOT_FILE, unzipped);
-      console.log('[Buy Analysis] Restored buy_analysis_snapshot.json from seed gz archive.');
-    }
-  }
-  if (fs.existsSync(SNAPSHOT_FILE)) {
-    const parsed = JSON.parse(fs.readFileSync(SNAPSHOT_FILE, 'utf8'));
-    if (parsed && Array.isArray(parsed.analyses) && parsed.analyses.length > 0 && parsed.ruleVersion === BUY_ANALYSIS_RULE_VERSION) {
-      _buyAnalysisCache = parsed;
-      _buyAnalysisCacheTimestamp = Date.now();
-      console.log(`[Buy Analysis] Loaded verified snapshot (${parsed.ruleVersion}, ${parsed.analyses.length} candidates)`);
-    } else if (parsed && parsed.ruleVersion !== BUY_ANALYSIS_RULE_VERSION) {
-      console.log(`[Buy Analysis] Discarded outdated snapshot (${parsed.ruleVersion || 'legacy'} !== ${BUY_ANALYSIS_RULE_VERSION}). Recomputation required.`);
-      try { fs.unlinkSync(SNAPSHOT_FILE); } catch (_) {}
-    }
-  }
-} catch (_) {}
+reloadBuySnapshotFromDisk();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/buy-analysis/sync-status
@@ -305,7 +320,7 @@ async function _executeBuyAnalysisEngine({ forceRefresh = false } = {}) {
     fundamentalsMap,
     earningsCatalystsMap,
     newsMap,
-    { today, maxResults: 500, includeSipPlans: true, sellAnalyses }
+    { today, maxResults: 1000, includeSipPlans: true, sellAnalyses }
   );
 
   // Filter institutional quality: strictly exclude penny stocks (< ₹20) and microcaps (< ₹1,000 Cr)
@@ -332,13 +347,10 @@ async function _executeBuyAnalysisEngine({ forceRefresh = false } = {}) {
     backtestBlockers: ['Point-in-time fundamentals and filing dates', 'Licensed adjusted OHLCV and corporate-action history', 'Complete historical universe including delisted securities', 'Portfolio sizing and transaction-cost assumptions']
   };
 
-  // Cache in RAM and persist snapshot to disk
+  // Cache in RAM and persist snapshot + gzipped archive to disk
   _buyAnalysisCache = result;
   _buyAnalysisCacheTimestamp = Date.now();
-  try {
-    if (!fs.existsSync(path.dirname(SNAPSHOT_FILE))) fs.mkdirSync(path.dirname(SNAPSHOT_FILE), { recursive: true });
-    fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(result), 'utf8');
-  } catch (_) {}
+  saveBuySnapshotToDisk(result);
 
   return result;
 }
@@ -421,9 +433,7 @@ router.post('/buy-analysis/refresh-fundamentals', authenticateToken, async (req,
             _buyAnalysisCache.analyses.unshift(updatedItem);
           }
           _buyAnalysisCache.summary = buildBuyPortfolioSummary(_buyAnalysisCache.analyses);
-          try {
-            fs.writeFileSync(SNAPSHOT_FILE, JSON.stringify(_buyAnalysisCache), 'utf8');
-          } catch (_) {}
+          saveBuySnapshotToDisk(_buyAnalysisCache);
           return res.json({ symbol: clean, fundamentals: fund, analysis: updatedItem, summary: _buyAnalysisCache.summary });
         }
       }

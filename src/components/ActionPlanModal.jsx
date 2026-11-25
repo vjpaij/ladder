@@ -88,13 +88,10 @@ export default function ActionPlanModal({ isOpen, onClose }) {
   const filteredStopLossActions = useMemo(() => {
     if (stopLossFilter === 'ACTION_REQUIRED') return stopLossActions.filter(a => a.isActionRequired);
     if (stopLossFilter === 'AMEND') return stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_AMEND');
-    if (stopLossFilter === 'CORE_RUNNER') return stopLossActions.filter(a => a.actionType === 'AMEND_CORE_RUNNER' || a.tier === 'TRANCHE2_CORE_RUNNER');
-    if (stopLossFilter === 'TRANCHE1_TRIM') return stopLossActions.filter(a => a.actionType === 'SET_TRANCHE1_TRIM' || a.tier === 'TRANCHE1_TRIM');
+    if (stopLossFilter === 'CORE_RUNNER') return stopLossActions.filter(a => a.tier === 'SMA30_TREND_EXIT' || a.tier === 'TRANCHE2_CORE_RUNNER' || a.actionType === 'AMEND_CORE_RUNNER');
+    if (stopLossFilter === 'INITIAL') return stopLossActions.filter(a => a.tier === 'INITIAL_10PCT' || a.actionType === 'SET_INITIAL');
     if (stopLossFilter === 'NEW_GTT') return stopLossActions.filter(a => a.gttStatus === 'ACTION_REQUIRED_NEW');
     if (stopLossFilter === 'UP_TO_DATE') return stopLossActions.filter(a => a.gttStatus === 'UP_TO_DATE');
-    if (stopLossFilter === 'BREAKEVEN') return stopLossActions.filter(a => a.actionType === 'AMEND_BREAKEVEN');
-    if (stopLossFilter === 'TRAILING') return stopLossActions.filter(a => a.actionType === 'AMEND_TRAILING' || a.actionType === 'AMEND_MULTIBAGGER' || a.actionType === 'AMEND_CORE_RUNNER');
-    if (stopLossFilter === 'INITIAL') return stopLossActions.filter(a => a.actionType === 'SET_INITIAL');
     if (stopLossFilter === 'NEAR_SL') return stopLossActions.filter(a => a.isNearSl);
     return stopLossActions;
   }, [stopLossActions, stopLossFilter]);
@@ -1030,17 +1027,16 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                       <th className="py-2.5 px-3">Action</th>
                       <th className="py-2.5 px-3">Symbol</th>
                       <th className="py-2.5 px-3 text-right">CMP</th>
-                      <th className="py-2.5 px-3 text-right font-black text-rose-500 dark:text-rose-400">Sell Now</th>
-                      <th className="py-2.5 px-3">Tranche 1 (Floor)</th>
-                      <th className="py-2.5 px-3">Tranche 2 (30w SMA)</th>
+                      <th className="py-2.5 px-3 text-right font-black text-rose-500 dark:text-rose-400">Sell Qty (100%)</th>
+                      <th className="py-2.5 px-3 text-right">Exit Trigger</th>
                       <th className="py-2.5 px-3 text-right">Proceeds (INR)</th>
-                      <th className="py-2.5 px-3">Trigger Rationale & Strategy</th>
+                      <th className="py-2.5 px-3">Reason</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-color)]">
                     {filteredSells.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-[var(--text-muted)]">
+                        <td colSpan={7} className="py-8 text-center text-[var(--text-muted)]">
                           No sells matching the selected filter.
                         </td>
                       </tr>
@@ -1055,7 +1051,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                   ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30'
                                   : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
                             }`}>
-                              {s.isPruning ? 'PRUNING (20-25 CORE)' : s.actionType.replace('SELL - ', '')}
+                              {s.isPruning ? 'TAIL PRUNING' : s.actionType.replace('SELL - ', '')}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 font-mono font-bold text-[var(--text-primary)]">
@@ -1076,29 +1072,8 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                             {s.quantity} shs
                             <div className="text-[9px] text-[var(--text-muted)] font-normal">of {s.heldShares} held</div>
                           </td>
-                          <td className="py-2.5 px-3 font-mono text-[11px]">
-                            {s.tranche1Shares > 0 ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold">{s.tranche1Shares} shs</span>
-                                <span className="text-[10px] text-[var(--text-muted)]">@ ₹{s.tranche1Trigger}</span>
-                                <span className={`text-[8.5px] px-1 py-0.2 rounded font-bold uppercase ${
-                                  s.tranche1Status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-500' :
-                                  s.tranche1Status === 'READY' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 font-black' : 'bg-amber-500/15 text-amber-500'
-                                }`}>{s.tranche1Status}</span>
-                              </div>
-                            ) : '—'}
-                          </td>
-                          <td className="py-2.5 px-3 font-mono text-[11px]">
-                            {s.tranche2Shares > 0 ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold">{s.tranche2Shares} shs</span>
-                                <span className="text-[10px] text-[var(--text-muted)]">@ ₹{s.tranche2Trigger}</span>
-                                <span className={`text-[8.5px] px-1 py-0.2 rounded font-bold uppercase ${
-                                  s.tranche2Status === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-500' :
-                                  s.tranche2Status === 'READY' ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 font-black' : 'bg-slate-500/15 text-[var(--text-muted)]'
-                                }`}>{s.tranche2Status}</span>
-                              </div>
-                            ) : '—'}
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)] whitespace-nowrap">
+                            {s.triggerPrice > 0 ? formatInr2(s.triggerPrice) : formatInr2(s.cmp)}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-primary)]">
                             {formatInr2(s.actionValue)}
@@ -1233,36 +1208,15 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                 </div>
               )}
 
-              {/* Strategy Rules Explanation Strip */}
-              <div className="p-3.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 text-[var(--text-primary)] space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-indigo-500" />
-                    <span className="text-xs font-bold tracking-wide">
-                      Active GTT Tracking Protocol — Synchronized with Staged Exit Plan
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300">
-                    Broker GTT Ready
-                  </span>
+              {/* Concise GTT Protocol Strip (100% Unified with Sell Analysis) */}
+              <div className="px-3.5 py-2.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 flex flex-wrap items-center justify-between gap-3 text-[11px]">
+                <div className="flex items-center gap-2 font-bold text-[var(--text-primary)]">
+                  <ShieldCheck className="w-4 h-4 text-indigo-500 shrink-0" />
+                  <span>Unified 100% GTT</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 pt-1 text-[11px] text-[var(--text-muted)]">
-                  <div className="space-y-0.5">
-                    <span className="font-bold text-amber-600 dark:text-amber-400 block">Tier 1: Initial -8% Entry Stop</span>
-                    <span>100% shares. Caps initial risk at -8.0% from cost basis.</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400 block">Tier 2: Breakeven (+15% to +30%)</span>
-                    <span>100% shares. Lock SL to cost basis +1% statutory cushion.</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="font-bold text-purple-600 dark:text-purple-400 block">Tier 3: Tranche 1 Trim (33%)</span>
-                    <span>33% trim on trailing floor/50-EMA. Leaves 67% core running.</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="font-bold text-cyan-600 dark:text-cyan-400 block">Tier 4: Core Runner (30W-SMA)</span>
-                    <span>Tranche 1 completed. Remaining core rides on 30w-SMA support.</span>
-                  </div>
+                <div className="flex flex-wrap items-center gap-4 text-[var(--text-muted)]">
+                  <span><strong className="text-amber-600 dark:text-amber-400">&lt; +15% Gain:</strong> 100% Qty @ -10% Flash / -8% Friday</span>
+                  <span><strong className="text-cyan-600 dark:text-cyan-400">≥ +15% Winner:</strong> 100% Qty @ 30w-SMA (2 Friday Closes)</span>
                 </div>
               </div>
 
@@ -1302,18 +1256,18 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  Core 30w-SMA Runners ({summary.stopLossSummary?.coreRunnersCount ?? 0})
+                  30w-SMA Winners ({stopLossActions.filter(a => a.tier === 'SMA30_TREND_EXIT').length})
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStopLossFilter('TRANCHE1_TRIM')}
+                  onClick={() => setStopLossFilter('INITIAL')}
                   className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    stopLossFilter === 'TRANCHE1_TRIM'
-                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/40 shadow-sm'
+                    stopLossFilter === 'INITIAL'
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm'
                       : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  Tranche 1 Trims ({summary.stopLossSummary?.tranche1TrimsCount ?? 0})
+                  Initial Defense -10% ({stopLossActions.filter(a => a.tier === 'INITIAL_10PCT').length})
                 </button>
                 <button
                   type="button"
@@ -1446,9 +1400,13 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                   <span>AMEND</span>
                                   <span>(+₹{sla.slDelta.toFixed(2)})</span>
                                 </span>
+                              ) : sla.gttStatus === 'WATCH_WEEKLY_CLOSE' ? (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 flex items-center gap-1 w-fit">
+                                  <span>WATCH (2-WK)</span>
+                                </span>
                               ) : sla.gttStatus === 'ACTION_REQUIRED_NEW' ? (
                                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40 flex items-center gap-1 w-fit">
-                                  <span>SET GTT (-8%)</span>
+                                  <span>SET GTT (-10%)</span>
                                 </span>
                               ) : (
                                 <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border bg-slate-500/10 text-[var(--text-muted)] border-slate-500/20 flex items-center gap-1 w-fit">

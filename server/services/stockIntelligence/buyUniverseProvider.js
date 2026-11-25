@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { aggregateWeeklyCloses, simpleMovingAverage } from './technicalIndicators.js';
+import { resolveCanonicalBaseSymbol } from './symbolAliasService.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const UNIVERSE_FILE = path.join(DATA_DIR, 'nse500_universe.json');
@@ -142,19 +143,19 @@ function loadNse500Universe() {
 
   // 1. Include baseline stocks if they have price history
   for (const sym of NSE500_BASELINE) {
-    const clean = String(sym).toUpperCase().trim();
+    const clean = resolveCanonicalBaseSymbol(sym);
     if (isIndianStockSymbol(clean) && (hpKeys.size === 0 || hpKeys.has(clean))) {
       symbols.add(clean);
     }
   }
 
-  // 2. Include genuine NSE 500 liquid stocks from universe file
+  // 2. Include NSE 500 liquid stocks from universe file
   try {
     if (fs.existsSync(UNIVERSE_FILE)) {
       const custom = JSON.parse(fs.readFileSync(UNIVERSE_FILE, 'utf8'));
       if (Array.isArray(custom)) {
-        for (const s of custom.slice(0, 500)) {
-          const clean = String(s).replace(/\.(NS|BO)$/i, '').toUpperCase().trim();
+        for (const s of custom) {
+          const clean = resolveCanonicalBaseSymbol(s);
           if (isIndianStockSymbol(clean) && (hpKeys.size === 0 || hpKeys.has(clean))) {
             symbols.add(clean);
           }
@@ -162,6 +163,30 @@ function loadNse500Universe() {
       }
     }
   } catch { /* ignore */ }
+
+  // 3. Include ALL institutional & small/mid-cap multibagger candidates (marketCapCr >= 1000) from screener cache
+  try {
+    const screenerDir = path.join(DATA_DIR, 'screener_cache');
+    if (fs.existsSync(screenerDir)) {
+      const files = fs.readdirSync(screenerDir);
+      for (const file of files) {
+        if (!file.endsWith('.json')) continue;
+        const rawClean = file.replace(/\.json$/, '').toUpperCase().trim();
+        const clean = resolveCanonicalBaseSymbol(rawClean);
+        if (!isIndianStockSymbol(clean)) continue;
+        if (hpKeys.size > 0 && !hpKeys.has(clean) && !hpKeys.has(rawClean)) continue;
+        try {
+          const raw = fs.readFileSync(path.join(screenerDir, file), 'utf8');
+          const parsed = JSON.parse(raw);
+          const mcap = Number(parsed?.marketCapCr || parsed?.market_cap_cr || 0);
+          if (mcap >= 1000) {
+            symbols.add(clean);
+          }
+        } catch { /* skip malformed cache file */ }
+      }
+    }
+  } catch { /* ignore */ }
+
   return [...symbols];
 }
 
@@ -327,13 +352,13 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
   const portfolioSymbols = new Set(
     portfolioHoldings
       .filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0 && isIndianStockSymbol(h.symbol))
-      .map(h => String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, ''))
+      .map(h => resolveCanonicalBaseSymbol(h.symbol))
   );
 
   const portfolioMap = new Map(
     portfolioHoldings
-      .filter(h => h.category_id === 'in_stocks' && isIndianStockSymbol(h.symbol))
-      .map(h => [String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, ''), h])
+      .filter(h => h.category_id === 'in_stocks' && Number(h.quantity) > 0 && isIndianStockSymbol(h.symbol))
+      .map(h => [resolveCanonicalBaseSymbol(h.symbol), h])
   );
 
   // 1. Inspect transactions & exited holdings for any stock sold in the past 90 days
@@ -344,7 +369,7 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
   for (const tx of (transactions || [])) {
     const type = String(tx.type || '').toUpperCase();
     if (['SELL', 'REDEEM', 'REDEMPTION'].includes(type) && tx.symbol) {
-      const clean = String(tx.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+      const clean = resolveCanonicalBaseSymbol(tx.symbol);
       const txMs = Date.parse(`${tx.date || ''}T00:00:00Z`);
       const isRecent = (!isNaN(txMs) && txMs >= cutoffMs) || (tx.date && tx.date >= '2026-10-21');
       if (isRecent && isIndianStockSymbol(clean) && !portfolioSymbols.has(clean)) {
@@ -362,7 +387,7 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
   // Also inspect portfolioHoldings for exited positions (quantity === 0 or status === 'exited')
   for (const h of (portfolioHoldings || [])) {
     if (h.category_id === 'in_stocks' && isIndianStockSymbol(h.symbol)) {
-      const clean = String(h.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+      const clean = resolveCanonicalBaseSymbol(h.symbol);
       const isExited = Number(h.quantity) === 0 || h.status === 'exited' || h.is_exited;
       if (isExited && !portfolioSymbols.has(clean)) {
         if (!recentlySoldMap.has(clean)) {
@@ -411,7 +436,7 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
 
   // Chartink Breakout candidates (meeting active breakout scan)
   for (const c of (chartinkCandidates || [])) {
-    const clean = String(c.symbol).toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const clean = resolveCanonicalBaseSymbol(c.symbol);
     if (!isIndianStockSymbol(clean)) continue;
     if (!allSymbols.has(clean)) {
       allSymbols.set(clean, {
@@ -433,7 +458,7 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
 
   // NSE 500 universe
   for (const sym of nse500) {
-    const clean = String(sym).toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const clean = resolveCanonicalBaseSymbol(sym);
     if (!allSymbols.has(clean)) {
       allSymbols.set(clean, {
         symbol: clean,
@@ -456,7 +481,7 @@ export function buildCandidateUniverse(portfolioHoldings = [], chartinkCandidate
 
   // User watchlist
   for (const sym of watchlist) {
-    const clean = String(sym).toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const clean = resolveCanonicalBaseSymbol(sym);
     if (!allSymbols.has(clean)) {
       allSymbols.set(clean, {
         symbol: clean,

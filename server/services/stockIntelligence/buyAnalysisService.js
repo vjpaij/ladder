@@ -233,12 +233,8 @@ function computeTechnicalBuyScore(trendData = {}, chartinkFilter = {}, currentPr
     score += 10;
     signals.push('Trading above 30-week institutional SMA ✓');
   }
-  if (sma30Buffer > 40 || emaBuffer > 25) {
-    score -= 35;
-    signals.push(`⚠ Severely overextended (+${sma30Buffer.toFixed(1)}% above 30w SMA / +${emaBuffer.toFixed(1)}% above 50-EMA) — avoid chasing peak`);
-  } else if (sma30Buffer > 25 || emaBuffer > 15) {
-    score -= 20;
-    signals.push(`⚠ Overextended (+${sma30Buffer.toFixed(1)}% above 30w SMA / +${emaBuffer.toFixed(1)}% above 50-EMA) — await pullback`);
+  if (sma30Buffer > 40 || emaBuffer > 20) {
+    signals.push(`Strong momentum runner (+${sma30Buffer.toFixed(1)}% above 30w-SMA / +${emaBuffer.toFixed(1)}% above 50-EMA)`);
   }
 
   // 3. Slope & Trend Momentum (up to 20 pts)
@@ -416,17 +412,6 @@ function classifyBuySignal(techScore, fundResult, trendData, fundamentals, earni
 
   if (!isSetupEligible) {
     return { signal: 'WATCH', reason: 'Setup consolidating: awaiting Stage 2 confirmation, 50-EMA recovery, or breakout catalyst.', isStrongBuyEligible: false };
-  }
-
-  // Anti-chasing extension gate: strictly cap overextended parabolic peaks at WATCH
-  const pctAboveSma30 = (trendData.sma30Week > 0 && currentPrice > 0) ? ((currentPrice - trendData.sma30Week) / trendData.sma30Week) * 100 : 0;
-  const pctAboveEma50 = (chartinkFilter?.ema50 > 0 && currentPrice > 0) ? ((currentPrice - chartinkFilter.ema50) / chartinkFilter.ema50) * 100 : 0;
-  if (pctAboveSma30 > 25 || pctAboveEma50 > 15) {
-    return {
-      signal: 'WATCH',
-      reason: `Overextended entry risk (+${pctAboveSma30.toFixed(1)}% above 30w SMA, +${pctAboveEma50.toFixed(1)}% above 50-EMA). Do not chase vertical peaks — await pullback/consolidation near support.`,
-      isStrongBuyEligible: false
-    };
   }
 
   const hasBuyScore = (techScore >= 55 && fundScore >= 55)

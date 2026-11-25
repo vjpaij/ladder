@@ -87,3 +87,19 @@ export function getCleanSymbol(symbol) {
   if (!symbol) return '';
   return String(symbol).toUpperCase().replace(/\.(NS|BO)$/i, '').trim();
 }
+
+/**
+ * Resolves corporate renames and mergers (e.g. SHUKRAPHAR -> SHUKRAMED, TATAMOTORS -> TMPV)
+ * to a canonical equity base symbol while keeping BSE scrip lookups human-readable.
+ */
+export function resolveCanonicalBaseSymbol(symbol) {
+  const clean = getCleanSymbol(symbol);
+  if (!clean) return '';
+  const mapped = KNOWN_SYMBOL_ALIASES[clean];
+  if (!mapped) return clean;
+  const targetClean = getCleanSymbol(mapped);
+  if (/^\d+$/.test(targetClean) || /-(SM|RR)$/i.test(targetClean) || clean === 'NSE') {
+    return clean;
+  }
+  return targetClean;
+}

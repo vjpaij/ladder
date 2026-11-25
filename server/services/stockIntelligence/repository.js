@@ -323,3 +323,57 @@ export function getStateHistory(userId, holdingId = null) {
   const document = readJson(STATE_FILE, { states: {}, events: [] });
   return document.events.filter(event => event.userId === userId && (!holdingId || event.holdingId === holdingId)).slice().reverse();
 }
+
+const SNAPSHOT_SYNC_FILES = [
+  { local: 'buy_analysis_snapshot.json.gz', cloud: 'configs/buy_analysis_snapshot.json.gz', isGz: true },
+  { local: 'stock_intelligence_overview.json', cloud: 'configs/stock_intelligence_overview.json.gz', isGz: false },
+  { local: 'stock_intelligence_action_plan.json.gz', cloud: 'configs/stock_intelligence_action_plan.json.gz', isGz: true }
+];
+
+export async function uploadStockIntelligenceSnapshotsToCloud() {
+  if (!supabaseAdmin) return { uploaded: 0 };
+  let uploaded = 0;
+  for (const item of SNAPSHOT_SYNC_FILES) {
+    const filePath = path.join(DATA_DIR, item.local);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      const rawBuf = fs.readFileSync(filePath);
+      const gzBuf = item.isGz ? rawBuf : zlib.gzipSync(rawBuf);
+      const { error } = await supabaseAdmin.storage
+        .from(BUCKET_NAME)
+        .upload(item.cloud, gzBuf, { upsert: true, contentType: 'application/gzip' });
+      if (!error) uploaded++;
+    } catch (err) {
+      console.warn(`[Snapshot Sync] Upload failed (${item.local}):`, err.message);
+    }
+  }
+  return { uploaded };
+}
+
+export async function restoreStockIntelligenceSnapshotsFromCloud() {
+  if (!supabaseAdmin) return { restored: 0 };
+  let restored = 0;
+  for (const item of SNAPSHOT_SYNC_FILES) {
+    const filePath = path.join(DATA_DIR, item.local);
+    try {
+      const { data, error } = await supabaseAdmin.storage.from(BUCKET_NAME).download(item.cloud);
+      if (error || !data) continue;
+      const arrBuf = Buffer.from(await data.arrayBuffer());
+      const outBuf = item.isGz ? arrBuf : zlib.gunzipSync(arrBuf);
+      if (outBuf.length < 100) continue;
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(filePath, outBuf);
+      // Also write unpacked .json when downloading .json.gz so cold reads never read a stale unpacked JSON file
+      if (item.isGz && item.local.endsWith('.gz')) {
+        fs.writeFileSync(path.join(DATA_DIR, item.local.slice(0, -3)), zlib.gunzipSync(outBuf));
+      }
+      restored++;
+    } catch (err) {
+      console.warn(`[Snapshot Sync] Restore warning (${item.local}):`, err.message);
+    }
+  }
+  if (restored > 0) {
+    console.log(`[Snapshot Sync] Restored ${restored} compressed Stock Intelligence snapshot(s) from Supabase cloud storage.`);
+  }
+  return { restored };
+}
