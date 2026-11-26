@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { supabase } from '../supabaseClient.js';
 import db from '../db.js';
 import { fetchMutualFundNav } from './priceEngine.js';
@@ -9,6 +10,26 @@ import { isTradingDay, getNextTradingDay } from './marketCalendar.js';
 const SIP_HISTORY_FILE = path.join(process.cwd(), 'data', 'sip_history.json');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+let _sipSweepPromise = null;
+
+/**
+ * Generates a deterministic UUID v4-formatted primary key for a SIP execution
+ * on a given scheduled date. Guarantees at the PostgreSQL primary key level
+ * that concurrent or multi-instance sweeps can never insert two rows for the
+ * same (sipId, scheduledDate).
+ */
+export function buildDeterministicSipTxId(sipId, scheduledDate) {
+  const hash = crypto.createHash('sha256').update(`sip:${sipId}:${scheduledDate}`).digest('hex');
+  const variantByte = ((parseInt(hash.slice(16, 18), 16) & 0x3f) | 0x80).toString(16).padStart(2, '0');
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    '4' + hash.slice(13, 16),
+    variantByte + hash.slice(18, 20),
+    hash.slice(20, 32)
+  ].join('-');
+}
 
 /**
  * Returns recorded SIP execution and skip history (latest first)
@@ -82,13 +103,39 @@ async function appendSipHistory(records) {
  * 4. Logs executed, skipped, and auto-closed events into data/sip_history.json for full UI transparency.
  */
 export async function processDueSips() {
+  if (_sipSweepPromise) {
+    console.log('[SIP Engine] Sweep already in flight — coalescing concurrent call.');
+    return _sipSweepPromise;
+  }
+  _sipSweepPromise = _processDueSipsImpl().finally(() => {
+    _sipSweepPromise = null;
+  });
+  return _sipSweepPromise;
+}
+
+async function _processDueSipsImpl() {
   const today = new Date().toISOString().split('T')[0];
 
   console.log(`[SIP Engine] Checking for due SIPs as of ${today}...`);
 
   let dueSips = [];
   try {
-    const allSips = await db.select('sips');
+    // Query authoritative ACTIVE SIPs from Supabase first so multi-instance runs
+    // (e.g. Render + local server) never rely on stale RAM dbCache next_run_date.
+    let allSips = null;
+    try {
+      const { data: cloudActiveSips, error: cloudErr } = await supabase
+        .from('sips')
+        .select('*')
+        .eq('status', 'ACTIVE');
+      if (!cloudErr && Array.isArray(cloudActiveSips)) {
+        allSips = cloudActiveSips;
+      }
+    } catch (_) {}
+
+    if (!allSips) {
+      allSips = await db.select('sips');
+    }
     dueSips = (allSips || []).filter(s => s.status === 'ACTIVE' && s.next_run_date && s.next_run_date <= today);
   } catch (error) {
     console.error('[SIP Engine Error fetching due SIPs]:', error.message);
@@ -199,18 +246,42 @@ export async function processDueSips() {
       const netInvested = totalAmount - charges;
       const units = parseFloat((netInvested / nav).toFixed(4));
 
-      // Idempotency guard: check if SIP transaction already exists for this holding on scheduledDate
+      // Idempotency guard: check local cache AND authoritative Supabase (scoped query)
+      const deterministicTxId = buildDeterministicSipTxId(sip.id, scheduledDate);
       const existingTxs = await db.select('transactions');
-      const alreadyExecuted = (existingTxs || []).some(t => 
-        (t.holding_id === sip.holding_id || t.symbol === sip.symbol) &&
-        t.date === scheduledDate &&
-        t.type === 'BUY' &&
-        (t.notes || '').includes('SIP')
+      let alreadyExecuted = (existingTxs || []).some(t =>
+        t.id === deterministicTxId ||
+        ((t.holding_id === sip.holding_id || t.symbol === sip.symbol) &&
+          t.date === scheduledDate &&
+          t.type === 'BUY' &&
+          (t.notes || '').includes('SIP'))
       );
 
       if (!alreadyExecuted) {
-        // 1. Insert BUY / SIP transaction
+        try {
+          let dupeQuery = supabase
+            .from('transactions')
+            .select('id')
+            .eq('date', scheduledDate)
+            .eq('type', 'BUY')
+            .ilike('notes', '%SIP%')
+            .limit(1);
+          dupeQuery = sip.holding_id
+            ? dupeQuery.eq('holding_id', sip.holding_id)
+            : dupeQuery.eq('symbol', sip.symbol);
+          const { data: cloudDupes, error: cloudDupeErr } = await dupeQuery;
+          if (!cloudDupeErr && Array.isArray(cloudDupes) && cloudDupes.length > 0) {
+            alreadyExecuted = true;
+          }
+        } catch (cloudCheckErr) {
+          console.warn('[SIP Engine] Cloud duplicate check warning:', cloudCheckErr.message);
+        }
+      }
+
+      if (!alreadyExecuted) {
+        // 1. Insert BUY / SIP transaction with deterministic UUID primary key
         await db.insert('transactions', {
+          id: deterministicTxId,
           holding_id: sip.holding_id,
           type: 'BUY',
           quantity: units,
@@ -260,33 +331,35 @@ export async function processDueSips() {
 
       await db.update('sips', sip.id, sipUpdates);
 
-      const processedItem = {
-        sipId: sip.id,
-        name: sip.name,
-        amount: totalAmount,
-        nav,
-        units,
-        executedDate: scheduledDate,
-        newNextRunDate,
-        autoClosed: sipUpdates.status === 'CLOSED'
-      };
-      processedSips.push(processedItem);
+      if (!alreadyExecuted) {
+        const processedItem = {
+          sipId: sip.id,
+          name: sip.name,
+          amount: totalAmount,
+          nav,
+          units,
+          executedDate: scheduledDate,
+          newNextRunDate,
+          autoClosed: sipUpdates.status === 'CLOSED'
+        };
+        processedSips.push(processedItem);
 
-      historyEvents.push({
-        id: `${sip.id}-${scheduledDate}-success-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        date: scheduledDate,
-        sipId: sip.id,
-        name: sip.name,
-        symbol: sip.symbol,
-        amount: totalAmount,
-        status: 'SUCCESS',
-        nav,
-        units,
-        autoClosed: sipUpdates.status === 'CLOSED'
-      });
+        historyEvents.push({
+          id: `${sip.id}-${scheduledDate}-success-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          date: scheduledDate,
+          sipId: sip.id,
+          name: sip.name,
+          symbol: sip.symbol,
+          amount: totalAmount,
+          status: 'SUCCESS',
+          nav,
+          units,
+          autoClosed: sipUpdates.status === 'CLOSED'
+        });
 
-      console.log(`[SIP Engine] Successfully executed SIP for ${sip.name}: Rs.${totalAmount} (${units} units). Next: ${sipUpdates.status === 'CLOSED' ? 'CLOSED' : newNextRunDate}`);
+        console.log(`[SIP Engine] Successfully executed SIP for ${sip.name}: Rs.${totalAmount} (${units} units). Next: ${sipUpdates.status === 'CLOSED' ? 'CLOSED' : newNextRunDate}`);
+      }
       if (sipUpdates.status === 'CLOSED') break;
       scheduledDate = newNextRunDate;
       } catch (sipErr) {
