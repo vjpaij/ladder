@@ -95,6 +95,7 @@ const _attemptedWarmingSymbols = new Set();
 
 function triggerBackgroundWarming(candidates = []) {
   for (const c of candidates) {
+    if (_backgroundQueue.length >= 30) break;
     if (c?.symbol && !_attemptedWarmingSymbols.has(c.symbol) && !_backgroundQueue.some(q => q.symbol === c.symbol)) {
       _backgroundQueue.push(c);
     }
@@ -285,7 +286,8 @@ async function _executeBuyAnalysisEngine({ forceRefresh = false } = {}) {
     return bPri - aPri;
   });
   if (candidatesNeedingData.length > 0) {
-    triggerBackgroundWarming(candidatesNeedingData);
+    // Bound warming to top 20 candidates per cycle to prevent memory bloat and API flooding
+    triggerBackgroundWarming(candidatesNeedingData.slice(0, 20));
   }
 
   // Compute earnings catalysts for all symbols

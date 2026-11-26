@@ -29,7 +29,8 @@ export async function loadHistoricalPricesAsync(forceReload = false) {
   try {
     if (fs.existsSync(HISTORICAL_PRICES_FILE)) {
       const stats = await fs.promises.stat(HISTORICAL_PRICES_FILE);
-      if (stats.mtimeMs > lastLoadedMtime) {
+      // Only reload from disk if another process modified the file significantly later than our last load/save
+      if (stats.mtimeMs > (lastLoadedMtime + 1000) && !isSaving) {
         forceReload = true;
       }
     }
@@ -189,6 +190,12 @@ async function _flushHistoricalPricesToFile() {
       // Windows EPERM / EBUSY fallback
       await fs.promises.copyFile(tempPath, HISTORICAL_PRICES_FILE);
       await fs.promises.unlink(tempPath).catch(() => {});
+    }
+    try {
+      const stats = await fs.promises.stat(HISTORICAL_PRICES_FILE);
+      lastLoadedMtime = stats.mtimeMs;
+    } catch (_) {
+      lastLoadedMtime = Date.now();
     }
     resolvers.forEach(r => r.resolve());
   } catch (e) {
