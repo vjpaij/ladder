@@ -57,7 +57,7 @@ export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = ''
 
   // 2. Banking
   if (s.includes('bank') || s.includes('banking') || s.includes('small finance bank') ||
-      n.includes('bank') || n.includes('pnb') || n.includes('sbi') || n.includes('hdfc bank') || n.includes('icici bank') || n.includes('kotak') || n.includes('axis bank') || n.includes('indusind') || n.includes('canara') || n.includes('union bank') || n.includes('idbi') || n.includes('federal') || n.includes('esaf') || n.includes('mahabank') || n.includes('bank of maharashtra') || n.includes('karurvysya') || n.includes('karur vysya') || n.includes('bandhan') || n.includes('rbl') || n.includes('cub') || n.includes('au small') || n.includes('equitas')) {
+      n.includes('bank') || n.includes('pnb') || n.includes('sbi') || n.includes('hdfc bank') || n.includes('icici bank') || n.includes('kotak') || n.includes('axis bank') || n.includes('indusind') || n.includes('canara') || n.includes('union bank') || n.includes('idbi') || n.includes('federal') || n.includes('esaf') || n.includes('mahabank') || n.includes('bank of maharashtra') || n.includes('karurvysya') || n.includes('karur vysya') || n.includes('bandhan') || n.includes('rbl') || /\bcub\b/i.test(n) || n.includes('au small') || n.includes('equitas')) {
     return 'Banking';
   }
 
@@ -91,7 +91,7 @@ export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = ''
   }
 
   // 8. Pharmaceuticals & Biotechnology
-  if (s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('formulation') || s.includes('api') || s.includes('cdmo') || s.includes('cro') || s.includes('active pharma') ||
+  if (s.includes('pharma') || s.includes('biotech') || s.includes('drug') || s.includes('formulation') || /\bapi\b/i.test(s) || s.includes('cdmo') || /\bcro\b/i.test(s) || s.includes('active pharma') ||
       n.includes('pharma') || n.includes('lab') || n.includes('sun pharma') || n.includes('sunpharma') || n.includes('dr reddy') || n.includes('drreddy') || n.includes('cipla') || n.includes('divis') || n.includes('divislab') || n.includes('torrent pharma') || n.includes('torntpharm') || n.includes('mankind') || n.includes('lupin') || n.includes('zydus') || n.includes('aurobindo') || n.includes('alkem') || n.includes('biocon') || n.includes('laurus') || n.includes('lauruslabs') || n.includes('ipca') || n.includes('ipcalab') || n.includes('solara') || n.includes('corona') || n.includes('gufic') || n.includes('sailife') || n.includes('sudeep') || n.includes('sudeepphrm') || n.includes('sanofi') || n.includes('pghl') || n.includes('saiparent') || n.includes('ajantpharm') || n.includes('ajanta pharma') || n.includes('blissgvs') || n.includes('bliss gvs') || n.includes('kpl') || n.includes('kwality') || n.includes('sequent') || n.includes('viyash') || n.includes('jbchepharm')) {
     return 'Pharmaceuticals & Biotechnology';
   }
@@ -104,7 +104,7 @@ export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = ''
 
   // 10. Capital Goods & Heavy Engineering
   if (s.includes('capital good') || s.includes('heavy engineering') || s.includes('machinery') || s.includes('machine tool') || s.includes('cnc') || s.includes('industrial machinery') || s.includes('cryogenic') || s.includes('defense') || s.includes('defence') || s.includes('engineering') || s.includes('valves') || s.includes('hoses') || s.includes('shipbuilding') ||
-      n.includes('bhel') || n.includes('aeroflex') || n.includes('inoxindia') || n.includes('macpower') || n.includes('jash') || /\b(l&t|larsen)\b/i.test(n) || n.includes('hal') || n.includes('hindustan aero') || n.includes('bel') || n.includes('bharat elec') || n.includes('siemens') || n.includes('abb') || n.includes('thermax') || n.includes('cummins') || n.includes('voltas') || n.includes('blue star') || n.includes('sigmaadv') || n.includes('sigma advanced') || n.includes('swandef') || n.includes('swan defence') || n.includes('adorweld') || n.includes('ador')) {
+      n.includes('bhel') || n.includes('aeroflex') || n.includes('inoxindia') || n.includes('macpower') || n.includes('jash') || /\b(l&t|larsen)\b/i.test(n) || /\bhal\b/i.test(n) || n.includes('hindustan aero') || /\bbel\b/i.test(n) || n.includes('bharat elec') || n.includes('siemens') || /\babb\b/i.test(n) || n.includes('thermax') || n.includes('cummins') || n.includes('voltas') || n.includes('blue star') || n.includes('sigmaadv') || n.includes('sigma advanced') || n.includes('swandef') || n.includes('swan defence') || n.includes('adorweld') || n.includes('ador')) {
     return 'Capital Goods & Heavy Engineering';
   }
 
@@ -140,7 +140,7 @@ export function resolveCanonicalSector(fundamentals = {}, name = '', symbol = ''
 
   // 16. Consumer Staples & FMCG
   if (s.includes('fmcg') || s.includes('food') || s.includes('beverage') || s.includes('edible oil') || s.includes('tobacco') || s.includes('distiller') || s.includes('brewery') || s.includes('alcohol') || s.includes('personal care') || s.includes('staple') ||
-      n.includes('itc') || n.includes('nestle') || n.includes('nestleind') || n.includes('hul') || n.includes('hindustan unilever') || n.includes('dabur') || n.includes('marico') || n.includes('britan') || n.includes('britannia') || n.includes('varun bev') || n.includes('vbl') || n.includes('tata consumer') || n.includes('tataconsum') || n.includes('godrej consumer') || n.includes('godrejcp') || n.includes('radico') || n.includes('united spirits') || n.includes('unitdspr') || n.includes('dalmiasug') || n.includes('dalmia bharat sugar') || n.includes('modinatur') || n.includes('tastybite') || n.includes('balrampur') || n.includes('patanjali') || n.includes('adani wilmar')) {
+      /\bitc\b/i.test(n) || n.includes('nestle') || n.includes('nestleind') || n.includes('hul') || n.includes('hindustan unilever') || n.includes('dabur') || n.includes('marico') || n.includes('britan') || n.includes('britannia') || n.includes('varun bev') || n.includes('vbl') || n.includes('tata consumer') || n.includes('tataconsum') || n.includes('godrej consumer') || n.includes('godrejcp') || n.includes('radico') || n.includes('united spirits') || n.includes('unitdspr') || n.includes('dalmiasug') || n.includes('dalmia bharat sugar') || n.includes('modinatur') || n.includes('tastybite') || n.includes('balrampur') || n.includes('patanjali') || n.includes('adani wilmar')) {
     return 'Consumer Staples & FMCG';
   }
 
@@ -918,38 +918,67 @@ export function buildBuyAnalyses(
   const sectorGroups = {};
   for (const a of results) {
     const sec = a.sector || 'Unknown';
-    if (!sectorGroups[sec]) sectorGroups[sec] = { total: 0, stage2Count: 0 };
+    if (!sectorGroups[sec]) sectorGroups[sec] = { total: 0, stage2Count: 0, rsSum: 0, rsCount: 0 };
     sectorGroups[sec].total++;
     if (a.weinsteinStage === 2 && a.currentPrice > (a.ema50 || 0)) {
       sectorGroups[sec].stage2Count++;
     }
+    if (Number.isFinite(a.rsScore)) {
+      sectorGroups[sec].rsSum += a.rsScore;
+      sectorGroups[sec].rsCount++;
+    }
   }
 
+  const sectorRankings = [];
   const boomingSectors = new Set();
   for (const [sec, data] of Object.entries(sectorGroups)) {
     if (data.total >= 4 && sec !== 'Unknown') {
       const breadthPct = (data.stage2Count / data.total) * 100;
+      const avgRs = data.rsCount > 0 ? data.rsSum / data.rsCount : 0;
+      const momentumRankScore = breadthPct * 0.6 + Math.max(0, avgRs) * 1.2;
+      sectorRankings.push({ sec, breadthPct, avgRs, momentumRankScore });
       if (breadthPct >= 50) {
         boomingSectors.add(sec);
       }
     }
   }
 
+  sectorRankings.sort((a, b) => b.momentumRankScore - a.momentumRankScore);
+  const topLeadingSectors = new Set(
+    sectorRankings
+      .filter(s => s.breadthPct >= 40 && s.avgRs >= 12)
+      .slice(0, 3)
+      .map(s => s.sec)
+  );
+
   for (const a of results) {
-    if (boomingSectors.has(a.sector)) {
+    const isTopLeader = topLeadingSectors.has(a.sector);
+    const isBooming = boomingSectors.has(a.sector);
+    if (isTopLeader || isBooming) {
       a.hasSectorTailwind = true;
-      a.compositeScore = Math.min(100, a.compositeScore + 5);
+      a.isLeadingSector = isTopLeader;
+      const boost = isTopLeader ? 8 : 5;
+      a.compositeScore = Math.min(100, a.compositeScore + boost);
       if (a.normalizedRs !== undefined) {
         a.mps = Math.min(100, Math.round(0.50 * a.normalizedRs + 0.50 * a.compositeScore));
         a.multibaggerProbabilityScore = a.mps;
       }
-      if (Array.isArray(a.qualitativeTags) && !a.qualitativeTags.some(t => t.tag === 'SECTOR_TAILWIND')) {
-        a.qualitativeTags.unshift({
-          tag: 'SECTOR_TAILWIND',
-          label: `Sector Boom · ${a.sector}`,
-          color: 'indigo',
-          informational: true
-        });
+      if (Array.isArray(a.qualitativeTags)) {
+        if (isTopLeader && !a.qualitativeTags.some(t => t.tag === 'SECTOR_LEADER')) {
+          a.qualitativeTags.unshift({
+            tag: 'SECTOR_LEADER',
+            label: `Top Sector Leader · ${a.sector}`,
+            color: 'emerald',
+            informational: true
+          });
+        } else if (!isTopLeader && !a.qualitativeTags.some(t => t.tag === 'SECTOR_TAILWIND')) {
+          a.qualitativeTags.unshift({
+            tag: 'SECTOR_TAILWIND',
+            label: `Sector Boom · ${a.sector}`,
+            color: 'indigo',
+            informational: true
+          });
+        }
       }
     }
   }

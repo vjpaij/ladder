@@ -5,7 +5,7 @@ import { applyChartinkFilter, addToWatchlist, removeFromWatchlist, loadWatchlist
 import { buildSipPlan, shouldGenerateSipPlan } from './sipPositionBuilder.js';
 import { computeEarningsCatalyst } from './earningsCatalystService.js';
 import { isNoise, extractSignals } from './newsIntelService.js';
-import { buildBuyAnalyses } from './buyAnalysisService.js';
+import { buildBuyAnalyses, resolveCanonicalSector } from './buyAnalysisService.js';
 import { buildExecutiveStrategy } from './executiveStrategyBuilder.js';
 
 test('Fundamental Scorer: awards high score for strong compounder', () => {
@@ -209,5 +209,13 @@ test('Executive Strategy Builder: identifies extended runner (RPEL case) and pre
   assert.equal(strategy.tranches[1].ratio, 0.35);
   assert.equal(strategy.tranches[2].ratio, 0.35);
   assert.equal(strategy.riskAndExit.stopLoss, 1573.70);
+});
+
+test('Sector Resolver: does not misclassify Capital Goods into Pharma via "api" substring', () => {
+  const sec = resolveCanonicalSector({ sector: 'Capital Goods & Heavy Engineering', industry: 'Diversified & Other' }, 'Filatex India Ltd', 'FILATEX');
+  assert.equal(sec, 'Capital Goods & Heavy Engineering');
+
+  const pharmaSec = resolveCanonicalSector({ sector: 'Pharmaceuticals & API Manufacturing' }, 'Test Pharma Ltd', 'TESTPHARMA');
+  assert.equal(pharmaSec, 'Pharmaceuticals & Biotechnology');
 });
 

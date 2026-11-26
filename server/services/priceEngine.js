@@ -65,7 +65,7 @@ export function buildCanonicalLivePriceMap({
   });
 
   const isInStocksInvariant = !hasCategoryTransactionToday('in_stocks') &&
-    inStocksStatus.status === 'NON_TRADING_DAY';
+    ['NON_TRADING_DAY', 'PRE_MARKET'].includes(inStocksStatus.status);
   const isMfInvariant = !hasCategoryTransactionToday('mutual_funds') &&
     ['NON_TRADING_DAY', 'PRE_MARKET'].includes(mfStatus.status);
   const isNpsInvariant = !hasCategoryTransactionToday('nps') &&
@@ -103,7 +103,14 @@ export function buildCanonicalLivePriceMap({
       const priceHistory = histCache[h.symbol] || histCache[cleanSymbol] ||
         histCache[`${cleanSymbol}.NS`] || {};
       const previousDates = Object.keys(priceHistory).filter(date => date < currentTodayStr && Number(priceHistory[date]) > 0).sort();
-      const lastTradingDay = getLastTradingDay(currentTodayStr, h.category_id === 'us_stocks' ? 'US' : 'NSE');
+      const assetStatus = h.category_id === 'us_stocks' ? usStocksStatus
+        : h.category_id === 'mutual_funds' ? mfStatus
+        : h.category_id === 'nps' ? npsStatus
+        : inStocksStatus;
+      const refDate = assetStatus?.status === 'PRE_MARKET'
+        ? new Date(Date.parse(`${currentTodayStr}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
+        : currentTodayStr;
+      const lastTradingDay = getLastTradingDay(refDate, h.category_id === 'us_stocks' ? 'US' : 'NSE');
       if (previousDates.length > 0 && previousDates.at(-1) >= lastTradingDay) {
         price = Number(priceHistory[previousDates.at(-1)]);
       } else if (Number(h.current_price) > 0) {

@@ -16,6 +16,8 @@ import {
   isTradingDay,
   getTodayIST
 } from './priceEngine.js';
+import { getAssetSessionStatus, getLastTradingDay } from './marketCalendar.js';
+import { syncIndexHistory } from '../../scripts/sync_index_history.mjs';
 
 /**
  * Background Self-Healing Service
@@ -914,6 +916,39 @@ export async function healLiabilityBalances() {
   return result;
 }
 
+export async function healIndexHistory() {
+  const result = { updated: false, latestBefore: null, latestAfter: null };
+  try {
+    const idxFile = path.join(process.cwd(), 'data', 'index_history.json');
+    const todayStr = getTodayIST();
+    const sessionStatus = getAssetSessionStatus('in_stocks', todayStr);
+    const refDate = ['PRE_MARKET', 'MARKET_OPEN'].includes(sessionStatus?.status)
+      ? new Date(Date.parse(`${todayStr}T00:00:00Z`) - 86400000).toISOString().slice(0, 10)
+      : todayStr;
+    const lastNseTradingDay = getLastTradingDay(refDate, 'NSE');
+    let currentLatest = null;
+    if (fs.existsSync(idxFile)) {
+      const idx = JSON.parse(fs.readFileSync(idxFile, 'utf8'));
+      const closes = idx.NIFTY_500?.closes || idx.NIFTY_50?.closes || {};
+      const dates = Object.keys(closes).sort();
+      currentLatest = dates.at(-1) || null;
+    }
+    result.latestBefore = currentLatest;
+    if (!currentLatest || currentLatest < lastNseTradingDay) {
+      console.log(`[Self-Healing] Benchmark index_history.json stale (${currentLatest || 'missing'} < ${lastNseTradingDay}). Syncing...`);
+      const updated = await syncIndexHistory();
+      const newDates = Object.keys(updated?.NIFTY_500?.closes || updated?.NIFTY_50?.closes || {}).sort();
+      result.latestAfter = newDates.at(-1) || currentLatest;
+      result.updated = Boolean(result.latestAfter && result.latestAfter !== currentLatest);
+    } else {
+      result.latestAfter = currentLatest;
+    }
+  } catch (err) {
+    console.warn('[Self-Healing] healIndexHistory error:', err.message);
+  }
+  return result;
+}
+
 export async function runComprehensiveSelfHealing() {
   console.log('[Self-Healing Service] Starting comprehensive self-healing scan...');
   const fxHeal = await healMissingHistoricalFxRates();
@@ -924,6 +959,7 @@ export async function runComprehensiveSelfHealing() {
   const npsEodSync = await syncRecentNpsEodValuations();
   const histPriceHeal = await healRecentHistoricalPrices({ triggerEodSync: false });
   const holdingsPriceHistHeal = await healActiveHoldingsPriceHistory();
+  const indexHeal = await healIndexHistory();
   const sipHeal = await healRecentSipTransactions();
   const dustHeal = await healDustFractionalHoldings();
   let navHeal = null;
@@ -933,7 +969,7 @@ export async function runComprehensiveSelfHealing() {
     console.warn('[Self-Healing Service] NAV sync warning:', err.message);
   }
 
-  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Current Prices: ${priceHeal.updated}, Healed Liabilities: ${liabHeal.healed}, NPS NAV Gaps: ${npsGapHeal.updated}, Historical Asset Prices: ${histPriceHeal.updated}, Active Holdings Price Series: ${holdingsPriceHistHeal.healed}, Healed SIP TXs: ${sipHeal.healed}`);
+  console.log(`[Self-Healing Service] Completed scan. Healed FX dates: ${fxHeal.updated}, FX TXs: ${txHeal.updated}, Recalculated Holdings: ${txHeal.holdingsRecalculated}, Healed Current Prices: ${priceHeal.updated}, Healed Liabilities: ${liabHeal.healed}, NPS NAV Gaps: ${npsGapHeal.updated}, Historical Asset Prices: ${histPriceHeal.updated}, Active Holdings Price Series: ${holdingsPriceHistHeal.healed}, Index Synced: ${indexHeal.updated} (${indexHeal.latestAfter || '—'}), Healed SIP TXs: ${sipHeal.healed}`);
   return {
     fxHealed: fxHeal,
     transactionsHealed: txHeal,
@@ -941,7 +977,7 @@ export async function runComprehensiveSelfHealing() {
     liabilitiesHealed: liabHeal,
     historicalPricesHealed: histPriceHeal,
     activeHoldingsPriceHistHealed: holdingsPriceHistHeal,
-    historicalPricesHealed: histPriceHeal,
+    indexHealed: indexHeal,
     npsGapHeal,
     npsEodSync,
     sipHealed: sipHeal,

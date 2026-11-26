@@ -249,6 +249,46 @@ export async function runDailyStockAnalysisAudit({ userId = '1', trigger = 'SCHE
     const transitions = recordStateTransitions(userId, analyses);
     const summary = buildPortfolioSummary(analyses);
 
+    // Keep overview & action plan disk snapshots synchronized on every EOD/boot audit
+    try {
+      const overviewSnapshot = {
+        generatedAt: new Date().toISOString(),
+        ruleVersion: backtest.version,
+        summary,
+        config,
+        backtest,
+        analyses,
+        dataIntegrity: auditReport,
+        executionSchedule: {
+          scheduledDailyTime: '06:30 PM IST (Post-Market Close)',
+          runEverySession: true,
+          lastEvaluatedAt: new Date().toISOString()
+        }
+      };
+      const reconciledOverview = await reconcileOverviewWithLiveHoldings(overviewSnapshot);
+      const userKey = getUserKey({ userId });
+      cachedOverview = reconciledOverview;
+      cachedOverviewKey = userKey;
+      cachedOverviewTimestamp = Date.now();
+      saveOverviewSnapshotToDisk(reconciledOverview);
+
+      const userConfig = getIntelligenceConfig(userKey);
+      invalidateActionPlanBaseCache();
+      const freshPlan = await generateActionPlan({
+        userId: userKey,
+        externalCashBudget: userConfig.externalCashBudget,
+        recyclingMode: userConfig.recyclingMode,
+        userConfig,
+        forceRefresh: true
+      });
+      cachedActionPlan = freshPlan;
+      cachedActionPlanKey = `${userKey}_${userConfig.externalCashBudget}_${userConfig.recyclingMode}_undefined_undefined`;
+      cachedActionPlanTimestamp = Date.now();
+      saveActionPlanSnapshotToDisk(freshPlan);
+    } catch (snapErr) {
+      console.warn('[Stock Analysis] Snapshot persistence warning:', snapErr.message);
+    }
+
     logSyncEvent({
       jobType: 'STOCK_ANALYSIS_EOD',
       jobName: `Daily Stock Analysis Audit (${trigger})`,

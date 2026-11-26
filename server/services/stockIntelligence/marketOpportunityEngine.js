@@ -75,10 +75,10 @@ const DEFAULT_CONFIG = {
     strikeMoiThreshold: 65,
     highQualityClusterThreshold: 3, // Min candidates with MPS >= 80 to trigger strike mode
     highQualityMpsThreshold: 80,
-    strikeProgressTargetMoi: 85,
+    strikeProgressTargetMoi: 75,
     staggeredBaseMoi: 50,
     budgetRatio: {
-      strike: { min: 0.75, max: 1.00 },
+      strike: { min: 0.85, max: 1.00 },
       staggered: { min: 0.30, max: 0.50 },
     },
   },
@@ -398,6 +398,11 @@ function calculateDeploymentBudget(modeInfo, totalPurchasingPower, config) {
   if (modeInfo.isStrikeMode) {
     const progress = clamp((moi - threshold) / (strikeProgressTargetMoi - threshold), 0, 1);
     ratio = ratios.min + (ratios.max - ratios.min) * progress;
+    if (modeInfo.trigger.highQualityCount >= 25 || moi >= strikeProgressTargetMoi) {
+      ratio = ratios.max;
+    } else if (modeInfo.trigger.highQualityCount >= 10) {
+      ratio = Math.max(ratio, 0.95);
+    }
   } else {
     const progress = clamp(moi / staggeredBaseMoi, 0, 1);
     ratio = ratios.min + (ratios.max - ratios.min) * progress;

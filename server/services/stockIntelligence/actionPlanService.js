@@ -90,24 +90,31 @@ export async function computeActionPlanBase({
     }
   }
 
-  // Compute Dynamic Sector Breadth & Group Momentum across universe
+  // Compute Dynamic Sector Breadth & Group Momentum across universe (weighted by Bullish % + 6m Relative Strength)
   const sectorStats = {};
   buyAnalyses.forEach(x => {
     const s = resolveCanonicalSector(x.fundamentals, x.name, x.symbol) || x.sector || 'Diversified & Other';
-    if (!sectorStats[s]) sectorStats[s] = { total: 0, bullish: 0, scores: [] };
+    if (!sectorStats[s]) sectorStats[s] = { total: 0, bullish: 0, scores: [], rsSum: 0, rsCount: 0 };
     sectorStats[s].total++;
     if (['STRONG_BUY', 'BUY'].includes(x.buySignal)) sectorStats[s].bullish++;
     sectorStats[s].scores.push(x.compositeScore || 50);
+    if (Number.isFinite(Number(x.rsScore))) {
+      sectorStats[s].rsSum += Number(x.rsScore);
+      sectorStats[s].rsCount++;
+    }
   });
   for (const [, stat] of Object.entries(sectorStats)) {
     stat.bullishPct = Math.round((stat.bullish / stat.total) * 100);
     stat.avgScore = Math.round(stat.scores.reduce((a, b) => a + b, 0) / stat.scores.length);
+    stat.avgRs = stat.rsCount > 0 ? stat.rsSum / stat.rsCount : 0;
+    stat.momentumRank = stat.bullishPct * 0.5 + Math.max(0, stat.avgRs) * 1.2 + stat.avgScore * 0.2;
   }
-  const topSectors = Object.entries(sectorStats)
-    .filter(([_, st]) => st.total >= 5)
-    .sort((a, b) => b[1].bullishPct - a[1].bullishPct || b[1].avgScore - a[1].avgScore)
-    .slice(0, 5)
+  const rankedSectors = Object.entries(sectorStats)
+    .filter(([, st]) => st.total >= 5)
+    .sort((a, b) => b[1].momentumRank - a[1].momentumRank || b[1].bullishPct - a[1].bullishPct)
     .map(([s]) => s);
+  const top3Sectors = rankedSectors.slice(0, 3);
+  const topSectors = rankedSectors.slice(0, 5);
 
   // 1b. Nifty 500 Market Regime Gate
   // Evaluates whether the broader market (Nifty 500 covering ~96% of Indian equity market cap) is in Bull Expansion (above 50-EMA) or Correction Defensive (below 50-EMA)
@@ -320,7 +327,8 @@ export async function computeActionPlanBase({
     .filter(h => h.category_id === 'in_stocks' || (!h.category_id && !String(h.symbol).includes('.')))
     .reduce((acc, h) => acc + (Number(h.quantity || 0) * Number(h.current_price || 0)), 0) || 4600000;
 
-  const targetWeightPct = Math.max(15.0, Number(userConfig?.maxPositionWeightPct) || 15.0);
+  const configuredWeight = Number(userConfig?.maxPositionWeightPct);
+  const targetWeightPct = (Number.isFinite(configuredWeight) && configuredWeight > 0) ? configuredWeight : 15.0;
 
   // Dynamic Conviction-Weighted Allocation Calculator (Concentrated Bulk + Winner Pyramiding)
   function calculateDynamicConvictionAllocation(item, isOwned, heldQty, holdingObj) {
@@ -592,6 +600,13 @@ export async function computeActionPlanBase({
       priorityRank += 350;
     } else if (x.sourceSignal === 'STRONG_BUY') {
       priorityRank += 300;
+    }
+
+    const candSector = resolveCanonicalSector(x.fundamentals, x.name, x.symbol) || x.sector || 'Diversified & Other';
+    if (top3Sectors.includes(candSector)) {
+      priorityRank += 150;
+    } else if (topSectors.includes(candSector)) {
+      priorityRank += 75;
     }
 
     let actionType = isOwned ? 'BUY - ACCUMULATE (ADD TRANCHE)' : 'BUY - NEW POSITION';
@@ -1093,26 +1108,39 @@ export async function generateActionPlan({
     // Opportunity Strike Mode: Allocates up to dynamicDeploymentBudget across all qualifying leaders (uncapped count).
     // Staggered Accumulation Mode: Limits to staged tranches (effectiveMaxDailyBuys and effectiveDeploymentCap).
     const withinDailyBandwidth = immediateBuys.length < effectiveMaxDailyBuys;
-    const withinDailySpend = (dailySpend + effectiveAmount <= effectiveDeploymentCap) || (immediateBuys.length === 0);
-    const withinTotalCapital = remainingCapital >= effectiveAmount;
+    const remainingDailyCap = Math.max(0, effectiveDeploymentCap - dailySpend);
+    const availableBudget = immediateBuys.length === 0
+      ? remainingCapital
+      : Math.min(remainingCapital, remainingDailyCap);
+    const canFundFull = withinDailyBandwidth && (effectiveAmount <= availableBudget);
+    const canPartialScaleLeader = !canFundFull && withinDailyBandwidth
+      && (cand.mps >= 85 || cand.sourceSignal === 'STRONG_BUY')
+      && availableBudget >= Math.max(effectiveAmount * 0.45, 100000)
+      && availableBudget >= cand.cmp;
 
-    if (withinDailyBandwidth && withinDailySpend && withinTotalCapital) {
-      const fundedShares = effectiveTargetShares;
+    if (canFundFull || canPartialScaleLeader) {
+      const fundedShares = canFundFull
+        ? effectiveTargetShares
+        : Math.max(1, Math.floor(availableBudget / cand.cmp));
       const fundedValue = fundedShares * cand.cmp;
       remainingCapital -= fundedValue;
       dailySpend += fundedValue;
       sectorSpendMap[candSector] = currentSectorSpend + fundedValue;
       sectorCountMap[candSector] = currentSectorCount + 1;
+      const partialNote = !canFundFull
+        ? ` [Scaled to available Strike budget ₹${Math.round(fundedValue / 1000)}k of ₹${Math.round(effectiveAmount / 1000)}k]`
+        : '';
       immediateBuys.push({
         ...cand,
         executionStatus: 'FUNDED TODAY (IMMEDIATE EXECUTION)',
         actionShares: fundedShares,
         actionValue: fundedValue,
-        note: cand.isOwned
+        note: (cand.isOwned
           ? `Tranche Addition (Holding ${cand.heldQty} shs): ${cand.sizing.summary}. Trail stop at ₹${cand.sl.toFixed(2)}.`
-          : `New Entry: ${cand.sizing.summary}. Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}, Stop ₹${cand.sl.toFixed(2)}.`
+          : `New Entry: ${cand.sizing.summary}. Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}, Stop ₹${cand.sl.toFixed(2)}.`) + partialNote
       });
     } else {
+      const withinDailySpend = (dailySpend + effectiveAmount <= effectiveDeploymentCap) || (immediateBuys.length === 0);
       const isBudgetCap = !withinDailySpend || !withinDailyBandwidth;
       queuedBuys.push({
         ...cand,
