@@ -681,6 +681,8 @@ export default function HoldingDetailModal({ holding, onClose, onRefresh }) {
                           filteredTimeline={filteredTimeline}
                           setChartRangeFilter={setChartRangeFilter}
                           chartLineColor={chartLineColor}
+                          isExited={(Number(activeHolding?.quantity) || 0) <= 0}
+                          netPnl={(Number(m?.unrealizedPnl) || 0) + (Number(m?.realizedPnl) || 0)}
                           isLight={isLight}
                           isDisplayUSD={isDisplayUSD}
                           isFundOrNps={isFundOrNps}

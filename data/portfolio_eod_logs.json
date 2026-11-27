@@ -161011,15 +161011,17 @@
     "mutual_funds": 4700834.06,
     "indian_stocks": 9112815.25,
     "us_stocks": 1571424.17,
-    "nps": 552280.22,
+    "nps": 552229.47,
     "epf": 4919489,
     "loan": 4398850,
     "credits": 4461.32,
     "debt": 4403311.32,
-    "total_assets": 22745132.76,
-    "wealth": 18341821.44,
-    "total_wealth": 18341821.44,
-    "daily_pnl": 23169.22,
-    "pnl_pct": 0.13
+    "total_assets": 22745082.01,
+    "wealth": 18341770.69,
+    "total_wealth": 18341770.69,
+    "daily_pnl": 23118.47,
+    "pnl_pct": 0.13,
+    "total_assets_inr": 22745082.01,
+    "net_worth_inr": 18341770.69
   }
 ]

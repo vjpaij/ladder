@@ -1333,6 +1333,7 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
             if (bestQ && newPrice > 0) {
               liveQuoteCache.set(h.symbol, {
                 price: newPrice,
+                previousClose: bestQ.previousClose,
                 nse_price: nseP,
                 bse_price: bseP,
                 dayChange: bestQ.dayChange,
@@ -1378,6 +1379,7 @@ export async function refreshHoldingsPrices({ activeOnly = true, persistToDb = f
           if (q && q.nav > 0) {
             liveQuoteCache.set(h.symbol, {
               price: q.nav,
+              previousClose: q.previousNav,
               dayChange: q.dayChange,
               dayChangePct: q.dayChangePct,
               open: q.open,
@@ -1549,4 +1551,125 @@ export async function refreshAllHoldingsPrices(options = {}) {
 export async function persistHoldingClosingPrices() {
   console.log('[PriceEngine] Persisting closing holding prices to Supabase...');
   return refreshHoldingsPrices({ activeOnly: false, persistToDb: true });
+}
+
+/**
+ * Refreshes the live quote/NAV for a single holding, updates liveQuoteCache + dbCache,
+ * and optionally persists the updated quote fields to Supabase.
+ */
+export async function refreshSingleHoldingQuote(holding, { persistToDb = true } = {}) {
+  if (!holding || !holding.symbol) return null;
+
+  const h = holding;
+  let updates = null;
+
+  if (h.category_id === 'us_stocks') {
+    const q = await fetchStockQuote(h.symbol);
+    if (q && q.price > 0) {
+      liveQuoteCache.set(h.symbol, q);
+      updates = {
+        current_price: q.price,
+        day_change: q.dayChange,
+        day_change_pct: q.dayChangePct,
+        quote_date: q.quoteDate,
+        updated_at: new Date().toISOString(),
+      };
+    }
+  } else if (h.category_id === 'in_stocks') {
+    const baseSymbol = h.symbol.replace(/\.(NS|BO)$/i, '');
+    const canonical = resolveCanonicalTicker(baseSymbol);
+    let nseTicker = `${baseSymbol}.NS`;
+    let bseTicker = `${baseSymbol}.BO`;
+    if (canonical && canonical !== baseSymbol) {
+      if (canonical.endsWith('.BO')) {
+        bseTicker = canonical;
+        nseTicker = canonical.replace(/\.BO$/i, '.NS');
+      } else if (canonical.endsWith('.NS')) {
+        nseTicker = canonical;
+        bseTicker = canonical.replace(/\.NS$/i, '.BO');
+      } else if (canonical.includes('.')) {
+        nseTicker = canonical;
+      }
+    }
+    const [nseQ, bseQ] = await Promise.all([
+      fetchStockQuote(nseTicker),
+      fetchStockQuote(bseTicker),
+    ]);
+    const nseP = Number(nseQ?.price) || 0;
+    const bseP = Number(bseQ?.price) || 0;
+    const bestQ = (bseP > nseP && bseP > 0) ? bseQ : (nseP > 0 ? nseQ : (bseP > 0 ? bseQ : null));
+    const newPrice = Math.max(nseP, bseP);
+    if (bestQ && newPrice > 0) {
+      const fiftyTwoWeekHigh = Math.max(Number(nseQ?.fiftyTwoWeekHigh || 0), Number(bseQ?.fiftyTwoWeekHigh || 0), Number(bestQ.fiftyTwoWeekHigh || 0));
+      const lowCandidates = [nseQ?.fiftyTwoWeekLow, bseQ?.fiftyTwoWeekLow, bestQ.fiftyTwoWeekLow].map(Number).filter(v => v > 0);
+      const fiftyTwoWeekLow = lowCandidates.length > 0 ? Math.min(...lowCandidates) : undefined;
+      liveQuoteCache.set(h.symbol, {
+        price: newPrice,
+        previousClose: bestQ.previousClose,
+        nse_price: nseP,
+        bse_price: bseP,
+        dayChange: bestQ.dayChange,
+        dayChangePct: bestQ.dayChangePct,
+        open: bestQ.open,
+        high: bestQ.high,
+        low: bestQ.low,
+        fiftyTwoWeekHigh,
+        fiftyTwoWeekLow,
+        quoteDate: bestQ.quoteDate,
+      });
+      updates = {
+        current_price: newPrice,
+        nse_price: nseP,
+        bse_price: bseP,
+        day_change: bestQ.dayChange,
+        day_change_pct: bestQ.dayChangePct,
+        quote_date: bestQ.quoteDate,
+        updated_at: new Date().toISOString(),
+      };
+    }
+  } else if (h.category_id === 'mutual_funds') {
+    const q = await fetchMutualFundNav(h.symbol);
+    if (q && q.nav > 0) {
+      liveQuoteCache.set(h.symbol, {
+        price: q.nav,
+        previousClose: q.previousNav,
+        dayChange: q.dayChange,
+        dayChangePct: q.dayChangePct,
+        open: q.open,
+        high: q.high,
+        low: q.low,
+        fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+        fiftyTwoWeekLow: q.fiftyTwoWeekLow,
+        quoteDate: q.quoteDate,
+      });
+      updates = {
+        current_price: q.nav,
+        day_change: q.dayChange,
+        day_change_pct: q.dayChangePct,
+        quote_date: q.quoteDate,
+        updated_at: new Date().toISOString(),
+      };
+    }
+  } else if (h.category_id === 'nps') {
+    const q = await fetchNpsNavFallback(h.symbol);
+    if (q && q.nav > 0) {
+      const qDate = formatCleanQuoteDate(q.nav_date);
+      liveQuoteCache.set(h.symbol, {
+        price: Number(q.nav),
+        quoteDate: qDate,
+      });
+      updates = {
+        current_price: Number(q.nav),
+        quote_date: qDate,
+        updated_at: new Date().toISOString(),
+      };
+    }
+  }
+
+  if (!updates) return null;
+
+  updateCacheRow('holdings', h.id, updates);
+  if (persistToDb) await db.update('holdings', h.id, updates);
+
+  return updates;
 }

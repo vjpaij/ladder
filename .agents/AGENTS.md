@@ -10,9 +10,8 @@
 
 ## Agent Delegation & Model Rules
 
-1. **FORCE OPENROUTER (TIER 2) DELEGATION**:
-   - For all future tasks in this project, you **MUST** use the OpenRouter free models (via the `openrouter-delegation` skill) by default, regardless of task complexity.
-   - Do NOT use Antigravity models (TIER 1) directly unless the user explicitly specifies "use Antigravity", "use premium", or "do this yourself" in the prompt.
+1. **DIRECT ANTIGRAVITY EXECUTION (OPENROUTER DELEGATION DISABLED)**:
+   - Per explicit user instruction, OpenRouter (openrouter-delegate MCP) delegation is **OFF**. Handle all code, debugging, and documentation tasks directly using Antigravity.
 
 ## Mandatory Pre-Execution & Post-Execution Rules
 

@@ -14,15 +14,21 @@ export default function HoldingChartsSection({
   filteredTimeline = [],
   setChartRangeFilter,
   chartLineColor,
+  isExited = false,
+  netPnl = 0,
   isLight,
   isDisplayUSD,
   isFundOrNps,
   chartMinMax
 }) {
-  // Determine if trend over the selected period is negative (end < start)
-  const isTrackerDown = filteredTimeline.length >= 2 && 
-    (filteredTimeline[filteredTimeline.length - 1]?.value ?? 0) < (filteredTimeline[0]?.value ?? 0);
-  const effectiveTrackerColor = isTrackerDown ? '#F43F5E' : (chartLineColor || '#10B981');
+  // Tracker Chart color:
+  // - When fully sold: green if net P&L >= 0, red if loss.
+  // - When active: green if Market Value >= Cost Basis at the latest point, red if below.
+  const lastPoint = filteredTimeline[filteredTimeline.length - 1];
+  const isTrackerProfit = isExited
+    ? netPnl >= 0
+    : ((lastPoint?.value ?? 0) >= (lastPoint?.invested ?? 0));
+  const effectiveTrackerColor = isTrackerProfit ? '#10B981' : '#F43F5E';
 
   const isActualDown = filteredTimeline.length >= 2 && 
     (filteredTimeline[filteredTimeline.length - 1]?.price ?? 0) < (filteredTimeline[0]?.price ?? 0);

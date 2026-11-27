@@ -9,6 +9,7 @@ import {
   liveQuoteCache, 
   resolveHoldingPrice,
   buildCanonicalLivePriceMap,
+  refreshSingleHoldingQuote,
   fetchStockQuote, 
   fetchMutualFundNav, 
   fetchNpsNavFallback, 
@@ -24,6 +25,8 @@ import { calculateXirr } from '../services/xirrCalculator.js';
 import { invalidateBenchmarkCache } from '../services/benchmarkEngine.js';
 import { invalidateBuyCache } from './buyAnalysis.js';
 import { invalidateStockIntelligenceCache } from './stockIntelligence.js';
+import { invalidateSummaryCache } from './summary.js';
+import { invalidateTxDatesCache, invalidateCalendarValuationCache } from './calendar.js';
 import { resolveCanonicalSector } from '../services/stockIntelligence/buyAnalysisService.js';
 import { triggerEodRebuildIfPastDate } from '../services/eodSync.js';
 import { getLoanAmortizationData, settleAmortizationForMonth } from '../services/loanEngine.js';
@@ -1199,6 +1202,9 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
         for (const d of relevantDates) {
           let dayEvents = [];
+          const preDayQ = runningQ;
+          let daySoldCost = 0;
+          let daySoldProceeds = 0;
 
           while (txIdx < txs.length && txs[txIdx].date <= d) {
             const tx = txs[txIdx];
@@ -1224,8 +1230,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
               runningQ += qty;
               runningInv += amt;
             } else if (tx.type === 'SELL' || tx.type === 'REDEEM' || tx.type === 'REDEMPTION') {
+              const sellCost = runningQ > 0 ? (qty * (runningInv / runningQ)) : 0;
+              daySoldCost += sellCost;
+              daySoldProceeds += amt;
               runningQ = Math.max(0, runningQ - qty);
-              runningInv = Math.max(0, runningInv - amt);
+              runningInv = Math.max(0, runningInv - sellCost);
             }
             txIdx++;
           }
@@ -1251,10 +1260,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
           const nav = npsNavMap.get(d) || 0;
           const val = Math.max(0, runningQ * nav);
+          const fullExitOnDay = runningQ <= 1e-6 && preDayQ > 0 && daySoldCost > 0;
           timelineINR.push({
             label: d,
-            invested: Number(Math.max(0, runningInv).toFixed(2)),
-            value: Number(val.toFixed(2)),
+            invested: Number(Math.max(0, fullExitOnDay ? daySoldCost : runningInv).toFixed(2)),
+            value: Number((fullExitOnDay ? daySoldProceeds : val).toFixed(2)),
             price: Number(nav.toFixed(4)),
             events: dayEvents.length > 0 ? dayEvents : null
           });
@@ -1409,6 +1419,11 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
       while (currentDate <= endDate) {
         const dStr = currentDate.toISOString().split('T')[0];
         let dayEvents = [];
+        const preDayQ = runningQ;
+        let daySoldCostUSD = 0;
+        let daySoldCostINR = 0;
+        let daySoldProceedsUSD = 0;
+        let daySoldProceedsINR = 0;
 
         while (scaleIdx < tradeScaleCheckpoints.length && tradeScaleCheckpoints[scaleIdx].date <= dStr) {
           currentTradeScale = tradeScaleCheckpoints[scaleIdx].scale;
@@ -1470,6 +1485,10 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
           } else if (tx.type === 'SELL' || tx.type === 'REDEEM' || tx.type === 'REDEMPTION') {
             const sellCostUSD = runningQ > 0 ? (qty * (runningInvUSD / runningQ)) : 0;
             const sellCostINR = runningQ > 0 ? (qty * (runningInvINR / runningQ)) : 0;
+            daySoldCostUSD += sellCostUSD;
+            daySoldCostINR += sellCostINR;
+            daySoldProceedsUSD += amtUSD;
+            daySoldProceedsINR += amtINR;
             runningQ = Math.max(0, runningQ - qty);
             runningInvUSD = Math.max(0, runningInvUSD - sellCostUSD);
             runningInvINR = Math.max(0, runningInvINR - sellCostINR);
@@ -1513,18 +1532,19 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
 
         const valUSD = Math.max(0, runningQ * lastKnownPriceUSD);
         const valINR = Math.max(0, runningQ * lastKnownPriceINR);
+        const fullExitOnDay = runningQ === 0 && preDayQ > 0 && daySoldCostINR > 0;
 
         timelineUSD.push({
           label: dStr,
-          invested: Number(Math.max(0, runningInvUSD).toFixed(2)),
-          value: Number(valUSD.toFixed(2)),
+          invested: Number(Math.max(0, fullExitOnDay ? daySoldCostUSD : runningInvUSD).toFixed(2)),
+          value: Number((fullExitOnDay ? daySoldProceedsUSD : valUSD).toFixed(2)),
           price: Number(lastKnownPriceUSD.toFixed(4)),
           events: dayEvents.length > 0 ? dayEvents : null
         });
         timelineINR.push({
           label: dStr,
-          invested: Number(Math.max(0, runningInvINR).toFixed(2)),
-          value: Number(valINR.toFixed(2)),
+          invested: Number(Math.max(0, fullExitOnDay ? daySoldCostINR : runningInvINR).toFixed(2)),
+          value: Number((fullExitOnDay ? daySoldProceedsINR : valINR).toFixed(2)),
           price: Number(lastKnownPriceINR.toFixed(4)),
           events: dayEvents.length > 0 ? dayEvents : null
         });
@@ -1547,10 +1567,17 @@ router.get('/holding/:holdingId/detail', authenticateToken, async (req, res) => 
     const hist = historicalPricesCache[holding.symbol] || historicalPricesCache[cleanSym] || historicalPricesCache[`${cleanSym}.NS`] || {};
     const histDates = Object.keys(hist).sort();
     if (!liveQuote || !liveQuote.previousClose) {
-      if (histDates.length >= 2) {
-        prevClose = Number(hist[histDates[histDates.length - 2]]) || quotePrice;
-      } else if (histDates.length === 1) {
-        prevClose = Number(hist[histDates[0]]) || quotePrice;
+      if (liveQuote && liveQuote.dayChange !== undefined && liveQuote.dayChange !== null && Number.isFinite(Number(liveQuote.dayChange))) {
+        prevClose = quotePrice - Number(liveQuote.dayChange);
+      } else if (holding.day_change !== undefined && holding.day_change !== null && Number.isFinite(Number(holding.day_change))) {
+        prevClose = quotePrice - Number(holding.day_change);
+      } else if (histDates.length > 0) {
+        const lastHistDate = histDates[histDates.length - 1];
+        if (lastHistDate < today) {
+          prevClose = Number(hist[lastHistDate]) || quotePrice;
+        } else if (histDates.length >= 2) {
+          prevClose = Number(hist[histDates[histDates.length - 2]]) || quotePrice;
+        }
       }
     }
 
@@ -2001,11 +2028,27 @@ router.post('/add-investment', authenticateToken, async (req, res) => {
       await db.insert('transactions', txRecord);
       await recalculateHoldingState(holdingId);
 
+      // Immediately sync live market quote for the holding so UI reflects latest price without manual sync
+      try {
+        const latestHoldings = await db.selectWhere('holdings', { id: holdingId });
+        if (latestHoldings && latestHoldings.length > 0) {
+          await refreshSingleHoldingQuote(latestHoldings[0], { persistToDb: true });
+        }
+      } catch (quoteErr) {
+        console.warn(`[Add-Investment] Live quote sync warning for ${symbolKey}:`, quoteErr.message);
+      }
+
+      // Synchronously invalidate response caches before responding so immediate client refresh sees fresh data
+      invalidateHoldingsResponseCache();
+      invalidateSummaryCache();
+      invalidateTxDatesCache();
+      invalidateCalendarValuationCache();
+      invalidateBenchmarkCache();
+      invalidateBuyCache();
+      invalidateStockIntelligenceCache();
+
       // Background non-blocking tasks
       setImmediate(() => {
-        invalidateBenchmarkCache();
-        invalidateBuyCache();
-        invalidateStockIntelligenceCache();
         triggerEodRebuildIfPastDate(txDate);
         scheduleAutoSyncFromPortfolio(4000);
       });
