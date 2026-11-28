@@ -683,18 +683,27 @@ export function buildBuyAnalyses(
       // Chartink active conditions are evaluated separately from the company-quality score.
       const chartinkFilter = applyChartinkFilter(historyMap, symbol, fundamentals, { asOfDate: todayStr });
 
-      // Relative Strength Momentum vs Benchmark (126-day / 6-month momentum proxy)
+      // Relative Strength Momentum vs Benchmark (True Blended 3M Velocity + 6M Trend: 65% 3m + 35% 6m)
+      // Scales +50% 3-month gain = RS 100 and +100% 6-month gain = RS 100 so accelerating breakouts surface early
+      // while decelerating spikes cool naturally.
       const idx126 = prices.length - 1 - 126;
       const p126 = idx126 >= 0 ? prices[idx126].close : (prices[0]?.close || currentPrice);
       const rsScore = p126 > 0 ? ((currentPrice / p126) - 1) * 100 : 0;
-      const normalizedRs = Math.max(0, Math.min(100, Math.round(50 + rsScore * 0.5)));
+      const normRs6m = Math.max(0, Math.min(100, Math.round(50 + rsScore * 0.5)));
+
+      const idx63 = prices.length - 1 - 63;
+      const p63 = idx63 >= 0 ? prices[idx63].close : (prices[0]?.close || currentPrice);
+      const rs3mScore = p63 > 0 ? ((currentPrice / p63) - 1) * 100 : 0;
+      const normRs3m = Math.max(0, Math.min(100, Math.round(50 + rs3mScore * 1.0)));
+
+      const normalizedRs = Math.max(0, Math.min(100, Math.round(0.65 * normRs3m + 0.35 * normRs6m)));
 
       // Technical buy score
       const techResult = computeTechnicalBuyScore(trendData, chartinkFilter, currentPrice, high52w, prices);
       if (normalizedRs >= 80) {
-        techResult.signals.push(`Top-decile Relative Strength momentum (+${rsScore.toFixed(1)}%/6mo, RS ${normalizedRs}/100) ✓`);
+        techResult.signals.push(`Top-decile Relative Strength momentum (+${rs3mScore.toFixed(1)}%/3mo, +${rsScore.toFixed(1)}%/6mo, RS ${normalizedRs}/100) ✓`);
       } else if (normalizedRs >= 65) {
-        techResult.signals.push(`Strong Relative Strength momentum (+${rsScore.toFixed(1)}%/6mo, RS ${normalizedRs}/100) ✓`);
+        techResult.signals.push(`Strong Relative Strength momentum (+${rs3mScore.toFixed(1)}%/3mo, +${rsScore.toFixed(1)}%/6mo, RS ${normalizedRs}/100) ✓`);
       }
 
       // Fundamental score
@@ -826,6 +835,7 @@ export function buildBuyAnalyses(
         fundamentalScore: fundResult.score,
         compositeScore: baseComposite,
         rsScore: Number(rsScore.toFixed(1)),
+        rs3mScore: Number(rs3mScore.toFixed(1)),
         normalizedRs,
         mps,
         multibaggerProbabilityScore: mps,

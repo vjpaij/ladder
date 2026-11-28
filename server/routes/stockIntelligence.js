@@ -20,9 +20,10 @@ import {
 import { fetchCompanyFundamentals, preloadAllHeldFundamentals } from '../services/stockIntelligence/screenerFundamentalsProvider.js';
 import { loadAllCachedUsFundamentals } from '../services/stockIntelligence/usFundamentalsProvider.js';
 import { logSyncEvent } from '../services/syncLogService.js';
-import { liveQuoteCache, resolveHoldingPrice } from '../services/priceEngine.js';
+import { liveQuoteCache, resolveHoldingPrice, refreshActiveHoldingsPrices } from '../services/priceEngine.js';
 import { validateAndHealStockData } from '../services/stockIntelligence/dataIntegrityValidator.js';
-import { generateActionPlan, invalidateActionPlanBaseCache } from '../services/stockIntelligence/actionPlanService.js';
+import { generateActionPlan, invalidateActionPlanBaseCache, buildActionPlanCsv } from '../services/stockIntelligence/actionPlanService.js';
+import { runBuyAnalysisEngine, invalidateBuyCache } from './buyAnalysis.js';
 
 const router = express.Router();
 const backtestCache = new Map();
@@ -455,7 +456,10 @@ async function reconcileOverviewWithLiveHoldings(overview) {
 async function reconcileActionPlanWithLiveHoldings(plan) {
   if (!plan) return plan;
   try {
-    const currentHoldings = await db.select('holdings');
+    const [currentHoldings, transactions] = await Promise.all([
+      db.select('holdings'),
+      db.select('transactions')
+    ]);
     if (!Array.isArray(currentHoldings) || currentHoldings.length === 0) return plan;
 
     const holdingMap = new Map();
@@ -548,25 +552,82 @@ async function reconcileActionPlanWithLiveHoldings(plan) {
       return acc;
     }, []);
 
+    // 2b. Reconcile immediateBuys with live quote prices, exclusion of active sells & 30-day exits
+    const sellSymSet = new Set(reconciledSells.map(s => String(s.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase()));
+    const todayMs = Date.parse(`${getTodayIST()}T00:00:00Z`);
+    const coolingSet = new Set();
+    for (const tx of (transactions || [])) {
+      const tType = String(tx.type || tx.transaction_type || '').toUpperCase();
+      if (!['SELL', 'REDEEM', 'REDEMPTION'].includes(tType) || !tx.date) continue;
+      const sym = String(tx.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      const h = holdingMap.get(sym);
+      const isOpen = h && Number(h.quantity) > 0 && String(h.status || '').toUpperCase() !== 'REDEEMED';
+      if (isOpen) continue;
+      const ageDays = Math.round((todayMs - Date.parse(`${tx.date}T00:00:00Z`)) / 86400000);
+      if (ageDays >= 0 && ageDays <= 30) coolingSet.add(sym);
+    }
+
+    const reconciledBuys = (plan.immediateBuys || []).reduce((acc, b) => {
+      const sym = String(b.symbol || '').replace(/\.(NS|BO)$/i, '').toUpperCase();
+      if (sellSymSet.has(sym) || coolingSet.has(sym)) return acc;
+      const h = holdingMap.get(sym);
+      const quote = liveQuoteCache?.get(b.symbol) || liveQuoteCache?.get(sym) || liveQuoteCache?.get(`${sym}.NS`);
+      const liveQuotePrice = Number(quote?.price || quote?.nse_price || quote?.bse_price);
+      const cmp = (Number.isFinite(liveQuotePrice) && liveQuotePrice > 0)
+        ? liveQuotePrice
+        : (h ? (resolveHoldingPrice(h, quote) || Number(b.cmp)) : Number(b.cmp)) || 0;
+      const actionShares = Number(b.actionShares) || 0;
+      const actionValue = Math.round(actionShares * cmp * 100) / 100;
+      const isOwned = Boolean(h && Number(h.quantity) > 0 && String(h.status || '').toUpperCase() !== 'REDEEMED');
+      const sl = isOwned ? (Number(b.sl) || Math.round(cmp * 90) / 100) : Math.round(cmp * 90) / 100;
+      const weeklySl = Math.round(cmp * 92) / 100;
+      const slPct = cmp > 0 && sl > 0 ? Math.round(((sl - cmp) / cmp) * 1000) / 10 : -10.0;
+      acc.push({
+        ...b,
+        cmp,
+        actionValue,
+        sl,
+        weeklySl,
+        slPct,
+        isOwned,
+        heldQty: isOwned ? Number(h.quantity) : 0
+      });
+      return acc;
+    }, []);
+
     // 3. Recalculate summary metrics without clobbering realized recycled capital pool
     const totalSellProceeds = reconciledSells.reduce((acc, s) => acc + (s.actionValue || 0), 0);
+    const totalImmediateBuyValue = Math.round(reconciledBuys.reduce((acc, b) => acc + (b.actionValue || 0), 0) * 100) / 100;
     const validRecycledCapital = plan.summary?.recycledCapital !== undefined ? plan.summary.recycledCapital : 0;
     const validExternalCash = plan.summary?.externalCashBudget !== undefined ? plan.summary.externalCashBudget : 0;
+    const totalPurchasingPower = Math.round((validExternalCash + validRecycledCapital) * 100) / 100;
     const summary = plan.summary ? {
       ...plan.summary,
+      immediateBuysCount: reconciledBuys.length,
+      totalImmediateBuyValue,
+      dailySpend: totalImmediateBuyValue,
+      unallocatedCashBuffer: Math.round(Math.max(0, totalPurchasingPower - totalImmediateBuyValue) * 100) / 100,
       totalSellsCount: reconciledSells.length,
       sellsProceeds: Math.round(totalSellProceeds * 100) / 100,
       recycledCapital: validRecycledCapital,
-      totalPurchasingPower: Math.round((validExternalCash + validRecycledCapital) * 100) / 100
+      totalPurchasingPower
     } : plan.summary;
 
-    const totalActions = (plan.immediateBuys?.length || 0) + reconciledSells.length + (plan.queuedBuys?.length || 0);
+    const { rows, csv } = buildActionPlanCsv({
+      immediateBuys: reconciledBuys,
+      sells: reconciledSells,
+      stopLossActions: reconciledStopLoss
+    });
+    const totalActions = rows.length - 1;
 
     return {
       ...plan,
+      immediateBuys: reconciledBuys,
       sells: reconciledSells,
       stopLossActions: reconciledStopLoss,
       summary,
+      rows,
+      csv,
       totalActions
     };
   } catch (err) {
@@ -821,28 +882,39 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
     const dailyDeploymentCap = req.query.dailyDeploymentCap !== undefined ? Number(req.query.dailyDeploymentCap) : undefined;
 
     const cacheKey = `${userKey}_${externalCash}_${recyclingMode}_${maxDailyBuys}_${dailyDeploymentCap}`;
+    const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
+    const todayIST = getTodayIST();
     const now = Date.now();
 
-    // 1. Fast in-memory cache hit (< 1ms) with live holding reconciliation
-    if (cachedActionPlan && cachedActionPlanKey === cacheKey && (now - cachedActionPlanTimestamp < ACTION_PLAN_TTL_MS)) {
+    // 1. Fast in-memory cache hit (< 1ms) with live holding & quote reconciliation (guarded against stale date)
+    if (!forceRefresh && cachedActionPlan && cachedActionPlanKey === cacheKey && cachedActionPlan.today === todayIST && (now - cachedActionPlanTimestamp < ACTION_PLAN_TTL_MS)) {
       return res.json(await reconcileActionPlanWithLiveHoldings(cachedActionPlan));
     }
 
     // 2. In-flight request deduplication per cacheKey
-    if (_actionPlanInFlightPromises.has(cacheKey)) {
+    if (!forceRefresh && _actionPlanInFlightPromises.has(cacheKey)) {
       const plan = await _actionPlanInFlightPromises.get(cacheKey);
       return res.json(await reconcileActionPlanWithLiveHoldings(plan));
     }
 
     const inFlightPromise = (async () => {
       try {
+        if (forceRefresh) {
+          await refreshActiveHoldingsPrices({ marketSession: 'IN', persistToDb: false }).catch(() => {});
+          invalidateBuyCache();
+          if (!process.env.RENDER) {
+            await runBuyAnalysisEngine({ forceRefresh: true }).catch(() => {});
+          }
+          invalidateActionPlanBaseCache();
+        }
         const plan = await generateActionPlan({
           userId: userKey,
           externalCashBudget: externalCash,
           recyclingMode,
           maxDailyBuys,
           dailyDeploymentCap,
-          userConfig
+          userConfig,
+          forceRefresh
         });
         cachedActionPlan = plan;
         cachedActionPlanKey = cacheKey;
@@ -869,7 +941,8 @@ router.get('/stock-intelligence/action-plan', authenticateToken, async (req, res
 
 router.get('/stock-intelligence/action-plan-csv', authenticateToken, async (req, res) => {
   try {
-    const userConfig = getIntelligenceConfig(getUserKey(req.user));
+    const userKey = getUserKey(req.user);
+    const userConfig = getIntelligenceConfig(userKey);
     const externalCash = (req.query.externalCash !== undefined && req.query.externalCash !== '' && req.query.externalCash !== 'null')
       ? Number(req.query.externalCash)
       : userConfig.externalCashBudget;
@@ -877,14 +950,15 @@ router.get('/stock-intelligence/action-plan-csv', authenticateToken, async (req,
     const maxDailyBuys = req.query.maxDailyBuys !== undefined ? Number(req.query.maxDailyBuys) : undefined;
     const dailyDeploymentCap = req.query.dailyDeploymentCap !== undefined ? Number(req.query.dailyDeploymentCap) : undefined;
 
-    const plan = await generateActionPlan({
-      userId: getUserKey(req.user),
+    const rawPlan = await generateActionPlan({
+      userId: userKey,
       externalCashBudget: externalCash,
       recyclingMode,
       maxDailyBuys,
       dailyDeploymentCap,
       userConfig
     });
+    const plan = await reconcileActionPlanWithLiveHoldings(rawPlan);
 
     if (req.query.format === 'json') {
       return res.json(plan);

@@ -39,7 +39,7 @@ let _buyAnalysisInFlightPromise = null;
 const BUY_CACHE_TTL_MS = 15 * 60 * 1000;
 const SNAPSHOT_FILE = path.join(process.cwd(), 'data', 'buy_analysis_snapshot.json');
 
-export const BUY_ANALYSIS_RULE_VERSION = 'v8.4.0';
+export const BUY_ANALYSIS_RULE_VERSION = 'v8.4.6';
 
 function saveBuySnapshotToDisk(snapshotObj) {
   try {

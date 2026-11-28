@@ -525,7 +525,7 @@ test('Rule 5: Action Plan dynamically sizes subordinate pyramid tranches for own
     assert.ok(coreHold.executionStatus.includes('CORE HOLD') || coreHold.executionStatus.includes('CAP REACHED'), 'Must be marked CORE HOLD');
   }
 
-  // Verify CSV has exactly 15 columns on every row
+  // Verify clean 8-column actionable CSV on every row (no queued or up-to-date bloat)
   const rows = plan.csv.split('\r\n').filter(Boolean);
   assert.ok(rows.length > 1, 'CSV must have rows');
   rows.forEach((row, i) => {
@@ -535,7 +535,7 @@ test('Rule 5: Action Plan dynamically sizes subordinate pyramid tranches for own
       if (row[c] === '"') inQuotes = !inQuotes;
       else if (row[c] === ',' && !inQuotes) colCount++;
     }
-    assert.equal(colCount, 15, `Row ${i+1} must have 15 columns, got ${colCount}`);
+    assert.equal(colCount, 8, `Row ${i+1} must have 8 columns, got ${colCount}`);
   });
 });
 
@@ -792,4 +792,58 @@ test('Rule 15: Canonical GTT parity matches Sell Analysis and Universe unlocks >
   // 3. Expanded universe verifies > 1000 stocks including small/mid caps
   const universe = buildCandidateUniverse([], [], [], []);
   assert.ok(universe.length >= 1000, `Candidate universe must include >= 1,000 small/mid/large stocks (>= ₹1,000 Cr), got ${universe.length}`);
+});
+
+test('Rule 16: Blended 3M/6M RS Velocity, 50% Extended Runner Tranche 1, M6 -10% Buy Stop Parity & Clean 8-Col CSV', async () => {
+  const { buildBuyAnalyses } = await import('./buyAnalysisService.js');
+  const { generateActionPlan, buildActionPlanCsv } = await import('./actionPlanService.js');
+
+  // 1. Blended 3M/6M RS: Accelerating recent 3M breakout beats cooling 6M spike
+  const dates = Object.keys(weekdays(260, '2024-01-01')).sort();
+  const today = dates.at(-1);
+  const fastRecent = {};
+  const staleSpike = {};
+  dates.forEach((d, idx) => {
+    // Stock A: flat first 195d (~100), then accelerates +45% in last 63d
+    fastRecent[d] = idx < 195 ? 100 : Number((100 * (1 + ((idx - 194) / 65) * 0.45)).toFixed(2));
+    // Stock B: spiked +90% early, flat/slowed to +5% in last 63d
+    staleSpike[d] = idx < 195 ? Number((100 + (idx / 195) * 90).toFixed(2)) : Number((190 * (1 + ((idx - 194) / 65) * 0.05)).toFixed(2));
+  });
+  const baseFund = { status: 'AVAILABLE', marketCapCr: 5000, yoySalesGrowthPct: 30, yoyPatGrowthPct: 40, roePct: 22, rocePct: 25, debtToEquity: 0.1, promoterPledgePct: 0, annualSales: [100, 130, 170, 220], annualPat: [10, 14, 19, 27], quarterlySales: [40, 45, 50, 58, 65], quarterlyPat: [5, 6, 7, 8, 10] };
+  const evals = buildBuyAnalyses({
+    candidates: [
+      { symbol: 'ACCEL3M', name: 'Accel 3M Ltd', source: 'NSE500', marketCapCr: 5000 },
+      { symbol: 'COOL6M', name: 'Cooling 6M Ltd', source: 'NSE500', marketCapCr: 5000 }
+    ],
+    priceHistory: { ACCEL3M: fastRecent, COOL6M: staleSpike },
+    fundamentalsCache: { ACCEL3M: baseFund, COOL6M: baseFund },
+    today
+  });
+  const accel = evals.find(x => x.symbol === 'ACCEL3M');
+  const cool = evals.find(x => x.symbol === 'COOL6M');
+  assert.ok(accel && cool, 'Both candidates must be analyzed');
+  assert.ok(accel.normalizedRs > cool.normalizedRs, `Accelerating 3M breakout RS (${accel.normalizedRs}) must outscore cooling 6M spike (${cool.normalizedRs})`);
+
+  // 2. Action Plan: Extended runner receives 50% Tranche 1 and M6 -10% Flash Stop parity
+  const plan = await generateActionPlan({ externalCashBudget: 200000, forceRefresh: true });
+  const extBuy = plan.immediateBuys.find(b => !b.isOwned && b.stance === 'EXTENDED_RUNNER');
+  if (extBuy) {
+    assert.ok(extBuy.actionType.includes('TRANCHE 1 (50%'), `Extended new buy ${extBuy.symbol} must be tagged TRANCHE 1 (50%), got ${extBuy.actionType}`);
+    const expectedM6Sl = Math.round(extBuy.cmp * 90) / 100;
+    assert.equal(extBuy.sl, expectedM6Sl, `Extended new buy ${extBuy.symbol} SL (${extBuy.sl}) must match M6 -10% flash stop (${expectedM6Sl})`);
+  }
+
+  // 3. Clean 8-column CSV excludes UP_TO_DATE & QUEUED bloat
+  const { rows } = buildActionPlanCsv({
+    immediateBuys: [{ symbol: 'TESTA', name: 'Test A', cmp: 100, actionShares: 10, actionValue: 1000, sl: 90, isOwned: false, actionType: 'BUY - TRANCHE 1 (50% - EXTENDED)', extAbove30w: 42 }],
+    sells: [],
+    stopLossActions: [
+      { symbol: 'KEEP', name: 'Keep Ltd', cmp: 200, qty: 10, targetQty: 10, targetSlPrice: 180, isActionRequired: false, gttStatus: 'UP_TO_DATE' },
+      { symbol: 'RAISE', name: 'Raise Ltd', cmp: 300, qty: 20, targetQty: 20, targetSlPrice: 270, activeGttPrice: 240, isActionRequired: true, gttStatus: 'ACTION_REQUIRED_AMEND' }
+    ]
+  });
+  assert.equal(rows.length, 3, 'Header + 1 buy + 1 actionable GTT update = 3 rows (excluding UP_TO_DATE)');
+  assert.equal(rows[0].length, 8, 'Clean CSV must have 8 columns');
+  assert.equal(rows[1][0], 'BUY (50% TRANCHE 1)');
+  assert.equal(rows[2][0], 'AMEND GTT SL');
 });

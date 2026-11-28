@@ -104,7 +104,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
     return plan?.pruningSells || (plan?.sells || []).filter(s => s.isPruning);
   }, [plan?.pruningSells, plan?.sells]);
 
-  const fetchPlan = useCallback(async (cash = null, mode = null, retryAttempt = 0) => {
+  const fetchPlan = useCallback(async (cash = null, mode = null, retryAttempt = 0, forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -114,6 +114,9 @@ export default function ActionPlanModal({ isOpen, onClose }) {
       }
       if (mode !== null && mode !== undefined) {
         params.recyclingMode = mode;
+      }
+      if (forceRefresh) {
+        params.refresh = 'true';
       }
       const res = await axios.get('/api/stock-intelligence/action-plan', { params });
       setPlan(res.data);
@@ -368,13 +371,24 @@ export default function ActionPlanModal({ isOpen, onClose }) {
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => fetchPlan(externalCash, recyclingMode, 0, true)}
+              disabled={loading}
+              className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer disabled:opacity-50"
+              title="Refresh live prices and recalculate plan"
+            >
+              <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}
@@ -801,7 +815,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                       <th className="py-2.5 px-3 text-right">CMP</th>
                       <th className="py-2.5 px-3 text-right">Shares</th>
                       <th className="py-2.5 px-3 text-right">Value (INR)</th>
-                      <th className="py-2.5 px-3 text-right text-amber-500 dark:text-amber-400">GTT Stop-Loss (-8%)</th>
+                      <th className="py-2.5 px-3 text-right text-amber-500 dark:text-amber-400">GTT Stop-Loss (M6)</th>
                       <th className="py-2.5 px-3 text-right">Target</th>
                       <th className="py-2.5 px-3">Execution & Conviction Rationale</th>
                     </tr>
@@ -815,8 +829,11 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                       </tr>
                     ) : (
                       immediateBuys.map((b, idx) => {
-                        const isAccumulate = b.actionType.includes('ACCUMULATE');
-                        const isPilot = b.actionType.includes('PILOT');
+                        const isAccumulate = b.actionType?.includes('ACCUMULATE');
+                        const isTranche1 = b.actionType?.includes('TRANCHE 1');
+                        const isPilot = b.actionType?.includes('PILOT');
+                        const slVal = b.sl > 0 ? b.sl : b.cmp * 0.90;
+                        const slPct = b.cmp > 0 && slVal > 0 ? (((slVal - b.cmp) / b.cmp) * 100).toFixed(1) : '-10.0';
                         return (
                           <tr key={idx} className="hover:bg-[var(--hover-bg)] transition-colors">
                             <td className="py-2.5 px-3">
@@ -824,11 +841,11 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                                 <span className={`inline-block px-2 py-0.5 text-[10px] font-bold rounded-md ${
                                   isAccumulate
                                     ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
-                                    : isPilot
+                                    : (isTranche1 || isPilot)
                                       ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30'
                                       : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
                                 }`}>
-                                  {isAccumulate ? 'PYRAMID TRANCHE' : isPilot ? 'PILOT TRANCHE (25%)' : 'NEW POSITION'}
+                                  {isAccumulate ? 'PYRAMID TRANCHE' : isTranche1 ? 'TRANCHE 1 (50%)' : isPilot ? 'PILOT TRANCHE' : 'NEW POSITION'}
                                 </span>
                                 {b.mps !== undefined && (
                                   <span className="inline-block px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-indigo-500/15 text-indigo-500 border border-indigo-500/30" title={`Multibagger Probability Score: ${b.mps}/100`}>
@@ -860,8 +877,10 @@ export default function ActionPlanModal({ isOpen, onClose }) {
                               {formatInr2(b.actionValue)}
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-500 dark:text-amber-400">
-                              {b.sl > 0 ? formatInr2(b.sl) : formatInr2(b.cmp * 0.92)}
-                              <div className="text-[9px] text-[var(--text-muted)] font-normal">-8.0% Initial GTT</div>
+                              {formatInr2(slVal)}
+                              <div className="text-[9px] text-[var(--text-muted)] font-normal">
+                                {b.isOwned ? `${slPct}% Trailing GTT` : `${slPct}% M6 Flash`}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono text-cyan-600 dark:text-cyan-400">
                               {b.tgt > 0 ? formatInr2(b.tgt) : '—'}

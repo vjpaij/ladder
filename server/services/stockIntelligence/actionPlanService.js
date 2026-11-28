@@ -24,8 +24,104 @@ import { getTodayIST } from '../marketCalendar.js';
 import { liveQuoteCache, resolveHoldingPrice } from '../priceEngine.js';
 import { getIntelligenceConfig, pruneActiveStopLosses } from './repository.js';
 import { resolveCanonicalSector } from './buyAnalysisService.js';
+import { BUY_ANALYSIS_RULE_VERSION } from '../../routes/buyAnalysis.js';
 import { calculateMarketOpportunity } from './marketOpportunityEngine.js';
 import { resolveCanonicalBaseSymbol } from './symbolAliasService.js';
+
+export function buildActionPlanCsv(plan = {}) {
+  const rows = [[
+    'Action',
+    'Symbol',
+    'Company',
+    'Shares',
+    'CMP (INR)',
+    'Est. Amount (INR)',
+    'GTT Stop-Loss (INR)',
+    'What To Do'
+  ]];
+
+  for (const b of (plan.immediateBuys || [])) {
+    const cmp = Number(b.cmp) || 0;
+    const shares = Number(b.actionShares) || 0;
+    const val = round2(b.actionValue || shares * cmp);
+    const sl = b.isOwned
+      ? round2(b.sl > 0 ? b.sl : cmp * 0.90)
+      : round2(cmp > 0 ? cmp * 0.90 : b.sl);
+    const weeklySl = round2(cmp * 0.92);
+    const isTranche1 = String(b.actionType || '').includes('TRANCHE 1');
+    const actionLabel = b.isOwned ? 'BUY (PYRAMID ADD)' : (isTranche1 ? 'BUY (50% TRANCHE 1)' : 'BUY (NEW)');
+    const extTxt = b.extAbove30w ? ` (+${b.extAbove30w}% vs 30w-SMA)` : '';
+    const whatToDo = b.isOwned
+      ? `Add ${shares} shs to existing position; keep GTT SL at ₹${sl.toFixed(2)}.`
+      : isTranche1
+        ? `Buy ${shares} shs (50% Tranche 1${extTxt}; hold 50% for 50-EMA dip or +4% breakout); set GTT SL ₹${sl.toFixed(2)} (-10% flash / ₹${weeklySl.toFixed(2)} Fri).`
+        : `Buy ${shares} shs; set GTT SL ₹${sl.toFixed(2)} (-10% flash / ₹${weeklySl.toFixed(2)} Fri).`;
+
+    rows.push([
+      actionLabel,
+      b.symbol,
+      b.name,
+      shares,
+      cmp.toFixed(2),
+      val.toFixed(2),
+      sl > 0 ? sl.toFixed(2) : '—',
+      whatToDo
+    ]);
+  }
+
+  for (const s of (plan.sells || [])) {
+    const cmp = Number(s.cmp) || 0;
+    const qty = Number(s.quantity) || 0;
+    const val = round2(s.actionValue || qty * cmp);
+    const actionLabel = s.isFullExit ? 'SELL (FULL EXIT)' : 'SELL (TRIM)';
+    const whatToDo = `Sell ${qty} of ${s.heldShares || qty} shs (${s.category || 'Exit triggered'}); cancel broker GTT.`;
+    rows.push([
+      actionLabel,
+      s.symbol,
+      s.name,
+      qty,
+      cmp.toFixed(2),
+      val.toFixed(2),
+      'CANCEL GTT',
+      whatToDo
+    ]);
+  }
+
+  for (const a of (plan.stopLossActions || [])) {
+    if (!a.isActionRequired) continue;
+    const cmp = Number(a.cmp) || 0;
+    const qty = Number(a.targetQty || a.qty) || 0;
+    const val = round2(qty * cmp);
+    const sl = round2(a.targetSlPrice);
+    const isBreach = a.gttStatus === 'STOP_BREACHED_SELL_NOW';
+    const isNew = a.gttStatus === 'ACTION_REQUIRED_NEW';
+    const actionLabel = isBreach ? 'SELL NOW (SL BREACHED)' : (isNew ? 'SET GTT SL' : 'AMEND GTT SL');
+    const whatToDo = isBreach
+      ? `Exit ${qty} shs immediately (CMP ₹${cmp.toFixed(2)} <= SL ₹${sl.toFixed(2)}).`
+      : (a.activeGttPrice > 0
+          ? `Update broker GTT SL from ₹${Number(a.activeGttPrice).toFixed(2)} to ₹${sl.toFixed(2)} for ${qty} shs.`
+          : `Place broker GTT SL at ₹${sl.toFixed(2)} for all ${qty} shs.`);
+    rows.push([
+      actionLabel,
+      a.symbol,
+      a.name,
+      qty,
+      cmp.toFixed(2),
+      val.toFixed(2),
+      sl.toFixed(2),
+      whatToDo
+    ]);
+  }
+
+  if (rows.length === 1) {
+    rows.push(['NO ACTION', '—', 'Portfolio in sync', 0, '0.00', '0.00', '—', 'No buys, sells, or GTT updates required today.']);
+  }
+
+  return {
+    rows,
+    csv: rows.map(r => r.map(escapeCsvCell).join(',')).join('\r\n')
+  };
+}
 
 function escapeCsvCell(val) {
   const str = String(val ?? '');
@@ -57,6 +153,7 @@ export async function computeActionPlanBase({
   const userConfig = paramUserConfig || getIntelligenceConfig(userId);
   // 1. Load Buy Analyses from snapshot or seed gz archive
   let buyAnalyses = [];
+  let snapshotVersionMismatch = false;
   const snapPath = path.join(projectRoot, 'data', 'buy_analysis_snapshot.json');
   const snapGzPath = path.join(projectRoot, 'data', 'buy_analysis_snapshot.json.gz');
 
@@ -73,22 +170,35 @@ export async function computeActionPlanBase({
   if (fs.existsSync(snapPath)) {
     try {
       const snap = JSON.parse(fs.readFileSync(snapPath, 'utf8'));
-      if (Array.isArray(snap.analyses) && snap.analyses.length > 0) {
+      if (snap?.ruleVersion && snap.ruleVersion !== BUY_ANALYSIS_RULE_VERSION) {
+        snapshotVersionMismatch = true;
+      } else if (Array.isArray(snap.analyses) && snap.analyses.length > 0) {
         buyAnalyses = snap.analyses;
       }
     } catch (_) {}
   }
 
-  // If snapshot is missing and not in cloud production, dynamically generate fresh buy analyses
-  if (buyAnalyses.length === 0 && !process.env.RENDER) {
+  // If snapshot is missing or outdated and not in cloud production, dynamically generate fresh buy analyses
+  if ((buyAnalyses.length === 0 || snapshotVersionMismatch) && !process.env.RENDER) {
     try {
       const { runBuyAnalysisEngine } = await import('../../routes/buyAnalysis.js');
-      const fresh = await runBuyAnalysisEngine({ forceRefresh: false });
+      const fresh = await runBuyAnalysisEngine({ forceRefresh: snapshotVersionMismatch });
       buyAnalyses = fresh.analyses || [];
     } catch (err) {
       console.warn('[Action Plan] Could not trigger dynamic buy analysis run:', err.message);
     }
   }
+
+  // Hydrate live quote prices into buyAnalyses so candidate CMPs are never stale
+  buyAnalyses = buyAnalyses.map(x => {
+    const clean = String(x.symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const quote = liveQuoteCache.get(x.symbol) || liveQuoteCache.get(clean) || liveQuoteCache.get(`${clean}.NS`) || liveQuoteCache.get(`${clean}.BO`);
+    const livePrice = Number(quote?.price || quote?.nse_price || quote?.bse_price);
+    if (Number.isFinite(livePrice) && livePrice > 0) {
+      return { ...x, currentPrice: livePrice, cmp: livePrice };
+    }
+    return x;
+  });
 
   // Compute Dynamic Sector Breadth & Group Momentum across universe (weighted by Bullish % + 6m Relative Strength)
   const sectorStats = {};
@@ -471,39 +581,50 @@ export async function computeActionPlanBase({
       };
     }
 
+    const isExtendedRunner = stance === 'EXTENDED_RUNNER';
+    const extendedFactor = isExtendedRunner ? 0.50 : 1.0;
+
     let base = isPreEarnings ? Math.round(stdBase * preEarningsFactor) : stdBase;
     let tierLabel = isPreEarnings ? `Pre-Earnings Scout Entry (₹${Math.round(base/1000)}k Staged)` : `Catalyst Scout Entry (₹${Math.round(base/1000)}k Base)`;
 
     if (isPrime) {
-      base = isPreEarnings ? Math.round(primeBase * preEarningsFactor) : primeBase;
-      tierLabel = isTurnaround
-        ? (isPreEarnings ? `Turnaround Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Turnaround Prime Setup (₹${Math.round(base/1000)}k Base)`)
-        : (isPreEarnings ? `Prime Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Prime Ultra Conviction (₹${Math.round(base/1000)}k Base)`);
+      base = isPreEarnings ? Math.round(primeBase * preEarningsFactor) : Math.round(primeBase * extendedFactor);
+      tierLabel = isExtendedRunner && !isPreEarnings
+        ? `Extended Tranche 1 (50% · ₹${Math.round(base/1000)}k)`
+        : isTurnaround
+          ? (isPreEarnings ? `Turnaround Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Turnaround Prime Setup (₹${Math.round(base/1000)}k Base)`)
+          : (isPreEarnings ? `Prime Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Prime Ultra Conviction (₹${Math.round(base/1000)}k Base)`);
     } else if (isTier2) {
-      base = isPreEarnings ? Math.round(tier2Base * preEarningsFactor) : tier2Base;
-      tierLabel = isPreEarnings ? `High Conviction Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `High Conviction Setup (₹${Math.round(base/1000)}k Base)`;
+      base = isPreEarnings ? Math.round(tier2Base * preEarningsFactor) : Math.round(tier2Base * extendedFactor);
+      tierLabel = isExtendedRunner && !isPreEarnings
+        ? `Extended Tranche 1 (50% · ₹${Math.round(base/1000)}k)`
+        : isPreEarnings ? `High Conviction Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `High Conviction Setup (₹${Math.round(base/1000)}k Base)`;
     } else if (isStd) {
-      base = isPreEarnings ? Math.round(stdBase * preEarningsFactor) : stdBase;
-      tierLabel = isPreEarnings ? `Standard Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Standard Momentum Setup (₹${Math.round(base/1000)}k Base)`;
-    } else if (stance === 'EXTENDED_RUNNER') {
-      base = Math.max(20000, Math.round(totalIndianEquityValuation * 0.005));
-      tierLabel = `Scout Test Entry (₹${Math.round(base/1000)}k Base)`;
+      base = isPreEarnings ? Math.round(stdBase * preEarningsFactor) : Math.round(stdBase * extendedFactor);
+      tierLabel = isExtendedRunner && !isPreEarnings
+        ? `Extended Tranche 1 (50% · ₹${Math.round(base/1000)}k)`
+        : isPreEarnings ? `Standard Pre-Earnings Tranche 1 (₹${Math.round(base/1000)}k Staged)` : `Standard Momentum Setup (₹${Math.round(base/1000)}k Base)`;
     }
 
     const factors = [tierLabel];
     if (isPreEarnings) {
       factors.push('Pre-Earnings Staged Entry (Tranche 1: 40% initial allocation; 60% dry powder for post-earnings confirmation)');
+    } else if (isExtendedRunner) {
+      const extPct = item.executiveStrategy?.extAbove30w;
+      factors.push(`50% Starter Tranche${extPct ? ` (+${extPct}% vs 30w-SMA)` : ''} · hold 50% for 50-EMA pullback or +4% breakout`);
     }
+    const scaledVcp = isExtendedRunner && !isPreEarnings ? Math.round(vcpBonus * extendedFactor) : vcpBonus;
+    const scaledSector = isExtendedRunner && !isPreEarnings ? Math.round(sectorBonus * extendedFactor) : sectorBonus;
     let total = base;
 
-    if (vcpBonus > 0) {
-      total += vcpBonus;
-      factors.push(`VCP Base Compression (+₹${Math.round(vcpBonus/1000)}k)`);
+    if (scaledVcp > 0) {
+      total += scaledVcp;
+      factors.push(`VCP Base Compression (+₹${Math.round(scaledVcp/1000)}k)`);
     }
 
-    if (sectorBonus > 0) {
-      total += sectorBonus;
-      factors.push(`Sector Tailwind [${item.sector}] (+₹${Math.round(sectorBonus/1000)}k)`);
+    if (scaledSector > 0) {
+      total += scaledSector;
+      factors.push(`Sector Tailwind [${item.sector}] (+₹${Math.round(scaledSector/1000)}k)`);
     }
 
     return {
@@ -515,7 +636,7 @@ export async function computeActionPlanBase({
   }
 
   // Build set of all symbols flagged for sell, trim, or floor breach in Sell Analysis
-  // Enforces 100% mutual exclusivity: zero stock can ever appear in both Buys and Sells
+  // Plus live 30-day post-sale cooling-off set from recent closed sells in transactions
   const sellSymbolSet = new Set();
   heldAnalyses.forEach(a => {
     if (['FULL_EXIT', 'REVIEW_PARTIAL_SALE', 'REVIEW_FUNDAMENTAL_TRIM', 'REVIEW_RISK_TRIM', 'MONITOR'].includes(a.action) ||
@@ -524,6 +645,16 @@ export async function computeActionPlanBase({
       sellSymbolSet.add(resolveCanonicalBaseSymbol(a.symbol));
     }
   });
+  const activeHeldSet = new Set(enrichedHoldings.map(h => resolveCanonicalBaseSymbol(h.symbol)));
+  const todayMs = Date.parse(`${getTodayIST()}T00:00:00Z`);
+  for (const tx of (transactions || [])) {
+    const type = String(tx.type || tx.transaction_type || '').toUpperCase();
+    if (!['SELL', 'REDEEM', 'REDEMPTION'].includes(type) || !tx.date) continue;
+    const sym = resolveCanonicalBaseSymbol(tx.symbol);
+    if (!sym || activeHeldSet.has(sym)) continue;
+    const ageDays = Math.round((todayMs - Date.parse(`${tx.date}T00:00:00Z`)) / 86400000);
+    if (ageDays >= 0 && ageDays <= 30) sellSymbolSet.add(sym);
+  }
 
   // Deduplicate and pool candidate buys (strictly excluding any sell/trim flagged symbols)
   const seenSymbols = new Set();
@@ -548,13 +679,20 @@ export async function computeActionPlanBase({
   // Evaluate each candidate
   const candidateEvaluations = allCandidatePool.map(x => {
     const cmp = Number(x.currentPrice) || 0;
-    const sl = x.executiveStrategy?.riskAndExit?.stopLoss || x.stopLoss || 0;
     const tgt = x.executiveStrategy?.riskAndExit?.targetPrice || x.targetPrice || 0;
     const stance = x.executiveStrategy?.stance || 'PRIME_SETUP';
     const symNorm = resolveCanonicalBaseSymbol(x.symbol);
     const holdingObj = enrichedHoldings.find(h => resolveCanonicalBaseSymbol(h.symbol) === symNorm);
     const heldQty = Number(holdingObj?.quantity) || 0;
     const isOwned = heldQty > 0;
+    const heldAnalysis = isOwned ? heldAnalyses.find(a => resolveCanonicalBaseSymbol(a.symbol) === symNorm) : null;
+    const rawSl = x.executiveStrategy?.riskAndExit?.stopLoss || x.stopLoss || 0;
+    // M6 Initial Stop Parity: Unproven fresh entries anchor 100% to -10% Flash Stop (-8% Friday Close);
+    // Owned positions inherit canonical M6 trailing / 30w-SMA floor.
+    const sl = isOwned
+      ? round2(heldAnalysis?.stagedExitPlan?.tranche1?.triggerPrice || heldAnalysis?.sma30Week || rawSl || cmp * 0.90)
+      : (cmp > 0 ? round2(cmp * 0.90) : round2(rawSl));
+    const slPct = cmp > 0 && sl > 0 ? round2(((sl - cmp) / cmp) * 100) : -10.0;
     const avgPrice = Number(holdingObj?.avg_buy_price || holdingObj?.average_buy_price || x.portfolioAvgPrice) || 0;
     const isInProfit = isOwned && avgPrice > 0 && cmp > avgPrice;
     const composite = Number(x.compositeScore) || 50;
@@ -612,8 +750,8 @@ export async function computeActionPlanBase({
     let actionType = isOwned ? 'BUY - ACCUMULATE (ADD TRANCHE)' : 'BUY - NEW POSITION';
     if (stance === 'PRE_EARNINGS') {
       actionType = isPrime ? 'BUY - PRE-EARNINGS PILOT TRANCHE (40%)' : 'STAND ASIDE (PRE-EARNINGS)';
-    } else if (sizing.tierLabel?.includes('Extended Runner Pilot Tranche')) {
-      actionType = 'BUY - PILOT TEST TRANCHE (25% - EXTENDED)';
+    } else if (!isOwned && stance === 'EXTENDED_RUNNER') {
+      actionType = 'BUY - TRANCHE 1 (50% - EXTENDED)';
     }
     if (isOwned && sizing.alloc <= 0) {
       if (sizing.tierLabel?.includes('Hold Core') || sizing.tierLabel?.includes('Cap Reached')) {
@@ -628,6 +766,9 @@ export async function computeActionPlanBase({
       name: x.name,
       cmp,
       sl,
+      slPct,
+      weeklySl: cmp > 0 ? round2(cmp * 0.92) : 0,
+      extAbove30w: x.executiveStrategy?.extAbove30w ?? null,
       tgt,
       stance,
       sourceSignal: x.sourceSignal,
@@ -1136,8 +1277,10 @@ export async function generateActionPlan({
         actionShares: fundedShares,
         actionValue: fundedValue,
         note: (cand.isOwned
-          ? `Tranche Addition (Holding ${cand.heldQty} shs): ${cand.sizing.summary}. Trail stop at ₹${cand.sl.toFixed(2)}.`
-          : `New Entry: ${cand.sizing.summary}. Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}, Stop ₹${cand.sl.toFixed(2)}.`) + partialNote
+          ? `Add ${fundedShares} shs (holding ${cand.heldQty} shs): ${cand.sizing.summary}. GTT SL ₹${cand.sl.toFixed(2)}.`
+          : cand.actionType?.includes('TRANCHE 1')
+            ? `Buy ${fundedShares} shs (50% Tranche 1${cand.extAbove30w ? ` · +${cand.extAbove30w}% vs 30w-SMA` : ''}; hold 50% for 50-EMA pullback or +4% breakout). M6 GTT SL ₹${cand.sl.toFixed(2)} (-10% flash / ₹${cand.weeklySl?.toFixed(2) || (cand.cmp * 0.92).toFixed(2)} Fri), Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}.`
+            : `Buy ${fundedShares} shs (${cand.sizing.tierLabel}). M6 GTT SL ₹${cand.sl.toFixed(2)} (-10% flash / ₹${cand.weeklySl?.toFixed(2) || (cand.cmp * 0.92).toFixed(2)} Fri), Target ₹${cand.tgt > 0 ? cand.tgt.toFixed(2) : '—'}.`) + partialNote
       });
     } else {
       const withinDailySpend = (dailySpend + effectiveAmount <= effectiveDeploymentCap) || (immediateBuys.length === 0);
@@ -1159,120 +1302,12 @@ export async function generateActionPlan({
   });
 
 
-  // 4. Construct Unified CSV Rows with Multi-Tranche Breakdown & Stop Loss Actions
-  const rows = [];
-  const header = [
-    'Execution Group',
-    'Action Type',
-    'Category / Setup Tier',
-    'Symbol',
-    'Company Name',
-    'Current Price (INR)',
-    'Action Quantity (Shares)',
-    'Action Value (INR)',
-    'Stop Loss Action',
-    'Stop Loss Trigger (INR)',
-    'Stop Loss Buffer %',
-    'Stop Loss Strategy Tier',
-    'Tranche / Staged Breakdown',
-    'Current Held Shares',
-    'Action Rationale & Strategy Guidance'
-  ];
-  rows.push(header);
-
-  // Section 1: Immediate Buys (Funded Today)
-  immediateBuys.forEach(b => {
-    const initialSl = round2(b.cmp * 0.90);
-    rows.push([
-      '1. IMMEDIATE BUY (FUNDED TODAY)',
-      b.actionType,
-      b.sizing?.tierLabel || b.stance,
-      b.symbol,
-      b.name,
-      b.cmp.toFixed(2),
-      b.actionShares,
-      b.actionValue.toFixed(2),
-      'ADD GTT SL AT ENTRY',
-      initialSl.toFixed(2),
-      '10.0%',
-      'INITIAL_10PCT_DEFENSE',
-      '100% Capital Defense',
-      b.heldQty,
-      `MPS ${b.mps} | ${b.note} | M6 GTT Stop: ₹${initialSl.toFixed(2)} (-10.0% flash / -8.0% Friday close).`
-    ]);
+  // 4. Construct Clean Actionable Execution CSV (Zero No-Op Queued / Up-to-Date Bloat)
+  const { rows, csv } = buildActionPlanCsv({
+    immediateBuys,
+    sells: activeSells,
+    stopLossActions
   });
-
-  // Section 2: Algorithmic Sells (Performance Decay)
-  activeSells.forEach(s => {
-    const trancheInfo = s.isFullExit
-      ? 'Full Exit (100%)'
-      : (s.tranche1Shares > 0 && s.tranche2Shares > 0
-          ? `T1: ${s.tranche1Shares} shs @ ₹${s.tranche1Trigger > 0 ? s.tranche1Trigger.toFixed(2) : '—'} | T2: ${s.tranche2Shares} shs @ ₹${s.tranche2Trigger > 0 ? s.tranche2Trigger.toFixed(2) : '—'}`
-          : (s.tranche1Shares > 0 ? `Tranche 1: ${s.tranche1Shares} shs` : 'Partial Trim'));
-
-    rows.push([
-      '2. ALGORITHMIC SELL (PERFORMANCE DECAY)',
-      s.actionType,
-      s.category,
-      s.symbol,
-      s.name,
-      s.cmp.toFixed(2),
-      s.quantity,
-      s.actionValue.toFixed(2),
-      'CANCEL GTT SL / EXECUTED',
-      s.triggerPrice > 0 ? s.triggerPrice.toFixed(2) : '—',
-      '0.0% (Trigger Breached)',
-      'EXIT_TRIGGERED',
-      trancheInfo,
-      s.heldShares,
-      s.reason
-    ]);
-  });
-
-  // Section 3: Stop Loss Management & GTT Updates for Open Holdings
-  stopLossActions.forEach(a => {
-    rows.push([
-      '3. STOP LOSS & GTT UPDATES (OPEN HOLDINGS)',
-      a.gttStatusLabel,
-      `${a.tier} (${a.trancheStage})`,
-      a.symbol,
-      a.name,
-      a.cmp.toFixed(2),
-      a.targetQty,
-      round2(a.targetQty * a.cmp).toFixed(2),
-      a.isActionRequired ? 'ACTION REQUIRED (BROKER)' : 'IN SYNC (ACTIVE)',
-      a.targetSlPrice.toFixed(2),
-      `+${a.distanceToSlPct.toFixed(1)}%`,
-      a.activeGttPrice ? `Active: ₹${a.activeGttPrice.toFixed(2)} (Delta +₹${a.slDelta.toFixed(2)})` : 'GTT Unset',
-      a.action,
-      a.qty,
-      `P&L: ${a.pnlPct >= 0 ? '+' : ''}${a.pnlPct.toFixed(1)}% (Cost ₹${a.avgBuyPrice}) | Action Shares: ${a.targetQty} of ${a.qty} held (${a.trancheStage}) | ${a.rationale || a.reason}`
-    ]);
-  });
-
-  // Section 4: Queued Candidates (For Next Periodic Infusion)
-  queuedBuys.forEach(q => {
-    const initialSl = round2(q.cmp * 0.90);
-    rows.push([
-      '4. QUEUED BUY (NEXT PERIODIC INFUSION)',
-      q.actionType,
-      q.sizing?.tierLabel || q.stance,
-      q.symbol,
-      q.name,
-      q.cmp.toFixed(2),
-      q.targetShares,
-      q.targetAmount.toFixed(2),
-      'PLAN GTT SL AT ENTRY',
-      initialSl.toFixed(2),
-      '10.0%',
-      'INITIAL_10PCT_DEFENSE',
-      'Awaiting Fresh Infusion',
-      q.heldQty,
-      `MPS ${q.mps} | ${q.note}`
-    ]);
-  });
-
-  const csv = rows.map(r => r.map(escapeCsvCell).join(',')).join('\r\n');
   const today = getTodayIST();
   const totalImmediateBuyValue = round2(immediateBuys.reduce((sum, b) => sum + b.actionValue, 0));
   const unallocatedCashBuffer = round2(Math.max(0, totalPurchasingPower - totalImmediateBuyValue));
