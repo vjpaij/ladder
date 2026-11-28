@@ -104,7 +104,7 @@ export default function ActionPlanModal({ isOpen, onClose }) {
     return plan?.pruningSells || (plan?.sells || []).filter(s => s.isPruning);
   }, [plan?.pruningSells, plan?.sells]);
 
-  const fetchPlan = useCallback(async (cash = null, mode = null) => {
+  const fetchPlan = useCallback(async (cash = null, mode = null, retryAttempt = 0) => {
     setLoading(true);
     setError(null);
     try {
@@ -136,6 +136,11 @@ export default function ActionPlanModal({ isOpen, onClose }) {
         }
       }
     } catch (err) {
+      if (err.response?.status === 429 && retryAttempt < 2) {
+        const delayMs = 1500 * (retryAttempt + 1);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return fetchPlan(cash, mode, retryAttempt + 1);
+      }
       console.error('[ActionPlanModal] Fetch error:', err);
       setError(err.response?.data?.error || err.message || 'Failed to generate action plan');
     } finally {
